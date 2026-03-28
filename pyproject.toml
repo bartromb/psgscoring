@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "psgscoring"
+version = "0.2.0"
+description = "AASM 2.6-compliant respiratory event scoring for polysomnography"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Bart Rombaut", email = "bart.rombaut@azorg.be" },
+]
+keywords = [
+  "polysomnography", "PSG", "sleep apnea", "AASM",
+  "respiratory scoring", "AHI", "hypopnea", "signal processing",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Healthcare Industry",
+  "License :: OSI Approved :: BSD Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Medical Science Apps.",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+requires-python = ">=3.9"
+dependencies = [
+  "numpy>=1.22",
+  "scipy>=1.8",
+  "mne>=1.0",
+]
+
+[project.optional-dependencies]
+lgbm = ["lightgbm>=4.0"]
+dev = [
+  "pytest>=7.0",
+  "pytest-cov",
+  "flake8",
+  "hypothesis",
+]
+full = ["psgscoring[lgbm,dev]"]
+
+[project.urls]
+Homepage     = "https://github.com/bartromb/psgscoring"
+Repository   = "https://github.com/bartromb/psgscoring"
+Issues       = "https://github.com/bartromb/psgscoring/issues"
+Changelog    = "https://github.com/bartromb/psgscoring/blob/main/CHANGES.md"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["psgscoring*"]
+exclude = ["tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.flake8]
+max-line-length = 100
+ignore = ["E501", "W503"]
+exclude = ["__pycache__", ".git", "dist", "build"]
