@@ -1,24 +1,15 @@
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
-.Python
-*.egg
 *.egg-info/
 dist/
 build/
+*.egg
 .eggs/
 
-# Virtual environments
-.venv/
+# Virtual env
 venv/
-env/
-
-# Test artefacts
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
+.venv/
 
 # IDE
 .vscode/
@@ -26,14 +17,11 @@ htmlcov/
 *.swp
 *~
 
-# macOS
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS
 .DS_Store
-
-# EDF test files (never commit patient data)
-*.edf
-*.EDF
-
-# Model files (distribute separately)
-*.lgbm
-*.pkl
-*.joblib
+Thumbs.db

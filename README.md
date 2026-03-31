@@ -1,61 +1,20 @@
 # psgscoring
 
-**AASM 2.6-compliant respiratory event scoring for polysomnography — pure NumPy/SciPy.**
+**AASM 2.6-compliant respiratory event scoring for polysomnography.**
 
-[![License: BSD-3](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.0-green.svg)](CHANGES.md)
-[![Python](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-blue.svg)](.github/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-112%20passing-brightgreen.svg)](tests/)
+A Python library implementing validated signal processing algorithms for automated detection of apneas, hypopneas, arousals, periodic limb movements, and SpO₂ desaturations from standard PSG recordings.
 
-`psgscoring` extracts the core respiratory scoring algorithms from
-[YASAFlaskified](https://github.com/bartromb/YASAFlaskified) into a
-standalone, pip-installable Python library for research use.
-
-No deep learning, no GPU required. Pure NumPy + SciPy.
-
----
-
-## Table of Contents
-
-- [Features](#features)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [API Reference](#api-reference)
-- [Scoring Algorithms](#scoring-algorithms)
-- [Over-counting Corrections (v0.8.10)](#over-counting-corrections-v0810)
-- [Signal Processing Improvements (v0.8.11)](#signal-processing-improvements-v0811)
-- [Module Structure](#module-structure)
-- [Citation](#citation)
-- [License](#license)
-
----
-
-## Features
-
-- **Square-root nasal pressure linearisation** (Bernoulli correction, AASM 2.6)
-- **MMSD apnea validation** — distinguishes apnoea from signal-dropout (κ=0.78)
-- **Dual-sensor detection** — thermistor for apnoea, NPT for hypopnoea
-- **Hypopnoea Rule 1A + 1B** — SpO₂ coupling + arousal reinstatement
-- **7-rule apnoea type classification** — obstructive / central / mixed + confidence
-- **Phase-angle classification** via Hilbert transform (v0.8.11)
-- **Dynamic 5-min sliding baseline** with stage-specific correction
-- **SpO₂ coupling** with temporal constraints (30-s post-event window)
-- **Breath-by-breath analysis** — flattening index, zero-crossing rate
-- **PLM scoring** (AASM 2.6 + WASM criteria)
-- **Cheyne-Stokes detection** via autocorrelation
-- **Five systematic over-counting corrections** (v0.8.10)
-- **Patient-specific baseline anchoring** — mouth-breathing detection (v0.8.11)
-- **Optional LightGBM confidence calibration** (v0.8.11)
-
----
+No deep learning. No GPU. Pure signal processing with `scipy` and `numpy`.
 
 ## Installation
 
 ```bash
-# From PyPI (when published)
 pip install psgscoring
+```
 
-# From source
+Or from source:
+
+```bash
 git clone https://github.com/bartromb/psgscoring.git
 cd psgscoring
 pip install -e .
@@ -63,270 +22,251 @@ pip install -e .
 
 **Dependencies:** `numpy>=1.22`, `scipy>=1.8`, `mne>=1.0`
 
-**Optional:** `lightgbm` (confidence calibration only)
-
----
-
 ## Quick Start
-
-### Full pipeline via MNE Raw object
 
 ```python
 import mne
-from psgscoring import run_pneumo_analysis
+from psgscoring import run_full_analysis
 
-raw = mne.io.read_raw_edf("study.edf", preload=False, verbose=False)
-hypno = [...]  # list of stage strings: "W", "N1", "N2", "N3", "R"
+# Load PSG recording
+raw = mne.io.read_raw_edf("recording.edf", preload=True)
 
-results = run_pneumo_analysis(raw=raw, hypno=hypno)
+# Sleep stages from YASA or manual scoring (one label per 30s epoch)
+hypno = ["W", "N1", "N2", "N2", "N3", "N3", "N2", "R", ...]
 
-summary = results["respiratory"]["summary"]
-print(f"AHI:  {summary['ahi_total']:.1f} /h")
-print(f"OAHI: {summary['oahi']:.1f} /h")
-print(f"ODI:  {summary['odi_3pct']:.1f} /h")
+# Run full analysis
+results = run_full_analysis(raw, hypno)
 
-# Over-counting correction indices (v0.8.10)
-print(f"CSR-flagged events: {summary['n_csr_flagged']}")
-print(f"AHI excl. noise:    {summary['ahi_excl_noise']:.1f} /h")
+# Access results
+ahi = results["respiratory"]["summary"]["ahi_total"]
+oahi = results["respiratory"]["summary"]["oahi"]
+odi = results["spo2"]["summary"]["odi"]
+plmi = results["plm"]["summary"]["plm_index"]
 
-# Baseline anchoring (v0.8.11)
-anchor = results["anchor_baseline"]
-print(f"Mouth breathing suspected: {anchor['mouth_breathing_suspected']}")
+print(f"AHI: {ahi:.1f}, OAHI: {oahi:.1f}, ODI: {odi:.1f}, PLMI: {plmi:.1f}")
 ```
 
-### Respiratory scoring only (NumPy arrays)
+## Individual Functions
+
+Each algorithm can be used independently:
 
 ```python
 import numpy as np
-from psgscoring.respiratory import detect_respiratory_events
-
-# flow_data, hypop_flow: NumPy arrays at sf_flow Hz
-result = detect_respiratory_events(
-    flow_data    = flow_array,      # thermistor (apnoea)
-    hypop_flow   = npd_array,       # nasal pressure (hypopnoea)
-    thorax_data  = thorax_array,    # RIP thorax
-    abdomen_data = abdomen_array,   # RIP abdomen
-    spo2_data    = spo2_array,
-    sf_flow      = 256.0,
-    sf_spo2      = 25.6,
-    sf_hypop     = 256.0,
-    hypno        = hypno_list,
+from psgscoring import (
+    linearize_nasal_pressure,
+    compute_mmsd,
+    preprocess_flow,
+    compute_dynamic_baseline,
+    detect_breaths,
+    compute_flattening_index,
+    bandpass_flow,
 )
 
-events  = result["events"]          # list of dicts
-summary = result["summary"]
+# Load nasal pressure channel
+nasal = raw.get_data(picks=["NasalPressure"])[0]
+sf = raw.info["sfreq"]  # e.g. 256 Hz
 
-for ev in events[:5]:
-    print(f"{ev['type']:20s}  onset={ev['onset_s']:.1f}s  "
-          f"conf={ev['confidence']:.2f}  phase={ev.get('phase_angle_deg','—')}°")
+# 1. Linearize nasal pressure (Monserrat/Thurnheer)
+nasal_lin = linearize_nasal_pressure(nasal)
+
+# 2. Compute flow envelope
+envelope = preprocess_flow(nasal, sf, is_nasal_pressure=True)
+
+# 3. Dynamic baseline
+baseline = compute_dynamic_baseline(envelope, sf)
+
+# 4. Normalized flow (1.0 = normal, 0.0 = apnea)
+flow_norm = np.clip(envelope / baseline, 0, 2)
+
+# 5. MMSD for drift-independent validation
+filtered = bandpass_flow(nasal_lin, sf)
+mmsd = compute_mmsd(filtered, sf)
+
+# 6. Breath-by-breath analysis
+breaths = detect_breaths(filtered, sf)
+for b in breaths[:5]:
+    fi = compute_flattening_index(b["insp_segment"])
+    print(f"  Breath at {b['onset_s']:.1f}s, amp={b['amplitude']:.3f}, flat={fi:.2f}")
 ```
 
-### Apnoea type classification only
+---
+
+## Algorithms
+
+### A. Square-Root Linearization of Nasal Pressure
+
+**Problem:** Nasal pressure transducers produce a signal proportional to flow² (Bernoulli's principle). A 50% flow reduction appears as a 75% amplitude reduction in the raw signal → systematic overestimation of hypopneas.
+
+**Solution:**
+
+```
+x_lin(t) = sign(x(t)) × √|x(t)|
+```
+
+Applied before bandpass filtering, exclusively on the nasal pressure channel (hypopnea detection), not on the thermistor (apnea detection). This preserves the AASM dual-sensor paradigm.
+
+**Function:** `linearize_nasal_pressure(data) → ndarray`
+
+**References:**
+- Thurnheer R, Xie X, Bloch KE. *Accuracy of nasal cannula pressure recordings for assessment of ventilation during sleep.* Am J Respir Crit Care Med. 2001;164(10):1914-1919. — Confirmed r²=0.88–0.96 vs pneumotachography.
+- Montserrat JM, et al. *Effectiveness of CPAP treatment in daytime function in sleep apnea syndrome.* Am J Respir Crit Care Med. 2001;164(4):608-613.
+- AASM Scoring Manual v2.6 Rule 3: *"nasal pressure transducer (with or without square root transformation of the signal)"*
+
+### B. MMSD Apnea Validation
+
+**Problem:** During long recordings, baseline drift from sensor displacement or mouth breathing creates false amplitude drops that the envelope method misinterprets as apneas.
+
+**Solution:** The Mean Magnitude of Second Derivative (MMSD) measures the "sharpness" of the flow waveform — independent of absolute amplitude and drift:
+
+```
+MMSD(t) = (1/N) × Σ |x''(i)|   over 1-second window
+```
+
+Active breathing has high MMSD (sharp wave transitions). True apnea has near-zero MMSD. If normalized MMSD > 40% of baseline during a candidate apnea, respiratory activity is still present → false positive rejected.
+
+**Function:** `compute_mmsd(flow_data, sf, window_s=1.0) → ndarray`
+
+**Reference:**
+- Lee H, Park J, Kim H, Lee K-J. *Detection of apneic events from single channel nasal airflow using 2nd derivative method.* Physiol Meas. 2008;29:N37-N45. — 92% agreement with manual scoring (κ=0.78) on 24 PSG recordings.
+
+### C. Dual-Sensor Detection (AASM 2.6)
+
+The AASM recommends different sensors for different event types:
+
+| Sensor | Role | Threshold |
+|--------|------|-----------|
+| Oronasal thermistor | Apnea (cessation) | < 10% baseline, ≥10s |
+| Nasal pressure (√-linearized) | Hypopnea (partial) | 10–70% baseline, ≥10s |
+
+**Apnea–Hypopnea Exclusion Mask:** After apnea detection, a ±5s margin around each apnea is masked out before hypopnea labeling, preventing double-counting of apnea flanks.
+
+**Apnea Type Classification** uses four-step effort analysis on thoracic/abdominal RIP:
+1. Amplitude ratio vs baseline (>40% = obstructive, <20% = central)
+2. Coefficient of variation (paradoxical breathing)
+3. Cross-correlation thorax–abdomen (out-of-phase = obstructive)
+4. First/second half comparison (mixed event detection)
+
+**Function:** `detect_respiratory_events(flow_data, thorax_data, abdomen_data, spo2_data, sf_flow, sf_spo2, hypno, ...) → dict`
+
+**Reference:**
+- Berry RB, et al. *The AASM Manual for the Scoring of Sleep and Associated Events.* Version 2.6. AASM; 2020.
+
+### D. Temporally Constrained SpO₂ Coupling
+
+A hypopnea requires ≥3% SpO₂ desaturation (Rule 1A) or an arousal (Rule 1B).
+
+**Improvements over naive matching:**
+- **Baseline:** 90th percentile of 120s pre-event SpO₂ (or global sleep baseline if local is depressed during cluster apneas)
+- **Nadir window:** Event onset → 30s post-event (reduced from 45s)
+- **Temporal validation:** Nadir must fall ≥3s after event onset (circulatory delay). Early nadirs with small desaturation (<5%) are rejected as coincidental.
+
+**Reference:**
+- Uddin MB, Chow CM, Ling SH, Su SW. *A novel algorithm for automatic diagnosis of sleep apnea from airflow and oximetry signals.* Physiol Meas. 2021;42:015001.
+
+### E. Two-Pass Rule 1B (Arousal Criterion)
+
+**Novel approach:** Hypopnea candidates without ≥3% desaturation are stored as *rejected candidates* (not discarded). After arousal detection completes in a later pipeline stage, candidates are re-evaluated. An arousal within 15s of event termination → event reinstated as Rule 1B hypopnea with AHI recalculation.
+
+**Function:** `reinstate_rule1b_hypopneas(rejected, arousal_events, resp_events, hypno) → (reinstated, updated_events)`
+
+### F. Breath-by-Breath Analysis
+
+Zero-crossing segmentation of bandpass-filtered flow (1–15s per breath cycle). Per breath:
+- **Amplitude:** peak-to-trough distance (AASM definition)
+- **Local baseline:** median of preceding 10 breaths
+- **Flattening index:** fraction of inspiratory segment >80% of peak flow. Values >0.3 indicate flow limitation (relevant for RERA detection).
+
+**Functions:** `detect_breaths()`, `compute_breath_amplitudes()`, `compute_flattening_index()`
+
+### G. Cheyne-Stokes Respiration
+
+Autocorrelation of very-low-frequency flow envelope (0.005–0.05 Hz, 20–200s periodicities). Peak correlation >0.3 in 40–120s lag range → periodic crescendo-decrescendo pattern. Clinical flag: association with heart failure (NYHA III–IV).
+
+**Function:** `detect_cheyne_stokes(flow_env, sf, hypno) → dict`
+
+### H. Two-Phase Arousal Detection
+
+AASM-compliant spectral arousal detection with sigma-band spindle exclusion:
+
+- **Phase 1:** Identify regions where combined arousal power (α_narrow 8–11Hz + θ 4–8Hz + β 16–30Hz) exceeds 2.0× per-stage baseline. Label contiguous segments ≥3s.
+- **Phase 2:** Validate each candidate event:
+  - Pre-sleep: ≥60% of 10s pre-window is sleep
+  - Onset abruptness: first 1s power / 3s pre-power > 1.5×
+  - Spindle exclusion: reject if sigma >2× baseline AND arousal power < sigma
+  - REM EMG: EMG rise >2× baseline for ≥1s
+
+**Function:** `detect_arousals(eeg_data, sf, hypno, emg_data=None) → dict`
+
+### I. PLM Scoring (AASM 2.6)
+
+- EMG ≥8µV above resting, 0.5–10s duration (auto V→µV conversion)
+- Bilateral integration (±0.5s)
+- Wake excluded; respiratory-associated (±0.5s of event end) excluded
+- Series: ≥4 consecutive with 5–90s intervals
+
+**Function:** `analyze_plm(leg_l, leg_r, sf, hypno, resp_events=None) → dict`
+
+**Reference:**
+- Zucconi M, et al. *WASM standards for recording and scoring PLM.* Sleep Med. 2006;7(2):175-183.
+
+---
+
+## Output Structure
+
+`run_full_analysis()` returns a dict:
 
 ```python
-from psgscoring.classify import classify_apnea_type
-
-ev_type, confidence, detail = classify_apnea_type(
-    onset_idx    = 5120,
-    end_idx      = 9216,
-    thorax_env   = thorax_envelope,
-    abdomen_env  = abdomen_envelope,
-    thorax_raw   = thorax_raw,
-    abdomen_raw  = abdomen_raw,
-    effort_baseline = 1.0,
-    sf           = 256.0,
-)
-
-print(f"Type: {ev_type}, Confidence: {confidence:.2f}")
-print(f"Phase angle: {detail['phase_angle_deg']}°")
-print(f"Decision reason: {detail['decision_reason']}")
-```
-
-### Baseline anchoring
-
-```python
-from psgscoring.signal import preprocess_flow, compute_anchor_baseline
-
-flow_env = preprocess_flow(flow_data, sf=256.0, is_nasal_pressure=False)
-anchor   = compute_anchor_baseline(
-    flow_env, sf=256.0, hypno=hypno,
-    events=scored_events,
-)
-
-print(f"Anchor value:  {anchor['anchor_value']:.4f}")
-print(f"Anchor ratio:  {anchor['anchor_ratio']:.3f}")
-print(f"Mouth breathing: {anchor['mouth_breathing_suspected']}")
-```
-
----
-
-## API Reference
-
-### `run_pneumo_analysis(raw, hypno, **kwargs) → dict`
-
-Master function. Accepts an MNE `Raw` object and hypnogram list.
-
-Returns a dict with keys:
-`respiratory`, `spo2`, `plm`, `arousal`, `cheyne_stokes`,
-`anchor_baseline`, `heart_rate`, `snoring`, `position`,
-`signal_quality`, `breath_analysis`.
-
-### `detect_respiratory_events(...) → dict`
-
-Core respiratory scoring. Returns:
-- `events`: list of event dicts
-- `rejected_hypopneas`: candidates that failed Rule 1A/1B
-- `summary`: all respiratory indices
-- `n_gap_excluded`: artefact gaps detected (Fix 5)
-
-**Summary fields (selected):**
-
-| Field | Description |
-|-------|-------------|
-| `ahi_total` | Total AHI (/h TST) |
-| `oahi` | OAHI — all obstructive + hypopnoeas (AASM) |
-| `oahi_thresholds` | OAHI at confidence ≥0.85 / ≥0.60 / ≥0.40 / 0.00 |
-| `confidence_bands` | `{high, moderate, borderline, low}` event counts |
-| `n_spo2_cross_contaminated` | Fix 2 events |
-| `n_csr_flagged` | Fix 3 — CSR-related events |
-| `ahi_csr_corrected` | AHI excluding CSR-flagged events |
-| `n_low_conf_borderline` | Fix 4 — confidence 0.40–0.59 |
-| `n_low_conf_noise` | Fix 4 — confidence <0.40 |
-| `ahi_excl_noise` | AHI excluding confidence <0.40 events |
-| `n_gap_excluded` | Fix 5 — artefact gaps |
-
-### `classify_apnea_type(onset_idx, end_idx, ...) → (str, float, dict)`
-
-Returns `(type, confidence, detail)`.
-Type: `"obstructive"`, `"central"`, or `"mixed"`.
-
-### `compute_anchor_baseline(flow_env, sf, hypno, ...) → dict`
-
-Returns patient-specific N2-anchor baseline dict.
-
-### `compute_dynamic_baseline(flow_env, sf) → np.ndarray`
-
-5-min sliding 95th-percentile baseline, linearly interpolated.
-
----
-
-## Scoring Algorithms
-
-### Signal processing chain
-
-```
-Raw EDF signal
-  │
-  ├─ [Apnoea channel] Thermistor (no sqrt)
-  │    → bandpass 0.05–3 Hz
-  │    → Hilbert envelope
-  │    → MMSD validation
-  │    → dynamic baseline (5 min, P95)
-  │    → stage-specific baseline blend
-  │
-  └─ [Hypopnoea channel] Nasal pressure transducer
-       → sign(x)·√|x|  (Bernoulli linearisation)
-       → bandpass 0.05–3 Hz
-       → Hilbert envelope
-       → dynamic baseline
-```
-
-### Apnoea type classification (7 rules)
-
-```
-Rule 0: Hilbert phase angle ≥45°  →  obstructive  (v0.8.11)
-Rule 1: paradox correlation + raw variability  →  obstructive
-Rule 2: high raw variability, low envelope  →  obstructive
-Rule 3: first half absent + second half present  →  mixed
-Rule 4: effort ratio > EFFORT_PRESENT_RATIO  →  obstructive
-Rule 5: fully flat (no effort signs)  →  central
-Rule 6: borderline default  →  obstructive (confidence 0.40)
-```
-
-### Performance (8-hour PSG at 256 Hz)
-
-| Step | Time |
-|------|------|
-| `compute_dynamic_baseline` | ~3.5 s |
-| `compute_stage_baseline` | ~2 s |
-| Event detection (`find_objects`) | <1 s |
-| All 5 over-counting fixes | <1 s |
-| **Total `detect_respiratory_events`** | **~9–12 s** |
-
----
-
-## Over-counting Corrections (v0.8.10)
-
-See [YASAFlaskified CHANGES.md](https://github.com/bartromb/YASAFlaskified/blob/main/CHANGES.md)
-for detailed descriptions. Summary:
-
-| Fix | Field in summary | Bias addressed |
-|-----|-----------------|----------------|
-| 1 | (implicit — baseline) | Post-apnoea hyperpnoea baseline inflation |
-| 2 | `n_spo2_cross_contaminated` | SpO₂ nadir cross-contamination at AHI >60/h |
-| 3 | `n_csr_flagged`, `ahi_csr_corrected` | Cheyne-Stokes decrescendo scored as hypopnoea |
-| 4 | `n_low_conf_borderline`, `n_low_conf_noise`, `ahi_excl_noise` | Borderline Rule-6 defaults at poor RIP quality |
-| 5 | `n_gap_excluded` | Post-gap recovery ramp scored as event |
-
----
-
-## Signal Processing Improvements (v0.8.11)
-
-| Feature | Function | Notes |
-|---------|----------|-------|
-| Phase-angle classification | `_compute_phase_angle()` in `classify.py` | Rule 0 fires before 6 legacy rules |
-| Baseline anchoring | `compute_anchor_baseline()` in `signal.py` | N2 event-free median RMS |
-| LightGBM calibration | `_lgbm_confidence()` in `classify.py` | `PSGSCORING_LGBM_MODEL` env var |
-
----
-
-## Module Structure
-
-```
-psgscoring/
-├── __init__.py       # Public API (33 symbols)
-├── constants.py      # AASM thresholds, band limits
-├── utils.py          # Sleep masks, build_sleep_mask()
-├── signal.py         # Preprocessing, baseline, MMSD, anchoring
-├── breath.py         # Breath-by-breath, flattening index
-├── classify.py       # Apnoea type classification (7 rules + Hilbert)
-├── spo2.py           # SpO₂ coupling, ODI
-├── plm.py            # PLM detection
-├── ancillary.py      # HR, snore, position, CSR
-├── respiratory.py    # Apnoea/hypopnoea + 5 corrections
-├── pipeline.py       # run_pneumo_analysis() master function
-└── tests/
-    ├── test_signal.py
-    ├── test_classify.py
-    ├── test_respiratory.py
-    ├── test_spo2.py
-    ├── test_plm.py
-    └── test_pipeline.py
-```
-
----
-
-## Citation
-
-```bibtex
-@software{rombaut2026psgscoring,
-  author    = {Rombaut, Bart},
-  title     = {{psgscoring}: AASM 2.6-compliant respiratory event scoring
-               for polysomnography},
-  year      = {2026},
-  version   = {0.2.0},
-  publisher = {GitHub},
-  url       = {https://github.com/bartromb/psgscoring}
+{
+    "respiratory": {
+        "success": True,
+        "events": [
+            {"type": "obstructive", "onset_s": 1234.5, "duration_s": 15.2,
+             "stage": "N2", "desaturation_pct": 4.1, "min_spo2": 88.3, ...},
+            ...
+        ],
+        "summary": {
+            "ahi_total": 23.4,
+            "oahi": 20.1,
+            "central_index": 3.3,
+            "n_obstructive": 85,
+            "n_central": 14,
+            "n_mixed": 3,
+            "n_hypopnea": 65,
+            "severity": "moderate",
+            ...
+        },
+    },
+    "spo2": {"summary": {"odi": 18.2, "mean_spo2": 93.1, "min_spo2": 71, ...}},
+    "plm": {"summary": {"plm_index": 8.3, "n_plm": 42, ...}},
+    "arousal": {"summary": {"arousal_index": 28.1, "n_respiratory_arousals": 45, ...}},
+    "cheyne_stokes": {"csr_detected": False, ...},
+    "position": {...},
+    "heart_rate": {...},
+    "snore": {...},
 }
 ```
 
-Also cite:
-- YASA: Vallat & Walker (2021), *eLife* 10:e70092
-- AASM 2.6: Berry et al. (2020), American Academy of Sleep Medicine
-- Nasal pressure linearisation: Thurnheer et al. (2001), *AJRCCM* 164:1914
+## Disclaimer
 
----
+psgscoring is a **screening tool**. It does not replace manual scoring by a registered polysomnographic technician or medical diagnosis by a board-certified sleep physician. Not FDA-cleared or CE-marked.
 
 ## License
 
-BSD 3-Clause — Copyright (c) 2024–2026 Bart Rombaut / Slaapkliniek AZORG.
+BSD-3-Clause
+
+## Citation
+
+If you use psgscoring in published research, please cite:
+
+```bibtex
+@software{rombaut2026psgscoring,
+  author = {Rombaut, Bart},
+  title = {psgscoring: AASM 2.6-compliant respiratory event scoring for polysomnography},
+  year = {2026},
+  url = {https://github.com/bartromb/psgscoring},
+}
+```
+
+## Acknowledgments
+
+Sleep staging relies on [YASA](https://github.com/raphaelvallat/yasa) by Raphael Vallat and Matthew Walker (eLife, 2021).
