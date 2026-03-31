@@ -2,7 +2,14 @@
 
 **AASM 2.6-compliant respiratory event scoring for polysomnography.**
 
-A Python library implementing validated signal processing algorithms for automated detection of apneas, hypopneas, arousals, periodic limb movements, and SpO₂ desaturations from standard PSG recordings.
+[![License: BSD-3](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.2.0-green.svg)](CHANGES.md)
+[![Python](https://img.shields.io/badge/python-≥3.9-blue.svg)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/tests-112%20passed-brightgreen.svg)](tests/)
+[![AASM](https://img.shields.io/badge/AASM-2.6-orange.svg)](https://aasm.org)
+[![No GPU](https://img.shields.io/badge/GPU-not%20required-lightgrey.svg)]()
+
+A Python library implementing validated signal processing algorithms for automated detection of apneas, hypopneas, arousals, periodic limb movements, and SpO2 desaturations from standard PSG recordings.
 
 No deep learning. No GPU. Pure signal processing with `scipy` and `numpy`.
 
@@ -151,12 +158,12 @@ The AASM recommends different sensors for different event types:
 **Reference:**
 - Berry RB, et al. *The AASM Manual for the Scoring of Sleep and Associated Events.* Version 2.6. AASM; 2020.
 
-### D. Temporally Constrained SpO₂ Coupling
+### D. Temporally Constrained SpO2 Coupling
 
-A hypopnea requires ≥3% SpO₂ desaturation (Rule 1A) or an arousal (Rule 1B).
+A hypopnea requires ≥3% SpO2 desaturation (Rule 1A) or an arousal (Rule 1B).
 
 **Improvements over naive matching:**
-- **Baseline:** 90th percentile of 120s pre-event SpO₂ (or global sleep baseline if local is depressed during cluster apneas)
+- **Baseline:** 90th percentile of 120s pre-event SpO2 (or global sleep baseline if local is depressed during cluster apneas)
 - **Nadir window:** Event onset → 30s post-event (reduced from 45s)
 - **Temporal validation:** Nadir must fall ≥3s after event onset (circulatory delay). Early nadirs with small desaturation (<5%) are rejected as coincidental.
 
