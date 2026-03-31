@@ -255,11 +255,66 @@ AASM-compliant spectral arousal detection with sigma-band spindle exclusion:
 
 ## Disclaimer
 
-psgscoring is a **screening tool**. It does not replace manual scoring by a registered polysomnographic technician or medical diagnosis by a board-certified sleep physician. Not FDA-cleared or CE-marked.
+> **psgscoring is research software — not a medical device.**
+>
+> It is intended exclusively for use by qualified professionals (physicians,
+> researchers, registered polysomnographic technologists) in a research or
+> clinical research context. It has **not** been evaluated, cleared, or approved
+> by the EU (MDR 2017/745), the U.S. FDA, or any equivalent regulatory authority.
+> It does **not** carry a CE mark or FDA clearance.
+>
+> All computed indices (AHI, OAHI, ODI, PLMI, arousal index, RDI) are
+> **research-grade estimates** that must be reviewed by a qualified clinician
+> before any diagnostic or therapeutic decision. Automated sleep staging
+> (~85% epoch agreement) does not meet the standard for unsupervised clinical use.
+>
+> A pilot validation study (target n=50) is in preparation. Until published,
+> all results should be treated as provisional.
+>
+> See [DISCLAIMER.md](DISCLAIMER.md) for the full medical and clinical disclaimer.
 
 ## License
 
-BSD-3-Clause
+BSD-3-Clause — see [LICENSE](LICENSE).
+
+## References
+
+### Scoring guidelines
+
+1. Berry RB, Quan SF, Abreu AR, et al. **The AASM Manual for the Scoring of Sleep and Associated Events: Rules, Terminology and Technical Specifications.** Version 2.6. American Academy of Sleep Medicine; 2020.
+
+### Nasal pressure linearization
+
+2. Thurnheer R, Xie X, Bloch KE. **Accuracy of nasal cannula pressure recordings for assessment of ventilation during sleep.** *Am J Respir Crit Care Med.* 2001;164(10):1914–1919. doi:10.1164/ajrccm.164.10.2101072
+3. Montserrat JM, Farré R, Ballester E, et al. **Evaluation of nasal prongs for estimating nasal flow.** *Am J Respir Crit Care Med.* 1997;155(1):211–215. doi:10.1164/ajrccm.155.1.9001314
+
+### MMSD apnea validation
+
+4. Lee H, Park J, Kim H, Lee K-J. **New method for the detection of apneic events from nasal cannula pressure recordings using the second derivative.** *Comput Biol Med.* 2008;38:1105–1112. doi:10.1016/j.compbiomed.2008.08.007
+
+### SpO2 desaturation coupling
+
+5. Uddin MB, Chow CM, Ling SH, Su SW. **A novel algorithm for automatic diagnosis of sleep apnea from airflow and oximetry signals.** *Physiol Meas.* 2021;42:015001. doi:10.1088/1361-6579/abd47a
+
+### PLM scoring
+
+6. Zucconi M, Ferri R, Allen R, et al. **The official World Association of Sleep Medicine (WASM) standards for recording and scoring periodic leg movements in sleep (PLMS) and wakefulness (PLMW).** *Sleep Med.* 2006;7(2):175–183. doi:10.1016/j.sleep.2006.01.001
+
+### Arousal scoring
+
+7. Bonnet MH, Doghramji K, Roehrs T, et al. **The scoring of arousal in sleep: reliability, validity and alternatives.** *J Clin Sleep Med.* 2007;3(2):133–145. doi:10.5664/jcsm.26815
+
+### Flattening index / flow limitation
+
+8. Aittokallio T, Saaresranta T, Polo-Kantola P, et al. **Analysis of inspiratory flow shapes in patients with partial upper-airway obstruction during sleep.** *Chest.* 2001;119(1):37–44. doi:10.1378/chest.119.1.37
+
+### Sleep staging (upstream)
+
+9. Vallat R, Walker MP. **An open-source, high-performance tool for automated sleep staging.** *eLife.* 2021;10:e70092. doi:10.7554/eLife.70092
+
+### Cheyne-Stokes respiration
+
+10. Leung RST, Bradley TD. **Sleep apnea and cardiovascular disease.** *Am J Respir Crit Care Med.* 2001;164(12):2147–2165. doi:10.1164/ajrccm.164.12.2107045
 
 ## Citation
 
@@ -276,4 +331,6 @@ If you use psgscoring in published research, please cite:
 
 ## Acknowledgments
 
-Sleep staging relies on [YASA](https://github.com/raphaelvallat/yasa) by Raphael Vallat and Matthew Walker (eLife, 2021).
+Sleep staging relies on [YASA](https://github.com/raphaelvallat/yasa) by Raphaël Vallat and Matthew P. Walker (*eLife*, 2021). Signal processing builds on [MNE-Python](https://mne.tools), [SciPy](https://scipy.org), and [NumPy](https://numpy.org).
+
+Developed at Slaapkliniek AZORG, Aalst, Belgium.
