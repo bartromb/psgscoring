@@ -5,7 +5,7 @@
 [![License: BSD-3](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.2.0-green.svg)](CHANGES.md)
 [![Python](https://img.shields.io/badge/python-≥3.9-blue.svg)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-112%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-51%20passed-brightgreen.svg)](tests/)
 [![AASM](https://img.shields.io/badge/AASM-2.6-orange.svg)](https://aasm.org)
 [![No GPU](https://img.shields.io/badge/GPU-not%20required-lightgrey.svg)]()
 

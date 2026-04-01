@@ -33,6 +33,27 @@ All notable changes documented per [Keep a Changelog](https://keepachangelog.com
 - `compute_stage_baseline()` accepts optional `dynamic_baseline` parameter
   to avoid duplicate `compute_dynamic_baseline()` call (+5 s saved)
 - Pipeline Step 1b: `compute_anchor_baseline()` called after respiratory scoring
+- Translated remaining Dutch comments/docstrings to English in `classify.py`,
+  `respiratory.py`, `signal.py`
+- Extracted magic number `60` in `ancillary.py` to `SNORE_RMS_THRESHOLD_PCT`
+- Removed redundant `import numpy as np` inside `_lgbm_confidence()`
+- Root `__init__.py`: `if __package__` guard on relative imports (pytest fix)
+- `psgscoring/__init__.py`: all v0.2.0 public API functions exported
+- Added `run_full_analysis` backwards-compatibility alias
+
+### Testing
+- 51 tests (was 21) — 30 new tests across 10 classes covering
+  `hypno_to_numeric`, `channel_map_from_user`, `preprocess_effort`,
+  `compute_stage_baseline`, `detect_position_changes`,
+  `reset_baseline_at_position_changes`, `detect_breath_events`,
+  `detect_desaturations`, `get_desaturation`, `compute_anchor_baseline`
+- `conftest.py` at root and `tests/` level for clean pytest import paths
+- `pyproject.toml`: `[tool.pytest.ini_options]` with `--import-mode=importlib`
+
+### Documentation
+- `DISCLAIMER.md`: full medical/clinical disclaimer (9 sections)
+- `CLAUDE.md`: project guidance for Claude Code
+- `README.md`: badges, extended disclaimer, 10 numbered references with DOIs
 
 ---
 

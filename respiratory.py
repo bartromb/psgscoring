@@ -142,12 +142,12 @@ def _recompute_baseline_with_recovery_excluded(
         end   = min(n, center + win // 2)
         win_len = end - start
 
-        # Snel controleren: hoeveel recovery-samples in dit venster?
+        # Quick check: how many recovery samples are in this window?
         n_recovery = int(rm_cumsum[end] - rm_cumsum[start])
         if n_recovery < win_len * min_recovery_fraction:
-            continue  # venster nauwelijks beïnvloed — sla over
+            continue  # window barely affected — skip
 
-        # Herbereken alleen voor dit anker
+        # Recompute only for this anchor point
         seg    = flow_env[start:end]
         rm     = recovery_mask[start:end]
         stable = seg[~rm & (seg > 0)]
@@ -556,25 +556,25 @@ def _setup_hypop_channel(
 ):
     """Return (hypop_env, hypop_norm, hypop_baseline, sf_hy)."""
     if hypop_flow is not None and sf_hypop is not None:
-        # Als hypop zelfde signaal is als flow (zelfde array-object of zelfde sf+lengte):
-        # sla herberekening over, gebruik flow_env direct maar met √-normalisatie markering
+        # If hypopnea channel is the same signal as flow (same sample rate and length):
+        # reuse the already-computed flow_env envelope, skip re-preprocessing
         same_signal = (
             precomputed_hypop_baseline is not None
             and sf_hypop == sf_flow
             and len(hypop_flow) == len(flow_env)
         )
         if same_signal:
-            # Hergebruik flow_env envelope (al berekend), sla preprocess opnieuw over
+            # Reuse the flow_env envelope (already computed), skip re-preprocessing
             hypop_env = flow_env
         else:
             hypop_env = preprocess_flow(hypop_flow, sf_hypop, is_nasal_pressure=True)
 
-        # Als sf gelijk: gebruik voorberekende basislijn volledig (incl. stage-blend).
-        # De basislijn is al berekend + stage-gecorrigeerd in de apnea-channel stap.
+        # If sample rates match: reuse the precomputed baseline (including stage blend).
+        # The baseline was already computed and stage-corrected in the apnea-channel step.
         if precomputed_hypop_baseline is not None and sf_hypop == sf_flow:
             hypop_bl = precomputed_hypop_baseline
         else:
-            # Andere sf (bv. 2Hz SpO₂ vs 256Hz flow): apart berekenen
+            # Different sample rate (e.g. 2 Hz SpO₂ vs 256 Hz flow): compute separately
             hypop_bl = compute_dynamic_baseline(hypop_env, sf_hypop)
             try:
                 hyp_stage_bl = compute_stage_baseline(
@@ -877,19 +877,19 @@ def _compute_summary(
     confs      = [e.get("confidence", 0.5) for e in apneas if e.get("confidence")]
     avg_conf   = safe_r(float(np.mean(confs))) if confs else None
 
-    # ── Confidence-gestratificeerde OAHI (conf > 0.60) ─────────────────
-    # OAHI_CONF60 is de officiële OAHI: enkel obstructieve apneas + hypopneas
-    # met betrouwbaarheid > 0.60. Dit is de klinisch relevante index.
-    # oahi_all = alle events ongeacht confidence (voor vergelijking).
-    # Hypopneas krijgen altijd conf=0.70 (gescoord op desaturatie, Rule 1A)
-    # en tellen dus altijd mee.
+    # ── Confidence-stratified OAHI (conf > 0.60) ───────────────────────
+    # OAHI_CONF60 is the official OAHI: only obstructive apneas + hypopneas
+    # with confidence > 0.60. This is the clinically relevant index.
+    # oahi_all = all events regardless of confidence (for comparison).
+    # Hypopneas always receive conf=0.70 (scored on desaturation, Rule 1A)
+    # and therefore always count.
     CONF_THRESHOLD = 0.60
     obstr_conf = [e for e in obstr     if (e.get("confidence") or 0) >  CONF_THRESHOLD]
     hyp_conf   = [e for e in hypopneas if (e.get("confidence") or 0) >= CONF_THRESHOLD]
     oahi_conf60 = idx(len(obstr_conf) + len(hyp_conf), total_sleep_h)
     oahi_all    = idx(len(obstr) + len(hypopneas), total_sleep_h)
 
-    # Confidence-verdeling per categorie (apneas only; hypopneas fixed at 0.70)
+    # Confidence distribution by category (apneas only; hypopneas fixed at 0.70)
     def _conf_band(events_list):
         bands = {"high": 0, "moderate": 0, "borderline": 0, "low": 0}
         for e in events_list:

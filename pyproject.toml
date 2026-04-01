@@ -4,7 +4,7 @@ build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "psgscoring"
-version = "0.1.0"
+version = "0.2.0"
 description = "AASM 2.6-compliant respiratory event scoring for polysomnography"
 readme = "README.md"
 license = {text = "BSD-3-Clause"}
@@ -46,3 +46,7 @@ Repository = "https://github.com/bartromb/psgscoring"
 
 [tool.setuptools.packages.find]
 include = ["psgscoring*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--import-mode=importlib"

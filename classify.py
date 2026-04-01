@@ -90,7 +90,6 @@ def _lgbm_confidence(features: list[float]) -> float | None:
     if model is None:
         return None
     try:
-        import numpy as np
         X = np.array([features], dtype=np.float32)
         pred = model.predict(X)
         return float(np.clip(pred[0], 0.0, 1.0))
@@ -258,17 +257,17 @@ def _compute_phase_angle(
     min_dur_s:   float = 5.0,
 ) -> float | None:
     """
-    Bereken de gemiddelde instantane fasehoek (in graden) tussen thorax en
-    abdomen via de Hilbert-transformatie.
+    Compute the mean instantaneous phase angle (degrees) between thorax and
+    abdomen signals via the Hilbert transform.
 
-    0°   = perfect synchroon (normaal)
-    90°  = kwartslag fase-verschuiving
-    180° = volledig paradoxaal
+    0°   = perfectly synchronous (normal)
+    90°  = quarter-cycle phase shift
+    180° = fully paradoxical
 
-    Een waarde >= 45° bij een flow-limitatie is een betrouwbare indicator
-    van obstructief effort, ook wanneer de amplitude-envelop laag is.
+    A value >= 45° during flow limitation is a reliable indicator of
+    obstructive effort, even when the amplitude envelope is low.
 
-    Vereist minimaal min_dur_s seconden signaal voor betrouwbare Hilbert.
+    Requires at least min_dur_s seconds of signal for a reliable Hilbert result.
     """
     if thorax_raw is None or abdomen_raw is None:
         return None
@@ -279,7 +278,7 @@ def _compute_phase_angle(
     t_seg = thorax_raw[onset_idx:end_idx].astype(float)
     a_seg = abdomen_raw[onset_idx:end_idx].astype(float)
 
-    # Verwijder DC-offset
+    # Remove DC offset
     t_seg = t_seg - np.mean(t_seg)
     a_seg = a_seg - np.mean(a_seg)
 
@@ -287,14 +286,14 @@ def _compute_phase_angle(
         return None
 
     try:
-        # Instantane fase via Hilbert-transformatie
+        # Instantaneous phase via Hilbert transform
         phi_t = np.angle(hilbert(t_seg))
         phi_a = np.angle(hilbert(a_seg))
 
-        # Fase-verschil (gewikkeld naar [-π, π])
+        # Phase difference (wrapped to [-π, π])
         delta_phi = np.angle(np.exp(1j * (phi_t - phi_a)))
 
-        # Gemiddelde absolute fasehoek in graden
+        # Mean absolute phase angle in degrees
         mean_angle_deg = float(np.degrees(np.mean(np.abs(delta_phi))))
         return safe_r(mean_angle_deg, 1)
     except Exception:

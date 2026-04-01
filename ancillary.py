@@ -12,6 +12,8 @@ import numpy as np
 from scipy import signal as sp_signal
 
 from .constants import EPOCH_LEN_S
+
+SNORE_RMS_THRESHOLD_PCT = 60  # percentile of 1-s RMS distribution used as snoring threshold
 from .utils import (
     build_sleep_mask, fmt_time, hypno_to_numeric,
     is_nrem, is_rem, safe_r,
@@ -152,7 +154,7 @@ def analyze_snore(
             np.sqrt(np.mean(snore_data[i * win : (i + 1) * win] ** 2))
             for i in range(n_windows)
         ])
-        threshold  = float(np.percentile(rms, 60))
+        threshold  = float(np.percentile(rms, SNORE_RMS_THRESHOLD_PCT))
         snore_mask = rms > threshold
 
         # Build 1-s sleep mask
