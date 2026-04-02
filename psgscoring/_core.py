@@ -1,5 +1,5 @@
 """
-pneumo_analysis.py — Automatische pneumologische scoring voor YASAFlaskified v0.8.0
+pneumo_analysis.py — Automatische pneumologische scoring voor YASAFlaskified v14.96
 Verwerkt respiratoire EDF-kanalen conform AASM 2.6 richtlijnen.
 
 v14 verbeteringen:
@@ -93,7 +93,6 @@ POSITION_MAP = {0: "Prone", 1: "Left", 2: "Supine", 3: "Right", 4: "Upright"}
 # ═══════════════════════════════════════════════════════════════
 
 def detect_channels(ch_names: list) -> dict:
-    """Detecteer EDF-kanalen automatisch op basis van labelnamen (case-insensitive matching)."""
     ch_lower = {ch.lower(): ch for ch in ch_names}
     found = {}
     for ch_type, patterns in CHANNEL_PATTERNS.items():
@@ -107,7 +106,6 @@ def detect_channels(ch_names: list) -> dict:
 
 
 def channel_map_from_user(user_map: dict, ch_names: list) -> dict:
-    """Bouw een kanaal-mapping vanuit gebruikersinput (overschrijft auto-detectie)."""
     auto = detect_channels(ch_names)
     merged = {**auto}
     for k, v in (user_map or {}).items():
@@ -121,7 +119,6 @@ def channel_map_from_user(user_map: dict, ch_names: list) -> dict:
 # ═══════════════════════════════════════════════════════════════
 
 def safe_r(val, dec=1):
-    """Veilige Pearson-correlatie: geeft 0.0 terug bij constante of te korte arrays."""
     try:
         if val is None or (isinstance(val, float) and np.isnan(val)):
             return None
@@ -131,28 +128,23 @@ def safe_r(val, dec=1):
 
 
 def hypno_to_numeric(hypno: list) -> np.ndarray:
-    """Converteer slaapstadia (W/N1/N2/N3/R) naar numerieke waarden (0/1/2/3/4)."""
     mapping = {"W": 0, "N1": 1, "N2": 2, "N3": 3, "R": 4}
     return np.array([mapping.get(s, -1) for s in hypno])
 
 
 def is_nrem(stage) -> bool:
-    """Controleer of een slaapstadium NREM is (N1, N2 of N3)."""
     return stage in (1, 2, 3, "N1", "N2", "N3")
 
 
 def is_rem(stage) -> bool:
-    """Controleer of een slaapstadium REM is."""
     return stage in (4, "R")
 
 
 def is_sleep(stage) -> bool:
-    """Controleer of een slaapstadium slaap is (niet Wake)."""
     return stage not in (0, -1, "W")
 
 
 def _fmt_time(seconds: float) -> str:
-    """Formateer een tijdstip in seconden naar HH:MM:SS notatie."""
     if seconds is None:
         return "—"
     s = int(seconds)
@@ -186,7 +178,7 @@ def build_sleep_mask(hypno: list, sf: float,
 # ═══════════════════════════════════════════════════════════════
 
 # ═══════════════════════════════════════════════════════════════
-# v0.8.0: GEVALIDEERDE SIGNAALVERWERKING
+# v14.96: GEVALIDEERDE SIGNAALVERWERKING
 # ═══════════════════════════════════════════════════════════════
 
 def linearize_nasal_pressure(data: np.ndarray) -> np.ndarray:
@@ -250,9 +242,9 @@ def preprocess_flow(flow_data: np.ndarray, sf: float,
     """
     Band-pass 0.1–3 Hz → Hilbert envelope → 1s smooth.
 
-    v0.8.0: optionele √-linearisatie voor nasale druksignaal.
+    v14.96: optionele √-linearisatie voor nasale druksignaal.
     """
-    # v0.8.0: Lineariseer nasale druk VOOR filtering
+    # v14.96: Lineariseer nasale druk VOOR filtering
     if is_nasal_pressure:
         flow_data = linearize_nasal_pressure(flow_data)
 
@@ -1013,7 +1005,7 @@ def detect_respiratory_events(
         baseline = compute_dynamic_baseline(flow_env, sf_flow)
         pos_changes = []  # geïnitialiseerd voor beide kanalen
 
-        # v0.8.0: MMSD voor robuuste apnea-validatie (drift-onafhankelijk)
+        # v14.96: MMSD voor robuuste apnea-validatie (drift-onafhankelijk)
         try:
             flow_filt_mmsd = bandpass_flow(flow_data, sf_flow)
             mmsd = compute_mmsd(flow_filt_mmsd, sf_flow, window_s=1.0)
@@ -1063,7 +1055,7 @@ def detect_respiratory_events(
 
         # ── Preprocesseer hypopnea-flow (nasale druk of zelfde kanaal) ──
         if hypop_flow is not None and sf_hypop is not None:
-            # v0.8.0: √-linearisatie voor nasale druk (AASM 2.6 Rule 3)
+            # v14.96: √-linearisatie voor nasale druk (AASM 2.6 Rule 3)
             # Nasale druk ∝ flow² (Bernoulli) → zonder √ wordt 50% flowdaling
             # getoond als 75% amplitudereductie → hypopnea-overschatting
             hypop_env = preprocess_flow(hypop_flow, sf_hypop, is_nasal_pressure=True)
@@ -1175,7 +1167,7 @@ def detect_respiratory_events(
             if dur_s < APNEA_MIN_DUR_S:
                 continue
 
-            # v0.8.0: MMSD-validatie — bevestig dat ademhaling echt afwezig is
+            # v14.96: MMSD-validatie — bevestig dat ademhaling echt afwezig is
             # (voorkomt vals-positieven door langzame baseline-drift)
             if mmsd_norm is not None:
                 event_mmsd = float(np.mean(mmsd_norm[indices[0]:indices[-1]+1]))
@@ -1237,7 +1229,7 @@ def detect_respiratory_events(
             })
 
         # ── Hypopnea events (nasale druk) ──
-        # v0.8.0 FIX: sluit tijdregio's uit die al als apnea gedetecteerd zijn
+        # v14.96 FIX: sluit tijdregio's uit die al als apnea gedetecteerd zijn
         # Voorkomt dat de flanken van een apnea als extra hypopnea geteld worden
         apnea_exclusion_mask = np.zeros(len(hypop_norm), dtype=bool)
         for ev in events:  # events bevat nu alleen apneas
@@ -1379,7 +1371,7 @@ def _get_desaturation(
 
     AASM: desaturatie = daling ≥3% t.o.v. pre-event basislijn.
 
-    v0.8.0 verbeteringen:
+    v14.96 verbeteringen:
       - SpO2-nadir moet vallen BINNEN event-onset tot 30s na event-einde
         (circulatoire vertraging 10-30s). Nadir vóór event = toeval.
       - Desaturation window verkort van 45s naar 30s na event-einde
@@ -1418,7 +1410,7 @@ def _get_desaturation(
         min_spo2 = float(np.min(spo2_seg))
         desat    = spo2_bl - min_spo2
 
-        # v0.8.0: Check dat nadir NA event-onset valt (niet ervoor)
+        # v14.96: Check dat nadir NA event-onset valt (niet ervoor)
         # De nadir-index in het segment moet > 0 zijn (= niet helemaal aan het begin)
         nadir_idx = int(np.argmin(spo2_seg))
         samples_from_onset = nadir_idx  # al relatief aan event-onset
@@ -1457,7 +1449,6 @@ def _compute_respiratory_summary(events: list, hypno: list,
     def idx(n, h): return safe_r(n / h) if h > 0 else 0
 
     def split_rem_nrem(ev_list):
-        """Splits events in REM- en NREM-subgroepen voor positionele analyse."""
         rem  = [e for e in ev_list if is_rem(e["stage"])]
         nrem = [e for e in ev_list if is_nrem(e["stage"])]
         return rem, nrem
@@ -1536,7 +1527,6 @@ def _compute_respiratory_summary(events: list, hypno: list,
 
 
 def _classify_ahi(ahi: float) -> str:
-    """Classificeer AHI-ernst: normaal (<5), licht (5-15), matig (15-30), ernstig (>30)."""
     if ahi is None:
         return "unknown"
     if ahi < 5:   return "normal"
@@ -1607,7 +1597,6 @@ def _generate_warnings(n_central, n_obstr, n_mixed, ahi, avg_conf, sleep_h) -> l
 # ═══════════════════════════════════════════════════════════════
 
 def analyze_spo2(spo2_data: np.ndarray, sf: float, hypno: list) -> dict:
-    """Analyseer SpO2-kanaal: detecteer desaturaties, bereken ODI, nadir en tijdspercentages."""
     result = {"success": False, "summary": {}, "desaturations": [], "error": None}
     try:
         spo2_clean = spo2_data.copy().astype(float)
@@ -1628,7 +1617,6 @@ def analyze_spo2(spo2_data: np.ndarray, sf: float, hypno: list) -> dict:
         avg_spo2      = float(np.nanmean(spo2_sleep))
 
         def pct_below(thresh):
-            """Bereken het percentage van de tijd dat SpO2 onder een drempel valt."""
             n   = np.sum(spo2_sleep < thresh)
             t_s = float(n) / sf
             pct = t_s / total_sleep_s * 100 if total_sleep_s > 0 else 0
@@ -1653,7 +1641,6 @@ def analyze_spo2(spo2_data: np.ndarray, sf: float, hypno: list) -> dict:
                 nrem_mask[s:e] = True
 
         def spo2_stats_for_mask(mask):
-            """Bereken SpO2-statistieken (gemiddelde, nadir, ODI) voor een slaapmasker."""
             seg = spo2_clean[mask]
             seg = seg[~np.isnan(seg)]
             if len(seg) == 0:
@@ -1747,7 +1734,6 @@ def _detect_desaturations(spo2: np.ndarray, sf: float,
 
 def analyze_position(pos_data: np.ndarray, sf: float, hypno: list,
                       resp_events: list) -> dict:
-    """Analyseer lichaamshouding tijdens slaap: positieverdeling, positioneel OSAS-percentage."""
     result = {"success": False, "summary": {}, "error": None}
     try:
         spe      = int(sf * EPOCH_LEN_S)
@@ -1797,7 +1783,6 @@ def analyze_position(pos_data: np.ndarray, sf: float, hypno: list,
 # ═══════════════════════════════════════════════════════════════
 
 def analyze_heart_rate(hr_data: np.ndarray, sf: float, hypno: list) -> dict:
-    """Analyseer hartritme uit ECG/HR-kanaal: gemiddelde, variabiliteit, bradycardie/tachycardie."""
     result = {"success": False, "summary": {}, "error": None}
     try:
         hr_clean = hr_data.copy().astype(float)
@@ -1827,7 +1812,6 @@ def analyze_heart_rate(hr_data: np.ndarray, sf: float, hypno: list) -> dict:
 # ═══════════════════════════════════════════════════════════════
 
 def analyze_snore(snore_data: np.ndarray, sf: float, hypno: list) -> dict:
-    """Analyseer snurk-kanaal: detecteer snurkepisodes en bereken snurk-index per uur."""
     result = {"success": False, "summary": {}, "error": None}
     try:
         win = int(sf)
@@ -1897,7 +1881,7 @@ def analyze_plm(leg_l: np.ndarray | None, leg_r: np.ndarray | None,
 
         def _detect_lm_channel(data, sf):
             """Detecteer LMs op 1 EMG kanaal conform AASM."""
-            # v0.8.0 FIX: raw.get_data() levert Volt, AASM drempel is 8 µV
+            # v14.96 FIX: raw.get_data() levert Volt, AASM drempel is 8 µV
             # Converteer naar µV als het signaal duidelijk in Volt is
             data_uv = data.copy()
             if np.max(np.abs(data_uv)) < 0.1:
@@ -2196,7 +2180,6 @@ def run_pneumo_analysis(
     }
 
     def get(ch_type):
-        """Haal een kanaal op uit de MNE raw data op basis van de kanaalmap."""
         name = ch.get(ch_type)
         if name and name in raw.ch_names:
             return raw.get_data(picks=[name])[0], raw.info["sfreq"]
@@ -2402,7 +2385,7 @@ def run_pneumo_analysis(
     logger.info("[pneumo 9] Cheyne-Stokes respiratie detectie...")
     if flow_data is not None:
         try:
-            # v0.8.0 FIX: gebruik sf_flow (altijd gedefinieerd als flow_data niet None is)
+            # v14.96 FIX: gebruik sf_flow (altijd gedefinieerd als flow_data niet None is)
             # sf_apnea is een lokale variabele die mogelijk niet bestaat in alle code-paden
             sf_csr = sf_flow
             flow_env_csr = preprocess_flow(flow_data, sf_csr)

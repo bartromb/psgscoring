@@ -90,6 +90,7 @@ def _lgbm_confidence(features: list[float]) -> float | None:
     if model is None:
         return None
     try:
+        import numpy as np
         X = np.array([features], dtype=np.float32)
         pred = model.predict(X)
         return float(np.clip(pred[0], 0.0, 1.0))
@@ -179,6 +180,7 @@ def classify_apnea_type(
 
     # Helper to optionally replace rule-based confidence with LightGBM
     def _conf(rule_conf: float, rule_idx: int) -> float:
+        """Bereken betrouwbaarheidsscore voor apnea-classificatie (0–1)."""
         features = _extract_lgbm_features(
             effort_ratio, raw_var_ratio, paradox_corr,
             first_ratio, second_ratio, quarter_efforts,
@@ -257,17 +259,17 @@ def _compute_phase_angle(
     min_dur_s:   float = 5.0,
 ) -> float | None:
     """
-    Compute the mean instantaneous phase angle (degrees) between thorax and
-    abdomen signals via the Hilbert transform.
+    Bereken de gemiddelde instantane fasehoek (in graden) tussen thorax en
+    abdomen via de Hilbert-transformatie.
 
-    0°   = perfectly synchronous (normal)
-    90°  = quarter-cycle phase shift
-    180° = fully paradoxical
+    0°   = perfect synchroon (normaal)
+    90°  = kwartslag fase-verschuiving
+    180° = volledig paradoxaal
 
-    A value >= 45° during flow limitation is a reliable indicator of
-    obstructive effort, even when the amplitude envelope is low.
+    Een waarde >= 45° bij een flow-limitatie is een betrouwbare indicator
+    van obstructief effort, ook wanneer de amplitude-envelop laag is.
 
-    Requires at least min_dur_s seconds of signal for a reliable Hilbert result.
+    Vereist minimaal min_dur_s seconden signaal voor betrouwbare Hilbert.
     """
     if thorax_raw is None or abdomen_raw is None:
         return None
@@ -278,7 +280,7 @@ def _compute_phase_angle(
     t_seg = thorax_raw[onset_idx:end_idx].astype(float)
     a_seg = abdomen_raw[onset_idx:end_idx].astype(float)
 
-    # Remove DC offset
+    # Verwijder DC-offset
     t_seg = t_seg - np.mean(t_seg)
     a_seg = a_seg - np.mean(a_seg)
 
@@ -286,14 +288,14 @@ def _compute_phase_angle(
         return None
 
     try:
-        # Instantaneous phase via Hilbert transform
+        # Instantane fase via Hilbert-transformatie
         phi_t = np.angle(hilbert(t_seg))
         phi_a = np.angle(hilbert(a_seg))
 
-        # Phase difference (wrapped to [-π, π])
+        # Fase-verschil (gewikkeld naar [-π, π])
         delta_phi = np.angle(np.exp(1j * (phi_t - phi_a)))
 
-        # Mean absolute phase angle in degrees
+        # Gemiddelde absolute fasehoek in graden
         mean_angle_deg = float(np.degrees(np.mean(np.abs(delta_phi))))
         return safe_r(mean_angle_deg, 1)
     except Exception:
@@ -307,6 +309,7 @@ def _compute_raw_variability(
     end_idx: int,
     sf: float,
 ) -> float:
+    """Bereken ruwe signaalvariabiliteit (standaarddeviatie) van effort-kanaal."""
     if thorax_raw is None and abdomen_raw is None:
         return 0.0
     event_stds = []
@@ -332,6 +335,7 @@ def _compute_paradox_correlation(
     onset_idx: int,
     end_idx: int,
 ) -> float | None:
+    """Bereken paradoxale ademhalingscorrelatie tussen thorax en abdomen."""
     if thorax_raw is None or abdomen_raw is None:
         return None
     t_seg = thorax_raw[onset_idx:end_idx]
@@ -351,6 +355,7 @@ def _mean_effort_ratio(
     end: int,
     effort_baseline: float,
 ) -> float:
+    """Gemiddelde effort-ratio: event-amplitude / basislijn-amplitude."""
     if effort_baseline < 1e-9:
         return 0.0
     vals = [float(np.mean(seg[start:end])) for seg in effort_segs.values()]

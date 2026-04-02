@@ -175,35 +175,36 @@ def compute_anchor_baseline(
     """
     v0.8.11 — Baseline Anchoring.
 
-    Find periods of stable, event-free N2 sleep and compute the absolute
-    RMS power as a patient-specific "gold-standard baseline".
+    Zoek periodes van stabiele, event-vrije N2-slaap en bereken het
+    absolute RMS-vermogen als "Gouden Standaard Basislijn" voor deze
+    specifieke patiënt.
 
-    This resolves the mouth-breather problem: if nasal-cannula flow is
-    structurally lower than the anchor baseline (>40% drop), a warning is
-    issued and hypopnea confidence is reduced.
+    Dit lost het probleem op van de mond-ademer: als de neusbril-flow
+    structureel lager ligt dan de anker-basislijn (>40% daling), geeft
+    dit een waarschuwing en verlaagt het de hypopnea-confidence.
 
     Parameters
     ----------
     flow_env        : preprocessed flow envelope
     sf              : sample rate
-    hypno           : sleep-stage labels per epoch
-    events          : detected events (used to build an event-free mask)
-    artifact_epochs : epochs to exclude
+    hypno           : slaapstadia per epoch
+    events          : gedetecteerde events (voor event-vrij masker)
+    artifact_epochs : te vermijden epochs
 
     Returns
     -------
-    dict with keys:
-        anchor_value        : float — absolute RMS anchor baseline
-        anchor_epochs_used  : int   — number of N2 epochs used
-        anchor_reliable     : bool  — True if >= min_stable_epochs were found
-        anchor_ratio        : float — ratio of current signal / anchor
+    dict met:
+        anchor_value        : float — absolute RMS anker-basislijn
+        anchor_epochs_used  : int   — aantal N2 epochs gebruikt
+        anchor_reliable     : bool  — True als >= min_stable_epochs
+        anchor_ratio        : float — verhouding huidig signaal / anker
         mouth_breathing_suspected : bool
     """
     artifact_set  = set(artifact_epochs or [])
     spe           = int(sf * EPOCH_LEN_S)
     n             = len(flow_env)
 
-    # Build event mask: samples within 30 s of an event are excluded
+    # Bouw event-masker: samples binnen 30s van een event worden uitgesloten
     event_mask = np.zeros(n, dtype=bool)
     for ev in (events or []):
         onset  = int(ev.get("onset_s", 0) * sf)
@@ -211,7 +212,7 @@ def compute_anchor_baseline(
         margin = int(30 * sf)
         event_mask[max(0, onset - margin) : min(n, end + margin)] = True
 
-    # Find stable N2 epochs without events or artifacts
+    # Zoek stabiele N2-epochs zonder events en artefacten
     anchor_rms_values: list[float] = []
     for ep_i, stage in enumerate(hypno):
         if stage not in ("N2", 2):
@@ -238,15 +239,15 @@ def compute_anchor_baseline(
             "mouth_breathing_suspected": False,
         }
 
-    # Use median (robust against outliers)
+    # Gebruik mediaan (robuust tegen uitschieters)
     anchor_val = float(np.median(anchor_rms_values))
 
-    # Mean signal power across the full recording
+    # Huidig gemiddeld signaalvermogen over gehele opname
     valid = flow_env[flow_env > 1e-6]
     current_rms = float(np.sqrt(np.mean(valid ** 2))) if len(valid) > 0 else anchor_val
     anchor_ratio = current_rms / max(anchor_val, 1e-9)
 
-    # Mouth-breather: signal structurally >40% below anchor
+    # Mond-ademer: signaal structureel >40% lager dan anker
     mouth_breathing_suspected = anchor_ratio < 0.60
 
     return {
@@ -273,8 +274,8 @@ def compute_stage_baseline(
 
     Parameters
     ----------
-    dynamic_baseline : precomputed dynamic baseline (optional).
-        If provided, compute_dynamic_baseline() is not called again.
+    dynamic_baseline : voorberekende dynamische basislijn (optioneel).
+        Als opgegeven wordt compute_dynamic_baseline() niet opnieuw aangeroepen.
     """
     artifact_set = set(artifact_epochs or [])
     spe = int(sf * EPOCH_LEN_S)

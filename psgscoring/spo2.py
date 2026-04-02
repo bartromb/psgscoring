@@ -27,13 +27,14 @@ def get_desaturation(
     dur_s: float,
     sf_spo2: float,
     global_spo2_baseline: float | None = None,
+    post_win_s: float = 45,
 ) -> tuple[float | None, float | None]:
     """
     Compute SpO2 desaturation associated with a respiratory event.
 
     AASM criteria:
     - Baseline = 90th percentile of 120 s pre-event window
-    - Nadir search window = event onset -> 30 s post-event end
+    - Nadir search window = event onset -> post_win_s after event end
     - Nadir must occur >= 3 s after event onset (circulatory delay)
     - Very early nadir with < 5 % drop -> rejected as coincidental
 
@@ -48,7 +49,7 @@ def get_desaturation(
     if spo2_data is None:
         return None, None
     try:
-        POST_WIN_S = 30
+        POST_WIN_S = post_win_s  # v0.8.15: configureerbaar via scoring profile
         s_start = max(0, int(onset_s * sf_spo2))
         s_end   = min(len(spo2_data),
                       int((onset_s + dur_s + POST_WIN_S) * sf_spo2))
@@ -112,6 +113,7 @@ def analyze_spo2(
         baseline_spo2 = float(np.percentile(spo2_sleep, 90))
 
         def pct_below(thresh: float):
+            """Bereken het percentage van de tijd dat SpO2 onder een drempel valt."""
             n_below = np.sum(spo2_sleep < thresh)
             t_s     = float(n_below) / sf
             pct     = t_s / total_sleep_s * 100 if total_sleep_s > 0 else 0.0
@@ -137,6 +139,7 @@ def analyze_spo2(
                 nrem_mask[s:e] = True
 
         def stage_spo2_stats(mask: np.ndarray):
+            """Bereken SpO2-statistieken per slaapstadium (gemiddelde, nadir, ODI)."""
             seg = spo2_clean[mask]
             seg = seg[~np.isnan(seg)]
             if len(seg) == 0:
@@ -170,6 +173,9 @@ def analyze_spo2(
             "nrem_min_spo2":      nrem_min,
         }
         result["desaturations"] = desaturations[:200]
+        # v0.8.12: 1-Hz timeseries for PDF overview plot
+        step = max(1, int(sf))  # downsample to ~1 Hz
+        result["timeseries"] = spo2_clean[::step].tolist()
         result["success"]       = True
 
     except Exception as e:

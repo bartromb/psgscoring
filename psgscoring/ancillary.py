@@ -12,8 +12,6 @@ import numpy as np
 from scipy import signal as sp_signal
 
 from .constants import EPOCH_LEN_S
-
-SNORE_RMS_THRESHOLD_PCT = 60  # percentile of 1-s RMS distribution used as snoring threshold
 from .utils import (
     build_sleep_mask, fmt_time, hypno_to_numeric,
     is_nrem, is_rem, safe_r,
@@ -42,7 +40,9 @@ def analyze_position(
     try:
         spe           = int(sf * EPOCH_LEN_S)
         n_epochs      = len(hypno)
-        pos_per_epoch = [_modal_position(pos_data, ep, spe) for ep in range(n_epochs)]
+        # v0.8.12: auto-map raw ADC/voltage to 0-4 codes
+        pos_mapped    = _map_position_signal(pos_data)
+        pos_per_epoch = [_modal_position(pos_mapped, ep, spe) for ep in range(n_epochs)]
 
         pos_names = {0: "Prone", 1: "Left", 2: "Supine", 3: "Right", 4: "Upright"}
         sleep_time: dict[str, float | None] = {}
@@ -80,7 +80,32 @@ def analyze_position(
     return result
 
 
+def _map_position_signal(pos_data: np.ndarray) -> np.ndarray:
+    """Map raw position signal to 0-4 codes (Prone/Left/Supine/Right/Upright).
+
+    Handles both pre-coded (0-4) and raw ADC/voltage signals.
+    """
+    rounded = np.round(pos_data).astype(int)
+    unique_vals = np.unique(rounded)
+
+    # Already coded 0-4 → use as-is
+    if len(unique_vals) <= 6 and np.all((unique_vals >= 0) & (unique_vals <= 5)):
+        return np.clip(rounded, 0, 4)
+
+    # Raw ADC/voltage signal → map clusters to 0-4 by rank order
+    # Use percentile-based quantization
+    valid = pos_data[~np.isnan(pos_data)]
+    if len(valid) == 0:
+        return np.zeros(len(pos_data), dtype=int)
+
+    # Assign 5 bins based on signal range
+    edges = np.percentile(valid, [0, 20, 40, 60, 80, 100])
+    mapped = np.digitize(pos_data, edges[1:-1])  # 0-4
+    return np.clip(mapped, 0, 4)
+
+
 def _modal_position(pos_data: np.ndarray, ep: int, spe: int) -> int:
+    """Bepaal de meest voorkomende slaappositie (modus) voor een epoch."""
     s   = ep * spe
     e   = min(s + spe, len(pos_data))
     seg = pos_data[s:e]
@@ -154,7 +179,7 @@ def analyze_snore(
             np.sqrt(np.mean(snore_data[i * win : (i + 1) * win] ** 2))
             for i in range(n_windows)
         ])
-        threshold  = float(np.percentile(rms, SNORE_RMS_THRESHOLD_PCT))
+        threshold  = float(np.percentile(rms, 60))
         snore_mask = rms > threshold
 
         # Build 1-s sleep mask
@@ -180,6 +205,8 @@ def analyze_snore(
                 safe_r((snore_s / 60) / total_sleep_h) if total_sleep_h > 0 else 0
             ),
         }
+        # v0.8.12: expose RMS timeseries for PDF overview plot
+        result["rms_1s"] = rms.tolist()
         result["success"] = True
     except Exception as e:
         result["error"] = str(e)

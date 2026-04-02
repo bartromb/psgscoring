@@ -1,6 +1,6 @@
 """
 arousal_analysis.py — Arousal detectie & respiratoir-arousal koppeling
-voor YASAFlaskified v0.8.0
+voor YASAFlaskified v14.96
 
 Conform AASM 2.6 Adult Scoring Manual, Chapter 5 (Arousals):
   - Arousal: abrupte EEG-frequentieverandering ≥3s (α/θ/β in NREM; α in REM)
@@ -25,7 +25,7 @@ logger = logging.getLogger("psgscoring.arousal")
 
 
 # ═══════════════════════════════════════════════════════════════
-# CONSTANTEN  (AASM 2.6, v0.8.0 — verbeterd)
+# CONSTANTEN  (AASM 2.6, v14.96 — verbeterd)
 # ═══════════════════════════════════════════════════════════════
 
 AROUSAL_MIN_DUR_S     = 3.0     # ≥3s EEG-frequentieverandering
@@ -35,17 +35,17 @@ POST_RESP_WINDOW_S    = 15.0    # arousal binnen 15s na resp. event = respiratoi
 RERA_FLOW_LIMIT_THR   = 0.80    # flow 80–100% = flow-limitatie (plateau)
 RERA_MIN_DUR_S        = 10.0    # ≥10s flow-limitatie voor RERA
 
-# v0.8.0: Correcte frequentiebanden conform AASM
+# v14.96: Correcte frequentiebanden conform AASM
 ALPHA_NARROW_BAND     = (8, 11)    # Alpha ZONDER spindle-overlap (was 8-13)
 SIGMA_BAND            = (12, 15)   # Slaapspindels — UITSLUITEN uit arousal
-THETA_BAND            = (4, 8)     # v0.8.0: NIEUW — theta-shift arousals
+THETA_BAND            = (4, 8)     # v14.96: NIEUW — theta-shift arousals
 BETA_BAND             = (16, 30)   # >16 Hz (AASM definitie)
 DELTA_BAND            = (0.5, 4)
 ALPHA_BAND            = (8, 13)    # Breed alpha (voor backward compat in stats)
 
-# v0.8.0: Drempels
-AROUSAL_RATIO_THRESH  = 2.0     # v0.8.0: verlaagd van 3.0 → 2.0 (v0.8.0: verder verlaagd)
-ABRUPT_RATIO_THRESH   = 1.5     # v0.8.0: verlaagd van 2.0 → 1.5 (2s FFT-vensters smoothen te veel)
+# v14.96: Drempels
+AROUSAL_RATIO_THRESH  = 2.0     # v14.96: verlaagd van 3.0 → 2.0 (v14.96: verder verlaagd)
+ABRUPT_RATIO_THRESH   = 1.5     # v14.96: verlaagd van 2.0 → 1.5 (2s FFT-vensters smoothen te veel)
 EPOCH_LEN_S           = 30
 
 
@@ -54,7 +54,6 @@ EPOCH_LEN_S           = 30
 # ═══════════════════════════════════════════════════════════════
 
 def _safe(val, dec=1):
-    """Veilige afrondingsfunctie: geeft afgeronde waarde of '—' bij None/NaN."""
     try:
         if val is None or (isinstance(val, float) and np.isnan(val)):
             return None
@@ -94,23 +93,19 @@ def _bandpower_instant(eeg: np.ndarray, sf: float,
 
 
 def _is_nrem(stage) -> bool:
-    """Controleer of een slaapstadium NREM is (N1, N2 of N3)."""
     return stage in (1, 2, 3, "N1", "N2", "N3")
 
 
 def _is_rem(stage) -> bool:
-    """Controleer of een slaapstadium REM is."""
     return stage in (4, "R")
 
 
 def _is_sleep(stage) -> bool:
-    """Controleer of een slaapstadium slaap is (niet Wake)."""
     return stage not in (0, -1, "W")
 
 
 def _build_stage_mask(hypno: list, sf: float,
                        total_samples: int, stages) -> np.ndarray:
-    """Bouw een sample-level boolean masker voor slaap/wake per stadium."""
     spe  = int(sf * EPOCH_LEN_S)
     mask = np.zeros(total_samples, dtype=bool)
     for ep_i, stage in enumerate(hypno):
@@ -132,7 +127,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
     """
     Detecteer EEG-arousals conform AASM 2.6, Sectie 5.
 
-    v0.8.0 verbeteringen:
+    v14.96 verbeteringen:
     1. Theta band (4-8 Hz) toegevoegd — veel arousals bij ouderen
     2. Alpha ingeperkt tot 8-11 Hz — voorkomt spindle vals-positieven
     3. Sigma band (12-15 Hz) apart gedetecteerd en UITGESLOTEN
@@ -151,7 +146,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
         n_samples = len(eeg_data)
         spe       = int(sf * EPOCH_LEN_S)
 
-        # v0.8.0 FIX: Converteer EEG naar µV als het in Volt lijkt te zijn
+        # v14.96 FIX: Converteer EEG naar µV als het in Volt lijkt te zijn
         # raw.get_data() geeft Volt (bijv. 50 µV = 5e-5 V)
         # Bandpower in Volt² geeft ~1e-10 waarden → numerieke problemen
         eeg_uv = eeg_data.copy()
@@ -159,7 +154,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
             eeg_uv = eeg_uv * 1e6
             logger.debug("Arousal EEG: V→µV conversie (max=%.1f µV)", np.max(np.abs(eeg_uv)))
 
-        # ── Bandvermogen tijdreeksen (v0.8.0: theta + alpha_narrow + beta) ──
+        # ── Bandvermogen tijdreeksen (v14.96: theta + alpha_narrow + beta) ──
         alpha_pow = _bandpower_instant(eeg_uv, sf, ALPHA_NARROW_BAND, win_s=2.0)
         theta_pow = _bandpower_instant(eeg_uv, sf, THETA_BAND, win_s=2.0)
         beta_pow  = _bandpower_instant(eeg_uv, sf, BETA_BAND,  win_s=2.0)
@@ -170,7 +165,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
         # (AASM: "alpha, theta en/of >16 Hz")
         arousal_pow = alpha_pow + theta_pow + beta_pow
 
-        # ── Baseline per slaapfase (v0.8.0: robuuster) ──────────────
+        # ── Baseline per slaapfase (v14.96: robuuster) ──────────────
         nrem_mask = _build_stage_mask(hypno, sf, n_samples,
                                        {"N1","N2","N3",1,2,3})
         rem_mask  = _build_stage_mask(hypno, sf, n_samples, {"R",4})
@@ -209,7 +204,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
         if emg_data is not None and len(emg_data) >= n_samples:
             from scipy.signal import filtfilt, butter
             try:
-                # v0.8.0 FIX: converteer EMG naar µV (zelfde issue als EEG/PLM)
+                # v14.96 FIX: converteer EMG naar µV (zelfde issue als EEG/PLM)
                 emg_work = emg_data[:n_samples].copy()
                 if np.max(np.abs(emg_work)) < 0.01:
                     emg_work = emg_work * 1e6
@@ -227,13 +222,13 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
             rem_emg = emg_rms[rem_mask] if np.any(rem_mask) else emg_rms
             emg_bl_rem = max(float(np.percentile(rem_emg, 25)), 1e-9) if len(rem_emg) > 0 else 1e-9
 
-        # ── v0.8.0: TWO-PHASE AROUSAL DETECTION ─────────────────
+        # ── v14.96: TWO-PHASE AROUSAL DETECTION ─────────────────
         # PROBLEEM v14.7-14.8: per-sample conjunctie (elevated & abrupt
         # & ~sigma) vereist ALLE voorwaarden gelijktijdig True op elke
         # sample voor >=3s. De abruptheidsratio (rolling 3s pre-average)
         # volgt het signaal → na ~1s stijgt pre-average mee → nooit 3s True.
         #
-        # OPLOSSING v0.8.0: twee fasen (zoals een menselijke scorer):
+        # OPLOSSING v14.96: twee fasen (zoals een menselijke scorer):
         #   Fase 1: vind regio's met verhoogd vermogen (>=3s, enkel power)
         #   Fase 2: valideer elk event op onset-abruptheid en spindle
         #           (event-niveau, niet per-sample)
@@ -359,7 +354,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                                           for a in arousals]))) if arousals else None,
             "severity":            _classify_arousal_index(
                                        len(arousals) / total_sleep_h),
-            # v0.8.0: extra stats
+            # v14.96: extra stats
             "n_theta_dominant":    sum(1 for a in arousals if a["dominant_band"] == "theta"),
             "n_alpha_dominant":    sum(1 for a in arousals if a["dominant_band"] == "alpha"),
             "n_beta_dominant":     sum(1 for a in arousals if a["dominant_band"] == "beta"),
@@ -374,7 +369,6 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
 
 
 def _classify_arousal_index(ai: float) -> str:
-    """Classificeer de arousal-index: normaal (<10), licht (10-25), ernstig (>25)."""
     if ai is None:
         return "unknown"
     if ai < 10:   return "normal"
@@ -528,7 +522,6 @@ def correlate_arousals_to_respiratory(
 
 
 def _empty_correlation_summary() -> dict:
-    """Geeft een leeg correlatie-overzicht terug (standaardwaarden)."""
     return {
         "n_respiratory_arousals": 0, "n_spontaneous_arousals": 0,
         "n_total_arousals": 0, "pct_respiratory": 0,

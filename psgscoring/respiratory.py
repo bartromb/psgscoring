@@ -18,10 +18,10 @@ import traceback
 import logging
 
 import numpy as np
-from scipy.ndimage import label, find_objects
+from scipy.ndimage import label, find_objects, uniform_filter1d
 
 from .constants import (
-    APNEA_THRESHOLD, HYPOPNEA_THRESHOLD,
+    APNEA_THRESHOLD, HYPOPNEA_THRESHOLD, HYPOPNEA_SMOOTH_S,
     APNEA_MIN_DUR_S, HYPOPNEA_MIN_DUR_S,
     DESATURATION_DROP_PCT, EPOCH_LEN_S,
     MMSD_APNEA_THRESH, RULE1B_AROUSAL_WINDOW_S,
@@ -142,12 +142,12 @@ def _recompute_baseline_with_recovery_excluded(
         end   = min(n, center + win // 2)
         win_len = end - start
 
-        # Quick check: how many recovery samples are in this window?
+        # Snel controleren: hoeveel recovery-samples in dit venster?
         n_recovery = int(rm_cumsum[end] - rm_cumsum[start])
         if n_recovery < win_len * min_recovery_fraction:
-            continue  # window barely affected — skip
+            continue  # venster nauwelijks beïnvloed — sla over
 
-        # Recompute only for this anchor point
+        # Herbereken alleen voor dit anker
         seg    = flow_env[start:end]
         rm     = recovery_mask[start:end]
         stable = seg[~rm & (seg > 0)]
@@ -166,16 +166,19 @@ def _recompute_baseline_with_recovery_excluded(
 def _spo2_cross_contaminated(
     onset_s: float,
     events_so_far: list,
-    post_event_window_s: float = 30.0,
+    post_event_window_s: float = 15.0,
 ) -> bool:
     """
-    Fix 2 — SpO₂ kruiscontaminatie.
+    Fix 2 — SpO2 kruiscontaminatie (v0.8.14: minder agressief).
 
-    Controleer of het post-event SpO₂-venster van het vorige event nog actief
-    is bij het begin van het huidige event.  Zo ja, dan is de SpO₂-nadir
-    van het huidige event waarschijnlijk afkomstig van het vorige event.
+    Controleer of het post-event SpO2-venster van het vorige event nog actief
+    is bij het begin van het huidige event.
 
-    Returns True als de SpO₂-koppeling onbetrouwbaar is.
+    v0.8.14: window verkleind van 30s naar 15s. Bij 30s werden bijna alle
+    events bij matig OSAS geflagd → massale ondertelling van hypopnees.
+    De flag is nu INFORMATIEF — de desaturatie wordt nog steeds berekend.
+
+    Returns True als de SpO2-koppeling mogelijk contaminated is.
     """
     if not events_so_far:
         return False
@@ -242,6 +245,7 @@ def detect_respiratory_events(
     pos_data:          np.ndarray | None = None,
     sf_pos:            float | None = None,
     csr_info:          dict | None = None,
+    scoring_profile:   dict | None = None,
 ) -> dict:
     """
     Detect and classify apneas and hypopneas per AASM 2.6.
@@ -275,6 +279,23 @@ def detect_respiratory_events(
     result: dict = {"success": False, "events": [], "summary": {}, "error": None,
                     "n_gap_excluded": 0, "n_posthyperpnea_recovery_s": 30}
     try:
+        # ── v0.8.15: Scoring profile → lokale drempels ────────────────────
+        sp = scoring_profile or {}
+        _HYPOP_THRESH  = sp.get("HYPOPNEA_THRESHOLD", HYPOPNEA_THRESHOLD)
+        _DESAT_PCT     = sp.get("DESATURATION_DROP_PCT", DESATURATION_DROP_PCT)
+        _POST_WIN      = sp.get("POST_EVENT_WINDOW_S", 45)
+        _SMOOTH_S      = sp.get("HYPOPNEA_SMOOTH_S", HYPOPNEA_SMOOTH_S)
+        _CONTAM_WIN    = sp.get("CROSS_CONTAM_WINDOW_S", 15.0)
+        _USE_PEAK      = sp.get("USE_PEAK_DETECTION", True)
+        result["scoring_thresholds"] = {
+            "hypopnea_threshold": _HYPOP_THRESH,
+            "desaturation_pct":   _DESAT_PCT,
+            "post_event_win_s":   _POST_WIN,
+            "smooth_s":           _SMOOTH_S,
+            "cross_contam_win_s": _CONTAM_WIN,
+            "use_peak_detection": _USE_PEAK,
+        }
+
         # ── Fix 5: Artefact-flanken — post-gap exclusiemasker ─────────────
         gap_mask_ap, n_gaps = _detect_signal_gaps(flow_data, sf_flow)
         result["n_gap_excluded"] = n_gaps
@@ -336,7 +357,32 @@ def detect_respiratory_events(
         sleep_mask_hy = sleep_mask_hy & ~gap_mask_hy
 
         apnea_raw    = flow_norm  < APNEA_THRESHOLD
-        hypopnea_raw = (hypop_norm < HYPOPNEA_THRESHOLD) & ~(hypop_norm < APNEA_THRESHOLD)
+
+        # ── v0.8.14: AASM-conforme peak-gebaseerde hypopnea-detectie ─────
+        # AASM 2.6: "peak signal excursions drop by ≥30%"
+        # = per-ademhaling piek-amplitude, NIET continue envelope.
+        # We combineren peak-mask met envelope-mask (OR) voor max. sensitiviteit.
+        _smooth_win = max(1, int(_SMOOTH_S * sf_hy)) if _SMOOTH_S > 0 else 1
+
+        # Peak-based mask from breath-by-breath analysis
+        peak_mask_hy = np.zeros(len(hypop_norm), dtype=bool)
+        if _USE_PEAK and breaths and len(breaths) > 10:
+            ratios = compute_breath_amplitudes(breaths, sf_hy)
+            for bi, br in enumerate(breaths):
+                if ratios[bi] < _HYPOP_THRESH and ratios[bi] >= APNEA_THRESHOLD:
+                    s_idx = int(br["onset_s"] * sf_hy)
+                    e_idx = int((br["onset_s"] + br["duration_s"]) * sf_hy)
+                    peak_mask_hy[max(0,s_idx):min(len(peak_mask_hy),e_idx)] = True
+            n_peak = int(peak_mask_hy.sum())
+            logger.info("[pneumo] Peak-based hypopnea mask: %d samples (%.1f s)",
+                        n_peak, n_peak / sf_hy)
+
+        # Envelope-based mask (smoothed, originele methode)
+        hypop_norm_smooth = uniform_filter1d(hypop_norm, _smooth_win)
+        envelope_mask_hy = (hypop_norm_smooth < _HYPOP_THRESH) & ~(hypop_norm_smooth < APNEA_THRESHOLD)
+
+        # Combineer: event gevonden door PEAK óf ENVELOPE → scoren
+        hypopnea_raw = peak_mask_hy | envelope_mask_hy
 
         events: list[dict]    = []
         rejected: list[dict] = []
@@ -370,10 +416,27 @@ def detect_respiratory_events(
 
         # Herbereken hypop_norm met gecorrigeerde basislijn
         hypop_norm_corrected = np.clip(hypop_env / hypop_baseline_corrected, 0, 2)
-        hypopnea_raw_corrected = (
-            (hypop_norm_corrected < HYPOPNEA_THRESHOLD)
-            & ~(hypop_norm_corrected < APNEA_THRESHOLD)
+        hypop_norm_corrected_smooth = uniform_filter1d(hypop_norm_corrected, _smooth_win)
+        envelope_mask_corrected = (
+            (hypop_norm_corrected_smooth < _HYPOP_THRESH)
+            & ~(hypop_norm_corrected_smooth < APNEA_THRESHOLD)
         )
+        # v0.8.14: peak + envelope merge voor gecorrigeerde pass
+        # Peak-mask herberekenen met gecorrigeerde basislijn
+        peak_mask_corrected = np.zeros(len(hypop_norm_corrected), dtype=bool)
+        if _USE_PEAK and breaths and len(breaths) > 10:
+            amps = np.array([b["amplitude"] for b in breaths])
+            # Herbereken ratios met gecorrigeerde basislijn per ademhaling
+            for bi, br in enumerate(breaths):
+                mid_idx = int((br["onset_s"] + br["duration_s"]/2) * sf_hy)
+                mid_idx = min(mid_idx, len(hypop_baseline_corrected) - 1)
+                local_bl = float(hypop_baseline_corrected[max(0,mid_idx)])
+                ratio_c = amps[bi] / local_bl if local_bl > 1e-9 else 1.0
+                if ratio_c < _HYPOP_THRESH and ratio_c >= APNEA_THRESHOLD:
+                    s_idx = int(br["onset_s"] * sf_hy)
+                    e_idx = int((br["onset_s"] + br["duration_s"]) * sf_hy)
+                    peak_mask_corrected[max(0,s_idx):min(len(peak_mask_corrected),e_idx)] = True
+        hypopnea_raw_corrected = peak_mask_corrected | envelope_mask_corrected
 
         # ── Detect hypopneas (met gecorrigeerde basislijn + Fix 2 SpO₂) ───
         new_events, rejected = _detect_hypopneas(
@@ -383,6 +446,9 @@ def detect_respiratory_events(
             thorax_env, abdomen_env, thorax_data, abdomen_data, effort_bl,
             spo2_data, global_spo2_bl, events,
             apply_spo2_crosscontam_fix=True,
+            desat_pct=_DESAT_PCT,
+            contam_win_s=_CONTAM_WIN,
+            post_event_win_s=_POST_WIN,
         )
         events = new_events
 
@@ -500,6 +566,7 @@ def _compute_mmsd_norm(
     sf_flow: float,
     result: dict,
 ) -> np.ndarray | None:
+    """Bereken genormaliseerde MMSD (Mean Magnitude Second Derivative) van flowsignaal."""
     try:
         filt       = bandpass_flow(flow_data, sf_flow)
         mmsd       = compute_mmsd(filt, sf_flow, window_s=1.0)
@@ -516,6 +583,7 @@ def _compute_mmsd_norm(
 def _apply_stage_baseline(
     flow_env, sf_flow, hypno, artifact_epochs, baseline, result
 ):
+    """Pas stadium-specifieke basislijn toe (REM vs NREM ademhalingspatroon)."""
     try:
         stage_bl = compute_stage_baseline(
             flow_env, sf_flow, hypno, artifact_epochs,
@@ -532,6 +600,7 @@ def _apply_stage_baseline(
 def _apply_position_reset(
     baseline, flow_env, sf_flow, pos_data, sf_pos, result
 ):
+    """Herbereken basislijn na positieverandering (eerste 60s van nieuw segment)."""
     try:
         pos_changes = detect_position_changes(pos_data, sf_pos)
         if pos_changes:
@@ -556,25 +625,25 @@ def _setup_hypop_channel(
 ):
     """Return (hypop_env, hypop_norm, hypop_baseline, sf_hy)."""
     if hypop_flow is not None and sf_hypop is not None:
-        # If hypopnea channel is the same signal as flow (same sample rate and length):
-        # reuse the already-computed flow_env envelope, skip re-preprocessing
+        # Als hypop zelfde signaal is als flow (zelfde array-object of zelfde sf+lengte):
+        # sla herberekening over, gebruik flow_env direct maar met √-normalisatie markering
         same_signal = (
             precomputed_hypop_baseline is not None
             and sf_hypop == sf_flow
             and len(hypop_flow) == len(flow_env)
         )
         if same_signal:
-            # Reuse the flow_env envelope (already computed), skip re-preprocessing
+            # Hergebruik flow_env envelope (al berekend), sla preprocess opnieuw over
             hypop_env = flow_env
         else:
             hypop_env = preprocess_flow(hypop_flow, sf_hypop, is_nasal_pressure=True)
 
-        # If sample rates match: reuse the precomputed baseline (including stage blend).
-        # The baseline was already computed and stage-corrected in the apnea-channel step.
+        # Als sf gelijk: gebruik voorberekende basislijn volledig (incl. stage-blend).
+        # De basislijn is al berekend + stage-gecorrigeerd in de apnea-channel stap.
         if precomputed_hypop_baseline is not None and sf_hypop == sf_flow:
             hypop_bl = precomputed_hypop_baseline
         else:
-            # Different sample rate (e.g. 2 Hz SpO₂ vs 256 Hz flow): compute separately
+            # Andere sf (bv. 2Hz SpO₂ vs 256Hz flow): apart berekenen
             hypop_bl = compute_dynamic_baseline(hypop_env, sf_hypop)
             try:
                 hyp_stage_bl = compute_stage_baseline(
@@ -603,6 +672,7 @@ def _setup_hypop_channel(
 
 
 def _run_breath_analysis(hypop_raw, hypop_sf, hypno, result):
+    """Voer breath-by-breath analyse uit: detecteer ademhalingen en bereken amplitudes."""
     try:
         filt   = bandpass_flow(hypop_raw, hypop_sf)
         breaths = detect_breaths(filt, hypop_sf)
@@ -626,7 +696,8 @@ def _run_breath_analysis(hypop_raw, hypop_sf, hypno, result):
             }
             result["_breaths"] = [
                 {"onset_s": b["onset_s"], "duration_s": b["duration_s"],
-                 "amplitude": b["amplitude"]}
+                 "amplitude": b["amplitude"],
+                 "flattening": b.get("flattening")}
                 for b in breaths
             ]
             return breaths, bb_ap, bb_hy
@@ -639,6 +710,7 @@ def _run_breath_analysis(hypop_raw, hypop_sf, hypno, result):
 
 
 def _compute_effort_baseline(thorax_env, abdomen_env, flow_norm, sf):
+    """Bereken effort-basislijn op stabiele ademhalingsperiodes (niet tijdens events)."""
     stable_mask = (flow_norm > 0.60) & (flow_norm < 1.30)
     bl: list[float] = []
     for env in (thorax_env, abdomen_env):
@@ -650,6 +722,7 @@ def _compute_effort_baseline(thorax_env, abdomen_env, flow_norm, sf):
 
 
 def _global_spo2_baseline(spo2_data, sf_spo2, hypno, artifact_epochs):
+    """Bereken globale SpO2-basislijn: 95e percentiel over stabiele slaapperiodes."""
     if spo2_data is None:
         return None
     spo2_mask  = build_sleep_mask(hypno, sf_spo2, len(spo2_data), artifact_epochs)
@@ -663,6 +736,7 @@ def _detect_apneas(
     thorax_env, abdomen_env, thorax_raw, abdomen_raw, effort_bl,
     spo2_data, global_spo2_bl, mmsd_norm,
 ) -> list[dict]:
+    """Detecteer apnea-events: ≥90% flow-reductie gedurende ≥10s (AASM 2.6)."""
     events: list[dict] = []
     labeled, n_ap = label(apnea_raw & sleep_mask_ap)
     slices_ap = find_objects(labeled)
@@ -718,6 +792,9 @@ def _detect_hypopneas(
     thorax_env, abdomen_env, thorax_raw, abdomen_raw, effort_bl,
     spo2_data, global_spo2_bl, existing_events,
     apply_spo2_crosscontam_fix: bool = True,
+    desat_pct: float = 3.0,
+    contam_win_s: float = 15.0,
+    post_event_win_s: float = 45,
 ) -> tuple[list[dict], list[dict]]:
     """Return (all_events_including_new_hypopneas, rejected_candidates)."""
     # Build apnea exclusion mask (±5 s around each confirmed apnea)
@@ -749,18 +826,20 @@ def _detect_hypopneas(
         flow_mean = float(np.mean(hypop_env[idx[0] : idx[-1] + 1]))
         flow_red  = safe_r((1 - flow_mean / pre_bl) * 100) if pre_bl > 0 else None
 
-        # Fix 2 — SpO₂ kruiscontaminatie
+        # Fix 2 — SpO2 kruiscontaminatie (v0.8.14: flag only, niet blokkeren)
         contaminated = (
             apply_spo2_crosscontam_fix
-            and _spo2_cross_contaminated(onset_s, new_events)
+            and contam_win_s > 0 and _spo2_cross_contaminated(onset_s, new_events, post_event_window_s=contam_win_s)
         )
-        if contaminated:
-            desat, min_spo2 = None, None
-        else:
-            desat, min_spo2 = get_desaturation(
-                spo2_data, onset_s, dur_s, sf_spo2, global_spo2_bl
-            )
-        rule1a = desat is not None and desat >= DESATURATION_DROP_PCT
+        # v0.8.14: ALTIJD desaturatie berekenen. Contamination is informatief,
+        # blokkeert de scoring NIET meer. De vorige aanpak (desat=None bij
+        # contamination) veroorzaakte massale ondertelling bij matig OSAS
+        # waar events typisch 20-40s apart liggen.
+        desat, min_spo2 = get_desaturation(
+            spo2_data, onset_s, dur_s, sf_spo2, global_spo2_bl,
+            post_win_s=post_event_win_s,
+        )
+        rule1a = desat is not None and desat >= desat_pct
 
         if not rule1a:
             rejected.append({
@@ -860,9 +939,11 @@ def _compute_summary(
     mixed     = [e for e in events if e["type"] == "mixed"]
 
     def idx(n, h):
+        """Bereken index (events/uur) met veilige deling."""
         return safe_r(n / h) if h > 0 else 0
 
     def split_rn(lst):
+        """Splits events in REM- en NREM-subgroepen."""
         return (
             [e for e in lst if is_rem(e["stage"])],
             [e for e in lst if is_nrem(e["stage"])],
@@ -877,20 +958,21 @@ def _compute_summary(
     confs      = [e.get("confidence", 0.5) for e in apneas if e.get("confidence")]
     avg_conf   = safe_r(float(np.mean(confs))) if confs else None
 
-    # ── Confidence-stratified OAHI (conf > 0.60) ───────────────────────
-    # OAHI_CONF60 is the official OAHI: only obstructive apneas + hypopneas
-    # with confidence > 0.60. This is the clinically relevant index.
-    # oahi_all = all events regardless of confidence (for comparison).
-    # Hypopneas always receive conf=0.70 (scored on desaturation, Rule 1A)
-    # and therefore always count.
+    # ── Confidence-gestratificeerde OAHI (conf > 0.60) ─────────────────
+    # OAHI_CONF60 is de officiële OAHI: enkel obstructieve apneas + hypopneas
+    # met betrouwbaarheid > 0.60. Dit is de klinisch relevante index.
+    # oahi_all = alle events ongeacht confidence (voor vergelijking).
+    # Hypopneas krijgen altijd conf=0.70 (gescoord op desaturatie, Rule 1A)
+    # en tellen dus altijd mee.
     CONF_THRESHOLD = 0.60
     obstr_conf = [e for e in obstr     if (e.get("confidence") or 0) >  CONF_THRESHOLD]
     hyp_conf   = [e for e in hypopneas if (e.get("confidence") or 0) >= CONF_THRESHOLD]
     oahi_conf60 = idx(len(obstr_conf) + len(hyp_conf), total_sleep_h)
     oahi_all    = idx(len(obstr) + len(hypopneas), total_sleep_h)
 
-    # Confidence distribution by category (apneas only; hypopneas fixed at 0.70)
+    # Confidence-verdeling per categorie (apneas only; hypopneas fixed at 0.70)
     def _conf_band(events_list):
+        """Tel events per confidence-band (hoog/matig/grens/laag)."""
         bands = {"high": 0, "moderate": 0, "borderline": 0, "low": 0}
         for e in events_list:
             c = e.get("confidence") or 0
@@ -904,6 +986,7 @@ def _compute_summary(
 
     # OAHI per drempel (voor drempelgevoeligheidstabel in rapport)
     def _oahi_at(threshold):
+        """Bereken OAHI bij een gegeven confidence-drempel."""
         ob = [e for e in obstr     if (e.get("confidence") or 0) >  threshold]
         hy = [e for e in hypopneas if (e.get("confidence") or 0) >= threshold]
         return idx(len(ob) + len(hy), total_sleep_h)
@@ -921,6 +1004,9 @@ def _compute_summary(
         "n_mixed":         len(mixed),
         "n_apnea_total":   len(apneas),
         "n_hypopnea":      len(hypopneas),
+        "n_hypopnea_obstr":  len([e for e in hypopneas if e["type"] == "hypopnea"]),
+        "n_hypopnea_central": len([e for e in hypopneas if e["type"] == "hypopnea_central"]),
+        "n_hypopnea_mixed":  len([e for e in hypopneas if e["type"] == "hypopnea_mixed"]),
         "n_ah_total":      len(apneas) + len(hypopneas),
 
         "ahi_total":       ahi,
@@ -1001,6 +1087,7 @@ def _compute_summary(
 
 
 def _classify_ahi(ahi: float | None) -> str:
+    """Classificeer AHI-ernst: normaal (<5), licht (5-15), matig (15-30), ernstig (>30)."""
     if ahi is None:
         return "unknown"
     if ahi < 5:   return "normal"
@@ -1012,6 +1099,7 @@ def _classify_ahi(ahi: float | None) -> str:
 def _generate_warnings(
     n_central, n_obstr, n_mixed, ahi, avg_conf, sleep_h
 ) -> list[dict]:
+    """Genereer klinische waarschuwingen op basis van event-patronen en AHI-ernst."""
     warnings: list[dict] = []
     total_ap = n_central + n_obstr + n_mixed
 

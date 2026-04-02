@@ -1,10 +1,10 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "psgscoring"
-version = "0.2.0"
+version = "0.2.2"
 description = "AASM 2.6-compliant respiratory event scoring for polysomnography"
 readme = "README.md"
 license = {text = "BSD-3-Clause"}
@@ -40,13 +40,9 @@ full = ["yasa>=0.6", "reportlab"]
 dev = ["pytest", "pytest-cov", "flake8"]
 
 [project.urls]
-Homepage = "https://github.com/bartromb/psgscoring"
+Homepage = "https://github.com/bartrombaut/psgscoring"
 Documentation = "https://psgscoring.readthedocs.io"
-Repository = "https://github.com/bartromb/psgscoring"
+Repository = "https://github.com/bartrombaut/psgscoring"
 
 [tool.setuptools.packages.find]
 include = ["psgscoring*"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "--import-mode=importlib"
