@@ -46,3 +46,7 @@ Repository = "https://github.com/bartrombaut/psgscoring"
 
 [tool.setuptools.packages.find]
 include = ["psgscoring*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

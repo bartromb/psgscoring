@@ -6,8 +6,6 @@ Run with: pytest tests/ -v
 
 import numpy as np
 import pytest
-import sys
-sys.path.insert(0, "..")
 
 from psgscoring import (
     linearize_nasal_pressure,
