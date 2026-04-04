@@ -1,0 +1,12 @@
+numpy>=1.22
+scipy>=1.8
+mne>=1.0
+
+[dev]
+pytest
+pytest-cov
+flake8
+
+[full]
+yasa>=0.6
+reportlab

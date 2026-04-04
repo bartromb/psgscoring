@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "psgscoring"
-version = "0.2.2"
+version = "0.2.3"
 description = "AASM 2.6-compliant respiratory event scoring for polysomnography"
 readme = "README.md"
 license = {text = "BSD-3-Clause"}

@@ -67,7 +67,7 @@ from .utils import (
 )
 from .signal_quality import assess_signal_quality
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 __all__ = [
     # Master
     "run_pneumo_analysis",
