@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "psgscoring"
-version = "0.2.6"
+version = "0.2.7"
 description = "Open-source Python library for AASM 2.6-compliant automated polysomnography scoring"
 readme = "README.md"
-license = {text = "BSD-3-Clause"}
+license = "BSD-3-Clause"
 requires-python = ">=3.9"
 authors = [
     {name = "Bart Rombaut", email = "bart.rombaut@azorg.be"},
@@ -20,7 +20,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Healthcare Industry",
-    "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
