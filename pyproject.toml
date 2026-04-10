@@ -4,23 +4,24 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "psgscoring"
-version = "0.2.3"
-description = "AASM 2.6-compliant respiratory event scoring for polysomnography"
+version = "0.2.5"
+description = "Open-source Python library for AASM 2.6-compliant automated polysomnography scoring"
 readme = "README.md"
 license = {text = "BSD-3-Clause"}
 requires-python = ">=3.9"
 authors = [
-    {name = "Bart Rombaut", email = "bart@slaapkliniek.be"},
+    {name = "Bart Rombaut", email = "bart.rombaut@azorg.be"},
 ]
 keywords = [
-    "polysomnography", "sleep", "apnea", "hypopnea", "AASM",
-    "respiratory", "scoring", "signal-processing", "PSG",
+    "polysomnography", "PSG", "sleep", "AASM", "apnea", "hypopnea",
+    "AHI", "respiratory", "scoring", "sleep-staging", "YASA",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Healthcare Industry",
     "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -30,23 +31,21 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
 dependencies = [
-    "numpy>=1.22",
-    "scipy>=1.8",
+    "numpy>=1.21",
+    "scipy>=1.7",
     "mne>=1.0",
 ]
 
 [project.optional-dependencies]
-full = ["yasa>=0.6", "reportlab"]
-dev = ["pytest", "pytest-cov", "flake8"]
+full = ["yasa>=0.6", "lightgbm>=3.0"]
+test = ["pytest>=7.0", "hypothesis>=6.0"]
 
 [project.urls]
-Homepage = "https://github.com/bartrombaut/psgscoring"
-Documentation = "https://psgscoring.readthedocs.io"
-Repository = "https://github.com/bartrombaut/psgscoring"
+Homepage = "https://slaapkliniek.be"
+Repository = "https://github.com/bartromb/psgscoring"
+Documentation = "https://github.com/bartromb/psgscoring#readme"
+Issues = "https://github.com/bartromb/psgscoring/issues"
 
 [tool.setuptools.packages.find]
 include = ["psgscoring*"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["."]
+exclude = ["psgscoring.tests*"]
