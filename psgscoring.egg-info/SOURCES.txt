@@ -2,12 +2,12 @@ LICENSE
 README.md
 pyproject.toml
 psgscoring/__init__.py
-psgscoring/_arousal.py
-psgscoring/_core.py
+psgscoring/_types.py
 psgscoring/ancillary.py
 psgscoring/breath.py
 psgscoring/classify.py
 psgscoring/constants.py
+psgscoring/ecg_effort.py
 psgscoring/pipeline.py
 psgscoring/plm.py
 psgscoring/respiratory.py

@@ -1,12 +1,11 @@
-numpy>=1.22
-scipy>=1.8
+numpy>=1.21
+scipy>=1.7
 mne>=1.0
-
-[dev]
-pytest
-pytest-cov
-flake8
 
 [full]
 yasa>=0.6
-reportlab
+lightgbm>=3.0
+
+[test]
+pytest>=7.0
+hypothesis>=6.0

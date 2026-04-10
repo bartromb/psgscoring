@@ -1,8 +1,8 @@
 # psgscoring
 
 [![PyPI](https://img.shields.io/pypi/v/psgscoring.svg)](https://pypi.org/project/psgscoring/)
-[![License: BSD-3](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-47%20passed-brightgreen.svg)](psgscoring/tests/)
+[![License: BSD-3](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://github.com/bartromb/psgscoring/blob/main/LICENSE)
+[![Tests](https://img.shields.io/badge/tests-47%20passed-brightgreen.svg)](https://github.com/bartromb/psgscoring/blob/main/psgscoring/tests/)
 [![Python](https://img.shields.io/badge/python-3.9%E2%80%933.12-blue.svg)](pyproject.toml)
 
 **Open-source Python library for AASM 2.6-compliant automated polysomnography scoring.**
@@ -11,7 +11,7 @@
 
 ## Documentation
 
-📖 **[Technical Handbook (PDF)](docs/handbook.pdf)** — 26-page guide covering:
+📖 **[Technical Handbook (PDF)](https://github.com/bartromb/psgscoring/blob/main/docs/handbook.pdf)** — 26-page guide covering:
 - Clinical context and AASM 2.6 scoring rules
 - Signal processing pipeline (linearisation, filtering, Hilbert envelope, dynamic baseline)
 - 7-rule apnea type classification with Hilbert phase-angle analysis
@@ -23,7 +23,7 @@
 - Data structures, testing strategy, design decisions
 - Glossary and exercises
 
-Written for BSc-level computer science students. LaTeX source included in `docs/handbook.tex`.
+Written for BSc-level computer science students. LaTeX source included in [`docs/handbook.tex`](https://github.com/bartromb/psgscoring/blob/main/docs/handbook.tex).
 
 ## Features
 
@@ -151,7 +151,7 @@ breaths = detect_breaths(flow_filt, sf=256)
 - The developers accept no liability for clinical decisions based on psgscoring output.
 - Sleep staging depends on YASA's LightGBM classifier (~85% epoch agreement); staging errors propagate into all downstream indices.
 
-For the full disclaimer, see [DISCLAIMER.md](DISCLAIMER.md).
+For the full disclaimer, see [DISCLAIMER.md](https://github.com/bartromb/psgscoring/blob/main/DISCLAIMER.md).
 
 ## Citation
 
@@ -163,4 +163,4 @@ If you use `psgscoring` in your research, please cite:
 
 ## License
 
-BSD-3-Clause. See [LICENSE](LICENSE).
+BSD-3-Clause. See [LICENSE](https://github.com/bartromb/psgscoring/blob/main/LICENSE).
