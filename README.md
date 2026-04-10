@@ -157,7 +157,9 @@ For the full disclaimer, see [DISCLAIMER.md](DISCLAIMER.md).
 
 If you use `psgscoring` in your research, please cite:
 
-> Rombaut B, Rombaut B, Rombaut C, Vallat R. psgscoring: An Open-Source Python Library for AASM 2.6-Compliant Automated Polysomnography Scoring. 2026. https://github.com/bartromb/psgscoring
+> Rombaut B, Rombaut B, Rombaut C, Vallat R*. psgscoring: An Open-Source Python Library for AASM 2.6-Compliant Automated Polysomnography Scoring. 2026. https://github.com/bartromb/psgscoring
+>
+> *\* Co-authorship subject to confirmation by R. Vallat*
 
 ## License
 
