@@ -101,9 +101,57 @@ breaths = detect_breaths(flow_filt, sf=256)
 
 ## References
 
-- Berry RB et al. *The AASM Manual for the Scoring of Sleep and Associated Events, Version 2.6.* AASM, 2020.
-- Vallat R, Walker MP. An open-source, high-performance tool for automated sleep staging. *eLife*. 2021;10:e70092.
-- Berry RB et al. Use of a transformed ECG signal to detect respiratory effort during apnea. *JCSM*. 2019;15(11):1653–1660.
+### Standards and Scoring Manuals
+1. Berry RB, Brooks R, Gamaldo C, et al. *The AASM Manual for the Scoring of Sleep and Associated Events: Rules, Terminology and Technical Specifications. Version 2.6.* AASM, 2020.
+2. Iber C, Ancoli-Israel S, Chesson AL, Quan SF. *The AASM Manual for the Scoring of Sleep and Associated Events.* 1st ed. AASM, 2007.
+3. Zucconi M, Ferri R, Allen R, et al. WASM standards for recording and scoring periodic leg movements in sleep and wakefulness. *Sleep Med*. 2006;7(2):175–183. [doi:10.1016/j.sleep.2006.01.001](https://doi.org/10.1016/j.sleep.2006.01.001)
+
+### Sleep Staging and YASA
+4. Vallat R, Walker MP. An open-source, high-performance tool for automated sleep staging. *eLife*. 2021;10:e70092. [doi:10.7554/eLife.70092](https://doi.org/10.7554/eLife.70092)
+5. Perslev M, Darkner S, Kempfner L, et al. U-Sleep: resilient high-frequency sleep staging. *npj Digital Medicine*. 2021;4:72. [doi:10.1038/s41746-021-00440-5](https://doi.org/10.1038/s41746-021-00440-5)
+6. Ke G, Meng Q, Finley T, et al. LightGBM: a highly efficient gradient boosting decision tree. *NeurIPS*. 2017;30:3146–3154. [NeurIPS 2017](https://proceedings.neurips.cc/paper/2017/hash/6449f44a102fde848669bdd9eb6b76fa-Abstract.html)
+7. Gramfort A, Luessi M, Larson E, et al. MNE software for processing MEG and EEG data. *NeuroImage*. 2014;86:446–460. [doi:10.1016/j.neuroimage.2013.10.027](https://doi.org/10.1016/j.neuroimage.2013.10.027)
+8. Feinberg I, Floyd TC. Systematic trends across the night in human sleep cycles. *Psychophysiology*. 1979;16(3):283–291. [doi:10.1111/j.1469-8986.1979.tb02991.x](https://doi.org/10.1111/j.1469-8986.1979.tb02991.x)
+
+### Respiratory Scoring and Signal Processing
+9. Thurnheer R, Xie X, Bloch KE. Accuracy of nasal cannula pressure recordings for assessment of ventilation during sleep. *Am J Respir Crit Care Med*. 2001;164(10):1914–1919. [doi:10.1164/ajrccm.164.10.2010113](https://doi.org/10.1164/ajrccm.164.10.2010113)
+10. Montserrat JM, Farré R, Ballester E, et al. Evaluation of nasal prongs for estimating nasal flow. *Am J Respir Crit Care Med*. 1997;155(1):211–215. [doi:10.1164/ajrccm.155.1.9001310](https://doi.org/10.1164/ajrccm.155.1.9001310)
+11. Lee H, Park J, Kim H, et al. Detection of apneic events from single-channel nasal airflow using 2nd derivative method. *Physiol Meas*. 2008;29:N37–N45. [doi:10.1088/0967-3334/29/5/N01](https://doi.org/10.1088/0967-3334/29/5/N01)
+12. Hosselet J, Norman RG, Ayappa I, Rapoport DM. Detection of flow limitation with a nasal cannula/pressure transducer system. *Am J Respir Crit Care Med*. 1998;157(5):1461–1467. [doi:10.1164/ajrccm.157.5.9708008](https://doi.org/10.1164/ajrccm.157.5.9708008)
+13. Uddin MB, Chow CM, Su SW. A novel algorithm for automatic diagnosis of sleep apnea from airflow and oximetry signals. *Physiol Meas*. 2021;42:015001. [doi:10.1088/1361-6579/abd47a](https://doi.org/10.1088/1361-6579/abd47a)
+14. Nakano H, Tanigawa T, Furukawa T, Nishima S. New rule-based algorithm for real-time detecting sleep apnea events. *J Clin Sleep Med*. 2016;12(10):1389–1396. [doi:10.5664/jcsm.6200](https://doi.org/10.5664/jcsm.6200)
+
+### Apnea Classification and Effort Assessment
+15. Berry RB, Albertario CL, Guttman B, et al. Use of a transformed ECG signal to detect respiratory effort during apnea. *J Clin Sleep Med*. 2019;15(11):1653–1660. [doi:10.5664/jcsm.7880](https://doi.org/10.5664/jcsm.7880)
+16. Berry RB, Budhiraja R, Guttman B, et al. Use of chest wall electromyography to detect respiratory effort during polysomnography. *J Clin Sleep Med*. 2016;12(9):1239–1244. [doi:10.5664/jcsm.6122](https://doi.org/10.5664/jcsm.6122)
+
+### Scoring Variability and Validation
+17. Rosenberg RS, Van Hout S. The AASM inter-scorer reliability program: sleep stage scoring. *J Clin Sleep Med*. 2013;9(1):81–87. [doi:10.5664/jcsm.2350](https://doi.org/10.5664/jcsm.2350)
+18. Rosenberg RS, Hirshkowitz M, Engleman HM, Penzel T. The AASM inter-scorer reliability program: respiratory events. *J Clin Sleep Med*. 2014;10(4):447–454. [doi:10.5664/jcsm.3630](https://doi.org/10.5664/jcsm.3630)
+19. Ruehland WR, Rochford PD, O'Donoghue FJ, et al. The new AASM criteria for scoring hypopneas: impact on the apnea hypopnea index. *Sleep*. 2009;32(2):150–157. [doi:10.1093/sleep/32.2.150](https://doi.org/10.1093/sleep/32.2.150)
+20. Malhotra A, Younes M, Kuna ST, et al. Performance of an automated polysomnography scoring system versus computer-assisted manual scoring. *Sleep*. 2013;36(4):573–582. [doi:10.5665/sleep.2548](https://doi.org/10.5665/sleep.2548)
+
+### Novel Metrics
+21. Parekh A, Kam K, Wickramaratne S, et al. Ventilatory burden as a measure of obstructive sleep apnea severity is predictive of cardiovascular and all-cause mortality. *Am J Respir Crit Care Med*. 2023;208(11):1216–1226. [doi:10.1164/rccm.202301-0109OC](https://doi.org/10.1164/rccm.202301-0109OC)
+
+### Epidemiology
+22. Peppard PE, Young T, Barnet JH, et al. Increased prevalence of sleep-disordered breathing in adults. *Am J Epidemiol*. 2013;177(9):1006–1014. [doi:10.1093/aje/kws342](https://doi.org/10.1093/aje/kws342)
+23. Benjafield AV, Ayas NT, Eastwood PR, et al. Estimation of the global prevalence and burden of obstructive sleep apnoea. *Lancet Respir Med*. 2019;7(8):687–698. [doi:10.1016/S2213-2600(19)30198-5](https://doi.org/10.1016/S2213-2600(19)30198-5)
+
+### Software
+24. Vallat R. Pingouin: statistics in Python. *J Open Source Software*. 2018;3(31):1026. [doi:10.21105/joss.01026](https://doi.org/10.21105/joss.01026)
+
+## ⚠️ Disclaimer
+
+**psgscoring is a research tool, not a certified medical device.**
+
+- This software is **not** CE-marked (MDR 2017/745), FDA-cleared, or approved by any regulatory authority for clinical diagnostic use.
+- All scoring results must be reviewed and validated by a qualified sleep physician before any clinical decision.
+- The automated AHI and event classifications carry inherent uncertainty. Confidence scores, correction counters, and scoring profiles are provided to help clinicians assess the robustness of each individual study — they do not replace expert judgment.
+- The developers accept no liability for clinical decisions based on psgscoring output.
+- Sleep staging depends on YASA's LightGBM classifier (~85% epoch agreement); staging errors propagate into all downstream indices.
+
+For the full disclaimer, see [DISCLAIMER.md](DISCLAIMER.md).
 
 ## Citation
 
