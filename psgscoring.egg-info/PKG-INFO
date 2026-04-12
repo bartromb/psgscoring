@@ -1,9 +1,9 @@
 Metadata-Version: 2.4
 Name: psgscoring
-Version: 0.2.6
+Version: 0.2.7
 Summary: Open-source Python library for AASM 2.6-compliant automated polysomnography scoring
 Author-email: Bart Rombaut <bart.rombaut@azorg.be>
-License: BSD-3-Clause
+License-Expression: BSD-3-Clause
 Project-URL: Homepage, https://slaapkliniek.be
 Project-URL: Repository, https://github.com/bartromb/psgscoring
 Project-URL: Documentation, https://github.com/bartromb/psgscoring#readme
@@ -12,7 +12,6 @@ Keywords: polysomnography,PSG,sleep,AASM,apnea,hypopnea,AHI,respiratory,scoring,
 Classifier: Development Status :: 4 - Beta
 Classifier: Intended Audience :: Science/Research
 Classifier: Intended Audience :: Healthcare Industry
-Classifier: License :: OSI Approved :: BSD License
 Classifier: Operating System :: OS Independent
 Classifier: Programming Language :: Python :: 3
 Classifier: Programming Language :: Python :: 3.9
