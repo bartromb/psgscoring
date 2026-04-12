@@ -88,4 +88,20 @@ This library builds on YASA:
 
 BSD-3-Clause. See [LICENSE](LICENSE).
 
-**Disclaimer**: Research use only. Not CE-marked or FDA-cleared. See [DISCLAIMER.md](DISCLAIMER.md).
+## Medical & Clinical Disclaimer
+
+**psgscoring is research software — not a medical device.**
+
+This software has **not** been evaluated, cleared, or approved by any regulatory authority, including the European Union Medical Device Regulation (EU MDR 2017/745) and the U.S. Food and Drug Administration (FDA). It does **not** carry a CE mark or FDA clearance.
+
+All computed indices — including AHI, OAHI, ODI, PLMI, arousal index, and RDI — are **research-grade estimates**. They must be:
+
+- Reviewed by a qualified, licensed clinician before any diagnostic or therapeutic decision
+- Validated against manual scoring by a registered polysomnographic technologist (RPSGT)
+- Interpreted in the context of the full clinical picture and patient history
+
+**Intended use**: academic sleep research, algorithm benchmarking, clinical research under ethics committee approval, educational purposes. **Not intended for** standalone clinical diagnosis, automated treatment decisions, or unsupervised patient screening.
+
+**Validation status**: External validation on PSG-IPA (PhysioNet, 5 recordings, 59 scorer sessions) demonstrated mean |ΔAHI| = 2.0/h and severity concordance 4/5. A formal validation study (AZORG-YASA-2026-001, n≥50) is in preparation. All outputs should be treated as preliminary and verified by a qualified clinician.
+
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. See [DISCLAIMER.md](https://github.com/bartromb/psgscoring/blob/main/DISCLAIMER.md) for the full legal text.
