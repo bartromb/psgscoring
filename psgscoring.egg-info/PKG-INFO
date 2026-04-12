@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: psgscoring
-Version: 0.2.9
+Version: 0.2.91
 Summary: Open-source Python library for AASM 2.6-compliant automated polysomnography scoring
 Author-email: Bart Rombaut <bart.rombaut@azorg.be>
 License-Expression: BSD-3-Clause

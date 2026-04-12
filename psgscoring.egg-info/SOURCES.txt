@@ -1,6 +1,7 @@
 LICENSE
 README.md
 pyproject.toml
+psgscoring/DISCLAIMER.md
 psgscoring/__init__.py
 psgscoring/_types.py
 psgscoring/ancillary.py
