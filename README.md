@@ -1,45 +1,27 @@
 # psgscoring
 
-[![PyPI](https://img.shields.io/pypi/v/psgscoring.svg)](https://pypi.org/project/psgscoring/)
-[![License: BSD-3](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://github.com/bartromb/psgscoring/blob/main/LICENSE)
-[![Tests](https://img.shields.io/badge/tests-47%20passed-brightgreen.svg)](https://github.com/bartromb/psgscoring/blob/main/psgscoring/tests/)
-[![Python](https://img.shields.io/badge/python-3.9%E2%80%933.12-blue.svg)](pyproject.toml)
-[![Validated](https://img.shields.io/badge/validated-PSG--IPA%20(59%20scorers)-green.svg)](https://github.com/bartromb/psgscoring/wiki)
+**Open-source AASM 2.6–compliant respiratory scoring for polysomnography.**
 
-**Open-source Python library for AASM 2.6-compliant automated polysomnography scoring.**
+[![PyPI](https://img.shields.io/pypi/v/psgscoring)](https://pypi.org/project/psgscoring/)
+[![Python](https://img.shields.io/pypi/pyversions/psgscoring)](https://pypi.org/project/psgscoring/)
+[![License](https://img.shields.io/pypi/l/psgscoring)](https://github.com/bartromb/psgscoring/blob/main/LICENSE)
+[![Tests](https://github.com/bartromb/psgscoring/actions/workflows/tests.yml/badge.svg)](https://github.com/bartromb/psgscoring/actions)
 
-`psgscoring` extracts the core respiratory scoring algorithms from [YASAFlaskified](https://github.com/bartromb/YASAFlaskified) into a standalone, pip-installable library for the research community.
+## Paper
 
-## Validation on PSG-IPA (v0.2.91)
+> Rombaut B, Rombaut B, Rombaut C, et al. **Automated Polysomnography Scoring for Clinical Sleep Medicine: An Open-Source Platform Validated Against 59 Independent Scorer Sessions on PSG-IPA.** Manuscript in preparation, 2026.
 
-External validation on the [PSG-IPA dataset](https://physionet.org/content/psg-ipa/) ([Alvarez-Estevez & Rijsman, *PLOS ONE* 2022](https://doi.org/10.1371/journal.pone.0275530)), comprising 5 diagnostic PSG recordings each independently scored by up to 12 certified sleep technologists (59 scorer sessions total, SOMNOscreen™ Plus hardware):
+Technical details (signal processing chain, classification logic, all twelve bias corrections): **[Technical Reference (Online Supplement)](https://github.com/bartromb/psgscoring/wiki/Technical-Reference)**
 
-| PSG | Scorers | Median AHI | psgscoring AHI | ΔAHI | Severity |
-|-----|---------|-----------|----------------|------|----------|
-| SN1 | 11 | 6.0 | 8.1 | +2.1 | Mild ✓ |
-| SN2 | 12 | 3.7 | 9.3 | +5.6 | Mild / Normal* |
-| SN3 | 12 | 54.0 | 53.8 | −0.2 | Severe ✓ |
-| SN4 | 12 | 3.5 | 4.3 | +0.8 | Normal ✓ |
-| SN5 | 12 | 9.9 | 11.4 | +1.5 | Mild ✓ |
-| **Mean** | | | | **2.0** | **4/5 concordant** |
+## What this library does
 
-*\*SN2: scorers split 8/12 Normal, 4/12 Mild. The sensitive profile (AHI 5.4) falls within the scorer IQR [1.8–5.6] — see [AHI confidence interval](#ahi-confidence-interval).*
+`psgscoring` detects and classifies respiratory events (apneas, hypopneas, RERAs) in polysomnography recordings following AASM 2.6 rules. It extends [YASA](https://github.com/raphaelvallat/yasa) (Vallat & Walker, *eLife* 2021) from sleep staging into a complete clinical respiratory scoring pipeline.
 
-Details: [Online Supplement (Wiki)](https://github.com/bartromb/psgscoring/wiki) · [Ablation analysis](https://github.com/bartromb/psgscoring/wiki/Ablation-Analysis)
+**Three contributions that distinguish this library:**
 
-## Features
-
-- **AASM 2.6 respiratory scoring**: dual-sensor detection (thermistor for apneas, nasal pressure for hypopneas) with square-root linearisation, Hilbert envelope, and dynamic P95 baseline
-- **7-rule apnea type classification**: obstructive / central / mixed with Hilbert phase-angle analysis and ECG-derived effort assessment (spectral + TECG; Berry 2019)
-- **12 systematic bias corrections**: 6 over-counting (baseline inflation, SpO₂ cross-contamination, Cheyne-Stokes, borderline classification, artefact-flank, local baseline validation) + 6 under-counting (peak-based detection, extended SpO₂ window, position auto-mapping, configurable profiles, flattening-RERA)
-- **Breath-amplitude stability filter** (v0.2.91): rejects false-positive hypopneas during normal breathing by comparing per-breath amplitude variability (CV < 0.45) — reduces over-counting by 57–68% in normal patients while preserving accuracy in severe OSA (−3%)
-- **AHI confidence interval**: automatic 3-profile analysis reporting AHI as [strict – standard – sensitive] interval with robustness grade (A/B/C)
-- **Configurable scoring profiles**: strict (research), standard (AASM 2.6), sensitive (UARS/screening)
-- **Signal quality assessment**: flat-line, clipping, disconnect, line-noise, montage plausibility (EEG↔EOG, thorax↔abdomen cross-correlation)
-- **PLM scoring** per AASM 2.6 + WASM criteria
-- **SpO₂ analysis**: ODI 3%/4%, baseline (P90), T90, low-baseline warning
-- **RERA/RDI computation**: amplitude-reduction RERA + flattening-based RERA (Hosselet 1998)
-- **Cheyne-Stokes detection** via autocorrelation with event flagging and CSR-corrected AHI
+1. **Twelve bias corrections** — the first systematic identification and empirical quantification of six over-counting and six under-counting mechanisms in automated respiratory scoring
+2. **AHI confidence interval** — every study is scored at three stringency levels (strict/standard/sensitive), yielding a per-study robustness grade (A/B/C) rather than a single AHI number
+3. **Clinical auditability** — every event carries a confidence score, classification rule index, and per-correction counters, enabling the reviewing physician to verify individual scoring decisions
 
 ## Installation
 
@@ -47,86 +29,93 @@ Details: [Online Supplement (Wiki)](https://github.com/bartromb/psgscoring/wiki)
 pip install psgscoring
 ```
 
-## Quick start
+Requirements: Python ≥3.9, numpy, scipy, mne. **No GPU required.**
+
+## Quick Start
 
 ```python
-from psgscoring import run_pneumo_analysis
 import mne
+from psgscoring import run_pneumo_analysis
 
+# Load EDF and provide a hypnogram (e.g., from YASA)
 raw = mne.io.read_raw_edf("recording.edf", preload=True)
-hypno = ["W", "N1", "N2", "N3", "R", ...]  # 30-s epochs
+hypnogram = ["W", "N1", "N2", "N2", "N3", ...]  # per 30-s epoch
 
-results = run_pneumo_analysis(raw, hypno, scoring_profile="standard")
+# Run the full pipeline
+results = run_pneumo_analysis(raw, hypnogram, scoring_profile="standard")
 
-# AHI
-print(f"AHI: {results['respiratory']['summary']['ahi_total']}")
+# Access results
+resp = results["respiratory"]["summary"]
+print(f"AHI: {resp['ahi_total']}, Severity: {resp['severity']}")
+print(f"Events: {resp['n_obstructive']} OA, {resp['n_hypopnea']} Hyp")
 
 # AHI confidence interval
-iv = results["ahi_interval"]
-print(f"Interval: [{iv['interval'][0]} – {iv['interval'][1]}]")
-print(f"Robustness: {iv['robustness_grade']}")
+interval = results["interval"]
+print(f"AHI interval: [{interval['strict']['ahi']}–{interval['sensitive']['ahi']}]")
+print(f"Robustness: {interval['robustness_grade']}")
 ```
 
-## AHI confidence interval
+## Scoring Profiles
 
-Every analysis automatically runs all three scoring profiles and reports the AHI as an interval rather than a point estimate:
+| Parameter | Strict | Standard | Sensitive |
+|-----------|--------|----------|-----------|
+| Hypopnea threshold | ≥30% | ≥30% | ≥25% |
+| SpO₂ nadir window | 30 s | 45 s | 45 s |
+| Peak-based detection | No | Yes | Yes |
 
-| Grade | Criterion | Clinical interpretation |
-|-------|-----------|----------------------|
-| **A** | All 3 profiles same severity | Robust — treatment decision unambiguous |
-| **B** | 2/3 profiles concordant | Probable — clinical correlation recommended |
-| **C** | All discordant | Uncertain — manual review recommended |
+## Validation
 
-On PSG-IPA SN2, where 12 technologists split 8/4 between Normal and Mild, the interval [5.4–9.3] immediately communicates that the AHI hovers near the 5/h diagnostic threshold — precisely the situation where a single AHI number would mislead.
+**PSG-IPA** (PhysioNet): 5 recordings, 59 independent scorer sessions. Mean |ΔAHI| = 2.0/h, severity concordance 4/5. See the [paper](#paper) for full results.
 
-## What's new in v0.2.91
+**PSG-Audio** (Sismanoglio Hospital, Athens): n=194, open access. External validation in progress.
 
-- **Removed flow smoothing** from all profiles — ablation analysis on PSG-IPA showed 3s smoothing added +54 false hypopneas to a mild-OSA recording (the dominant source of over-counting)
-- **Breath-amplitude stability filter**: rejects hypopneas during stable breathing (CV < 0.45), calibrated on 59 independent scorer sessions
-- **AHI confidence interval**: automatic 3-profile analysis with robustness grading (A/B/C)
-- **Consecutive breath requirement**: peak detection requires ≥3 consecutive reduced breaths
-- **PSG-IPA validation**: mean |ΔAHI| = 2.0/h, severity concordance 4/5
+## Twelve Bias Corrections
 
-## Documentation
+| # | Correction | Direction | Clinical impact |
+|---|-----------|-----------|----------------|
+| 1 | Post-apnea baseline inflation | Over-counting | Prevents false Mild→Moderate |
+| 2 | SpO₂ cross-contamination | Over-counting | Flags uncertain coupling |
+| 3 | Cheyne-Stokes trough scoring | Over-counting | Prevents HF misdiagnosis as OSA |
+| 4 | Low-confidence defaults | Over-counting | Confidence stratification |
+| 5 | Artefact-flank exclusion | Over-counting | Prevents post-disconnect events |
+| 6 | Local baseline validation | Over-counting | Rejects inflated-baseline FPs |
+| 7 | Peak-based amplitude detection | Under-counting | AASM-conformant breath-level |
+| 8 | Extended SpO₂ nadir window | Under-counting | Catches delayed desaturations |
+| 9 | Flow smoothing removal | Under-counting | Eliminated +54 FPs on PSG-IPA |
+| 10 | Position signal auto-mapping | Under-counting | Handles raw ADC encoding |
+| 11 | Configurable profiles | Under-counting | Sensitivity adjustment per study |
+| 12 | Flattening-based RERA | Under-counting | Flow limitation without amplitude drop |
 
-📖 **[Technical Handbook (PDF, 29 pages)](https://github.com/bartromb/psgscoring/blob/main/docs/handbook.pdf)** — complete guide covering signal processing, classification, all 12 corrections, stability filter, AHI interval, PSG-IPA validation, and exercises. Written for BSc-level CS students.
+## Architecture
 
-📖 **[Online Supplement (Wiki)](https://github.com/bartromb/psgscoring/wiki)** — signal processing chain, bias corrections, validation details, ablation analysis
+Ten submodules, ~3,500 lines, 51 unit tests (CI: Python 3.9–3.12):
 
-## Live platform
+`constants` · `utils` · `signal` · `breath` · `classify` · `spo2` · `plm` · `ancillary` · `respiratory` · `pipeline`
 
-**[slaapkliniek.be](https://slaapkliniek.be)** — upload an anonymised EDF recording; receive a complete PSG report (PDF, Excel, EDF+, FHIR R4) within 5–10 minutes. No local installation, Python, or GPU required.
+## Related
+
+- **[YASAFlaskified](https://github.com/bartromb/YASAFlaskified)** — web platform integrating psgscoring with YASA staging, multilingual PDF reports, EDF+ export, and FHIR R4
+- **[YASA](https://github.com/raphaelvallat/yasa)** — AI-based sleep staging (Vallat & Walker, *eLife* 2021)
+- **[slaapkliniek.be](https://slaapkliniek.be)** — live instance (no installation required)
 
 ## Citation
 
-If you use `psgscoring` in your research, please cite:
-
-> Rombaut B, Rombaut B, Rombaut C. psgscoring: An Open-Source Python Library for AASM 2.6-Compliant Automated Polysomnography Scoring. 2026. https://github.com/bartromb/psgscoring
-
-This library builds on YASA for sleep staging:
-
-> Vallat R, Walker MP. An open-source, high-performance tool for automated sleep staging. *eLife*. 2021;10:e70092. [doi:10.7554/eLife.70092](https://doi.org/10.7554/eLife.70092)
-
-Validation was performed on the PSG-IPA dataset:
-
-> Alvarez-Estevez D, Rijsman RM. Computer-assisted analysis of polysomnographic recordings improves inter-scorer associated agreement and scoring times. *PLOS ONE*. 2022;17(9):e0275530. [doi:10.1371/journal.pone.0275530](https://doi.org/10.1371/journal.pone.0275530)
-
-> Goldberger A, et al. PhysioBank, PhysioToolkit, and PhysioNet: Components of a new research resource for complex physiologic signals. *Circulation*. 2000;101(23):e215–e220.
+```bibtex
+@article{rombaut2026psgscoring,
+  title     = {Automated Polysomnography Scoring for Clinical Sleep Medicine:
+               An Open-Source Platform Validated Against 59 Independent
+               Scorer Sessions on {PSG-IPA}},
+  author    = {Rombaut, Bart and Rombaut, Briek and Rombaut, Cedric},
+  year      = {2026},
+  note      = {Manuscript in preparation}
+}
+```
 
 ## License
 
 BSD-3-Clause. See [LICENSE](LICENSE).
 
-## Medical & Clinical Disclaimer
+---
 
-**psgscoring is research software — not a medical device.**
-
-This software has **not** been evaluated, cleared, or approved by any regulatory authority, including the European Union Medical Device Regulation (EU MDR 2017/745) and the U.S. Food and Drug Administration (FDA). It does **not** carry a CE mark or FDA clearance.
-
-All computed indices — including AHI, OAHI, ODI, PLMI, arousal index, and RDI — are **research-grade estimates**. They must be reviewed by a qualified, licensed clinician before any diagnostic or therapeutic decision, validated against manual scoring by a registered polysomnographic technologist (RPSGT), and interpreted in the context of the full clinical picture and patient history.
-
-**Intended use**: academic sleep research, algorithm benchmarking, clinical research under ethics committee approval, educational purposes. **Not intended for** standalone clinical diagnosis, automated treatment decisions, or unsupervised patient screening.
-
-**Validation status**: External validation on PSG-IPA (PhysioNet, 5 recordings, 59 scorer sessions) demonstrated mean |ΔAHI| = 2.0/h and severity concordance 4/5. A formal validation study (AZORG-YASA-2026-001, n≥50) is in preparation. All outputs should be treated as preliminary and verified by a qualified clinician.
-
-THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. See [DISCLAIMER.md](https://github.com/bartromb/psgscoring/blob/main/DISCLAIMER.md) for the full legal text.
+*Developed at Slaapkliniek AZORG, Aalst, Belgium.*
+*Contact: bart.rombaut@azorg.be*
