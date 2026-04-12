@@ -1,86 +1,64 @@
-# Medical and Clinical Disclaimer
+# DISCLAIMER
 
-**psgscoring** — Open-source AASM 2.6-compliant respiratory scoring library
-Copyright (c) 2024–2026 Bart Rombaut, Briek Rombaut, Cedric Rombaut
-https://github.com/bartromb/psgscoring
+## Not a Medical Device
 
----
-
-## 1. Research Software — Not a Medical Device
-
-`psgscoring` is **research software**. It is intended exclusively for use by
-qualified professionals (physicians, researchers, registered polysomnographic
-technologists, or biomedical engineers) in a **research or clinical research
-context**.
+**psgscoring and YASAFlaskified are research software — not medical devices.**
 
 This software has **not** been evaluated, cleared, or approved by any
-regulatory authority as a medical device, including but not limited to:
+regulatory authority, including the European Union Medical Device Regulation
+(EU MDR 2017/745) and the U.S. Food and Drug Administration (FDA). It does
+**not** carry a CE mark or FDA clearance.
 
-- The European Union Medical Device Regulation (EU MDR 2017/745)
-- The U.S. Food and Drug Administration (FDA 21 CFR Part 820 / 510(k))
-- Any equivalent national or regional medical device framework
+## Not a Substitute for Clinical Judgment
 
-It does **not** carry a CE mark, FDA clearance, or any equivalent certification.
+All computed indices — including AHI, OAHI, ODI, PLMI, arousal index,
+RDI, and severity classifications — are **research-grade estimates**.
+They must be:
 
----
+- **Reviewed** by a qualified, licensed clinician before any diagnostic
+  or therapeutic decision
+- **Validated** against manual scoring by a registered polysomnographic
+  technologist (RPSGT) or experienced sleep physician
+- **Interpreted** in the context of the full clinical picture and
+  patient history
 
-## 2. Not a Substitute for Clinical Judgement
+Automated scoring is not a replacement for expert clinical judgment.
 
-The computed indices produced by this library — including but not limited to
-the Apnoea-Hypopnoea Index (AHI), Obstructive AHI (OAHI), Oxygen Desaturation
-Index (ODI), Periodic Limb Movement Index (PLMI), arousal index, and
-Respiratory Disturbance Index (RDI) — are **research-grade estimates**. They
-must be:
+## Intended Use
 
-- Reviewed by a qualified, licensed clinician before any diagnostic or
-  therapeutic decision is made.
-- Validated against manual polysomnographic scoring by a registered
-  polysomnographic technologist (RPSGT) for any clinical application.
-- Interpreted in the context of the full clinical picture, patient history,
-  and concurrent PSG signals.
+| ✓ Designed for | ✗ NOT designed for |
+|---|---|
+| Academic sleep research | Standalone clinical diagnosis without expert review |
+| Algorithm development and benchmarking | Automated treatment decisions |
+| Clinical research under ethics committee approval | Unsupervised patient screening programmes |
+| Educational purposes in sleep medicine | Any setting where output directly determines patient care |
+| Second opinion and clinical decision support | |
 
----
-
-## 3. No Warranty
-
-THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
----
-
-## 4. Intended Use
-
-`psgscoring` is designed for:
-
-- Academic sleep research
-- Algorithm development and benchmarking
-- Clinical research under ethics committee approval
-- Educational purposes in sleep medicine training
-
-It is **not** designed for:
-
-- Standalone clinical diagnosis without expert review
-- Automated treatment decisions
-- Unsupervised patient screening programmes
-- Any setting where the output directly determines patient care without
-  clinician oversight
-
----
-
-## 5. Validation Status
+## Validation Status
 
 External validation on the PSG-IPA dataset (PhysioNet, 5 recordings,
-47 independent scorer sessions) demonstrated mean |ΔAHI| = 1.9/h and
-severity concordance of 4/5 (80%). A formal single-centre validation
-study (AZORG-YASA-2026-001, n≥50) is in preparation. Until peer-reviewed
-validation results are published, all outputs should be treated as
-**preliminary** and verified by a qualified clinician.
+59 independent scorer sessions) demonstrated mean |ΔAHI| = 2.0/h and
+severity concordance 4/5 (80%). External validation on the PSG-Audio
+dataset (Sismanoglio Hospital, Athens, n=194) is in progress.
+
+A formal single-centre validation study (AZORG-YASA-2026-001, n≥50,
+stratified by severity, Bland-Altman, weighted κ) is in preparation.
+
+Until peer-reviewed validation results are published, all outputs
+should be treated as **preliminary** and verified by a qualified
+clinician.
+
+## No Warranty
+
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-*Last updated: April 2026 — psgscoring v0.2.91*
+*psgscoring v0.2.91 · YASAFlaskified v0.8.34 · April 2026*
+*Slaapkliniek AZORG, Aalst, Belgium*

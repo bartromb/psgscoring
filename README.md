@@ -111,6 +111,10 @@ Ten submodules, ~3,500 lines, 51 unit tests (CI: Python 3.9–3.12):
 }
 ```
 
+## Disclaimer
+
+**psgscoring is research software — not a medical device.** It is not CE-marked (MDR 2017/745) or FDA-cleared. All outputs are research-grade estimates that must be reviewed by a qualified clinician before any diagnostic or therapeutic decision. See **[DISCLAIMER.md](DISCLAIMER.md)** for the full text.
+
 ## License
 
 BSD-3-Clause. See [LICENSE](LICENSE).
