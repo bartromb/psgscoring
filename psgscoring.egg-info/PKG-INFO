@@ -1,14 +1,14 @@
 Metadata-Version: 2.4
 Name: psgscoring
-Version: 0.2.91
+Version: 0.2.93
 Summary: Open-source Python library for AASM 2.6-compliant automated polysomnography scoring
 Author-email: Bart Rombaut <bart.rombaut@azorg.be>
 License-Expression: BSD-3-Clause
 Project-URL: Homepage, https://slaapkliniek.be
 Project-URL: Repository, https://github.com/bartromb/psgscoring
-Project-URL: Documentation, https://github.com/bartromb/psgscoring#readme
+Project-URL: Documentation, https://github.com/bartromb/psgscoring/wiki
 Project-URL: Issues, https://github.com/bartromb/psgscoring/issues
-Keywords: polysomnography,PSG,sleep,AASM,apnea,hypopnea,AHI,respiratory,scoring,sleep-staging,YASA
+Keywords: polysomnography,PSG,sleep,AASM,apnea,hypopnea,AHI,respiratory,scoring,sleep-staging,YASA,hypoxic-burden
 Classifier: Development Status :: 4 - Beta
 Classifier: Intended Audience :: Science/Research
 Classifier: Intended Audience :: Healthcare Industry
@@ -38,37 +38,48 @@ Dynamic: license-file
 
 [![PyPI](https://img.shields.io/pypi/v/psgscoring.svg)](https://pypi.org/project/psgscoring/)
 [![License: BSD-3](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://github.com/bartromb/psgscoring/blob/main/LICENSE)
-[![Tests](https://img.shields.io/badge/tests-47%20passed-brightgreen.svg)](https://github.com/bartromb/psgscoring/blob/main/psgscoring/tests/)
 [![Python](https://img.shields.io/badge/python-3.9%E2%80%933.12-blue.svg)](pyproject.toml)
-[![Validated](https://img.shields.io/badge/validated-PSG--IPA%20(47%20scorers)-green.svg)](https://github.com/bartromb/psgscoring/wiki)
+[![Validated](https://img.shields.io/badge/validated-PSG--IPA%20(60%20sessions)-green.svg)](https://github.com/bartromb/psgscoring/wiki)
 
 **Open-source Python library for AASM 2.6-compliant automated polysomnography scoring.**
 
 `psgscoring` extracts the core respiratory scoring algorithms from [YASAFlaskified](https://github.com/bartromb/YASAFlaskified) into a standalone, pip-installable library for the research community.
 
-## Validation (v0.2.8)
+## Validation (v0.2.92)
 
-External validation on the [PSG-IPA dataset](https://physionet.org/content/psg-ipa/) (PhysioNet, 5 recordings, 47 independent scorer sessions):
+External validation on two public datasets:
 
-| PSG | Scorers | Median AHI | psgscoring AHI | ΔAHI | Severity |
-|-----|---------|-----------|----------------|------|----------|
-| SN1 | 11 | 6.0 | 8.1 | +2.1 | Mild ✓ |
-| SN2 | 4 | 4.4 | 9.3 | +4.9 | Mild / Normal |
-| SN3 | 12 | 54.0 | 53.8 | −0.2 | Severe ✓ |
-| SN4 | 12 | 3.5 | 4.3 | +0.8 | Normal ✓ |
-| SN5 | 12 | 9.9 | 11.4 | +1.5 | Mild ✓ |
-| **Mean** | | | | **1.9** | **4/5 concordant** |
+### PSG-IPA (PhysioNet, 5 recordings, 60 scorer sessions from 12 RPSGT/ESRS)
 
-Details: [Online Supplement (Wiki)](https://github.com/bartromb/psgscoring/wiki)
+| Metric | Result | Target |
+|--------|--------|--------|
+| AHI bias | **+1.6/h** | <±5/h ✓ |
+| MAE | **2.5/h** | — |
+| Pearson r | **0.990** | ≥0.85 ✓ |
+| Severity concordance | **75%** | ≥70% ✓ |
+| Event-level F1 (SN3) | **0.890** | — |
+
+For 3/5 recordings, the algorithm's deviation from the scorer mean was **smaller than the inter-scorer variability**.
+
+### iSLEEPS (39 ischemic stroke patients, SOMNOmedics)
+
+| Severity | Bias | MAE |
+|----------|------|-----|
+| Normal/Mild (n=13) | −0.1/h | **3.3/h** |
+| Moderate/Severe (n=26) | −16.6/h | 16.6/h |
+
+Excellent for standard populations; systematic under-scoring in stroke patients (central apnea predominance).
 
 ## Features
 
 - **AASM 2.6 respiratory scoring**: apnea/hypopnea detection with dual-sensor support
-- **12 systematic bias corrections**: 6 over-counting + 6 under-counting ([details](https://github.com/bartromb/psgscoring/wiki))
-- **Breath-amplitude stability filter** (v0.2.8): rejects false-positive hypopneas during normal breathing
+- **12 systematic bias corrections**: 6 over-counting + 6 under-counting
+- **Breath-amplitude stability filter**: rejects false-positive hypopneas during normal breathing
 - **AHI confidence interval**: strict/standard/sensitive profiles with robustness grade (A/B/C)
-- **Configurable scoring profiles**: strict (research), standard (AASM 2.6), sensitive (UARS)
+- **Hypoxic burden** (v0.2.92): total SpO₂ desaturation area per event, normalised per hour (Azarbarzin et al., AJRCCM 2019)
+- **Post-processing** (v0.2.92): CSR-aware central reclassification, mixed apnea decomposition, central instability index
 - **ECG-derived effort classification**: spectral + TECG for central apnea detection
+- **Configurable scoring profiles**: strict (research), standard (AASM 2.6), sensitive (UARS)
 - **PLM, SpO₂, RERA/RDI, signal quality assessment**
 
 ## Installation
@@ -88,29 +99,39 @@ hypno = ["W", "N1", "N2", "N3", "R", ...]  # 30-s epochs
 
 results = run_pneumo_analysis(raw, hypno, scoring_profile="standard")
 
-# AHI
-print(f"AHI: {results['respiratory']['summary']['ahi_total']}")
-
-# AHI confidence interval (v0.2.8)
+# AHI with confidence interval
 iv = results["ahi_interval"]
-print(f"Interval: [{iv['interval'][0]} – {iv['interval'][1]}] Grade: {iv['robustness_grade']}")
+print(f"AHI: {iv['standard']['ahi']} [{iv['strict']['ahi']}–{iv['sensitive']['ahi']}]")
+print(f"Grade: {iv['robustness_grade']}")
+
+# Hypoxic burden (v0.2.92)
+hb = results["hypoxic_burden"]
+print(f"Hypoxic burden: {hb['hypoxic_burden']} {hb['unit']}")
+
+# Post-processing results (v0.2.92)
+pp = results["postprocess"]
+print(f"CSR reclassified: {pp['n_csr_reclassified']}")
+print(f"Mixed decomposed: {pp['n_mixed_decomposed']}")
 ```
 
-## What's new in v0.2.8
+## What's new in v0.2.92
 
-- **Removed flow smoothing** from standard profile (root cause: +54 false hypopneas)
-- **Stability filter**: rejects hypopneas during stable breathing (CV < 0.45)
-- **AHI confidence interval**: 3-profile analysis with robustness A/B/C
-- **PSG-IPA validation**: mean |ΔAHI| = 1.9/h, severity concordance 4/5
+- **Hypoxic burden**: per-event SpO₂ desaturation area, normalised %·min/h
+  - Clinical thresholds: <20 low, 20–73 moderate, >73 high CV risk
+- **CSR-aware reclassification**: flagged obstructive/mixed events in CSR troughs → central
+- **Mixed apnea decomposition**: central portion ≥10s → reclassified as central
+- **Central instability index**: profile-dependent O/C uncertainty (0–1 scale)
+- **iSLEEPS validation**: 39 stroke patients, MAE 3.3/h at normal/mild
+- **Event-level validation**: F1=0.890, Δt=2.3s on severe-OSA recording
 
 ## Documentation
 
-📖 [Online Supplement (Wiki)](https://github.com/bartromb/psgscoring/wiki) — signal processing, corrections, validation  
-📖 [Technical Handbook (PDF)](https://github.com/bartromb/psgscoring/blob/main/docs/handbook.pdf) — 26-page guide
+📖 [Online Supplement (Wiki)](https://github.com/bartromb/psgscoring/wiki)
+📖 [Technical Handbook](https://github.com/bartromb/psgscoring/blob/main/docs/handbook.pdf)
 
 ## Live platform
 
-**[slaapkliniek.be](https://slaapkliniek.be)** — upload EDF, receive complete PSG report. No installation required.
+**[slaapkliniek.be](https://slaapkliniek.be)** — upload EDF, receive complete PSG report.
 
 ## Citation
 
