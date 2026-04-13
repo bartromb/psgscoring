@@ -1,10 +1,10 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.build_meta"
+build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "psgscoring"
-version = "0.2.91"
+version = "0.2.92"
 description = "Open-source Python library for AASM 2.6-compliant automated polysomnography scoring"
 readme = "README.md"
 license = "BSD-3-Clause"
@@ -15,6 +15,7 @@ authors = [
 keywords = [
     "polysomnography", "PSG", "sleep", "AASM", "apnea", "hypopnea",
     "AHI", "respiratory", "scoring", "sleep-staging", "YASA",
+    "hypoxic-burden",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -42,12 +43,8 @@ test = ["pytest>=7.0", "hypothesis>=6.0"]
 [project.urls]
 Homepage = "https://slaapkliniek.be"
 Repository = "https://github.com/bartromb/psgscoring"
-Documentation = "https://github.com/bartromb/psgscoring#readme"
+Documentation = "https://github.com/bartromb/psgscoring/wiki"
 Issues = "https://github.com/bartromb/psgscoring/issues"
 
 [tool.setuptools.packages.find]
 include = ["psgscoring*"]
-exclude = ["psgscoring.tests*"]
-
-[tool.setuptools.package-data]
-psgscoring = ["DISCLAIMER.md"]

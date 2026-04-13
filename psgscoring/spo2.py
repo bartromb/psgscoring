@@ -82,6 +82,159 @@ def get_desaturation(
 
 
 # ---------------------------------------------------------------------------
+# Hypoxic burden  (Azarbarzin et al., AJRCCM 2019)
+# ---------------------------------------------------------------------------
+
+def compute_hypoxic_burden(
+    spo2_data: np.ndarray,
+    sf_spo2: float,
+    resp_events: list,
+    hypno: list,
+    recovery_margin_pct: float = 1.0,
+    max_recovery_s: float = 120.0,
+) -> dict:
+    """
+    Compute the hypoxic burden: total area of SpO2 desaturation
+    associated with respiratory events, normalised per hour of sleep.
+
+    For each respiratory event, the area between the pre-event SpO2
+    baseline and the SpO2 trace is integrated from event onset until
+    SpO2 recovers to within *recovery_margin_pct* of baseline (or
+    *max_recovery_s* seconds post-event end, whichever comes first).
+
+    Parameters
+    ----------
+    spo2_data : array
+        Raw SpO2 signal.
+    sf_spo2 : float
+        Sampling frequency of the SpO2 signal (Hz).
+    resp_events : list[dict]
+        Respiratory events from detect_respiratory_events(), each with
+        'onset_s', 'duration_s', 'desaturation_pct'.
+    hypno : list
+        Epoch-level sleep staging.
+    recovery_margin_pct : float
+        SpO2 must recover to baseline - margin to end integration (default 1%).
+    max_recovery_s : float
+        Maximum seconds after event end to search for recovery (default 120 s).
+
+    Returns
+    -------
+    dict with keys:
+        hypoxic_burden      – total burden in %·min / h of sleep
+        total_area_pct_s    – summed area in %·seconds (before normalisation)
+        n_events_with_burden– number of events contributing
+        mean_event_burden   – average burden per event (%·s)
+        unit                – '%·min/h'
+
+    Reference
+    ---------
+    Azarbarzin A, et al. The hypoxic burden of sleep apnoea is an
+    independent predictor of incident cardiovascular outcomes.
+    AJRCCM. 2019;200(2):211-219. doi:10.1164/rccm.201811-2188OC
+    """
+    result = {
+        "hypoxic_burden": None,
+        "total_area_pct_s": 0.0,
+        "n_events_with_burden": 0,
+        "mean_event_burden": 0.0,
+        "unit": "%·min/h",
+    }
+
+    if spo2_data is None or len(resp_events) == 0 or sf_spo2 <= 0:
+        return result
+
+    try:
+        spo2 = spo2_data.astype(float)
+        spo2[(spo2 < 50) | (spo2 > 100)] = np.nan
+        n_spo2 = len(spo2)
+
+        # Total sleep time
+        sleep_mask = build_sleep_mask(hypno, sf_spo2, n_spo2)
+        tst_h = float(np.sum(sleep_mask)) / sf_spo2 / 3600
+        if tst_h < 0.1:
+            return result
+
+        # Global baseline (95th pct of sleep SpO2)
+        spo2_sleep = spo2[sleep_mask]
+        spo2_sleep = spo2_sleep[~np.isnan(spo2_sleep)]
+        if len(spo2_sleep) < 10:
+            return result
+        global_bl = float(np.percentile(spo2_sleep, 95))
+
+        total_area = 0.0
+        n_burden = 0
+
+        for ev in resp_events:
+            onset_s = float(ev.get("onset_s", 0))
+            dur_s = float(ev.get("duration_s", 0))
+            if dur_s <= 0:
+                continue
+
+            # Pre-event baseline: 90th pct of 120 s before event
+            pre_start = max(0, int((onset_s - 120) * sf_spo2))
+            pre_end = max(0, int(onset_s * sf_spo2))
+            pre_seg = spo2[pre_start:pre_end]
+            pre_seg = pre_seg[(~np.isnan(pre_seg)) & (pre_seg >= 50)]
+            if len(pre_seg) > 3:
+                local_bl = float(np.percentile(pre_seg, 90))
+            else:
+                local_bl = global_bl
+            baseline = max(local_bl, global_bl)
+
+            # Integration window: event onset → recovery or max_recovery_s
+            int_start = int(onset_s * sf_spo2)
+            int_end_max = min(n_spo2, int((onset_s + dur_s + max_recovery_s) * sf_spo2))
+            if int_start >= int_end_max:
+                continue
+
+            seg = spo2[int_start:int_end_max].copy()
+            seg_valid = ~np.isnan(seg)
+
+            # Find recovery point: first sample after event end where
+            # SpO2 >= baseline - margin
+            event_end_idx = int(dur_s * sf_spo2)
+            recovery_idx = len(seg)  # default: use entire window
+            recovery_thresh = baseline - recovery_margin_pct
+            for k in range(min(event_end_idx, len(seg)), len(seg)):
+                if seg_valid[k] and seg[k] >= recovery_thresh:
+                    recovery_idx = k + 1  # include recovery sample
+                    break
+
+            # Compute area: integral of (baseline - SpO2) where SpO2 < baseline
+            seg_area = seg[:recovery_idx].copy()
+            valid = (~np.isnan(seg_area))
+            if np.sum(valid) < 2:
+                continue
+
+            deficit = np.zeros(len(seg_area))
+            deficit[valid] = np.maximum(0, baseline - seg_area[valid])
+
+            # Trapezoidal integration (result in %·seconds)
+            _trapz = getattr(np, "trapezoid", getattr(np, "trapz", None))
+            area = float(_trapz(deficit, dx=1.0 / sf_spo2))
+
+            if area > 0:
+                total_area += area
+                n_burden += 1
+
+        # Normalise: %·s → %·min/h
+        burden_pct_min_h = (total_area / 60.0) / tst_h if tst_h > 0 else 0.0
+
+        result["hypoxic_burden"] = safe_r(burden_pct_min_h, 2)
+        result["total_area_pct_s"] = safe_r(total_area, 1)
+        result["n_events_with_burden"] = n_burden
+        result["mean_event_burden"] = (
+            safe_r(total_area / n_burden, 1) if n_burden > 0 else 0.0
+        )
+
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Full SpO2 analysis
 # ---------------------------------------------------------------------------
 
