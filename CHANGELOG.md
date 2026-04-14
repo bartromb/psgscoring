@@ -1,3 +1,32 @@
+## v0.2.94 (April 2026)
+
+### New features
+
+**Ensemble-averaged hypoxic burden** (`baseline_method="ensemble"`)
+- Subject-specific search window derived from ensemble average of all
+  time-aligned SpO₂ curves (Azarbarzin et al., Eur Heart J 2019 original)
+- Pre-event baseline = SpO₂ at left peak of ensemble curve
+- Area integrated within the ensemble-derived search window
+- Automatic fallback to percentile method when <3 events available
+- Helper function `_ensemble_search_window()` for ensemble curve computation
+
+### Changed
+
+- `compute_hypoxic_burden()` now accepts `baseline_method` parameter:
+  `"percentile"` (default, backward compatible) or `"ensemble"`
+- Return dict now includes `baseline_method` and `ensemble_window_s` keys
+- spo2.py: 395 → 545 lines (+150)
+
+### References
+
+- Azarbarzin A, et al. The hypoxic burden of sleep apnoea predicts
+  cardiovascular disease-related mortality. Eur Heart J. 2019;40(14):
+  1149-1157.
+- He S, Cistulli PA, de Chazal P. Comparison of oximetry event
+  desaturation transient area-based methods. IEEE EMBC. 2024.
+
+---
+
 ## v0.2.92 (April 2026)
 
 ### New features

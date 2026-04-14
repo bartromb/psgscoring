@@ -1,5 +1,4 @@
 \documentclass[11pt,a4paper]{article}
-
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[english]{babel}
@@ -10,2004 +9,913 @@
 \usepackage{fancyhdr}
 \usepackage{enumitem}
 \usepackage{tabularx}
-\usepackage{listings}
-\usepackage{amsmath}
-\usepackage{graphicx}
 \usepackage{float}
-\usepackage{titlesec}
-\usepackage{mdframed}
+\usepackage{listings}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta,positioning,shapes.geometric}
+\usepackage{amsmath}
+\usepackage{caption}
 
 \definecolor{navy}{HTML}{1A3A8F}
 \definecolor{dgray}{HTML}{6B7A99}
 \definecolor{codebg}{HTML}{F4F6FA}
 \definecolor{codeframe}{HTML}{C8D0E0}
-\definecolor{green}{HTML}{2E8B57}
-\definecolor{orange}{HTML}{DD6B20}
 
-\lstset{language=Python,basicstyle=\ttfamily\small,
+\lstset{language=Python,basicstyle=\ttfamily\footnotesize,
   backgroundcolor=\color{codebg},frame=single,rulecolor=\color{codeframe},
   breaklines=true,keywordstyle=\bfseries\color{navy},
   commentstyle=\itshape\color{dgray},showstringspaces=false,
-  numbers=left,numberstyle=\tiny\color{dgray},numbersep=5pt,
-  xleftmargin=15pt,xrightmargin=5pt,aboveskip=8pt,belowskip=8pt}
+  xleftmargin=4pt,xrightmargin=4pt,aboveskip=6pt,belowskip=6pt,
+  numbers=left,numberstyle=\tiny\color{dgray},numbersep=5pt}
 
+\usepackage{titlesec}
 \titleformat{\section}{\large\bfseries\color{navy}}{\thesection.}{0.5em}{}
 \titleformat{\subsection}{\normalsize\bfseries\color{navy}}{\thesubsection}{0.5em}{}
 \titleformat{\subsubsection}{\small\bfseries\itshape\color{dgray}}{\thesubsubsection}{0.5em}{}
 
 \pagestyle{fancy}\fancyhf{}
-\fancyhead[L]{\small\color{dgray}psgscoring v0.2.91 --- Handbook}
+\fancyhead[L]{\small\color{dgray}psgscoring v0.2.94 --- Handbook}
 \fancyhead[R]{\small\color{dgray}psgscoring}
 \fancyfoot[C]{\small\color{dgray}\thepage}
 \renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.2pt}
 
-\newmdenv[backgroundcolor=codebg,linecolor=codeframe,linewidth=1pt,
-  innertopmargin=6pt,innerbottommargin=6pt]{infobox}
-
-\title{\textbf{\Large psgscoring}\\[6pt]
+\title{\textbf{\LARGE psgscoring}\\[8pt]
 \large A Technical Handbook for Automated\\
 Polysomnography Scoring\\[8pt]
-\normalsize Version 0.2.91 --- April 2026}
-
-
-
-\author{psgscoring contributors\\[4pt]
-\small\url{https://github.com/bartromb/psgscoring}}
-
+\normalsize Version 0.2.94 --- April 2026}
+\author{psgscoring contributors\\
+\url{https://github.com/bartromb/psgscoring}}
 \date{}
 
 \begin{document}
 \maketitle
-\thispagestyle{fancy}
+\thispagestyle{empty}
 
 \begin{abstract}
 \noindent
-This handbook provides a technical introduction to \texttt{psgscoring},
-an open-source Python library (BSD-3) for AASM~2.6-compliant automated
-polysomnography (PSG) scoring. It is written for BSc-level computer
-science students with basic knowledge of Python, NumPy, and signal
-processing. The handbook covers the clinical context, signal processing
-pipeline, respiratory event detection algorithms, apnea type
-classification, and the architecture of the correction mechanisms that
-distinguish \texttt{psgscoring} from na\"ive threshold-based approaches.
+This handbook provides a complete technical introduction to
+\texttt{psgscoring}, an open-source Python library (BSD-3) for
+AASM~2.6-compliant automated polysomnography (PSG) scoring. It covers
+clinical context, signal processing, event detection, apnea
+classification, twelve bias corrections, hypoxic burden computation,
+post-processing for central apnea refinement, and external validation.
 
 \medskip\noindent
-\textbf{Prerequisites:} Python 3.9+, NumPy, SciPy, basic DSP
+Prerequisites: Python~3.9+, NumPy, SciPy, basic DSP
 (Fourier transform, filtering, envelopes).\\
-\textbf{Repository:} \url{https://github.com/bartromb/psgscoring}\\
-\textbf{Installation:} \texttt{pip install psgscoring}
+Repository: \url{https://github.com/bartromb/psgscoring}\\
+Installation: \texttt{pip install psgscoring}
 \end{abstract}
 
 \tableofcontents
 \newpage
 
-% ================================================================
+% ============================================================
 \section{Clinical Context: Why This Matters}
-% ================================================================
+% ============================================================
 
 \subsection{Sleep Apnea}
 
 Obstructive Sleep Apnea (OSA) affects approximately 936~million adults
 worldwide. During sleep, the upper airway collapses partially or
-completely, causing breathing interruptions that fragment sleep and reduce
-blood oxygen levels. Left untreated, OSA increases the risk of
+completely, causing breathing interruptions that fragment sleep and
+reduce blood oxygen levels. Left untreated, OSA increases the risk of
 hypertension, stroke, heart failure, and traffic accidents.
 
-Diagnosis relies on \textbf{polysomnography} (PSG): an overnight
-recording of brain waves (EEG), eye movements (EOG), muscle tone (EMG),
-airflow, respiratory effort, blood oxygen saturation (SpO$_2$), body
-position, snoring, heart rhythm (ECG), and leg movements.
+Diagnosis relies on polysomnography (PSG): an overnight recording of
+brain waves (EEG), eye movements (EOG), muscle tone (EMG), airflow,
+respiratory effort, blood oxygen saturation (SpO$_2$), body position,
+snoring, heart rhythm (ECG), and leg movements.
 
 \subsection{The Scoring Problem}
 
 A sleep technologist manually reviews the recording and counts:
 \begin{itemize}[nosep]
-  \item \textbf{Apneas}: $\geq$90\% flow reduction for $\geq$10~seconds
-  \item \textbf{Hypopneas}: $\geq$30\% flow reduction for $\geq$10~seconds
-        with $\geq$3\% oxygen desaturation or an EEG arousal
+  \item \textbf{Apneas}: $\geq$90\% flow reduction for $\geq$10~s
+  \item \textbf{Hypopneas}: $\geq$30\% flow reduction for $\geq$10~s
+    with $\geq$3\% oxygen desaturation or an EEG arousal
 \end{itemize}
-
-The \textbf{Apnea-Hypopnea Index (AHI)} = (apneas + hypopneas) / hours
-of sleep, is the primary diagnostic metric:
-
-\begin{center}
-\begin{tabular}{lll}
-\toprule
-\textbf{AHI} & \textbf{Severity} & \textbf{Treatment} \\
-\midrule
-$<$5     & Normal   & None \\
-5--15    & Mild     & Positional therapy, MAD \\
-15--30   & Moderate & CPAP \\
-$>$30    & Severe   & CPAP (urgent) \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-Manual scoring takes 1--2 hours per study with 10--20\% inter-scorer
+The Apnea-Hypopnea Index
+$\text{AHI} = (\text{apneas} + \text{hypopneas})/\text{hours of sleep}$
+is the primary diagnostic metric.
+Manual scoring takes 1--2~hours per study with 10--20\% inter-scorer
 variability. \texttt{psgscoring} automates this process.
 
 \subsection{The AASM Standard}
 
-The American Academy of Sleep Medicine (AASM) publishes the
-\emph{Manual for the Scoring of Sleep and Associated Events} (current:
-Version 2.6, 2020). This is the rulebook. Every threshold, every
-duration criterion, every exception in \texttt{psgscoring} traces back
-to a specific AASM rule. Key rules:
+The American Academy of Sleep Medicine (AASM) Manual for the Scoring of
+Sleep and Associated Events (Version~2.6, 2020) is the rulebook
+\cite{berry2020}. Key rules:
+Rule~1A: hypopnea requires $\geq$3\% SpO$_2$ desaturation.
+Rule~1B: hypopnea may alternatively be scored with an EEG arousal.
+Apneas are scored on the thermistor; hypopneas on the nasal pressure
+transducer.
 
-\begin{itemize}[nosep]
-  \item \textbf{Rule 1A}: Hypopnea requires $\geq$3\% SpO$_2$ desaturation
-  \item \textbf{Rule 1B}: Hypopnea can alternatively be scored with an
-        EEG arousal (without desaturation)
-  \item Apneas are scored on the \textbf{thermistor} (oronasal thermal sensor)
-  \item Hypopneas are scored on the \textbf{nasal pressure transducer}
-\end{itemize}
+\subsection{Beyond AHI: Why One Number Is Not Enough}
 
-% ================================================================
+The AHI, though ubiquitous, has been critically appraised as a
+reductionist metric. Pevernagie et~al.\ demonstrated that the
+correlation between AHI and clinical endpoints---sleepiness,
+hypertension, quality of life---is surprisingly weak, and that reliance
+on the AHI leads to overestimation of OSA's clinical relevance
+\cite{pevernagie2020}. Two patients with identical AHI values can
+experience fundamentally different physiological consequences
+\cite{pevernagie2025}.
+
+\texttt{psgscoring} addresses this by computing three complementary
+dimensions: (1)~AHI confidence interval (event frequency with
+uncertainty), (2)~hypoxic burden (oxygen deficit per hour), and
+(3)~arousal index (sleep fragmentation).
+
+% ============================================================
 \section{Architecture Overview}
-% ================================================================
+% ============================================================
 
-\texttt{psgscoring} is organised as 12 independently importable
+\texttt{psgscoring} is organised as 13 independently importable
 submodules with a strict one-directional dependency graph:
-
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[
-  box/.style={draw,rounded corners=3pt,fill=codebg,
-              minimum width=2.3cm,minimum height=0.6cm,
-              font=\ttfamily\scriptsize,align=center,inner sep=3pt},
-  agg/.style={box,fill=navy!8,minimum width=2.6cm},
-  arr/.style={-{Stealth[length=4pt]},color=navy,semithick},
-]
-% ── Row 1 (y=0): Foundation layer ──
-\node[box] (const) at (0,0)   {constants};
-\node[box] (utils) at (3.5,0) {utils};
-\node[box] (signal) at (7,0)  {signal};
-
-% ── Row 2 (y=-1.8): Signal consumers ──
-\node[box] (breath) at (0,-1.8)     {breath};
-\node[box] (classify) at (3.5,-1.8) {classify};
-\node[box] (spo2) at (7,-1.8)       {spo2};
-
-% ── Row 3 (y=-3.6): Independent modules ──
-% ecg_effort shifted to x=5.25 to clear the classify→respiratory column
-\node[box] (plm) at (0,-3.6)        {plm};
-\node[box] (ecg) at (5.25,-3.6)     {ecg\_effort};
-\node[box] (ancil) at (8.5,-3.6)    {ancillary};
-\node[box] (sq) at (11.5,-3.6)      {signal\_quality};
-
-% ── Row 4 (y=-5.4): Aggregator ──
-\node[agg] (resp) at (3.5,-5.4) {respiratory};
-
-% ── Row 5 (y=-7.0): Master ──
-\node[agg] (pipe) at (5.25,-7.0) {pipeline};
-
-% ══ ARROWS ══════════════════════════════════════════════
-
-% constants → utils (straight right)
-\draw[arr] (const) -- (utils);
-
-% constants → signal (route above)
-\draw[arr,rounded corners=4pt] (const.north) -- ++(0,0.4) -| (signal.north);
-
-% signal → breath (left arc)
-\draw[arr,rounded corners=4pt] ([xshift=-0.5cm]signal.south) -- ++(0,-0.45) -| (breath.north);
-
-% signal → classify
-\draw[arr,rounded corners=4pt] ([xshift=-0.1cm]signal.south) -- ++(0,-0.3) -| (classify.north);
-
-% signal → spo2 (straight down)
-\draw[arr] ([xshift=0.3cm]signal.south) -- ([xshift=0.3cm]spo2.north);
-
-% breath → respiratory (down left column, then right — passes left of plm)
-\draw[arr,rounded corners=4pt] (breath.south) -- ++(0,-2.6) -| ([xshift=-0.5cm]resp.north);
-
-% classify → respiratory (straight down — column is now CLEAR)
-\draw[arr] (classify) -- (resp);
-
-% spo2 → respiratory (down, then left)
-\draw[arr,rounded corners=4pt] (spo2.south) -- ++(0,-2.6) -| ([xshift=0.5cm]resp.north);
-
-% ecg_effort → respiratory (short diagonal)
-\draw[arr,rounded corners=4pt] (ecg.south) -- ++(0,-0.5) -| ([xshift=0.8cm]resp.north);
-
-% respiratory → pipeline
-\draw[arr,rounded corners=4pt] (resp.south) -- ++(0,-0.5) -| (pipe.north);
-
-% plm → pipeline
-\draw[arr,rounded corners=4pt] (plm.south) -- ++(0,-2.0) -| ([xshift=-1.0cm]pipe.north);
-
-% ancillary → pipeline
-\draw[arr,rounded corners=4pt] (ancil.south) -- ++(0,-2.0) -| ([xshift=0.8cm]pipe.north);
-
-% signal_quality → pipeline
-\draw[arr,rounded corners=4pt] (sq.south) -- ++(0,-2.0) -| ([xshift=1.2cm]pipe.north east);
-
-% ── Row labels ──
-\node[font=\tiny\itshape,color=dgray,anchor=east] at (-1.5,0) {foundation};
-\node[font=\tiny\itshape,color=dgray,anchor=east] at (-1.5,-1.8) {signal processing};
-\node[font=\tiny\itshape,color=dgray,anchor=east] at (-1.5,-3.6) {independent};
-\node[font=\tiny\itshape,color=dgray,anchor=east] at (-1.5,-5.4) {aggregation};
-\node[font=\tiny\itshape,color=dgray,anchor=east] at (-1.5,-7.0) {orchestrator};
-
-\end{tikzpicture}
-\caption{Module dependency graph. Arrows point from dependency to
-  dependent module. The five layers correspond to increasing
-  abstraction: foundation $\to$ signal processing $\to$ independent
-  modules $\to$ aggregation $\to$ orchestrator.}
-\end{figure}
 
 \begin{table}[H]
 \centering\small
-\caption{Submodule responsibilities and approximate size}
+\caption{Submodule responsibilities (v0.2.94)}
+\resizebox{\textwidth}{!}{
 \begin{tabular}{@{}llr@{}}
 \toprule
 \textbf{Module} & \textbf{Responsibility} & \textbf{LOC} \\
 \midrule
-\texttt{constants} & AASM thresholds, band limits, scoring profiles & 76 \\
-\texttt{utils}     & Sleep mask construction, channel detection & 134 \\
-\texttt{signal}    & Linearisation, baseline, MMSD validation & 327 \\
-\texttt{breath}    & Breath segmentation, flattening index & 254 \\
-\texttt{classify}  & 7-rule apnea type decision tree & 310 \\
-\texttt{spo2}      & SpO$_2$ coupling, ODI computation & 218 \\
-\texttt{ecg\_effort} & ECG-derived effort (TECG + spectral) & 180 \\
-\texttt{plm}       & Periodic Limb Movement detection & 271 \\
-\texttt{ancillary} & Heart rate, snoring, position, CSR & 277 \\
+\texttt{constants}       & AASM thresholds, band limits, scoring profiles & 76 \\
+\texttt{utils}           & Sleep mask construction, channel detection & 134 \\
+\texttt{signal}          & Linearisation, baseline, MMSD validation & 327 \\
+\texttt{breath}          & Breath segmentation, flattening index & 254 \\
+\texttt{classify}        & 7-rule apnea type decision tree & 310 \\
+\texttt{spo2}            & SpO$_2$ coupling, ODI, hypoxic burden & 545 \\
+\texttt{ecg\_effort}     & ECG-derived effort (TECG + spectral classifier) & 180 \\
+\texttt{plm}             & Periodic Limb Movement detection (AASM + WASM) & 271 \\
+\texttt{ancillary}       & Heart rate, snoring, position, Cheyne-Stokes & 277 \\
 \texttt{signal\_quality} & Per-channel quality grading & 160 \\
-\texttt{respiratory} & Apnea/hypopnea detection + 12 corrections & 1061 \\
-\texttt{pipeline}  & Master orchestrator & 420 \\
+\texttt{postprocess}     & CSR reclassification, mixed decomposition, CII & 310 \\
+\texttt{respiratory}     & Apnea/hypopnea detection + 12 corrections & 1061 \\
+\texttt{pipeline}        & Master orchestrator (11 steps) & 802 \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \end{table}
 
-% ================================================================
-\section{Signal Processing Chain}
-\label{sec:signal}
-% ================================================================
+The public API exports 42 symbols from
+\texttt{psgscoring/\_\_init\_\_.py}.
 
-The respiratory analysis begins with transforming the raw sensor data
-into a form suitable for event detection. This section describes each
-step mathematically and in code.
+% ============================================================
+\section{Signal Processing Chain}
+% ============================================================
 
 \subsection{Step 1: Nasal Pressure Linearisation}
-
-The nasal pressure transducer measures \emph{pressure}, not flow. The
-relationship between pressure and flow follows Bernoulli's equation:
-
-\begin{equation}
-  \text{flow} \propto \sqrt{|\text{pressure}|}
-\end{equation}
-
-The inverse square-root transform linearises the signal:
-
-\begin{equation}
-  x_{\text{lin}}(t) = \text{sign}(x(t)) \cdot \sqrt{|x(t)|}
-\end{equation}
+The nasal pressure transducer measures pressure, not flow. The
+Bernoulli relation gives
+$x_{\text{lin}}(t) = \text{sign}(x(t)) \cdot \sqrt{|x(t)|}$.
 
 \begin{lstlisting}
 def linearise_nasal_pressure(signal):
-    """Bernoulli square-root linearisation."""
     return np.sign(signal) * np.sqrt(np.abs(signal))
 \end{lstlisting}
 
-\begin{infobox}
-\textbf{Why this matters:} Without linearisation, the amplitude of
-hypopneas is systematically underestimated, because the pressure
-signal compresses peaks relative to the true flow.
-\end{infobox}
-
 \subsection{Step 2: Bandpass Filtering}
-
-A 4th-order Butterworth bandpass filter (0.05--3~Hz) removes:
-\begin{itemize}[nosep]
-  \item DC drift and very slow baseline wander ($<$0.05~Hz)
-  \item High-frequency noise, cardiac artefact ($>$3~Hz)
-\end{itemize}
-
-\begin{lstlisting}
-from scipy.signal import butter, sosfiltfilt
-
-def bandpass_flow(signal, sf, low=0.05, high=3.0, order=4):
-    sos = butter(order, [low, high], btype='band',
-                 fs=sf, output='sos')
-    return sosfiltfilt(sos, signal)
-\end{lstlisting}
-
-The normal respiratory rate is 12--20 breaths/minute (0.2--0.33~Hz),
-well within this passband.
+A 4th-order Butterworth bandpass (0.05--3~Hz) removes DC drift and
+high-frequency noise. The normal respiratory rate (12--20/min =
+0.2--0.33~Hz) falls well within this passband.
 
 \subsection{Step 3: Hilbert Envelope}
-
-The instantaneous amplitude envelope is extracted via the analytic
-signal:
-
-\begin{equation}
-  A(t) = |x(t) + i\mathcal{H}\{x(t)\}|
-\end{equation}
-
-where $\mathcal{H}$ is the Hilbert transform. This provides a smooth,
-non-negative representation of breath amplitude.
-
-\begin{lstlisting}
-from scipy.signal import hilbert
-
-def compute_envelope(signal):
-    analytic = hilbert(signal)
-    return np.abs(analytic)
-\end{lstlisting}
-
-\begin{infobox}
-\textbf{Key insight:} The envelope ``smooths over'' individual breath
-cycles. This is useful for detecting apneas (amplitude $\to$ 0) but
-can miss hypopneas where individual breath \emph{peaks} are reduced
-but the envelope remains above threshold. This limitation motivates
-the peak-based detection added later (Section~\ref{sec:undercounting}).
-\end{infobox}
+The instantaneous amplitude: $A(t) = |x(t) + i\mathcal{H}\{x(t)\}|$.
+This provides a smooth, non-negative representation of breath amplitude.
+The envelope smooths over individual breath cycles---useful for apneas
+but can miss subtle hypopneas (motivating peak-based detection in
+Section~\ref{sec:undercounting}).
 
 \subsection{Step 4: Dynamic Baseline}
-
-The patient's ``normal'' breathing amplitude varies throughout the
-night (deeper in N3, shallower in REM, variable with position changes).
-A static threshold would fail. Instead, we compute a dynamic baseline:
-
-\begin{equation}
-  B(t) = P_{95}\big(A(\tau) : \tau \in [t - 150\text{s}, t + 150\text{s}]\big)
-\end{equation}
-
 A 5-minute sliding window, 95th percentile, advancing in 10-second
-steps with linear interpolation between anchor points.
+steps with linear interpolation:
+$B(t) = P_{95}\{A(\tau) : \tau \in [t-150\text{s},\, t+150\text{s}]\}$.
 
-\begin{lstlisting}
-def compute_dynamic_baseline(envelope, sf,
-                              window_s=300, step_s=10):
-    n = len(envelope)
-    anchors = range(0, n, int(step_s * sf))
-    half_w = int(window_s * sf / 2)
-    bl = np.zeros(n)
-    for a in anchors:
-        s = max(0, a - half_w)
-        e = min(n, a + half_w)
-        bl[a] = np.percentile(envelope[s:e], 95)
-    # Interpolate between anchors
-    return np.interp(np.arange(n),
-                     list(anchors), bl[list(anchors)])
-\end{lstlisting}
-
-\subsection{Step 5: Event Detection (Threshold Crossing)}
-
-An event is detected when the normalised amplitude drops below a
-threshold for $\geq$10 seconds:
-
-\begin{equation}
-  \frac{A(t)}{B(t)} \leq 1 - \theta \quad \text{for } \geq 10\text{s}
-\end{equation}
-
-where $\theta = 0.90$ for apneas (thermistor) and $\theta = 0.30$ for
-hypopneas (nasal pressure). The normalised signal is:
-
-\begin{equation}
-  \hat{x}(t) = \frac{A(t)}{B(t)}
-\end{equation}
-
-Connected components below the threshold are found using
-\texttt{scipy.ndimage.label()}.
+\subsection{Step 5: Event Detection}
+An event is detected when normalised amplitude drops below threshold
+for $\geq$10~s:
+$A(t)/B(t) \leq 1 - \theta$ where $\theta = 0.90$ for apneas,
+$\theta = 0.30$ for hypopneas.
 
 \subsection{Step 6: MMSD Validation}
+The Mean Magnitude of Second Derivative
+$\overline{|x''(t)|}$ distinguishes true apneas (low but non-zero
+MMSD from cardiac oscillation) from artefacts (MMSD $\approx$ 0).
 
-Not every flat segment is a true apnea---some are artefacts (electrode
-disconnection). The Mean Magnitude of Second Derivative distinguishes
-them:
-
-\begin{equation}
-  \text{MMSD} = \frac{1}{N}\sum_{i=2}^{N}|x''(i)|
-\end{equation}
-
-True apneas have low but non-zero MMSD (residual cardiac oscillation);
-artefacts have MMSD $\approx$ 0 (identically flat).
-
-% ================================================================
+% ============================================================
 \section{Apnea Type Classification}
-\label{sec:classify}
-% ================================================================
+% ============================================================
 
-After detecting an event, we must determine its type: \textbf{obstructive}
-(airway blocked despite effort), \textbf{central} (no respiratory
-effort), or \textbf{mixed} (starts central, ends obstructive).
-
-This is a clinical decision that depends on the thoraco-abdominal
-effort signals (RIP bands). A 7-rule decision tree processes the event:
+A 7-rule decision tree classifies each event as obstructive, central,
+or mixed based on thoraco-abdominal effort signals.
 
 \subsection{Feature Extraction}
-
-For each event, the following features are computed from the thorax
-and abdomen RIP channels:
-
-\begin{table}[H]
-\centering\small
-\begin{tabular}{@{}lp{8cm}@{}}
-\toprule
-\textbf{Feature} & \textbf{Computation} \\
-\midrule
-\texttt{effort\_ratio} & RMS(effort during event) / RMS(baseline) \\
-\texttt{raw\_var\_ratio} & Variance(raw signal during event) / Variance(baseline) \\
-\texttt{paradox\_corr} & Pearson correlation(thorax, abdomen) --- negative = paradoxical \\
-\texttt{phase\_angle\_deg} & Mean $|\Delta\phi|$ via Hilbert phase of each RIP channel \\
-\texttt{quarter\_efforts} & Effort ratio for each quarter of the event duration \\
-\texttt{first\_ratio, second\_ratio} & Effort ratio for first vs.\ second half \\
-\texttt{flattening\_index} & Mean inspiratory flattening of overlapping breaths \\
-\bottomrule
-\end{tabular}
-\end{table}
+For each event: \texttt{effort\_ratio} (RMS during event / baseline),
+\texttt{raw\_var\_ratio}, \texttt{paradox\_corr} (Pearson of thorax vs.
+abdomen), \texttt{phase\_angle\_deg} (Hilbert phase difference),
+\texttt{quarter\_efforts}, \texttt{flattening\_index}.
 
 \subsection{Decision Tree}
 
 \begin{table}[H]
 \centering\small
-\caption{Classification rules (evaluated in order; first match wins)}
-\begin{tabular}{@{}cllc@{}}
+\caption{Classification rules (first match wins)}
+\begin{tabular}{@{}clll@{}}
 \toprule
-\textbf{Rule} & \textbf{Condition} & \textbf{Type} & \textbf{Confidence} \\
+\textbf{Rule} & \textbf{Condition} & \textbf{Type} & \textbf{Conf.} \\
 \midrule
-0 & Phase angle $\geq 45^\circ$ & Obstructive & 0.75--0.97 \\
-1 & Paradoxical + high raw variability & Obstructive & 0.85--0.95 \\
+0 & Phase angle $\geq 45^{\circ}$ & Obstructive & 0.75--0.97 \\
+1 & Paradoxical + high variability & Obstructive & 0.85--0.95 \\
 2 & High variability, low envelope & Obstructive & 0.70--0.85 \\
-3 & First half low effort, second half high & Mixed & 0.70--0.95 \\
+3 & First half low, second half high & Mixed & 0.70--0.95 \\
 4 & Clear effort present & Obstructive & 0.65--0.80 \\
-5 & Truly flat, no effort, no paradox & Central & 0.70--0.90 \\
-5a & Low effort (gray zone), no obstructive evidence & Central & 0.45--0.75 \\
-5b & ECG confirms no inspiratory effort (TECG) & Central & 0.75--0.85 \\
-6 & Low effort default $\to$ central; else $\to$ obstructive & varies & $<$0.60 \\
+5/5a/5b & No effort (+ ECG confirmation) & Central & 0.45--0.90 \\
+6 & Default (low effort $\to$ central; else obstr.) & varies & $<$0.60 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\begin{infobox}
-\textbf{The cardiac pulsation problem:} During a true central apnea,
-the heart continues to beat. These mechanical oscillations appear on
-the thorax/abdomen RIP bands as low-amplitude periodic signals. A
-na\"ive algorithm interprets this as ``effort present'' $\to$
-obstructive. Rules 5, 5a, and 5b are specifically designed to handle
-this, using relaxed thresholds and ECG-derived effort analysis.
-\end{infobox}
+\textbf{The cardiac pulsation problem:} during a true central apnea,
+the heart continues beating. These mechanical oscillations appear on the
+RIP bands as low-amplitude signals. Rules~5/5a/5b use relaxed
+thresholds and ECG-derived effort to handle this.
 
-\subsection{Code Example}
+% ============================================================
+\section{SpO\texorpdfstring{$_2$}{2} Coupling}
+% ============================================================
 
-\begin{lstlisting}
-from psgscoring import classify_apnea_type
+AASM Rule~1A requires $\geq$3\% desaturation. The algorithm computes
+the SpO$_2$ baseline (90th percentile during sleep), searches for the
+nadir in a post-event window (30--45~s, configurable), and checks
+desaturation $\geq$3\%.
 
-typ, confidence, detail = classify_apnea_type(
-    onset_idx=start_sample,
-    end_idx=end_sample,
-    thorax_env=thorax_envelope,
-    abdomen_env=abdomen_envelope,
-    thorax_raw=thorax_raw_signal,
-    abdomen_raw=abdomen_raw_signal,
-    effort_baseline=effort_bl,
-    sf=256,
-    flattening_index=0.35,  # from breath analysis
-)
-# typ: "obstructive", "central", or "mixed"
-# confidence: 0.0 - 1.0
-# detail: {"rule_index": 0, "decision_reason": "..."}
-\end{lstlisting}
+\textbf{Circulatory delay:} finger oximetry has 20--40~s delay. The
+standard profile uses 45~s; strict uses 30~s.
 
-% ================================================================
-\section{SpO$_2$ Coupling}
-% ================================================================
-
-AASM Rule 1A requires a $\geq$3\% oxygen desaturation associated with
-each hypopnea. The coupling algorithm:
-
-\begin{enumerate}[nosep]
-  \item Compute the SpO$_2$ baseline: 90th percentile during sleep
-  \item For each candidate hypopnea, search for the nadir in a
-        \textbf{post-event window} (configurable: 30--45~seconds)
-  \item Desaturation = pre-event SpO$_2$ $-$ nadir
-  \item If desaturation $\geq$ 3\%: hypopnea confirmed (Rule 1A)
-\end{enumerate}
-
-\begin{infobox}
-\textbf{Circulatory delay:} The finger pulse oximeter has a 20--40
-second delay relative to the lungs. A 30-second window misses nadirs
-arriving at 30--45~seconds. The \emph{standard} scoring profile uses
-45~seconds; \emph{strict} uses 30~seconds.
-\end{infobox}
-
-% ================================================================
+% ============================================================
 \section{Over-Counting Corrections}
 \label{sec:overcounting}
-% ================================================================
+% ============================================================
 
-Na\"ive threshold-based scoring systematically \emph{inflates} AHI.
-Six mechanisms are identified and corrected:
+Six mechanisms that inflate AHI:
 
-\subsection{Fix 1: Post-Apnea Baseline Inflation}
+\textbf{Fix~1: Post-Apnea Baseline Inflation.}
+Recovery hyperpnea enters the baseline window, inflating it. Fix:
+exclude a 30-second recovery mask after each apnea.
 
-After an apnea, the patient hyperventilates (compensatory breathing).
-These large recovery breaths enter the 5-minute baseline window,
-inflating it. Subsequent normal breaths then appear ``reduced''
-relative to the inflated baseline $\to$ false hypopneas.
+\textbf{Fix~2: SpO$_2$ Cross-Contamination.}
+At AHI~$>$60/h, the nadir of event~$N$ overlaps event~$N+1$'s window.
+Fix: flag overlapping events (informational since v0.8.14).
 
-\textbf{Solution:} Exclude a 30-second recovery mask after each apnea
-from the baseline computation.
+\textbf{Fix~3: Cheyne-Stokes Flagging.}
+Each CSR trough crosses the 30\% threshold. Fix: detect periodicity
+via autocorrelation; flag matching events as \texttt{csr\_flagged}.
 
-\begin{lstlisting}
-# Pseudocode
-for apnea in detected_apneas:
-    mask[apnea.end : apnea.end + 30*sf] = True
-baseline = percentile_95(envelope[~mask], window=300s)
-\end{lstlisting}
+\textbf{Fix~4: Confidence Stratification.}
+Poor RIP quality defaults to obstructive. Fix: report events at four
+confidence tiers ($\geq$0.85, $\geq$0.60, $\geq$0.40, all).
 
-\subsection{Fix 2: SpO$_2$ Cross-Contamination}
+\textbf{Fix~5: Artefact-Flank Exclusion.}
+Signal recovery ramp after a flat-line gap. Fix: append 15-second
+exclusion window after each gap $\geq$10~s.
 
-At AHI $>$ 60/h, events follow each other so quickly that the SpO$_2$
-nadir of event $N$ falls within the search window of event $N+1$.
-Event $N+1$ gets an undeserved desaturation $\to$ false hypopnea.
+\textbf{Fix~6: Local Baseline Validation.}
+Rolling baseline inflated by recovery hyperpnea. Fix: compare event
+amplitude with 30-second pre-event window; reject if local reduction
+$<$20\% (raised to 30\% when surrounding breathing is stable,
+CV~$<$0.30).
 
-\textbf{Solution:} Flag events where the preceding event's nadir
-window overlaps. Since v0.8.14, this is informational only (desaturation
-is always computed).
-
-\subsection{Fix 3: Cheyne-Stokes Flagging}
-
-Cheyne-Stokes respiration (CSR) produces a crescendo-decrescendo
-pattern. Each trough can cross the 30\% threshold $\to$ scored as
-hypopnea. But these are not independent events; they are one central
-breathing pattern.
-
-\textbf{Solution:} Detect periodicity via autocorrelation. Events
-whose inter-event interval matches the CSR cycle ($\pm$12~s) are
-flagged as \texttt{csr\_flagged}.
-
-\subsection{Fix 4: Confidence Stratification}
-
-When RIP signal quality is poor, Rule~6 defaults to ``obstructive.''
-This inflates OAHI.
-
-\textbf{Solution:} Report events at four confidence tiers
-($\geq$0.85, $\geq$0.60, $\geq$0.40, all). The PDF report shows
-OAHI at each threshold.
-
-\subsection{Fix 5: Artefact-Flank Exclusion}
-
-After a flat-line gap (electrode disconnection), the recovery ramp
-can cross the flow-reduction threshold.
-
-\textbf{Solution:} Append a 15-second exclusion window after each
-flat-line segment $\geq$10~seconds.
-
-\subsection{Fix 6: Local Baseline Validation}
-
-The rolling baseline can be inflated by recovery hyperpnea. Normal
-breathing then appears reduced $\to$ false-positive hypopneas of
-60--80+ seconds.
-
-\textbf{Solution:} Compare the event amplitude with the 30-second
-pre-event window. If the local reduction is $<$20\%, the event is
-rejected. Additionally (v0.2.91), a \emph{stability-aware threshold}
-raises this to 30\% when the surrounding breathing is stable
-(envelope CV~$<$0.30 in a $\pm$120~s window), preventing normal
-variability from passing the local check.
-
-\begin{lstlisting}
-def _validate_local_reduction(envelope, onset, end, sf):
-    pre_start = max(0, onset - int(30 * sf))
-    pre_mean = np.mean(envelope[pre_start:onset])
-    event_mean = np.mean(envelope[onset:end])
-    reduction = 1 - event_mean / pre_mean
-    min_reduction = 0.20  # default
-    # v0.2.91: stability-aware threshold
-    stab_seg = envelope[onset-120*sf : end+120*sf]
-    if len(stab_seg) > 10*sf:
-        cv = np.std(stab_seg) / np.mean(stab_seg)
-        if cv < 0.30:
-            min_reduction = 0.30  # stricter for stable
-    return reduction >= min_reduction, reduction
-\end{lstlisting}
-
-This complements the post-detection stability filter
-(Section~\ref{sec:stability}), which operates on per-breath
-amplitudes rather than the continuous envelope.
-
-% ================================================================
+% ============================================================
 \section{Under-Counting Corrections}
 \label{sec:undercounting}
-% ================================================================
+% ============================================================
 
-The complementary problem: the algorithm \emph{misses} events that
-a human scorer would detect.
+Six mechanisms that suppress detection:
 
-\subsection{Fix 7: Peak-Based Breath Detection}
+\textbf{Fix~7: Peak-Based Breath Detection.}
+AASM requires \emph{peak} excursion $\geq$30\%. The Hilbert envelope
+smooths over individual breaths. Fix: detect breaths via zero-crossings,
+compute per-breath amplitude, combine with envelope mask via logical OR.
+Requires $\geq$3 consecutive reduced breaths (anti-fragmentation).
 
-AASM defines hypopnea as ``peak signal excursions drop $\geq$30\%.''
-The Hilbert envelope smooths over breath cycles, missing subtle
-per-breath reductions.
+\textbf{Fix~8: Extended SpO$_2$ Window.}
+30~s misses late nadirs. Fix: extend to 45~s (configurable).
 
-\textbf{Solution:} Detect individual breaths via zero-crossings,
-compute per-breath peak amplitude, and use a combined mask
-(envelope OR peak-based).
+\textbf{Fix~9: Flow Smoothing.}
+\emph{Removed.} Ablation analysis on PSG-IPA showed that 3-second
+smoothing was the dominant source of over-counting (+54 false hypopneas
+on a single mild recording). The consecutive-breath requirement
+(Fix~7) now replaces smoothing as the anti-fragmentation mechanism.
 
-\textbf{Consecutive breath requirement (v0.2.91):} To prevent isolated
-reduced breaths from triggering false events, peak detection now
-requires $\geq$\texttt{PEAK\_MIN\_CONSECUTIVE\_BREATHS} consecutive
-reduced breaths (default: 3 for strict/standard, 2 for sensitive).
-This replaced flow smoothing as the anti-fragmentation mechanism.
+\textbf{Fix~10: Position Signal Auto-Mapping.}
+Some EDF systems store position as raw ADC values (0--255). Fix:
+auto-detect encoding; apply percentile-based quantisation.
 
-\subsection{Fix 8: Extended SpO$_2$ Window}
-
-Finger oximetry has 20--40~s circulatory delay. The 30~s window
-misses late nadirs.
-
-\textbf{Solution:} Extend to 45~s (configurable per scoring profile).
-
-\subsection{Fix 9: Flow Smoothing (removed in v0.2.91)}
-
-Brief oscillations above the 70\% threshold can fragment a long event
-into sub-10~s segments that are each discarded. Previous versions applied
-a 3-second rolling mean before thresholding.
-
-\textbf{Note on categorisation:} Fix~9 was originally implemented as
-an under-counting correction (preventing event fragmentation). However,
-ablation analysis on PSG-IPA (Section~\ref{sec:validation}) demonstrated
-that it was, in practice, the \emph{dominant source of over-counting}:
-the smoothing bridged brief recovery breaths into continuous ``reduced
-flow'' segments, generating $+54$ false hypopneas ($+11.2$/h) on a
-mild-OSA recording. This finding --- that a fix designed to reduce
-under-counting actually caused over-counting --- illustrates why
-empirical validation against multi-scorer reference data is essential.
-
-\textbf{Status (v0.2.91):} Flow smoothing has been \textbf{removed from
-all profiles}. The consecutive-breath requirement
-(\texttt{PEAK\_MIN\_CONSECUTIVE\_BREATHS}~$\geq 3$, see Fix~7) now
-replaces smoothing as the anti-fragmentation mechanism.
-
-\subsection{Fix 10: Position Signal Auto-Mapping}
-
-Some EDF systems store position as raw ADC values (0--255) instead
-of standard codes (0--4).
-
-\textbf{Solution:} Auto-detect encoding; apply percentile-based
-quantisation.
-
-\subsection{Fix 11: Configurable Scoring Profiles}
+\textbf{Fix~11: Configurable Scoring Profiles.}
+Three profiles balance sensitivity vs. specificity:
 
 \begin{table}[H]
 \centering\small
-\caption{Three predefined scoring profiles (v0.2.91)}
-\begin{tabular}{@{}lcccccc@{}}
+\caption{Scoring profiles}
+\begin{tabular}{@{}lccccc@{}}
 \toprule
-\textbf{Profile} & \textbf{Threshold} & \textbf{SpO$_2$ win.} &
-\textbf{Smooth} & \textbf{Peak det.} & \textbf{Stab.\ filter} & \textbf{Use case} \\
+\textbf{Profile} & \textbf{Thresh.} & \textbf{SpO$_2$ win.} &
+\textbf{Peak det.} & \textbf{Stab.\ filter} & \textbf{Use case} \\
 \midrule
-Strict    & $\geq$30\% & 30~s & None & Envelope only & CV$<$0.45 & Research \\
-Standard  & $\geq$30\% & 45~s & None & Peak + envelope & CV$<$0.45 & Clinical (AASM 2.6) \\
-Sensitive & $\geq$25\% & 45~s & None & Peak + envelope & CV$<$0.45 & UARS / screening \\
+Strict    & $\geq$30\% & 30~s & Envelope only & CV$<$0.45 & Research \\
+Standard  & $\geq$30\% & 45~s & Peak+envelope & CV$<$0.45 & Clinical \\
+Sensitive & $\geq$25\% & 45~s & Peak+envelope & CV$<$0.45 & UARS \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Note on smoothing (v0.2.91):} Flow smoothing (previously 3~s for standard,
-5~s for sensitive) was removed from all profiles after ablation analysis on
-PSG-IPA demonstrated that 3-second smoothing was the dominant source of
-over-counting, adding $+54$ false hypopneas to a single mild-OSA recording
-(Section~\ref{sec:validation}).
+\textbf{Fix~12: Flattening-Based RERA Detection.}
+The flattening index $FI$ measures the fraction of inspiratory time
+exceeding 80\% of peak amplitude. Normal $\approx$0.10; flow-limited
+$>$0.30. Sequences of $\geq$3 breaths with FI~$>$0.30 spanning
+$\geq$10~s, terminated by an arousal, are scored as flattening-RERAs.
+$\text{RDI} = \text{AHI} + (\text{FRI-RERA} + \text{flat-RERA})/\text{TST}$.
 
-\subsection{Fix 12: Flattening-Based RERA Detection}
+% ============================================================
+\section{Breath-Amplitude Stability Filter}
+% ============================================================
 
-RERAs (Respiratory Effort-Related Arousals) are flow-limited segments
-without amplitude reduction, terminated by an arousal. The flattening
-index measures the fraction of the inspiratory segment exceeding 80\%
-of peak amplitude:
+At low event density, normal breath-to-breath variability generates
+apparent $\geq$30\% reductions. For each hypopnea candidate, the system
+examines breath amplitudes in a $\pm$120-second window. If the
+coefficient of variation CV~$<$0.45 with $\geq$10 breaths available,
+the candidate is rejected as normal variability.
 
-\begin{equation}
-  FI = \frac{|\{t : x(t) > 0.8 \cdot x_{\max}\}|}{|\{t : x(t) > 0\}|}
-\end{equation}
+Calibrated on PSG-IPA: rejected 56 false-positive hypopneas in a
+normal recording (SN4: $-$68\%) while preserving accuracy in severe OSA
+(SN3: $-$3\%).
 
-Normal triangular waveform: $FI \approx 0.10$.
-Flattened (flow limitation): $FI > 0.30$.
+% ============================================================
+\section{AHI Confidence Interval}
+% ============================================================
 
-% ================================================================
-\section{Breath-Amplitude Stability Filter (v0.2.91)}
-\label{sec:stability}
-% ================================================================
-
-A key challenge for automated scoring is distinguishing genuine flow
-reduction from normal breath-to-breath amplitude variability. Human
-scorers resolve this intuitively by comparing the candidate event with
-the surrounding breathing pattern.
-
-\subsection{The Problem}
-
-At low event density (AHI~$<$5), the P95 rolling baseline tracks the
-highest breaths. Normal variability (tidal volume fluctuations) then
-generates apparent $\geq$30\% reductions that are scored as false
-hypopneas. This is not a deficiency of the P95 approach per~se but a
-consequence of applying a relative threshold to a signal with inherent
-biological variability.
-
-\subsection{The Filter}
-
-For each hypopnea candidate, the system examines the peak amplitude of
-individual breaths in a $\pm$120-second window:
-\begin{enumerate}[nosep]
-  \item Collect all detected breaths (via zero-crossing segmentation)
-        within $\pm$120~s of the event midpoint.
-  \item Compute the coefficient of variation (CV) of breath amplitudes:
-        $\text{CV} = \sigma_A / \mu_A$.
-  \item If $\text{CV} < 0.45$ and $\geq$10 breaths are available, reject
-        the candidate as normal variability.
-\end{enumerate}
+Every analysis runs all three profiles and reports the AHI as an
+interval with a robustness grade:
+\textbf{A}~(all profiles same severity),
+\textbf{B}~(2/3 concordant),
+\textbf{C}~(all discordant).
 
 \begin{lstlisting}
-# Stability filter pseudocode
-for event in hypopnea_candidates:
-    breaths_nearby = get_breaths(
-        event.mid - 120s, event.mid + 120s)
-    if len(breaths_nearby) >= 10:
-        cv = std(amplitudes) / mean(amplitudes)
-        if cv < 0.45:
-            reject(event, reason="stable_breathing")
-\end{lstlisting}
-
-\subsection{Calibration}
-
-The CV threshold of 0.45 was calibrated on PSG-IPA
-(Section~\ref{sec:validation}):
-
-\begin{table}[H]
-\centering\small
-\caption{Stability filter calibration across severity spectrum}
-\begin{tabular}{@{}lrrrl@{}}
-\toprule
-\textbf{PSG} & \textbf{Median CV} & \textbf{Rejected} &
-\textbf{$\Delta$AHI} & \textbf{Clinical effect} \\
-\midrule
-SN4 (Normal)  & 0.428 & 56 & $-$68\% & Corrects false Mild~$\to$~Normal \\
-SN2 (Normal)  & ---   & 61 & $-$57\% & Reduces over-counting \\
-SN1 (Mild)    & 0.478 &  4 & $-$4\%  & Minimal (true events preserved) \\
-SN3 (Severe)  & 0.733 & 11 & $-$3\%  & Minimal \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The filter's severity-dependent selectivity confirms that it targets
-normal variability (low CV) rather than true pathology (high CV).
-
-% ================================================================
-\section{AHI Confidence Interval (v0.2.91)}
-\label{sec:interval}
-% ================================================================
-
-Every AHI carries inherent uncertainty. Rather than hiding this behind
-a single number, the system makes it explicit.
-
-\subsection{Mechanism}
-
-Every analysis automatically runs all three scoring profiles and
-reports the AHI as an interval:
-
-\begin{lstlisting}
-results = run_pneumo_analysis(raw, hypno,
-                              scoring_profile="standard")
+results = run_pneumo_analysis(raw, hypno, channel_map)
 iv = results["ahi_interval"]
 print(f"AHI: {iv['standard']['ahi']}")
-print(f"Interval: [{iv['interval'][0]} - "
-      f"{iv['interval'][1]}]")
-print(f"Robustness: {iv['robustness_grade']}")
-# Output: AHI: 8.1
-#         Interval: [4.0 - 8.1]
-#         Robustness: B
+print(f"Interval: [{iv['strict']['ahi']}"
+      f"-{iv['sensitive']['ahi']}]")
+print(f"Grade: {iv['robustness_grade']}")
 \end{lstlisting}
 
-\subsection{Robustness Grade}
+\textbf{Clinical example (SN2):} 12~technologists split 8/4 between
+Normal and Mild. Algorithm: interval [4.9--8.9], Grade~B. The interval
+immediately communicates that the AHI hovers near the 5/h threshold.
 
-A grade summarises severity concordance across profiles:
-
-\begin{table}[H]
-\centering\small
-\caption{Robustness grading}
-\begin{tabular}{@{}ccl@{}}
-\toprule
-\textbf{Grade} & \textbf{Criterion} & \textbf{Clinical interpretation} \\
-\midrule
-A & All 3 profiles same severity & Robust --- treatment unambiguous \\
-B & 2/3 concordant & Probable --- clinical correlation recommended \\
-C & All discordant  & Uncertain --- manual review recommended \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Clinical Example (SN2)}
-
-SN2 demonstrates why the interval matters. Twelve certified
-technologists scored this recording: 8 said Normal, 4 said Mild (AHI
-range 0.2--6.6). The algorithm gives:
-
-\begin{center}
-\begin{tabular}{lcl}
-Strict: & 8.2 (Mild) & \\
-Standard: & 9.3 (Mild) & \\
-Sensitive: & 5.4 (Mild) & $\leftarrow$ within scorer IQR \\
-\end{tabular}
-\end{center}
-
-Grade~A (``Robust Mild'') --- but the interval [5.4--9.3] immediately
-shows the AHI hovers near the 5/h threshold. This is precisely the
-clinical situation where a single number (``AHI = 9.3, Mild'')
-would mislead the clinician into a CPAP trial, while the interval
-communicates that watchful waiting may be equally appropriate.
-
-% ================================================================
+% ============================================================
 \section{ECG-Derived Effort Classification}
-% ================================================================
+% ============================================================
 
-The routinely recorded ECG contains information about respiratory
-effort --- if you know where to look.
+\textbf{Spectral classifier:} PSD of the RIP signal during each event.
+If $>$75\% of power in the cardiac band (0.8--2.5~Hz) and $<$20\% in
+respiratory (0.1--0.5~Hz) $\to$ flag as probable central.
 
-\subsection{Spectral Effort Classifier}
+\textbf{TECG (Berry et~al., 2019):} high-pass filter ECG at 30~Hz,
+blank QRS ($\pm$50~ms around R-peaks). The residual reveals inspiratory
+EMG bursts. If no bursts detected $\to$ no effort $\to$ central
+\cite{berry2019}.
 
-During a true central apnea, the RIP signal should show only cardiac
-pulsation. The spectral classifier computes PSD of the RIP signal
-during each event:
+% ============================================================
+\section{Hypoxic Burden}
+\label{sec:hb}
+% ============================================================
 
-\begin{itemize}[nosep]
-  \item Cardiac band: 0.8--2.5~Hz (adaptive per patient HR)
-  \item Respiratory band: 0.1--0.5~Hz
-\end{itemize}
+\subsection{Clinical Motivation}
 
-If $>$75\% of power is in the cardiac band and $<$20\% in respiratory
-$\to$ flag as probable central.
+The AHI counts events but ignores their physiological impact.
+Two patients with the same AHI can have radically different
+cardiovascular risk depending on the \emph{depth} and \emph{duration}
+of their desaturations. The hypoxic burden captures this by integrating
+the total oxygen deficit \cite{azarbarzin2019}.
 
-\subsection{Transformed ECG (TECG)}
+\subsection{Algorithm}
 
-Following Berry et al.\ (JCSM 2019):
+For each respiratory event~$i$:
+
 \begin{enumerate}[nosep]
-  \item High-pass filter ECG at 30~Hz
-  \item Blank QRS complexes ($\pm$50~ms around R-peaks)
-  \item The residual reveals inspiratory EMG bursts from intercostal
-        muscles
-  \item If no bursts detected $\to$ no respiratory effort $\to$ central
+  \item Compute pre-event SpO$_2$ baseline: 90th percentile in a
+    120-second window, with global 95th percentile fallback.
+  \item Integrate desaturation area:
+    $\text{area}_i = \int_{t_{\text{onset}}}^{t_{\text{recovery}}}
+    \max(0,\; B_{\text{SpO}_2} - \text{SpO}_2(t))\, dt$
+  \item Normalise:
+    $\text{HB} = \sum_i \text{area}_i \;/\; (60 \times \text{TST}_{\text{hours}})$
+    \quad [\%$\cdot$min/h]
 \end{enumerate}
 
-\begin{lstlisting}
-from psgscoring.ecg_effort import ecg_effort_assessment
+\begin{table}[H]
+\centering\small
+\caption{Hypoxic burden risk thresholds (Azarbarzin et~al.\ 2019)}
+\begin{tabular}{@{}lcl@{}}
+\toprule
+\textbf{Risk} & \textbf{HB (\%$\cdot$min/h)} & \textbf{Clinical} \\
+\midrule
+Low      & $<$20  & Low CV risk \\
+Moderate & 20--73 & Moderate risk \\
+High     & $>$73  & HR 1.47 for incident CVD \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-result = ecg_effort_assessment(
-    ecg_data, thorax_raw, abdomen_raw,
-    sf_ecg=256, sf_effort=256,
-    onset_idx=start, end_idx=end,
-    r_peaks=r_peak_indices
-)
-# result["reclassify_as_central"]: bool
-# result["ecg_effort_present"]: bool
+\begin{lstlisting}
+from psgscoring import compute_hypoxic_burden
+result = compute_hypoxic_burden(spo2_data, sf_spo2=1.0,
+                                resp_events=events, hypno=hypno)
+print(f"HB: {result['hypoxic_burden']} {result['unit']}")
 \end{lstlisting}
 
-% ================================================================
+\subsection{Baseline Methods}
+
+Two methods for computing the per-event SpO$_2$ baseline are available
+via the \texttt{baseline\_method} parameter:
+
+\textbf{Percentile method} (\texttt{"percentile"}, default).
+Uses the 90th percentile of the 120-second pre-event window as
+baseline, with the global 95th percentile of all sleep SpO$_2$ as
+fallback (whichever is higher). Simple, robust, and validated by
+He et~al.\ (IEEE EMBC 2024) as comparable to the original ensemble
+method for cardiovascular mortality prediction.
+
+\textbf{Ensemble method} (\texttt{"ensemble"}, Azarbarzin original).
+All SpO$_2$ segments are synchronised at event termination (``time
+zero'') and averaged to produce a subject-specific ensemble curve.
+The nadir of this curve is detected, and the two flanking peaks define
+a search window.  The baseline for each individual event is the SpO$_2$
+at the left peak; the area is integrated within the search window.
+Falls back to percentile if $<$3 events are available.
+
+\begin{lstlisting}
+# Percentile (default, backward compatible)
+hb1 = compute_hypoxic_burden(spo2, sf, events, hypno)
+
+# Ensemble (Azarbarzin 2019 original)
+hb2 = compute_hypoxic_burden(spo2, sf, events, hypno,
+                              baseline_method="ensemble")
+print(f"Ensemble window: {hb2['ensemble_window_s']} s")
+\end{lstlisting}
+
+On synthetic data (30 events, 8-hour recording), the two methods
+differ by approximately 8\%.  The ensemble method tends to yield
+slightly higher values because the search window can extend beyond
+the recovery point used by the percentile method.  For the MESA
+validation, both methods will be compared on $\sim$2,000 recordings.
+
+\subsection{Validation: The Pevernagie Phenotype}
+
+On PSG-IPA, SN2 (AHI~8.9, Mild) has HB~71.7---approaching the
+high-risk threshold. SN1 (AHI~7.6, also Mild) has HB~12.5. Same
+AHI category, 6$\times$ difference in oxygen deficit. On iSLEEPS
+($n=96$), 9~patients with AHI~$<$15 had HB~$>$40, including one with
+AHI~9.0 and HB~114.
+
+% ============================================================
+\section{Post-Processing: Central Apnea Refinement}
+\label{sec:postprocess}
+% ============================================================
+
+After the main detection pipeline, three refinements are applied
+automatically (pipeline Step~11).
+
+\subsection{CSR-Aware Central Reclassification}
+
+During Cheyne-Stokes respiration, cardiac pulsation on the effort
+bands mimics respiratory effort, causing central apneas to be
+misclassified as obstructive. Events with \texttt{csr\_flagged=True}
+that are typed \texttt{"obstructive"} or \texttt{"mixed"} are
+reclassified as \texttt{"central"}.
+
+Validation: PSG-IPA: 23~events reclassified. iSLEEPS ($n=96$):
+365~events in 36/96 studies (37\%).
+
+\subsection{Mixed Apnea Decomposition}
+
+Each mixed apnea is decomposed into central (absent effort) and
+obstructive (resumed effort) portions. If the central portion
+$\geq$10~s, the event is reclassified as central.
+
+\begin{lstlisting}
+from psgscoring import decompose_mixed_apneas
+events = decompose_mixed_apneas(events, thorax, abdomen, sf)
+# Each mixed event gains: central_duration_s,
+#   obstructive_duration_s, central_ratio
+\end{lstlisting}
+
+\subsection{Central Instability Index (CII)}
+
+Quantifies profile-dependent O/C uncertainty by comparing AHI across
+profiles. CII~$<$0.15 = stable; 0.15--0.40 = moderate;
+$>$0.40 = high (manual review recommended).
+
+% ============================================================
 \section{Arousal Detection}
-\label{sec:arousals}
-% ================================================================
+% ============================================================
 
-An \textbf{arousal} is a brief awakening from sleep (3--15~seconds of
-alpha/beta EEG activity) that fragments sleep architecture without
-the patient becoming fully conscious. Arousals are clinically
-important because they cause daytime sleepiness even when AHI is low.
+\textbf{AASM criteria:} abrupt EEG frequency shift ($\geq$3~s, preceded
+by $\geq$10~s stable sleep; during REM: concurrent EMG increase).
 
-\subsection{AASM Arousal Criteria}
+Phase~1 (EEG-based): sliding-window alpha+beta power exceeding
+mean~$+$~2$\times$SD. Phase~2 (filtering): K-complex exclusion (raises
+minimum duration from 3~s to 5~s), CVR confidence boost
+($\geq$10~bpm swing within 15~s), respiratory coupling (within 3~s of
+event termination $\to$ respiratory arousal), Rule~1B reinstatement
+(flow reduction + arousal without desaturation $\to$ hypopnea).
 
-The AASM defines an arousal as:
-\begin{itemize}[nosep]
-  \item An abrupt shift in EEG frequency to alpha, theta, or
-        $>$16~Hz (not spindles)
-  \item Duration $\geq$3~seconds
-  \item Preceded by $\geq$10~seconds of stable sleep
-  \item During REM: requires concurrent increase in chin EMG
-\end{itemize}
+% ============================================================
+\section{Ancillary Analyses}
+% ============================================================
 
-The \textbf{Arousal Index (AI)} = total arousals / hours of sleep.
-Normal: $<$15/h. The AI is further broken down:
-\begin{itemize}[nosep]
-  \item \textbf{Respiratory arousals}: occurring within 3~s of a
-        respiratory event termination
-  \item \textbf{PLM-associated arousals}: occurring within 0.5~s of a
-        leg movement
-  \item \textbf{Spontaneous arousals}: all remaining
-\end{itemize}
+\textbf{Snoring:} bandpass 30--300~Hz, 1-second RMS windows, threshold
+at P60 of RMS during sleep.
 
-\subsection{Detection Algorithm}
+\textbf{Heart rate:} R-peak detection via bandpass 5--30~Hz +
+\texttt{find\_peaks()}. Metrics: mean/min/max HR, bradycardia/tachycardia
+episodes.
 
-YASAFlaskified implements a two-phase arousal detection in
-\texttt{arousal\_analysis.py}:
+\textbf{Body position:} auto-mapping of ADC/integer/string encodings.
+Positional AHI per position. Supine-dominant OSA: supine~AHI~$\geq
+2\times$~non-supine. Position-induced baseline reset at transitions.
 
-\textbf{Phase 1 --- EEG-based detection:}
-\begin{enumerate}[nosep]
-  \item Compute spectral power in the alpha (8--12~Hz) and beta
-        ($>$16~Hz) bands using a 1-second sliding window
-  \item Detect segments where alpha+beta power exceeds a dynamic
-        threshold (mean + 2$\times$SD of the surrounding 30-second epoch)
-  \item Merge segments separated by $<$1~s; discard segments $<$3~s
-  \item During REM: require concurrent EMG amplitude increase
-        ($>$2$\times$ baseline chin EMG RMS)
-\end{enumerate}
+\textbf{Cheyne-Stokes:} autocorrelation of flow envelope over
+5-minute windows; secondary peak at 40--100~s confirms CSR periodicity.
 
-\textbf{Phase 2 --- Filtering and coupling:}
-\begin{enumerate}[nosep]
-  \item \textbf{K-complex exclusion}: if the first 1~s of a candidate
-        contains a negative peak $<$$-75$~$\mu$V followed by a positive
-        peak $>$30~$\mu$V, the minimum duration is raised from 3~s to
-        5~s (prevents scoring the trailing alpha rebound as a standalone
-        arousal)
-  \item \textbf{CVR confidence boost}: if the ECG shows a
-        bradycardia during the event followed by sympathetic tachycardia
-        ($\geq$10~bpm rise within 15~s), a confidence boost of
-        0.10--0.20 is added
-  \item \textbf{Respiratory coupling}: arousals within 3~s of a
-        respiratory event termination are tagged as respiratory arousals
-  \item \textbf{Rule 1B reinstatement}: flow reductions with an
-        arousal but without $\geq$3\% desaturation are reinstated as
-        hypopneas (AASM Rule~1B)
-\end{enumerate}
+\textbf{PLM:} AASM~2.6 + WASM criteria (0.5--10~s duration, $\geq$8~$\mu$V,
+5--90~s interval, $\geq$4 consecutive). Respiratory-associated movements
+excluded from PLMI.
 
-\begin{infobox}
-\textbf{Why K-complex exclusion matters:} K-complexes are normal NREM
-phenomena that produce a transient power increase in arousal-detection
-bands. Without this filter, up to 15\% of detected ``arousals'' are
-actually K-complexes --- inflating the arousal index and triggering
-false Rule~1B reinstatements.
-\end{infobox}
+\textbf{Sleep cycles:} Feinberg \& Floyd criteria (NREM $\geq$15~min,
+REM consolidation with 2-min gap tolerance). Stage-specific AHI (REM
+vs.\ NREM) identifies REM-dominant phenotype.
 
-\subsection{RERA Detection}
+% ============================================================
+\section{Signal Quality Assessment}
+% ============================================================
 
-RERAs (Respiratory Effort-Related Arousals) are detected from two
-sources:
-\begin{enumerate}[nosep]
-  \item \textbf{FRI-RERA}: flow reductions ($\geq$30\%, $\geq$10~s)
-        without desaturation, coupled to an arousal within 15~s of
-        event termination
-  \item \textbf{Flattening-RERA}: sequences of $\geq$3 consecutive
-        breaths with flattening index $>$0.30 spanning $\geq$10~s,
-        terminated by an arousal, \emph{without} meeting hypopnea
-        amplitude criteria
-\end{enumerate}
+Every channel is evaluated on four dimensions: flat-line percentage
+(rolling 2-second SD), clipping ($>$10 consecutive samples at ADC rail),
+line-noise dominance (49--51 and 59--61~Hz), and disconnect events.
+Each channel receives a grade (good/acceptable/poor/unusable).
 
-\begin{equation}
-  \text{RDI} = \text{AHI} + \frac{n_{\text{FRI-RERA}} + n_{\text{flat-RERA}}}{\text{TST (hours)}}
-\end{equation}
+Montage plausibility: EEG$\leftrightarrow$EOG correlation $>$0.95
+suggests shared reference; thorax$\leftrightarrow$abdomen $>$0.98
+suggests duplication.
 
-The RDI is clinically relevant for Upper Airway Resistance Syndrome
-(UARS), where AHI may be normal but the patient presents with
-excessive daytime sleepiness.
-
-% ================================================================
-\section{Snoring Analysis}
-% ================================================================
-
-Snoring is detected from the microphone or vibration sensor channel
-(typically labelled ``Snore'' or ``Phono'' in the EDF).
-
-\subsection{Detection Method}
-
-\begin{enumerate}[nosep]
-  \item Bandpass filter the snore channel (30--300~Hz) to isolate
-        snoring frequencies
-  \item Compute the RMS amplitude in 1-second windows
-  \item Determine a dynamic snore threshold: the 60th percentile of
-        the RMS amplitude during sleep epochs (P60)
-  \item Segments where RMS $>$ P60 for $\geq$3~consecutive seconds
-        are classified as snoring epochs
-\end{enumerate}
-
-\subsection{Output Metrics}
-
-\begin{table}[H]
-\centering\small
-\begin{tabular}{@{}ll@{}}
-\toprule
-\textbf{Metric} & \textbf{Definition} \\
-\midrule
-Snore duration (min) & Total minutes of detected snoring \\
-Snore \% of TST & Fraction of sleep time with snoring \\
-Snore index (/h) & Snoring episodes per hour of sleep \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{lstlisting}
-# Access snoring results
-snore = results["snore"]["summary"]
-print(f"Snoring: {snore['snore_pct_tst']:.1f}% of sleep")
-print(f"Snore index: {snore['snore_index']:.1f}/h")
-\end{lstlisting}
-
-\begin{infobox}
-\textbf{Clinical note:} Snoring alone is not diagnostic, but a high
-snore index combined with mild AHI may indicate UARS. The position
-overlay in the PDF report shows whether snoring is position-dependent
-(common: supine-dominant snoring).
-\end{infobox}
-
-% ================================================================
-\section{Heart Rate Analysis}
-% ================================================================
-
-Heart rate (HR) is derived from the ECG channel via R-peak detection.
-
-\subsection{R-Peak Detection}
-
-\begin{enumerate}[nosep]
-  \item Bandpass filter ECG (5--30~Hz, 4th-order Butterworth) to
-        enhance QRS complexes
-  \item Apply \texttt{scipy.signal.find\_peaks()} with adaptive
-        height threshold (0.6$\times$ 90th percentile of filtered signal)
-        and minimum distance (0.3~s = 200~bpm maximum)
-  \item Compute R-R intervals; reject outliers ($<$0.3~s or $>$2.0~s)
-  \item Instantaneous HR = 60 / R-R interval (bpm)
-\end{enumerate}
-
-\subsection{Output Metrics}
-
-\begin{table}[H]
-\centering\small
-\begin{tabular}{@{}llp{5.5cm}@{}}
-\toprule
-\textbf{Metric} & \textbf{Unit} & \textbf{Clinical significance} \\
-\midrule
-Mean HR & bpm & Normal: 60--100 during sleep \\
-Min HR  & bpm & Bradycardia $<$50; check medication (beta-blockers) \\
-Max HR  & bpm & Tachycardia $>$100; may indicate autonomic arousal \\
-Bradycardia episodes & count & Number of segments $<$50~bpm $\geq$10~s \\
-Tachycardia episodes & count & Number of segments $>$100~bpm $\geq$10~s \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{CVR Pattern}
-
-The Cyclic Variation of heart Rate (CVR) is a characteristic pattern
-in OSA: \emph{bradycardia} during the apnea (vagal tone from
-hypoxia), followed by \emph{tachycardia} upon arousal (sympathetic
-activation). The magnitude of this swing ($\Delta$HR $\geq$10~bpm
-within 15~s) is used as a confidence boost for arousal detection
-(Section~\ref{sec:arousals}).
-
-\begin{center}
-\begin{tikzpicture}[scale=0.9]
-  \draw[->] (0,0) -- (8,0) node[right] {\small time};
-  \draw[->] (0,0) -- (0,3) node[above] {\small HR (bpm)};
-  % Baseline
-  \draw[dashed,dgray] (0,1.5) -- (8,1.5) node[right] {\tiny 70 bpm};
-  % CVR pattern
-  \draw[thick,navy]
-    (0.5,1.5) -- (1,1.5) -- (1.5,0.8) -- (2.5,0.6) -- (3,0.8)
-    -- (3.3,2.5) -- (3.8,2.2) -- (4.5,1.5)
-    -- (5,1.5) -- (5.5,0.8) -- (6.5,0.6) -- (7,0.8)
-    -- (7.3,2.5) -- (7.8,2.2);
-  % Labels
-  \draw[<->,red,thick] (1.5,0.6) -- (1.5,1.5);
-  \node[red,font=\tiny,right] at (1.6,1.0) {brady};
-  \draw[<->,green,thick] (3.3,1.5) -- (3.3,2.5);
-  \node[green,font=\tiny,right] at (3.4,2.0) {tachy};
-  % Apnea markers
-  \fill[red!15] (1,0) rectangle (3,-0.3);
-  \node[font=\tiny] at (2,-0.15) {apnea};
-  \fill[red!15] (5,0) rectangle (7,-0.3);
-  \node[font=\tiny] at (6,-0.15) {apnea};
-  \draw[<->,orange,thick] (3,-0.5) -- node[below,font=\tiny] {arousal} (3.5,-0.5);
-\end{tikzpicture}
-\end{center}
-
-% ================================================================
-\section{Body Position Analysis}
-% ================================================================
-
-Body position during sleep determines whether OSA is
-\emph{position-dependent} --- a clinically important distinction
-because position-dependent OSA may be treated with positional therapy
-(e.g., tennis ball, NightBalance device) instead of CPAP.
-
-\subsection{Position Mapping}
-
-The EDF position channel uses one of three encoding schemes:
-
-\begin{table}[H]
-\centering\small
-\begin{tabular}{@{}lll@{}}
-\toprule
-\textbf{Encoding} & \textbf{Format} & \textbf{Systems} \\
-\midrule
-Integer codes & 0=supine, 1=left, 2=prone, 3=right, 4=upright & Standard \\
-Raw ADC & 0--255 (voltage proportional to tilt angle) & SomnoMedics, Embla \\
-String labels & ``Supine'', ``Left'', etc. & Some Natus systems \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The auto-mapping function (\texttt{\_map\_position\_signal()}) detects
-the encoding and applies percentile-based quantisation for raw ADC
-values:
-
-\begin{lstlisting}
-# Automatic position mapping
-pos = results["position"]["summary"]
-for position in ["supine", "left", "right", "prone", "upright"]:
-    pct = pos.get(f"pct_{position}", 0)
-    ahi = pos.get(f"ahi_{position}", 0)
-    print(f"  {position:8s}: {pct:.0f}% of TST, AHI={ahi:.1f}/h")
-\end{lstlisting}
-
-\subsection{Positional AHI}
-
-Events are mapped to body position via the position channel at event
-onset. The position-specific AHI is:
-
-\begin{equation}
-  \text{AHI}_{\text{pos}} = \frac{n_{\text{events in position}}}
-    {\text{time in position (hours)}}
-\end{equation}
-
-\textbf{Supine-dominant OSA} is defined as supine AHI $\geq$ 2$\times$
-non-supine AHI. This phenotype is more prevalent in younger, non-obese
-patients and responds well to positional therapy.
-
-\subsection{Position-Induced Baseline Reset}
-
-When a patient changes position (e.g., supine $\to$ lateral), the
-respiratory amplitude changes abruptly. The dynamic baseline must
-reset to avoid false events at the transition. \texttt{psgscoring}
-detects position changes and resets the baseline window at each
-transition (v0.8.25).
-
-% ================================================================
-\section{Cheyne-Stokes Detection}
-% ================================================================
-
-Cheyne-Stokes Respiration (CSR) is a crescendo-decrescendo breathing
-pattern characteristic of central sleep apnea, most commonly seen in
-heart failure patients.
-
-\subsection{Detection via Autocorrelation}
-
-The flow envelope is analysed using autocorrelation to detect periodic
-breathing patterns:
-
-\begin{enumerate}[nosep]
-  \item Compute the autocorrelation of the Hilbert envelope over a
-        5-minute window
-  \item Search for a secondary peak between 40 and 100~seconds
-        (typical CSR cycle length: 45--75~seconds)
-  \item If the peak-to-trough ratio exceeds a threshold (1.5$\times$
-        the surrounding baseline), CSR is detected
-  \item Determine the CSR periodicity from the peak location
-\end{enumerate}
-
-\begin{equation}
-  R(\tau) = \frac{1}{N}\sum_{t=0}^{N-\tau} A(t) \cdot A(t+\tau)
-\end{equation}
-
-\subsection{Event Flagging}
-
-After CSR detection, individual respiratory events whose inter-event
-interval matches the detected periodicity ($\pm$12~s) are retroactively
-flagged:
-
-\begin{lstlisting}
-# CSR results
-csr = results["respiratory"]["summary"]
-print(f"CSR detected: {csr.get('csr_detected', False)}")
-print(f"CSR period:   {csr.get('csr_period_s', 0):.0f}s")
-print(f"Events flagged: {csr.get('n_csr_flagged', 0)}")
-print(f"AHI without CSR: {csr.get('ahi_csr_corrected', 0):.1f}/h")
-\end{lstlisting}
-
-\begin{infobox}
-\textbf{Clinical impact:} CSR requires fundamentally different treatment
-(Adaptive Servo-Ventilation, ASV) rather than standard CPAP. Without
-CSR flagging, a heart failure patient may receive an AHI~$>$60/h and
-be started on CPAP, which may worsen central apneas. The corrected AHI
-(excluding CSR-flagged events) helps the clinician distinguish
-obstructive from central pathology.
-\end{infobox}
-
-% ================================================================
-\section{Sleep Cycles and Architecture}
-% ================================================================
-
-While sleep staging is performed by YASA (upstream of
-\texttt{psgscoring}), the platform computes additional sleep
-architecture metrics.
-
-\subsection{Sleep Cycle Detection}
-
-Sleep cycles are detected following Feinberg \& Floyd (1979) criteria:
-
-\begin{itemize}[nosep]
-  \item A NREM period requires $\geq$15~minutes of continuous NREM
-        sleep (N1, N2, or N3)
-  \item REM consolidation: REM segments separated by $<$2~minutes of
-        NREM are merged into a single REM period
-  \item A cycle = one NREM period + the subsequent REM period
-  \item Normal sleep: 4--6 cycles per night, each 90--120~minutes
-\end{itemize}
-
-\subsection{Stage-Specific Metrics}
-
-Sleep architecture affects respiratory scoring because:
-\begin{itemize}[nosep]
-  \item N3 (deep sleep): respiratory amplitude is lower $\to$ the
-        dynamic baseline must be stage-blended
-  \item REM: muscle atonia increases upper airway collapsibility $\to$
-        REM-AHI is typically higher than NREM-AHI
-  \item REM-dominant OSA (REM-AHI/NREM-AHI $>$2) is a distinct
-        phenotype, more common in women and younger patients
-\end{itemize}
-
-\begin{lstlisting}
-# Stage-specific AHI
-resp = results["respiratory"]["summary"]
-print(f"REM AHI:  {resp.get('ahi_rem', '?')}/h")
-print(f"NREM AHI: {resp.get('ahi_nrem', '?')}/h")
-ratio = resp.get('ahi_rem', 0) / max(resp.get('ahi_nrem', 1), 1)
-if ratio > 2:
-    print("REM-dominant OSA phenotype")
-\end{lstlisting}
-
-\subsection{Sleep Stage Transition Matrix}
-
-The PDF report includes a 5$\times$5 transition matrix showing the
-number of stage transitions (W/N1/N2/N3/R $\to$ W/N1/N2/N3/R). This
-helps identify:
-\begin{itemize}[nosep]
-  \item Excessive W$\to$N1 transitions: fragmented sleep onset
-  \item High N2$\to$W count: frequent arousals from light sleep
-  \item Low N2$\to$N3 transitions: reduced deep sleep initiation
-  \item Absent or rare transitions to R: REM suppression (medication,
-        depression, severe OSA)
-\end{itemize}
-
-% ================================================================
+% ============================================================
 \section{The Complete Pipeline}
-% ================================================================
+% ============================================================
 
-The master function \texttt{run\_pneumo\_analysis()} orchestrates
-all modules:
-
-\begin{lstlisting}
-from psgscoring.pipeline import run_pneumo_analysis
-
-results = run_pneumo_analysis(
-    raw_pneumo,         # MNE Raw object
-    hypno,              # ["W","N1","N2",...]
-    channel_map,        # {"flow": "Pressure", ...}
-    scoring_profile="standard",
-)
-# results["respiratory"]["events"]: list of dicts
-# results["respiratory"]["summary"]["ahi_total"]
-# results["spo2"]["summary"]["odi_3pct"]
-# results["plm"]["summary"]["plmi"]
-\end{lstlisting}
-
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[
-  node distance=0.5cm,
-  pstep/.style={draw,rounded corners,fill=codebg,minimum width=8cm,
-               minimum height=0.5cm,font=\small,align=center},
-  arr/.style={-{Stealth[length=4pt]},thick,color=navy}
-]
-\node[pstep] (s1) {1. EDF load + channel mapping};
-\node[pstep,below=of s1] (s2) {2. Signal quality assessment};
-\node[pstep,below=of s2] (s3) {3. Linearisation + filtering + envelope};
-\node[pstep,below=of s3] (s4) {4. Dynamic baseline computation};
-\node[pstep,below=of s4] (s5) {5. Apnea detection (thermistor, $\geq$90\%)};
-\node[pstep,below=of s5] (s6) {6. Hypopnea detection (nasal pressure, $\geq$30\%)};
-\node[pstep,below=of s6] (s7) {7. SpO$_2$ coupling + type classification};
-\node[pstep,below=of s7] (s8) {8. 6 over-counting corrections};
-\node[pstep,below=of s8] (s9) {9. 6 under-counting corrections};
-\node[pstep,below=of s9] (s10) {10. RERA/RDI + arousal coupling};
-\node[pstep,below=of s10] (s11) {11. Summary statistics (AHI, ODI, PLMI)};
-
-\foreach \i/\j in {s1/s2,s2/s3,s3/s4,s4/s5,s5/s6,s6/s7,s7/s8,s8/s9,s9/s10,s10/s11}
-  \draw[arr] (\i) -- (\j);
-\end{tikzpicture}
-\caption{Processing pipeline steps}
-\end{figure}
-
-% ================================================================
-\section{External Validation: PSG-IPA}
-\label{sec:validation}
-% ================================================================
-
-\texttt{psgscoring} v0.2.91 was validated on the PSG Inter-scorer
-reliability Project on Apneas (PSG-IPA), an open-access dataset on
-PhysioNet containing 5 diagnostic PSG recordings each scored by up to
-12 independent certified sleep technologists (59 scorer sessions total).
-
-\subsection{Results}
+\texttt{run\_pneumo\_analysis()} orchestrates 11 steps:
 
 \begin{table}[H]
 \centering\small
-\caption{AHI agreement: \texttt{psgscoring} (standard profile,
-  clinical hypnogram) vs.\ human scorer median on PSG-IPA}
-\begin{tabular}{@{}lrcccl@{}}
+\caption{Pipeline steps}
+\begin{tabular}{@{}cl@{}}
 \toprule
-\textbf{PSG} & $n$ &
-\textbf{AHI\textsubscript{med}} &
-\textbf{AHI\textsubscript{algo}} &
-\textbf{$|\Delta|$} & \textbf{Severity} \\
+\textbf{Step} & \textbf{Description} \\
 \midrule
-SN1 & 11 &  6.0 &  8.1 & 2.1 & Mild $\checkmark$ \\
-SN2 & 12 &  3.7 &  9.3 & 5.6 & Mild / Normal$^*$ \\
-SN3 & 12 & 54.0 & 53.8 & 0.2 & Severe $\checkmark$ \\
-SN4 & 12 &  3.5 &  4.3 & 0.8 & Normal $\checkmark$ \\
-SN5 & 12 &  9.9 & 11.4 & 1.5 & Mild $\checkmark$ \\
-\midrule
-\multicolumn{3}{@{}l}{Mean} & & 2.0 & Concordance: 4/5 \\
-\bottomrule
-\multicolumn{6}{@{}l}{\footnotesize $^*$Scorers split 8/12 Normal,
-  4/12 Mild. Sensitive profile (5.4) within scorer range.}
-\end{tabular}
-\end{table}
-
-\subsection{Ablation Analysis}
-
-Systematic parameter-by-parameter analysis on SN1 (11 scorers, median
-AHI 6.0) identified 3-second flow smoothing as the dominant source of
-over-counting:
-
-\begin{table}[H]
-\centering\small
-\caption{Ablation: which parameter causes over-counting?}
-\begin{tabular}{@{}lccl@{}}
-\toprule
-\textbf{Configuration} & \textbf{Hyp} & \textbf{AHI} & \textbf{Effect} \\
-\midrule
-Strict baseline (envelope only) & 12 & 4.7 & --- \\
-$+$ Peak detection & 36 & 8.8 & $+$23 events \\
-$+$ 3-second smoothing & 76 & 15.9 & $+$54 events \\
-\midrule
-\textit{Human scorers (median)} & \textit{$\sim$15} & \textit{6.0} & \\
+1  & Signal quality assessment \\
+2  & Linearisation + filtering + envelope \\
+3  & Dynamic baseline computation \\
+4  & Apnea detection (thermistor, $\geq$90\%) \\
+5  & Hypopnea detection (nasal pressure, $\geq$30\%) \\
+6  & SpO$_2$ coupling + type classification \\
+7  & 6 over-counting corrections \\
+8  & 6 under-counting corrections + stability filter \\
+9  & AHI confidence interval (3 profiles) \\
+10 & Hypoxic burden (Azarbarzin 2019) \\
+11 & Post-processing (CSR recl.\ + mixed decomp.\ + CII) \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Key Findings}
+% ============================================================
+\section{External Validation}
+% ============================================================
 
-\begin{enumerate}[nosep]
-  \item \textbf{Flow smoothing was removed} from all profiles ---
-        it was the single largest source of over-counting ($+$11.2/h).
-  \item \textbf{Stability filter} (CV$<$0.45) reduced over-counting
-        by 57--68\% in normal patients while preserving accuracy in
-        severe OSA ($-$3\% on SN3).
-  \item \textbf{AHI confidence interval} correctly identified the
-        borderline case (SN2) where human scorers disagreed.
-\end{enumerate}
+\subsection{PSG-IPA (5 recordings, 60 scorer sessions)}
 
-% ================================================================
-\section{Testing}
-% ================================================================
+\begin{table}[H]
+\centering\small
+\caption{PSG-IPA: algorithm vs.\ 12 scorers per recording}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{@{}lrrccccrl@{}}
+\toprule
+& \textbf{$n$} & \textbf{AHI\textsubscript{med}} &
+\textbf{AHI\textsubscript{algo}} & \textbf{$|\Delta|$} &
+\textbf{O} & \textbf{C} & \textbf{HB} & \textbf{CSR recl.} \\
+\midrule
+SN1 & 11 &  6.0 &  7.6 & 1.6 &  9 &  7 & 12.5 & 7 \\
+SN2 & 12 &  3.7 &  8.9 & 5.2 &  3 &  0 & \textbf{71.7} & 0 \\
+SN3 & 12 & 54.0 & 53.5 & 0.5 & 252 & 30 & \textbf{241.8} & 16 \\
+SN4 & 12 &  3.5 &  4.2 & 0.7 &  0 &  0 & 22.1 & 0 \\
+SN5 & 12 &  9.9 & 10.7 & 0.8 & 17 &  1 & 37.0 & 0 \\
+\midrule
+\multicolumn{4}{@{}l}{Mean $|\Delta|$: 1.8/h} &  && & & 23 total \\
+\bottomrule
+\end{tabular}}
+\end{table}
 
-\texttt{psgscoring} includes 47 tests (Python 3.9--3.12 CI):
+\noindent Event-level matching on SN3 (severe): F1$=0.890$, mean onset
+difference 2.3~s. For 3/5~recordings, algorithm deviation was smaller
+than inter-scorer variability.
 
-\subsection{Unit Tests (37)}
+\subsection{iSLEEPS (96 ischemic stroke patients)}
 
-Each module has dedicated tests covering edge cases:
-signal processing with zero-length arrays, classification with
-extreme feature values, SpO$_2$ coupling at boundary conditions.
+\begin{table}[H]
+\centering\small
+\caption{iSLEEPS by severity ($n=96$, 1 outlier excluded)}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+& \textbf{Overall} & \textbf{Normal} & \textbf{Mild} &
+\textbf{Mod.} & \textbf{Severe} \\
+& ($n=96$) & ($n=12$) & ($n=20$) & ($n=26$) & ($n=38$) \\
+\midrule
+Bias   & $-$14.3/h & $+$1.3 & $-$1.3 & $-$12.4 & $-$27.5 \\
+MAE    & 15.6/h & 3.4 & 3.9 & 13.0 & 27.5 \\
+$r$    & 0.653 &&&&\\
+Conc.  & 30\% & 83\% & 45\% & 23\% & 11\% \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\subsection{Regression Tests (7)}
+\noindent 365 CSR reclassifications in 36/96 studies. 15~patients with
+HB~$>$73 (high CV risk). 9~patients with AHI~$<$15 but HB~$>$40.
 
-Synthetic signals with known ground truth:
-\begin{itemize}[nosep]
-  \item Obstructive apnea: effort present + flow absent $\to$ must classify obstructive
-  \item Central apnea: no effort + no flow $\to$ must classify central
-  \item Mixed apnea: first half central, second half obstructive
-  \item Dynamic baseline stability on constant-amplitude input
-  \item SpO$_2$ desaturation detection with known nadir
-  \item Breath count for 12 breaths/minute signal
-  \item Flattening index passthrough to classification detail
-\end{itemize}
-
-\subsection{Property-Based Tests (3, Hypothesis)}
-
-Random inputs to \texttt{classify\_apnea\_type()}:
-\begin{itemize}[nosep]
-  \item 500 random combinations: never crashes, always returns valid type
-  \item Low effort inputs: must not produce high-confidence obstructive
-  \item Short segments (2--100 samples): crash-free
-\end{itemize}
-
-\begin{lstlisting}
-# Running tests
-cd psgscoring
-python -m pytest tests/ -v
-\end{lstlisting}
-
-% ================================================================
+% ============================================================
 \section{Data Structures}
-% ================================================================
+% ============================================================
 
 \subsection{Event Dictionary}
-
-Each respiratory event is represented as a Python dictionary:
-
 \begin{lstlisting}
 {
-    "type":               "obstructive",  # or "central"/"mixed"/"hypopnea"
-    "onset_s":            1234.5,         # seconds from recording start
-    "duration_s":         18.0,
-    "stage":              "N2",           # sleep stage at event onset
-    "desaturation_pct":   4.2,            # SpO2 drop (Rule 1A)
-    "min_spo2":           89.3,
-    "confidence":         0.82,
-    "rule_index":         1,              # which classification rule fired
-    "flow_reduction":     0.45,           # fraction of baseline
-    "classify_detail": {
-        "effort_ratio":     0.72,
-        "raw_var_ratio":    0.85,
-        "phase_angle_deg":  52.3,
-        "decision_reason":  "paradox_movement",
-        "flattening_index": 0.28,
-    },
+    "type": "obstructive",  # or central/mixed/hypopnea
+    "onset_s": 1234.5,
+    "duration_s": 18.0,
+    "stage": "N2",
+    "desaturation_pct": 4.2,
+    "min_spo2": 89.3,
+    "confidence": 0.82,
+    "rule_index": 1,
+    "flow_reduction": 0.45,
+    "classify_detail": { ... },
+    "csr_flagged": False,
     "spo2_cross_contaminated": False,
-    "csr_flagged":        False,
+    # Post-processing (v0.2.94):
+    "csr_reclassified": True,
+    "original_type": "obstructive",
+    "central_duration_s": 12.1,
+    "obstructive_duration_s": 7.9,
+    "central_ratio": 0.60,
+    "mixed_decomposed": True,
 }
 \end{lstlisting}
 
-\subsection{Summary Dictionary}
-
+\subsection{Hypoxic Burden Output}
 \begin{lstlisting}
-{
-    "ahi_total":       29.1,
-    "oahi":            28.5,
-    "cahi":            0.6,
-    "n_obstructive":   85,
-    "n_central":       2,
-    "n_mixed":         1,
-    "n_hypopnea":      78,
-    "n_csr_flagged":   0,
-    "n_local_baseline_rejected": 42,
-    "severity":        "moderate",
+results["hypoxic_burden"] = {
+    "hypoxic_burden": 71.7,       # %*min/h
+    "n_events_with_burden": 40,
+    "mean_event_burden": 645.3,   # %*s per event
+    "unit": "%*min/h",
 }
 \end{lstlisting}
 
-% ================================================================
-\section{Practical Tutorial: Processing an EDF File}
-% ================================================================
+\subsection{Post-Processing Output}
+\begin{lstlisting}
+results["postprocess"] = {
+    "n_csr_reclassified": 7,
+    "n_mixed_decomposed": 3,
+    "n_mixed_to_central": 2,
+    "central_instability": {
+        "central_instability_index": 0.43,
+        "interpretation": "high",
+        "ahi_range": 3.3,
+    },
+    "cai_change": +9,
+}
+\end{lstlisting}
 
-A minimal end-to-end example:
+% ============================================================
+\section{Practical Tutorial}
+% ============================================================
 
 \begin{lstlisting}
 import mne
-from psgscoring.pipeline import run_pneumo_analysis
-from psgscoring.utils import build_sleep_mask
+from psgscoring import run_pneumo_analysis
 
-# 1. Load EDF
 raw = mne.io.read_raw_edf("patient.edf", preload=True)
+hypno = ["W","N1","N2","N3","R", ...]  # per 30-s epoch
 
-# 2. Assume hypnogram is available (from YASA or manual)
-hypno = ["W","W","N1","N2","N2","N3", ...]  # per 30-s epoch
+results = run_pneumo_analysis(raw, hypno, channel_map={
+    "flow_pressure": "Pressure",
+    "flow_thermistor": "Flow",
+    "thorax": "RIP Thora", "abdomen": "RIP Abdom",
+    "spo2": "SpO2", "ecg": "ECG II",
+}, scoring_profile="standard")
 
-# 3. Define channel mapping
-channel_map = {
-    "flow":           "Pressure",      # nasal pressure
-    "flow_thermistor":"Flow",           # oronasal thermistor
-    "thorax":         "RIP Thora",
-    "abdomen":        "RIP Abdom",
-    "spo2":           "SpO2",
-    "snore":          "Snore",
-    "position":       "Pos.",
-    "ecg":            "ECG II",
-    "plm_l":          "PLMl",
-    "plm_r":          "PLMr",
-}
+# AHI with confidence interval
+iv = results["ahi_interval"]
+print(f"AHI: {iv['standard']['ahi']}")
+print(f"[{iv['strict']['ahi']}"
+      f"-{iv['sensitive']['ahi']}] "
+      f"Grade {iv['robustness_grade']}")
 
-# 4. Run analysis
-results = run_pneumo_analysis(
-    raw, hypno, channel_map,
-    scoring_profile="standard",
-)
+# Hypoxic burden
+hb = results["hypoxic_burden"]
+print(f"HB: {hb['hypoxic_burden']} {hb['unit']}")
 
-# 5. Extract results
-resp = results["respiratory"]
-print(f"AHI:  {resp['summary']['ahi_total']:.1f}/h")
-print(f"OAHI: {resp['summary']['oahi']:.1f}/h")
-print(f"Events: {len(resp['events'])}")
-
-for ev in resp["events"][:5]:
-    print(f"  {ev['type']:12s} at {ev['onset_s']:.0f}s, "
-          f"dur={ev['duration_s']:.0f}s, "
-          f"conf={ev['confidence']:.2f}")
+# Post-processing
+pp = results["postprocess"]
+print(f"CSR reclassified: {pp['n_csr_reclassified']}")
 \end{lstlisting}
 
-% ================================================================
-\section{Design Decisions and Trade-offs}
-% ================================================================
+% ============================================================
+\section{Design Decisions}
+% ============================================================
 
-\subsection{Why Rules, Not Deep Learning?}
+\textbf{Why rules, not deep learning?} Transparency (every event
+traceable to AASM rule), data efficiency (zero training data),
+auditability (CE/FDA), correction specificity (each mechanism
+independently addressable). The planned hybrid uses LightGBM
+\emph{on top of} the rule-based engine.
 
-\texttt{psgscoring} is deliberately rule-based:
-\begin{enumerate}[nosep]
-  \item \textbf{Transparency}: Every event can be traced to a specific
-        AASM rule and threshold. A clinician can understand \emph{why}
-        an event was scored.
-  \item \textbf{Data efficiency}: Rules require zero training data.
-        Deep learning requires thousands of expert-scored PSGs.
-  \item \textbf{Auditability}: For clinical deployment (CE marking,
-        FDA clearance), regulators require explainable decisions.
-  \item \textbf{Correction specificity}: Each over/under-counting
-        mechanism is independently addressable with its own counter.
-\end{enumerate}
+\textbf{Performance:} 3--5~min for an 8-hour PSG at 256~Hz.
+All 12 corrections add $<$1~s overhead.
 
-The planned hybrid approach uses a LightGBM confidence layer
-\emph{on top of} the rule-based engine --- not replacing it.
+% ============================================================
+\section{Common Pitfalls}
+% ============================================================
 
-\subsection{Why Not Use a Single Threshold?}
+\textbf{Variable scoping:} pass computed variables explicitly to inner
+functions---Python closures capture by reference.
+\textbf{Docker caching:} \texttt{docker compose restart} does not
+rebuild; use \texttt{build --no-cache}.
+\textbf{Shell escaping:} use Python parameterised queries for
+passwords (bcrypt \$ interpretation).
+\textbf{EDF:} pyedflib for EDF+ writing; edfio silently drops
+annotations.
+\textbf{Translation shadowing:} never \texttt{t = date.today()} when
+\texttt{t()} is imported.
 
-A single amplitude threshold (e.g., ``score hypopnea when envelope
-$<$70\% of baseline'') fails because:
-\begin{itemize}[nosep]
-  \item The baseline itself is corrupted (Fixes 1, 6)
-  \item The envelope misses per-breath reductions (Fix 7)
-  \item SpO$_2$ coupling has timing issues (Fixes 2, 8)
-  \item Signal artefacts generate false events (Fix 5)
-\end{itemize}
-
-Each correction addresses a specific failure mode.
-
-\subsection{Performance Characteristics}
-
-\begin{table}[H]
-\centering\small
-\begin{tabular}{@{}lr@{}}
-\toprule
-\textbf{Metric} & \textbf{Value} \\
-\midrule
-Processing time (8h PSG, 256 Hz) & 3--5 min \\
-Peak RAM usage & $\sim$2 GB \\
-Event detection (apnea + hypopnea) & $\sim$70 s \\
-All 12 corrections overhead & $<$1 s \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-% ================================================================
-% (References moved to end of handbook)
-
-% ================================================================
-\section{Breath Detection and Flattening Index}
-% ================================================================
-
-Individual breath detection is essential for both peak-based hypopnea
-detection (Fix~7) and RERA assessment (Fix~12).
-
-\subsection{Breath Segmentation}
-
-Breaths are detected by finding zero-crossings in the filtered flow
-signal. Each breath consists of an inspiratory phase (positive flow)
-and an expiratory phase (negative flow):
-
-\begin{lstlisting}
-from psgscoring.breath import detect_breaths
-
-breaths = detect_breaths(filtered_flow, sf=256)
-# Returns list of dicts:
-# [{"onset_s": 10.2, "duration_s": 3.8,
-#   "amplitude": 85.3, "insp_duration": 1.6}, ...]
-\end{lstlisting}
-
-\subsection{Flattening Index Computation}
-
-The flattening index quantifies inspiratory flow limitation. A normal
-breath has a triangular inspiratory waveform; a flattened breath
-indicates upper airway resistance:
-
-\begin{lstlisting}
-from psgscoring.breath import compute_flattening_index
-
-fi = compute_flattening_index(inspiratory_segment)
-# fi ~ 0.10: normal (triangular)
-# fi > 0.30: flattened (flow limitation)
-# fi > 0.50: severely flattened
-\end{lstlisting}
-
-The index is defined as the fraction of inspiratory time during which
-the signal exceeds 80\% of peak amplitude. Geometrically, this
-measures how ``rectangular'' (plateau-shaped) the inspiratory waveform
-is:
-
-\begin{center}
-\begin{tikzpicture}[scale=0.8]
-  % Normal breath
-  \draw[->] (0,0) -- (3.5,0) node[right] {\tiny t};
-  \draw[->] (0,0) -- (0,2.5) node[above] {\tiny flow};
-  \draw[thick,blue] (0,0) -- (1.5,2) -- (3,0);
-  \draw[dashed,red] (0,1.6) -- (3,1.6) node[right] {\tiny 80\%};
-  \node[below] at (1.5,-0.3) {\small Normal ($FI \approx 0.10$)};
-
-  % Flattened breath
-  \begin{scope}[xshift=5cm]
-  \draw[->] (0,0) -- (3.5,0) node[right] {\tiny t};
-  \draw[->] (0,0) -- (0,2.5) node[above] {\tiny flow};
-  \draw[thick,blue] (0,0) -- (0.5,2) -- (2.5,2) -- (3,0);
-  \draw[dashed,red] (0,1.6) -- (3,1.6) node[right] {\tiny 80\%};
-  \fill[red,opacity=0.15] (0.4,1.6) rectangle (2.6,2);
-  \node[below] at (1.5,-0.3) {\small Flattened ($FI \approx 0.45$)};
-  \end{scope}
-\end{tikzpicture}
-\end{center}
-
-\subsection{Breath Amplitude for Hypopnea Detection}
-
-Per-breath amplitude is compared to a local baseline (median of
-preceding 10~breaths):
-
-\begin{lstlisting}
-from psgscoring.breath import compute_breath_amplitudes
-
-ratios = compute_breath_amplitudes(breaths, sf=256)
-# ratios[i] = breath_amplitude[i] / median(prev 10 breaths)
-# ratio < 0.70 -> this breath is part of a hypopnea
-\end{lstlisting}
-
-% ================================================================
-\section{Periodic Limb Movement (PLM) Detection}
-% ================================================================
-
-PLMs are scored per AASM 2.6 and WASM (World Association of Sleep
-Medicine) criteria:
-
-\begin{itemize}[nosep]
-  \item Duration: 0.5--10~seconds
-  \item Amplitude: $\geq$8~$\mu$V above baseline (tibialis EMG)
-  \item Inter-movement interval: 5--90~seconds
-  \item A ``series'' requires $\geq$4 consecutive movements meeting
-        the interval criterion
-\end{itemize}
-
-\begin{lstlisting}
-from psgscoring.plm import detect_plm
-
-result = detect_plm(plm_left, plm_right, sf=256,
-                     hypno=hypno, sleep_mask=sleep_mask)
-# result["summary"]["plmi"]  -> PLM index (/h sleep)
-# result["summary"]["n_plm"] -> number of PLMs in series
-\end{lstlisting}
-
-The PLM index (PLMI) = PLMs in series / hours of sleep.
-Clinical significance: PLMI $>$ 15/h suggests periodic limb
-movement disorder (PLMD), especially if associated with arousals.
-
-\begin{infobox}
-\textbf{Respiratory association:} Leg movements occurring within 0.5~s
-before to 0.5~s after a respiratory event are considered
-respiratory-associated and are \emph{excluded} from the PLMI count.
-This prevents respiratory events from inflating the PLM index.
-\end{infobox}
-
-% ================================================================
-\section{Signal Quality Assessment}
-% ================================================================
-
-Automated scoring is only as reliable as the input signals. The
-\texttt{signal\_quality} module evaluates every channel on four
-dimensions:
-
-\begin{table}[H]
-\centering\small
-\begin{tabular}{@{}llp{6cm}@{}}
-\toprule
-\textbf{Check} & \textbf{Threshold} & \textbf{Method} \\
-\midrule
-Flat-line & $>$10\% of recording & Rolling 2~s SD below role-specific
-  threshold (0.5~$\mu$V for EEG, 0.1~mV for respiratory) \\
-Clipping & $>$1\% of samples & Signal at ADC rail for $>$10
-  consecutive samples \\
-Line noise & $>$50\% of power & 49--51~Hz and 59--61~Hz power as
-  fraction of total 1--Nyquist power \\
-Disconnect & Any occurrence & Transitions from active signal to
-  flat-line lasting $\geq$10~s \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Each channel receives a grade: \textbf{good}, \textbf{acceptable},
-\textbf{poor}, or \textbf{unusable}.
-
-\subsection{Montage Plausibility}
-
-Cross-correlation checks detect hardware errors:
-\begin{itemize}[nosep]
-  \item EEG $\leftrightarrow$ EOG correlation $>$0.95: possible
-        shared-reference or channel duplication
-  \item Thorax $\leftrightarrow$ Abdomen correlation $>$0.98:
-        possible duplication (prevents obstructive/central distinction)
-\end{itemize}
-
-% ================================================================
-\section{Common Pitfalls for Developers}
-% ================================================================
-
-\subsection{Variable Scoping}
-
-Local variables computed in outer functions must be passed explicitly
-as parameters to inner functions. In Python, closures capture
-variables by reference, not by value. The original codebase had a bug
-where \texttt{\_tecg}, \texttt{\_r\_peaks}, and \texttt{\_sf\_ecg\_local}
-were local variables in \texttt{detect\_respiratory\_events()} but
-referenced inside \texttt{\_detect\_apneas()} --- causing
-\texttt{NameError} in certain code paths.
-
-\subsection{Docker Caching}
-
-\texttt{docker compose restart} does \emph{not} rebuild images.
-After modifying Python files, always use:
-\begin{lstlisting}[language=bash]
-docker compose build --no-cache
-docker compose up -d
-\end{lstlisting}
-
-\subsection{Shell Escaping}
-
-Bash interprets \texttt{\$} in bcrypt hashes. When writing passwords
-to databases, use Python's \texttt{sqlite3} with parameterised queries:
-\begin{lstlisting}
-cursor.execute("UPDATE users SET password=? WHERE id=?",
-               (hashed_pw, user_id))
-\end{lstlisting}
-
-\subsection{EDF Limitations}
-
-\begin{itemize}[nosep]
-  \item \texttt{pyedflib} is the reliable EDF+ writer;
-        \texttt{edfio} silently writes plain EDF headers and drops
-        annotations.
-  \item MNE's EDF export fails on large physical min/max values.
-  \item SomnoMedics stores position as ADC values (0--255), not
-        integer codes --- requires auto-mapping.
-\end{itemize}
-
-\subsection{Translation Function Shadowing}
-
-Never name local variables \texttt{t} when \texttt{t()} is imported
-as a translation function:
-\begin{lstlisting}
-from i18n import t
-# ...
-t = date.today()   # BREAKS ALL t() CALLS!
-today = date.today() # correct
-\end{lstlisting}
-
-% ================================================================
-\section{Glossary}
-% ================================================================
-
-\begin{table}[H]
-\centering\small
-\begin{tabularx}{\textwidth}{@{}lX@{}}
-\toprule
-\textbf{Term} & \textbf{Definition} \\
-\midrule
-AHI & Apnea-Hypopnea Index: (apneas + hypopneas) / hours of sleep \\
-OAHI & Obstructive AHI: only obstructive + mixed events \\
-CAI & Central Apnea Index \\
-RDI & Respiratory Disturbance Index: AHI + RERA index \\
-RERA & Respiratory Effort-Related Arousal: flow limitation + arousal, no desaturation \\
-ODI & Oxygen Desaturation Index: desaturations $\geq$3\% per hour \\
-PLMI & Periodic Limb Movement Index: PLMs in series per hour of sleep \\
-TST & Total Sleep Time (minutes of scored sleep) \\
-TIB & Time In Bed \\
-SE & Sleep Efficiency: TST / TIB $\times$ 100\% \\
-SOL & Sleep Onset Latency: time from lights-off to first sleep epoch \\
-WASO & Wake After Sleep Onset \\
-RIP & Respiratory Inductance Plethysmography (effort bands) \\
-TECG & Transformed ECG: high-pass filtered + QRS-blanked ECG \\
-CSR & Cheyne-Stokes Respiration \\
-MMSD & Mean Magnitude of Second Derivative \\
-FRI & Flow Reduction Index: events with flow reduction but no AASM criteria met \\
-EDF & European Data Format (PSG file format) \\
-AASM & American Academy of Sleep Medicine \\
-WASM & World Association of Sleep Medicine \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-% ================================================================
+% ============================================================
 \section{Exercises}
-% ================================================================
+% ============================================================
 
 \begin{enumerate}
-  \item \textbf{Signal processing:} Generate a synthetic nasal pressure
-        signal (12 breaths/min, amplitude 100). Apply square-root
-        linearisation. Compare the envelope before and after
-        linearisation. What happens to the breath amplitude distribution?
-
-  \item \textbf{Baseline sensitivity:} Create a 10-minute signal with
-        stable breathing for 5~minutes, then a 30-second apnea followed
-        by 4.5~minutes of recovery breathing at 150\% amplitude. Plot
-        the dynamic baseline. Where does it become inflated? Implement
-        the 30-second recovery mask (Fix~1) and compare.
-
-  \item \textbf{Classification:} Create test inputs for
-        \texttt{classify\_apnea\_type()} that trigger each of the 7
-        rules. Verify that your inputs produce the expected type and
-        confidence range.
-
-  \item \textbf{Property testing:} Write a Hypothesis test that
-        generates random \texttt{effort\_ratio} (0--2) and
-        \texttt{raw\_var\_ratio} (0--3) values. Verify that the
-        classifier never crashes and always returns a valid type.
-
-  \item \textbf{SpO$_2$ coupling:} Generate a SpO$_2$ signal with a
-        known 5\% desaturation at $t=40$~s. Test
-        \texttt{get\_desaturation()} with window sizes of 30~s and
-        45~s. At what circulatory delay does the 30~s window fail?
-
-  \item \textbf{Flattening index:} Generate a triangular inspiratory
-        waveform and a rectangular one. Compute the flattening index
-        for each. What threshold best separates normal from flattened?
-
-  \item \textbf{End-to-end:} Download a public PSG from PhysioNet
-        (Sleep-EDF dataset). Run YASA staging, then
-        \texttt{run\_pneumo\_analysis()} with all three scoring profiles.
-        Compare the AHI across profiles and explain the differences.
+  \item Generate a synthetic nasal pressure signal (12 breaths/min).
+    Apply square-root linearisation. Compare the envelope before and
+    after.
+  \item Create a 10-minute signal with a 30-second apnea and 150\%
+    recovery breathing. Plot the dynamic baseline with and without
+    the 30-second recovery mask (Fix~1).
+  \item Create test inputs for \texttt{classify\_apnea\_type()} that
+    trigger each of the 7 rules.
+  \item Generate a SpO$_2$ signal with a 5\% desaturation at $t=40$~s.
+    Test \texttt{get\_desaturation()} with 30~s and 45~s windows.
+  \item Download a public PSG from PhysioNet. Run all three scoring
+    profiles and compare AHI.
+  \item Generate a SpO$_2$ signal with three desaturations (3\%, 8\%,
+    15\%). Call \texttt{compute\_hypoxic\_burden()} and verify the deep
+    event dominates.
+  \item Create 10 events with \texttt{csr\_flagged=True} and type
+    \texttt{"obstructive"}. Call \texttt{reclassify\_csr\_events()} and
+    verify reclassification.
+  \item Generate a 20-second effort signal: 12~s silence then 8~s
+    sinusoidal. Call \texttt{decompose\_mixed\_apneas()} and verify
+    central reclassification.
+  \item Using the iSLEEPS CSV, identify patients where AHI~$<$15 but
+    HB~$>$40. How does hypoxic burden change the clinical picture?
 \end{enumerate}
 
-% ================================================================
-\section*{Acknowledgments}
+% ============================================================
+\section*{Glossary}
 
-This handbook accompanies the \texttt{psgscoring} library, which
-extends YASA by Raphael Vallat and Matthew P.\ Walker. The staging
-classifier was trained on SHHS and MESA data funded by the NHLBI.
+\begin{tabular}{@{}lp{10cm}@{}}
+AHI & Apnea-Hypopnea Index \\
+OAHI & Obstructive AHI \\
+CAI & Central Apnea Index \\
+RDI & Respiratory Disturbance Index (AHI + RERA index) \\
+RERA & Respiratory Effort-Related Arousal \\
+ODI & Oxygen Desaturation Index \\
+HB & Hypoxic Burden (\%$\cdot$min/h) \\
+CII & Central Instability Index \\
+PLMI & Periodic Limb Movement Index \\
+TST & Total Sleep Time \\
+RIP & Respiratory Inductance Plethysmography \\
+TECG & Transformed ECG (high-pass + QRS-blanked) \\
+CSR & Cheyne-Stokes Respiration \\
+MMSD & Mean Magnitude of Second Derivative \\
+EDF & European Data Format \\
+AASM & American Academy of Sleep Medicine \\
+\end{tabular}
+
+% ============================================================
+\begin{thebibliography}{29}
+
+\bibitem{berry2020}
+Berry RB, et~al. \emph{The AASM Manual for the Scoring of Sleep and
+Associated Events. Version~2.6.} AASM; 2020.
+
+\bibitem{vallat2021}
+Vallat R, Walker MP. An open-source, high-performance tool for
+automated sleep staging. \emph{eLife}. 2021;10:e70092.
+
+\bibitem{pevernagie2020}
+Pevernagie DA, et~al. On the rise and fall of the apnea--hypopnea
+index: a historical review and critical appraisal. \emph{J Sleep Res}.
+2020;29(4):e13066.
+
+\bibitem{pevernagie2025}
+Pevernagie DA, et~al. Sleep Medicine---What's in a Name?
+\emph{J Sleep Res}. 2025;34(5):e70150.
+
+\bibitem{azarbarzin2019}
+Azarbarzin A, et~al. The hypoxic burden of sleep apnoea is an
+independent predictor of incident cardiovascular outcomes.
+\emph{Am J Respir Crit Care Med}. 2019;200(2):211--219.
+
+\bibitem{berry2019}
+Berry RB, et~al. Use of a transformed ECG signal to detect respiratory
+effort during apnea. \emph{J Clin Sleep Med}. 2019;15(11):1653--1660.
+
+\bibitem{berry2016}
+Berry RB, et~al. Use of chest wall electromyography to detect
+respiratory effort. \emph{J Clin Sleep Med}. 2016;12(9):1239--1244.
+
+\bibitem{rosenberg2013}
+Rosenberg RS, Van Hout S. The AASM inter-scorer reliability program.
+\emph{J Clin Sleep Med}. 2013;9(1):81--87.
+
+\bibitem{aasm_isr2014}
+Rosenberg RS, et~al. The AASM inter-scorer reliability program:
+respiratory events. \emph{J Clin Sleep Med}. 2014;10(4):447--454.
+
+\bibitem{ruehland2009}
+Ruehland WR, et~al. The new AASM criteria for scoring hypopneas.
+\emph{Sleep}. 2009;32(2):150--157.
+
+\bibitem{malhotra2013}
+Malhotra A, et~al. Performance of an automated polysomnography
+scoring system. \emph{Sleep}. 2013;36(4):573--582.
+
+\bibitem{parekh2023}
+Parekh A, et~al. Ventilatory burden as a measure of OSA severity.
+\emph{Am J Respir Crit Care Med}. 2023;208(11):1216--1226.
+
+\bibitem{thurnheer2001}
+Thurnheer R, et~al. Accuracy of nasal cannula pressure recordings.
+\emph{Am J Respir Crit Care Med}. 2001;164(10):1914--1919.
+
+\bibitem{hosselet1998}
+Hosselet J, et~al. Detection of flow limitation with a nasal
+cannula/pressure transducer system. \emph{Am J Respir Crit Care Med}.
+1998;157(5):1461--1467.
+
+\bibitem{lee2008}
+Lee H, et~al. Detection of apneic events from single-channel nasal
+airflow. \emph{Physiol Meas}. 2008;29:N37--N45.
+
+\bibitem{perslev2021}
+Perslev M, et~al. U-Sleep: resilient high-frequency sleep staging.
+\emph{npj Digital Medicine}. 2021;4:72.
+
+\bibitem{lightgbm}
+Ke G, et~al. LightGBM: A highly efficient gradient boosting decision
+tree. \emph{NeurIPS}. 2017;30:3146--3154.
+
+\bibitem{gramfort2014}
+Gramfort A, et~al. MNE software for processing MEG and EEG data.
+\emph{NeuroImage}. 2014;86:446--460.
+
+\bibitem{feinberg1979}
+Feinberg I, Floyd TC. Systematic trends across the night in human
+sleep cycles. \emph{Psychophysiology}. 1979;16(3):283--291.
+
+\bibitem{zucconi2006}
+Zucconi M, et~al. WASM standards for recording and scoring PLM.
+\emph{Sleep Med}. 2006;7(2):175--183.
+
+\bibitem{peppard2013}
+Peppard PE, et~al. Increased prevalence of sleep-disordered breathing.
+\emph{Am J Epidemiol}. 2013;177(9):1006--1014.
+
+\end{thebibliography}
 
 \vspace{1cm}
-\begin{center}
-\texttt{pip install psgscoring}\\[4pt]
-\url{https://github.com/bartromb/psgscoring}\\[4pt]
+\noindent\texttt{pip install psgscoring}\\
+\url{https://github.com/bartromb/psgscoring}\\
 \url{https://slaapkliniek.be}
-\end{center}
-
-% ================================================================
-\newpage
-\section{References}
-\label{sec:references}
-% ================================================================
-
-\subsection*{Standards and Scoring Manuals}
-
-\begin{enumerate}[nosep,label={[\arabic*]}]
-  \item Berry RB, Brooks R, Gamaldo C, et~al. \emph{The AASM Manual for
-        the Scoring of Sleep and Associated Events: Rules, Terminology and
-        Technical Specifications. Version~2.6.} American Academy of Sleep
-        Medicine, 2020.
-  \item Iber C, Ancoli-Israel S, Chesson AL, Quan SF. \emph{The AASM
-        Manual for the Scoring of Sleep and Associated Events: Rules,
-        Terminology and Technical Specifications.} 1st~ed. AASM, 2007.
-  \item Zucconi M, Ferri R, Allen R, et~al. The official World Association
-        of Sleep Medicine (WASM) standards for recording and scoring periodic
-        leg movements in sleep (PLMS) and wakefulness (PLMW) developed in
-        collaboration with a task force from the International Restless Legs
-        Syndrome Study Group (IRLSSG). \emph{Sleep Med}.
-        2006;7(2):175--183.
-        \href{https://doi.org/10.1016/j.sleep.2006.01.001}{doi:10.1016/j.sleep.2006.01.001}.
-\end{enumerate}
-
-\subsection*{Sleep Staging and YASA}
-
-\begin{enumerate}[nosep,label={[\arabic*]},resume]
-  \item Vallat R, Walker MP. An open-source, high-performance tool for
-        automated sleep staging. \emph{eLife}. 2021;10:e70092.
-        \href{https://doi.org/10.7554/eLife.70092}{doi:10.7554/eLife.70092}.
-  \item Perslev M, Darkner S, Kempfner L, Nikolic M, Jennum PJ, Igel C.
-        U-Sleep: resilient high-frequency sleep staging. \emph{npj Digital
-        Medicine}. 2021;4:72.
-        \href{https://doi.org/10.1038/s41746-021-00440-5}{doi:10.1038/s41746-021-00440-5}.
-  \item Ke G, Meng Q, Finley T, Wang T, Chen W, Ma W, Ye Q, Liu T-Y.
-        LightGBM: a highly efficient gradient boosting decision tree.
-        \emph{Advances in Neural Information Processing Systems}.
-        2017;30:3146--3154.
-        \href{https://proceedings.neurips.cc/paper/2017/hash/6449f44a102fde848669bdd9eb6b76fa-Abstract.html}{NeurIPS~2017}.
-  \item Gramfort A, Luessi M, Larson E, et~al. MNE software for processing
-        MEG and EEG data. \emph{NeuroImage}. 2014;86:446--460.
-        \href{https://doi.org/10.1016/j.neuroimage.2013.10.027}{doi:10.1016/j.neuroimage.2013.10.027}.
-  \item Feinberg I, Floyd TC. Systematic trends across the night in human
-        sleep cycles. \emph{Psychophysiology}. 1979;16(3):283--291.
-        \href{https://doi.org/10.1111/j.1469-8986.1979.tb02991.x}{doi:10.1111/j.1469-8986.1979.tb02991.x}.
-\end{enumerate}
-
-\subsection*{Respiratory Scoring and Signal Processing}
-
-\begin{enumerate}[nosep,label={[\arabic*]},resume]
-  \item Thurnheer R, Xie X, Bloch KE. Accuracy of nasal cannula pressure
-        recordings for assessment of ventilation during sleep. \emph{Am J
-        Respir Crit Care Med}. 2001;164(10):1914--1919.
-        \href{https://doi.org/10.1164/ajrccm.164.10.2010113}{doi:10.1164/ajrccm.164.10.2010113}.
-  \item Montserrat JM, Farr\'e R, Ballester E, Felez MA, Past\'o M,
-        Navajas D. Evaluation of nasal prongs for estimating nasal flow.
-        \emph{Am J Respir Crit Care Med}. 1997;155(1):211--215.
-        \href{https://doi.org/10.1164/ajrccm.155.1.9001310}{doi:10.1164/ajrccm.155.1.9001310}.
-  \item Lee H, Park J, Kim H, Lee KJ, Heo C. Detection of apneic events
-        from single-channel nasal airflow using 2nd derivative method.
-        \emph{Physiol Meas}. 2008;29:N37--N45.
-        \href{https://doi.org/10.1088/0967-3334/29/5/N01}{doi:10.1088/0967-3334/29/5/N01}.
-  \item Hosselet J, Norman RG, Ayappa I, Rapoport DM. Detection of flow
-        limitation with a nasal cannula/pressure transducer system. \emph{Am
-        J Respir Crit Care Med}. 1998;157(5):1461--1467.
-        \href{https://doi.org/10.1164/ajrccm.157.5.9708008}{doi:10.1164/ajrccm.157.5.9708008}.
-  \item Uddin MB, Chow CM, Su SW. A novel algorithm for automatic
-        diagnosis of sleep apnea from airflow and oximetry signals.
-        \emph{Physiol Meas}. 2021;42:015001.
-        \href{https://doi.org/10.1088/1361-6579/abd47a}{doi:10.1088/1361-6579/abd47a}.
-  \item Nakano H, Tanigawa T, Furukawa T, Nishima S. New rule-based
-        algorithm for real-time detecting sleep apnea events. \emph{J Clin
-        Sleep Med}. 2016;12(10):1389--1396.
-        \href{https://doi.org/10.5664/jcsm.6200}{doi:10.5664/jcsm.6200}.
-\end{enumerate}
-
-\subsection*{Apnea Classification and Effort Assessment}
-
-\begin{enumerate}[nosep,label={[\arabic*]},resume]
-  \item Berry RB, Albertario CL, Guttman B, et~al. Use of a transformed
-        ECG signal to detect respiratory effort during apnea. \emph{J Clin
-        Sleep Med}. 2019;15(11):1653--1660.
-        \href{https://doi.org/10.5664/jcsm.7880}{doi:10.5664/jcsm.7880}.
-  \item Berry RB, Budhiraja R, Guttman B, et~al. Use of chest wall
-        electromyography to detect respiratory effort during
-        polysomnography. \emph{J Clin Sleep Med}. 2016;12(9):1239--1244.
-        \href{https://doi.org/10.5664/jcsm.6122}{doi:10.5664/jcsm.6122}.
-\end{enumerate}
-
-\subsection*{Scoring Variability and Validation}
-
-\begin{enumerate}[nosep,label={[\arabic*]},resume]
-  \item Rosenberg RS, Van Hout S. The American Academy of Sleep Medicine
-        inter-scorer reliability program: sleep stage scoring. \emph{J Clin
-        Sleep Med}. 2013;9(1):81--87.
-        \href{https://doi.org/10.5664/jcsm.2350}{doi:10.5664/jcsm.2350}.
-  \item Rosenberg RS, Hirshkowitz M, Engleman HM, Penzel T. The AASM
-        inter-scorer reliability program: respiratory events. \emph{J Clin
-        Sleep Med}. 2014;10(4):447--454.
-        \href{https://doi.org/10.5664/jcsm.3630}{doi:10.5664/jcsm.3630}.
-  \item Ruehland WR, Rochford PD, O'Donoghue FJ, Pierce RJ, Singh P,
-        Thornton AT. The new AASM criteria for scoring hypopneas: impact on
-        the apnea hypopnea index. \emph{Sleep}. 2009;32(2):150--157.
-        \href{https://doi.org/10.1093/sleep/32.2.150}{doi:10.1093/sleep/32.2.150}.
-  \item Malhotra A, Younes M, Kuna ST, Benca R, Kushida CA, Walsh J,
-        Hanlon A, Staley B, Pack AI, Pien GW. Performance of an automated
-        polysomnography scoring system versus computer-assisted manual
-        scoring. \emph{Sleep}. 2013;36(4):573--582.
-        \href{https://doi.org/10.5665/sleep.2548}{doi:10.5665/sleep.2548}.
-\end{enumerate}
-
-\subsection*{Novel Metrics and Complementary Approaches}
-
-\begin{enumerate}[nosep,label={[\arabic*]},resume]
-  \item Parekh A, Kam K, Wickramaratne S, et~al. Ventilatory burden as a
-        measure of obstructive sleep apnea severity is predictive of
-        cardiovascular and all-cause mortality. \emph{Am J Respir Crit Care
-        Med}. 2023;208(11):1216--1226.
-        \href{https://doi.org/10.1164/rccm.202301-0109OC}{doi:10.1164/rccm.202301-0109OC}.
-\end{enumerate}
-
-\subsection*{Epidemiology}
-
-\begin{enumerate}[nosep,label={[\arabic*]},resume]
-  \item Peppard PE, Young T, Barnet JH, Palta M, Hagen EW, Hla KM.
-        Increased prevalence of sleep-disordered breathing in adults.
-        \emph{Am J Epidemiol}. 2013;177(9):1006--1014.
-        \href{https://doi.org/10.1093/aje/kws342}{doi:10.1093/aje/kws342}.
-  \item Benjafield AV, Ayas NT, Eastwood PR, et~al. Estimation of the
-        global prevalence and burden of obstructive sleep apnoea: a
-        literature-based analysis. \emph{Lancet Respir Med}.
-        2019;7(8):687--698.
-        \href{https://doi.org/10.1016/S2213-2600(19)30198-5}{doi:10.1016/S2213-2600(19)30198-5}.
-\end{enumerate}
-
-\subsection*{Software and Statistical Tools}
-
-\begin{enumerate}[nosep,label={[\arabic*]},resume]
-  \item Vallat R. Pingouin: statistics in Python. \emph{J Open Source
-        Software}. 2018;3(31):1026.
-        \href{https://doi.org/10.21105/joss.01026}{doi:10.21105/joss.01026}.
-\end{enumerate}
 
 \end{document}

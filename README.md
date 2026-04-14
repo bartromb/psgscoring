@@ -9,7 +9,7 @@
 
 `psgscoring` extracts the core respiratory scoring algorithms from [YASAFlaskified](https://github.com/bartromb/YASAFlaskified) into a standalone, pip-installable library for the research community.
 
-## Validation (v0.2.92)
+## Validation (v0.2.94)
 
 External validation on two public datasets:
 
@@ -40,8 +40,8 @@ Excellent for standard populations; systematic under-scoring in stroke patients 
 - **12 systematic bias corrections**: 6 over-counting + 6 under-counting
 - **Breath-amplitude stability filter**: rejects false-positive hypopneas during normal breathing
 - **AHI confidence interval**: strict/standard/sensitive profiles with robustness grade (A/B/C)
-- **Hypoxic burden** (v0.2.92): total SpO₂ desaturation area per event, normalised per hour (Azarbarzin et al., AJRCCM 2019)
-- **Post-processing** (v0.2.92): CSR-aware central reclassification, mixed apnea decomposition, central instability index
+- **Hypoxic burden** (v0.2.94): total SpO₂ desaturation area per event, normalised per hour (Azarbarzin et al., AJRCCM 2019)
+- **Post-processing** (v0.2.94): CSR-aware central reclassification, mixed apnea decomposition, central instability index
 - **ECG-derived effort classification**: spectral + TECG for central apnea detection
 - **Configurable scoring profiles**: strict (research), standard (AASM 2.6), sensitive (UARS)
 - **PLM, SpO₂, RERA/RDI, signal quality assessment**
@@ -68,18 +68,21 @@ iv = results["ahi_interval"]
 print(f"AHI: {iv['standard']['ahi']} [{iv['strict']['ahi']}–{iv['sensitive']['ahi']}]")
 print(f"Grade: {iv['robustness_grade']}")
 
-# Hypoxic burden (v0.2.92)
+# Hypoxic burden (v0.2.94)
 hb = results["hypoxic_burden"]
 print(f"Hypoxic burden: {hb['hypoxic_burden']} {hb['unit']}")
 
-# Post-processing results (v0.2.92)
+# Post-processing results (v0.2.94)
 pp = results["postprocess"]
 print(f"CSR reclassified: {pp['n_csr_reclassified']}")
 print(f"Mixed decomposed: {pp['n_mixed_decomposed']}")
 ```
 
-## What's new in v0.2.92
+## What's new in v0.2.94
 
+- **Ensemble-averaged hypoxic burden**: `baseline_method="ensemble"` reproduces the
+  original Azarbarzin et al. (2019) method with subject-specific search windows
+  derived from ensemble-averaged SpO₂ curves. Default `"percentile"` is unchanged.
 - **Hypoxic burden**: per-event SpO₂ desaturation area, normalised %·min/h
   - Clinical thresholds: <20 low, 20–73 moderate, >73 high CV risk
 - **CSR-aware reclassification**: flagged obstructive/mixed events in CSR troughs → central
@@ -99,7 +102,7 @@ print(f"Mixed decomposed: {pp['n_mixed_decomposed']}")
 
 ## Citation
 
-> Rombaut B, Rombaut B, Rombaut C. psgscoring: An Open-Source Python Library for AASM 2.6-Compliant Automated Polysomnography Scoring. 2026. https://github.com/bartromb/psgscoring
+> Rombaut B, Rombaut B, Rombaut C, Vallat R. psgscoring: An Open-Source Python Library for AASM 2.6-Compliant Automated Polysomnography Scoring. 2026. https://github.com/bartromb/psgscoring
 
 This library builds on YASA:
 
