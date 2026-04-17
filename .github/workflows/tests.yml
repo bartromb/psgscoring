@@ -1,0 +1,74 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:   # allow manual trigger from UI
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false   # see results for all Python versions even if one fails
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+
+    steps:
+      # ─── Checkout ──────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ─── Python setup with pip cache ───────────────────────────────
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # ─── System dependencies ───────────────────────────────────────
+      # MNE-Python needs libgomp (OpenMP) at runtime for its parallel
+      # routines; LightGBM (optional [full] extra) also needs it.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libgomp1
+
+      # ─── Install package ───────────────────────────────────────────
+      - name: Install psgscoring with test extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+
+      # ─── Import smoke (no pytest needed) ───────────────────────────
+      # Runs even if tests/ is empty; catches basic import regressions.
+      - name: Import smoke test
+        run: |
+          python -c "
+          import psgscoring
+          print(f'psgscoring v{psgscoring.__version__}')
+          print(f'Module path: {psgscoring.__file__}')
+          "
+
+      # ─── pytest ────────────────────────────────────────────────────
+      - name: Run pytest
+        run: |
+          pytest tests/ -v --tb=short --color=yes
+
+      # ─── Version consistency check ─────────────────────────────────
+      # pyproject.toml and psgscoring/__init__.py must agree.
+      # Version mismatch has been a recurring bug — catch it in CI.
+      - name: Version consistency check
+        run: |
+          PYPROJECT_VER=$(grep '^version = ' pyproject.toml | head -1 | cut -d'"' -f2)
+          INIT_VER=$(python -c "import psgscoring; print(psgscoring.__version__)")
+          echo "pyproject.toml:        $PYPROJECT_VER"
+          echo "psgscoring/__init__:   $INIT_VER"
+          if [ "$PYPROJECT_VER" != "$INIT_VER" ]; then
+              echo "::error::Version mismatch between pyproject.toml and __init__.py"
+              exit 1
+          fi
+          echo "✓ Versions match"
