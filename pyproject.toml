@@ -10,7 +10,12 @@ readme = "README.md"
 license = "BSD-3-Clause"
 requires-python = ">=3.9"
 authors = [
-    {name = "Bart Rombaut", email = "bart.rombaut@azorg.be"},
+    {name = "Bart Rombaut", email = "bart.rombaut@gmail.com"},
+    {name = "Briek Rombaut"},
+    {name = "Cedric Rombaut"},
+]
+maintainers = [
+    {name = "Bart Rombaut", email = "bart.rombaut@gmail.com"},
 ]
 keywords = [
     "polysomnography", "PSG", "sleep", "AASM", "apnea", "hypopnea",
@@ -33,7 +38,7 @@ classifiers = [
 dependencies = [
     "numpy>=1.21",
     "scipy>=1.7",
-    "mne>=1.0",
+    "mne>=1.5,<2",
 ]
 
 [project.optional-dependencies]
@@ -45,6 +50,7 @@ Homepage = "https://slaapkliniek.be"
 Repository = "https://github.com/bartromb/psgscoring"
 Documentation = "https://github.com/bartromb/psgscoring/wiki"
 Issues = "https://github.com/bartromb/psgscoring/issues"
+Changelog = "https://github.com/bartromb/psgscoring/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 include = ["psgscoring*"]
