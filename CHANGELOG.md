@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.2.963 — 2026-04-20
+
+### Fixed
+
+- **assess_rip_channel 2D input regression** — MNE's `raw.get_data(picks=[ch])`
+  returns shape `(1, N)` even for single-channel requests. The welch()
+  PSD computation on a 2D input produced a 2D output, which then broke
+  1D boolean masking in the breath-band energy calculation. The fix
+  squeezes the input to 1D at the top of `assess_rip_channel()` and
+  returns a defensive 'failed' status for genuinely higher-dimensional
+  input.
+
+### Clinical impact
+
+  Without this fix, signal quality assessment silently failed in the
+  real deployment pipeline, leaving the RIP pair quality gate
+  ineffective at detecting single-sensor failures. The Loos case
+  (AZORG April 2026, thorax RIP dead, ratio 6862×) was the motivating
+  clinical scenario.
+
+### Added
+
+- `tests/test_signal_quality_2d.py` — 5 regression tests covering
+  1D baseline, 2D MNE-shape input, higher-dimensional defensive
+  rejection, and Loos-like single-sensor failure scenarios.
+
+---
+
+
+
 All notable changes to **psgscoring** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
