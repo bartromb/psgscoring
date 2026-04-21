@@ -1,3 +1,18 @@
+# v0.3.2 — 2026-04-21
+
+Bugfix release.
+
+## Fixed
+- `signal_quality_channels._check_montage()`: numpy boolean-ambiguity error
+  caused by `flow = _get("flow") or _get("flow_pressure")` when both channels
+  returned ndarrays. Replaced with explicit `None`-check. This bug was
+  silently caught by the pipeline exception handler, leaving
+  `output["channel_quality"]` populated with `{"overall_grade": "unknown"}`,
+  and was a no-op for classification (which reads the separate
+  `output["signal_quality"]` from `compare_rip_pair`), but prevented
+  channel-level quality metadata from reaching PDF reports and validation
+  exports. Detected during PSG-IPA re-validation on 2026-04-21.
+
 # Changelog
 
 ## v0.3.1 — 2026-04-21
