@@ -195,11 +195,6 @@ class TestBug2ClassifierDoesNotConsumeGate:
     effort looks absent but is actually unmeasurable).
     """
 
-    @pytest.mark.xfail(
-        reason="Bug 2: classify_apnea_type does not accept signal_quality "
-        "parameter. Fix planned for v0.3.001.",
-        strict=True,
-    )
     def test_classifier_accepts_signal_quality_parameter(self):
         """
         EXPECTED in v0.3.001: classify_apnea_type accepts a
@@ -214,11 +209,6 @@ class TestBug2ClassifierDoesNotConsumeGate:
             "in v0.3.001. Currently missing — Bug 2 not yet implemented."
         )
 
-    @pytest.mark.xfail(
-        reason="Bug 2: classifier does not route to fallback on dead thorax. "
-        "Fix planned for v0.3.001.",
-        strict=True,
-    )
     def test_classifier_uses_fallback_on_dead_thorax(self):
         """
         EXPECTED in v0.3.001: when the RIP-pair gate reports
@@ -287,16 +277,61 @@ class TestCurrentClassifierBehaviour:
     protection.
     """
 
-    def test_current_classifier_does_not_accept_signal_quality_kwarg(self):
-        """Document that adding signal_quality as kwarg currently fails."""
+    def test_v0_3_001_classifier_accepts_quality_gate(self):
+        """Regression test: v0.3.001+ classifier must accept signal_quality."""
         import inspect
         sig = inspect.signature(classify_apnea_type)
-        assert "signal_quality" not in sig.parameters, (
-            "As of v0.2.963 classify_apnea_type does not have "
-            "signal_quality parameter. If this assertion starts failing, "
-            "Bug 2 has been implemented and the xfail tests above "
-            "should be updated to regular tests."
+        assert "signal_quality" in sig.parameters, (
+            "classify_apnea_type must accept 'signal_quality' parameter "
+            "as of v0.3.001. If this fails, Bug 2 fix was reverted."
         )
+
+    def test_classifier_preserves_bilateral_behaviour_when_no_gate(self):
+        """Regression: signal_quality=None preserves v0.2.963 bilateral behaviour."""
+        sf = 32.0
+        thorax_ok = _synth_eupnea(600, sf, amplitude=1.0)
+        abdomen_ok = _synth_eupnea(600, sf, amplitude=1.0)
+
+        event_type, conf, details = classify_apnea_type(
+            onset_idx=int(300 * sf),
+            end_idx=int(315 * sf),
+            thorax_env=np.abs(thorax_ok),
+            abdomen_env=np.abs(abdomen_ok),
+            thorax_raw=thorax_ok,
+            abdomen_raw=abdomen_ok,
+            effort_baseline=1.0,
+            sf=sf,
+            signal_quality=None,
+        )
+        assert details.get("classification_source") not in (
+            "single-channel-fallback", "unreliable-rip-pair"
+        )
+
+    def test_classifier_returns_uncertain_on_unreliable_gate(self):
+        """Both channels dead → event_type='uncertain'."""
+        sf = 32.0
+        thorax_dead = _synth_flat(600, sf)
+        abdomen_dead = _synth_flat(600, sf)
+
+        gate_unreliable = {
+            "recommended_mode": "unreliable",
+            "working_channel": "none",
+            "energy_ratio": 1.0,
+        }
+
+        event_type, conf, details = classify_apnea_type(
+            onset_idx=int(300 * sf),
+            end_idx=int(315 * sf),
+            thorax_env=np.abs(thorax_dead),
+            abdomen_env=np.abs(abdomen_dead),
+            thorax_raw=thorax_dead,
+            abdomen_raw=abdomen_dead,
+            effort_baseline=1.0,
+            sf=sf,
+            signal_quality=gate_unreliable,
+        )
+        assert event_type == "uncertain"
+        assert details.get("classification_source") == "unreliable-rip-pair"
 
 
 if __name__ == "__main__":

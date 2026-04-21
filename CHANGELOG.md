@@ -1,5 +1,52 @@
 # Changelog
 
+## v0.3.1 — 2026-04-21
+
+### Added
+
+- `classify_apnea_type()` accepts optional `signal_quality` parameter
+  (output of `compare_rip_pair`). When gate reports
+  `recommended_mode="single-channel"`, classification routes to
+  `single_channel_fallback_classify()` on the working channel instead
+  of the bilateral 7-rule chain. When `"unreliable"`, returns
+  `"uncertain"`.
+
+### Fixed
+
+- **Bug 2: respiratory classifier now consumes the RIP-pair quality
+  gate.** The v0.2.962 gate detected single-sensor failures correctly,
+  but `classify_apnea_type` ignored the signal, defaulting to
+  obstructive classification for dead-sensor events. This caused the
+  Loos case (AZORG April 2026) to appear as 100% obstructive while the
+  true underlying pathology was likely CSAS (CAI 45.1 on
+  abdomen-only analysis).
+
+### Changed
+
+- Classifier decision chain has new Rule -1 (RIP pair quality gate)
+  before Rule 0 (phase angle). With `signal_quality=None` or
+  `recommended_mode="bilateral"`, behavior is unchanged from v0.2.963.
+- Pipeline reorders signal_quality computation to run BEFORE respiratory
+  event detection (previously was after, as a documentation-only step).
+
+### Clinical impact
+
+Patients with single RIP sensor failures now receive classification
+based on the working channel instead of a mechanical obstructive
+default. The clinically important shift is for central sleep apnea
+syndrome (CSAS) detection in patients whose thorax or abdomen RIP
+sensor fails during the recording.
+
+### Test coverage
+
+- `tests/test_bug2_classifier_quality_gate.py`: 9 passing tests
+  covering fallback in isolation, end-to-end classifier routing,
+  bilateral preservation, and unreliable-gate scenarios.
+
+---
+
+
+
 ## v0.2.963 — 2026-04-20
 
 ### Fixed
