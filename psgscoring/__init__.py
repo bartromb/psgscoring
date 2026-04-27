@@ -82,7 +82,7 @@ from .utils import (
     safe_r,
 )
 
-__version__ = "0.3.2"
+__version__ = "0.4.0"
 __all__ = [
     # Master
     "run_pneumo_analysis",
@@ -136,3 +136,9 @@ __all__ = [
     "is_nrem", "is_rem", "is_sleep",
     "safe_r",
 ]
+
+# v0.4.0: profile-based scoring
+from psgscoring.profiles import (
+    Profile, get_profile, list_profiles, list_profile_groups,
+    PROFILES, PROFILE_GROUPS,
+)

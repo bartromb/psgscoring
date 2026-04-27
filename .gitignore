@@ -44,3 +44,4 @@ htmlcov/
 # macOS / Linux junk
 .DS_Store
 Thumbs.db
+_archive_old_scripts/
