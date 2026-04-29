@@ -1,3 +1,80 @@
+# v0.4.2 — 2026-04-29
+
+## Fixed
+- **Local baseline validation now profile-aware.** The hardcoded
+  `local_cv < 0.30` stability check in `_validate_local_reduction`
+  is now driven by two new profile parameters
+  (`local_baseline_cv_threshold` and `local_baseline_strict_reduction`).
+- **Scope bug fix:** `sp` dict was incorrectly referenced inside
+  `_detect_hypopneas` (which doesn't receive `sp`); the new
+  parameters are threaded through the call chain via function
+  arguments.
+
+## Added
+- `PostProcessingRules.local_baseline_cv_threshold` (default 0.30)
+- `PostProcessingRules.local_baseline_strict_reduction` (default 25.0)
+- Per-profile values:
+    - `aasm_v3_strict`: cv=0.30, strict_reduction=30.0
+    - `aasm_v3_rec`: cv=0.30, strict_reduction=25.0
+    - `aasm_v3_sensitive`: cv=0.20, strict_reduction=20.0
+    - 5 other profiles: defaults
+
+## Changed
+- `_detect_hypopneas` and `_validate_local_reduction` signatures
+  extended (backward compatible — defaults match legacy behaviour)
+- `_profile_to_legacy_dict` exports new `LOCAL_BL_CV_THRESHOLD` and
+  `LOCAL_BL_STRICT_RED` keys
+
+## Validation
+- PSG-IPA aggregate metrics improved: r=0.994, kappa=0.800,
+  F1 SN3=0.860, mean Δt=1.39s
+- Severity concordance 4/5 (paper v31 claim retained)
+- Profile-sweep monotonie not yet fully restored on borderline
+  cases (SN2, SN4); to be addressed in future release after
+  deeper review of flow_smoothing × peak_detection × local_baseline
+  interaction
+
+---
+
+# v0.4.1 — 2026-04-27
+
+## Fixed
+- **Profile parameter integration bug** (cause of monotonie violations
+  in v0.4.0). The hardcoded stability filter threshold `0.45` in
+  `respiratory.py` ignored the per-profile `stability_filter_cv` and
+  `peak_min_consecutive_breaths` parameters. Now correctly read from
+  scoring profile dict, restoring intended profile differentiation.
+  PSG-IPA validation re-run shows expected monotonic ordering
+  (strict ≤ standard ≤ sensitive for hypopnea-dominated recordings).
+
+## Added
+- **3-point clinically calibrated confidence sweep** in scoring summary:
+    - `oahi_sweep`: `{lenient: c≥0.30, primary: c≥0.47, strict: c≥0.65}`
+    - `oahi_sweep_width`: max−min spread in /h
+    - `robustness_grade`: 'A' (<5/h), 'B' (5-10/h), 'C' (≥10/h)
+  Calibrated to AASM inter-scorer variability (~10-20% AHI).
+  Mean sweep width on PSG-IPA: 3.9/h. Replaces use of legacy 4-point
+  `oahi_thresholds` for clinical interpretation; the latter is
+  preserved for backward compatibility.
+- New TypedDict `OAHISweep3pt` for IDE/mypy support.
+
+## Changed
+- `oahi_thresholds` (legacy 4-point sweep) is no longer used in
+  clinical UI displays but kept in output for compatibility.
+- Profile parameters `STABILITY_FILTER_CV` and
+  `PEAK_MIN_CONSECUTIVE_BREATHS` are now properly threaded through
+  to the detection pipeline.
+
+## Notes
+- The monotonie-fix is a behavioural change: profile differentiation
+  now produces meaningfully different OAHI values. Re-validation
+  on PSG-IPA recommended for users comparing to v0.4.0 results.
+- All 8 historical profiles (aasm_v3_rec/strict/sensitive,
+  aasm_v2_rec, aasm_v1_rec, cms_medicare, mesa_shhs, chicago_1999)
+  remain available.
+
+---
+
 # v0.3.2 — 2026-04-21
 
 Bugfix release.

@@ -44,3 +44,21 @@ htmlcov/
 # macOS / Linux junk
 .DS_Store
 Thumbs.db
+_archive_old_scripts/
+
+# v0.4.2 release: backup directories
+.v041_backup_*/
+_pre_v041_backup_*/
+.v042_backup_*/
+
+# One-time test/deploy scripts (zie scripts/ voor archiving)
+test_stability_filter_*.py
+diagnose_fp_fn.py
+psgscoring_output_*.txt
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+__pycache__/
+

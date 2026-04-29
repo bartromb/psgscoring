@@ -1,0 +1,79 @@
+{
+  "aggregate": {
+    "bias": 2.904575408128171,
+    "mae": 2.904575408128171,
+    "loa_low": -1.5421180549069704,
+    "loa_high": 7.351268871163313,
+    "pearson_r": 0.9938085857260467,
+    "weighted_kappa": 0.8
+  },
+  "per_recording": {
+    "SN1": {
+      "ref_median": 5.641372591470015,
+      "ref_range": [
+        4.615384615384615,
+        6.263736263736264
+      ],
+      "n_scorers": 12,
+      "algo_strict": 4.5,
+      "algo_standard": 9.2,
+      "algo_sensitive": 6.5,
+      "robustness_grade": "B"
+    },
+    "SN2": {
+      "ref_median": 3.8303503994567665,
+      "ref_range": [
+        1.4264487369985142,
+        6.064318529862175
+      ],
+      "n_scorers": 12,
+      "algo_strict": 7.4,
+      "algo_standard": 10.2,
+      "algo_sensitive": 6.8,
+      "robustness_grade": "A"
+    },
+    "SN3": {
+      "ref_median": 49.162293679466856,
+      "ref_range": [
+        40.37685060565276,
+        51.294117647058826
+      ],
+      "n_scorers": 12,
+      "algo_strict": 43.6,
+      "algo_standard": 50.5,
+      "algo_sensitive": 49.7,
+      "robustness_grade": "A"
+    },
+    "SN4": {
+      "ref_median": 3.5764903888741255,
+      "ref_range": [
+        0.16877637130801687,
+        5.644916540212444
+      ],
+      "n_scorers": 12,
+      "algo_strict": 2.9,
+      "algo_standard": 4.1,
+      "algo_sensitive": 2.1,
+      "robustness_grade": "A"
+    },
+    "SN5": {
+      "ref_median": 11.16661590009138,
+      "ref_range": [
+        6.439024390243903,
+        19.444444444444443
+      ],
+      "n_scorers": 12,
+      "algo_strict": 5.6,
+      "algo_standard": 13.9,
+      "algo_sensitive": 11.7,
+      "robustness_grade": "A"
+    }
+  },
+  "sn3_event_level": {
+    "f1": 0.8603174603174603,
+    "dt_s": 1.3911439114391124,
+    "tp": 271,
+    "fp": 51,
+    "fn": 37
+  }
+}
