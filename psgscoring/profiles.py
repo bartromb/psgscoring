@@ -150,6 +150,30 @@ class PostProcessingRules:
     unsure_as_hypopnea: bool = False
     """NSRR-specific: 'Unsure' tag = hypopnea with >50% reduction."""
 
+    local_baseline_cv_threshold: float = 0.30
+    """v0.4.2: CV threshold below which local-baseline reduction is enforced strictly.
+
+    The local baseline validation (`_validate_local_reduction` in respiratory.py)
+    applies a stricter flow-reduction requirement when surrounding breathing is
+    stable (low CV). At CV < this threshold, the stricter reduction kicks in.
+
+    Default 0.30 matches the legacy hardcoded behaviour. Lower values (e.g. 0.20)
+    relax the strictness — useful for sensitive profiles where borderline events
+    should not be rejected.
+    """
+
+    local_baseline_strict_reduction: float = 25.0
+    """v0.4.2: Flow-reduction percentage required when local CV < threshold.
+
+    When breathing is stable (CV < local_baseline_cv_threshold), candidate events
+    must show this percentage of flow reduction (vs the default 20%) to be
+    accepted as hypopneas.
+
+    - Strict profile: 30.0 (extra strict — reject more borderline events)
+    - Standard:       25.0 (moderate)
+    - Sensitive:      20.0 (no extra strictness — accept borderline events)
+    """
+
 
 @dataclass
 class Profile:
@@ -360,7 +384,9 @@ _mesa_shhs = Profile(
         breath_level_detection=True,
         artefact_flank_exclusion=True,
         mixed_apnea_decomposition=True,
-        unsure_as_hypopnea=True,  # ← NSRR-specific
+        unsure_as_hypopnea=True,  # ← NSRR-specific,
+        local_baseline_cv_threshold=0.3,
+        local_baseline_strict_reduction=25.0,
     ),
 )
 
@@ -435,6 +461,8 @@ _aasm_v3_strict = Profile(
         breath_level_detection=False,
         artefact_flank_exclusion=True,
         mixed_apnea_decomposition=True,
+        local_baseline_cv_threshold=0.3,
+        local_baseline_strict_reduction=30.0,
     ),
 )
 
@@ -482,6 +510,8 @@ _aasm_v3_sensitive = Profile(
         peak_min_consecutive_breaths=2,  # ← v0.2.8: lower for UARS
         artefact_flank_exclusion=False,  # ← v0.3.2: CROSS_CONTAM_WINDOW_S = 0.0
         mixed_apnea_decomposition=True,
+        local_baseline_cv_threshold=0.2,
+        local_baseline_strict_reduction=20.0,
     ),
 )
 

@@ -83,6 +83,9 @@ def _profile_to_legacy_dict(profile) -> dict:
         "DESAT_OR_AROUSAL":       h.desat_or_arousal,
         "DESAT_REQUIRED":         h.desat_required,
         "STABILITY_FILTER_CV":    pp.stability_filter_cv,
+        # v0.4.2: profile-aware local baseline validation
+        "LOCAL_BL_CV_THRESHOLD":  pp.local_baseline_cv_threshold,
+        "LOCAL_BL_STRICT_RED":    pp.local_baseline_strict_reduction,
         # Audit metadata — read by pipeline.py for output["meta"]["profile"]
         "_PROFILE_NAME":          profile.name,
         "_AASM_VERSION":          profile.aasm_version,

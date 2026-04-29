@@ -32,7 +32,7 @@ from .pipeline import run_pneumo_analysis
 from ._types import (
     RespiratoryEvent, ClassifyDetail, ScoringSummary,
     SpO2Summary, PLMSummary, PositionSummary, PneumoResults,
-    OAHIThresholds, ConfidenceBands,
+    OAHIThresholds, OAHISweep3pt, ConfidenceBands,
 )
 
 from .respiratory import (
@@ -82,7 +82,7 @@ from .utils import (
     safe_r,
 )
 
-__version__ = "0.4.0"
+__version__ = "0.4.2"
 __all__ = [
     # Master
     "run_pneumo_analysis",
