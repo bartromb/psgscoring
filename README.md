@@ -88,9 +88,9 @@ print(f"Robustness: {interval['robustness_grade']}")
 
 ## Architecture
 
-Ten submodules, ~3,500 lines, 51 unit tests (CI: Python 3.9–3.12):
+~8,000 lines across 18 submodules, 98 unit tests (CI: Python 3.9–3.12):
 
-`constants` · `utils` · `signal` · `breath` · `classify` · `spo2` · `plm` · `ancillary` · `respiratory` · `pipeline`
+`constants` · `utils` · `signal` · `breath` · `classify` · `spo2` · `plm` · `ancillary` · `respiratory` · `pipeline` · `pipeline_profiles` · `profiles` · `postprocess` · `signal_quality` · `signal_quality_channels` · `ecg_effort` · `_types`
 
 ## Related
 
