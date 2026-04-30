@@ -44,6 +44,7 @@ dependencies = [
 [project.optional-dependencies]
 full = ["yasa>=0.6", "lightgbm>=3.0"]
 test = ["pytest>=7.0", "hypothesis>=6.0"]
+plot = ["matplotlib>=3.5"]
 
 [project.urls]
 Homepage = "https://slaapkliniek.be"
