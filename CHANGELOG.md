@@ -1,3 +1,45 @@
+# v0.4.3 — 2026-05-01
+
+## Added
+
+- **`tests/test_psgipa_reproducibility.py`** — pytest that asserts
+  paper v31 metrics on PSG-IPA (bias, MAE, Pearson r, F1 SN3, mean Δt)
+  within tolerance. Skipped when `PSGIPA_DATA_DIR` is not set, so CI
+  without the dataset still passes; gates against silent algorithmic
+  drift on full runs.
+- **Robustness-grade output** in `validate_psgipa.py` (per-recording
+  A/B/C grade computed across the three clinical profiles).
+
+## Changed
+
+- **`validate_psgipa.py` fully rewritten.** The previous v3 script
+  read scorer-1 stages from `Sleep_stages/Annotations/manual/` and
+  events from `Resp_events/Annotations/manual/` and applied a
+  `meas_date` shift to align them; that cross-subtree alignment
+  introduced small epoch-attribution errors and produced
+  bias +3.6/h on PSG-IPA instead of paper v31's +1.8/h.
+  The new harness is faithful to paper v31 supplement S3.2: scorer-1
+  stages and events are both read from
+  `Resp_events/Annotations/manual/{SN}_Respiration_manual_scorer1.edf`,
+  which shares its time axis with the primary Respiration EDF.
+  Reproduces paper v31 standard-profile metrics bit-identically and
+  emits a robustness grade per recording.
+- The harness now runs all three clinical profiles
+  (`aasm_v3_strict`, `aasm_v3_rec`, `aasm_v3_sensitive`) per recording
+  and emits a JSON payload consumed by `validation_report.py`.
+
+## Reproducibility
+
+- PSG-IPA standard-profile aggregate (n=5):
+  bias +1.77/h, MAE 1.84/h, SD 2.00/h, LoA [-2.15, +5.68]/h,
+  Pearson r 0.997, weighted κ 0.84, F1 SN3 0.886, mean Δt SN3 1.97 s.
+  Standard-profile per-recording AHIs reproduce paper v31 Table 1
+  bit-identically; strict and sensitive per-recording AHIs differ
+  from v31 because v0.4.0 retuned those profile parameters (see
+  the v0.4.0 entry below).
+
+---
+
 # v0.4.2 — 2026-04-29
 
 ## Fixed
@@ -72,6 +114,74 @@
 - All 8 historical profiles (aasm_v3_rec/strict/sensitive,
   aasm_v2_rec, aasm_v1_rec, cms_medicare, mesa_shhs, chicago_1999)
   remain available.
+
+---
+
+# v0.4.0 — 2026-04-26
+
+Major refactor: introduces the unified scoring-profile framework.
+Eight named profiles ship in `psgscoring.PROFILES`, exposed via the
+`scoring_profile=` kwarg of `run_pneumo_analysis()`.
+
+## Added
+
+- **Three clinical profiles** (`PROFILE_GROUPS["clinical"]`):
+  - `aasm_v3_strict`   — conservative variant of AASM v3 Rule 1A
+  - `aasm_v3_rec`      — recommended (3%-or-arousal hypopnea)
+  - `aasm_v3_sensitive` — UARS-oriented sensitive variant
+- **Five historical / dataset profiles**:
+  `aasm_v2_rec`, `aasm_v1_rec`, `cms_medicare`, `mesa_shhs`, `chicago_1999`.
+- Profile dataclasses: `HypopneaRules`, `ApneaRules`, `SpO2Rules`,
+  `PostProcessingRules`, aggregated by `Profile`.
+- `PROFILE_GROUPS`: convenience aliases (`clinical`, `aasm_era`,
+  `coverage`, `dataset`, `full_6`, `all`).
+- Legacy aliases `strict` / `standard` / `sensitive` accepted for
+  backward compatibility (deprecation-warning, removal planned in v0.5.0).
+
+## Changed — strict vs. v0.3.x defaults
+
+The strict profile is a **deliberate tightening** relative to the
+single hardcoded default of v0.3.x:
+
+- `stability_filter_cv` 0.30 (no longer hardcoded 0.45)
+- `breath_level_detection` off  ·  `flow_smoothing_s` 0
+- `spo2.nadir_search_s` 30 s  ·  `local_baseline_strict_reduction` 30
+
+## Changed — sensitive vs. v0.3.x defaults
+
+The sensitive profile is a **deliberate loosening** for UARS detection:
+
+- `hypopnea.flow_reduction_threshold` 0.25 (vs. 0.30 in rec/strict)
+- `hypopnea.max_duration_s` 90 s (vs. 60 s in rec/strict)
+- `flow_smoothing_s` 5.0  ·  `breath_level_detection` on
+- `peak_min_consecutive_breaths` 2 (vs. 3 in rec/strict)
+- `stability_filter_cv` 0.50  ·  `local_baseline_cv_threshold` 0.20
+- `local_baseline_strict_reduction` 20.0
+- `artefact_flank_exclusion` off (deliberate; reduces false negatives
+  on flow recovery slopes)
+- `apnea.max_duration_s` 120 s (vs. 90 s in rec/strict)
+
+## Reproducibility note vs. paper v31
+
+Paper v31 (Rombaut et al. 2026) was generated against
+**psgscoring v0.3.2**, where strict / standard / sensitive were
+configurable presets sharing a single hardcoded stability-filter
+threshold. The v0.4.0 profile system makes that threshold (and
+several other rules) profile-specific, which causes the strict and
+sensitive per-recording AHIs on PSG-IPA SN1-SN5 to diverge from the
+v31 Table 1 values. The standard (`aasm_v3_rec`) profile remains
+parameter-equivalent for the rules active on this dataset and
+reproduces v31's standard-profile AHIs and aggregate metrics
+(bias +1.8/h, MAE 1.8/h, r 0.997, F1 SN3 0.886) bit-identically.
+Users wishing to reproduce v31 Table 1 verbatim should pin to v0.3.2:
+`pip install psgscoring==0.3.2`.
+
+## Known issue (fixed in v0.4.1)
+
+The profile parameters introduced in v0.4.0 were not actually read
+by `respiratory.py`, which kept a hardcoded 0.45 stability-filter
+threshold. PSG-IPA monotonie was therefore not yet established in
+v0.4.0; the v0.4.1 release wires the parameters through.
 
 ---
 
