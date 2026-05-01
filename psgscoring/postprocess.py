@@ -48,6 +48,12 @@ def reclassify_csr_events(
     ``"obstructive"`` or ``"mixed"`` are reclassified as ``"central"``
     with the original type preserved in ``original_type``.
 
+    G3 (audit-trail rollback): the ``original_type`` field is preserved
+    so downstream consumers (manual review, audit trail) can revert a
+    CSR-driven reclassification by restoring ``original_type`` if the
+    CSR detection is later deemed false-positive. This is the v0.4.4
+    interim mechanism; v0.5 will add a full append-only audit log.
+
     Parameters
     ----------
     events : list[dict]
@@ -104,6 +110,16 @@ def decompose_mixed_apneas(
     For each mixed apnea, the effort signal (thorax + abdomen) is analysed
     to determine the duration of the central portion (absent effort) and
     the obstructive portion (resumed effort against closed airway).
+
+    G2 assumption (AASM-conform): the central phase is at the START of
+    the event, the obstructive phase is at the END. This matches the
+    canonical AASM mixed-apnea pattern. Heterogeneous apneas with
+    interleaved effort phases (clinically unusual) will only have their
+    leading low-effort block counted as the central portion; later
+    intra-event effort gaps are not separately accounted for. If a
+    population is encountered where this matters, the algorithm here
+    needs to be extended to scan for ANY contiguous low-effort window
+    ≥ central_threshold_s.
 
     If the central portion ≥ central_threshold_s, the event is
     reclassified as ``"central"`` with ``mixed_decomposed=True``.

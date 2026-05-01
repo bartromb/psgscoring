@@ -88,6 +88,20 @@ BREATH_FREQ_HIGH      = 0.50    # Hz (30 breaths/min maximum)
 # Single-channel fallback thresholds
 FALLBACK_CENTRAL_RATIO      = 0.20   # Event envelope <20% baseline → central
 FALLBACK_OBSTRUCTIVE_RATIO  = 0.50   # Event envelope >50% baseline → obstructive
+                                     # NOTE (v0.4.4 review): single-channel
+                                     # fallback cannot detect paradox, so
+                                     # this threshold tolerates events where
+                                     # cardiac pulsation alone (20-50% of
+                                     # baseline) might pass as "obstructive".
+                                     # A stricter threshold (0.70) is more
+                                     # conservative but excludes valid
+                                     # obstructive events with smaller
+                                     # residual envelope. Default kept at
+                                     # 0.50 for backward compatibility;
+                                     # callers concerned about cardiac
+                                     # pulsation should pass an explicit
+                                     # higher value or add an explicit
+                                     # cardiac-band-power check upstream.
 FALLBACK_BASELINE_WINDOW_S  = 120.0  # Baseline = preceding 2 minutes
 FALLBACK_BASELINE_PERCENTILE = 75    # Robust to event clusters
 

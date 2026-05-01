@@ -1258,52 +1258,86 @@ def _validate_local_reduction(
     stability_cv_threshold: float = 0.30,    # v0.4.2: profile-aware
     stability_strict_reduction: float = 30.0,  # v0.4.2: profile-aware
 ) -> tuple[bool, float]:
-    """v0.8.22/v0.2.8: Valideer dat een event een echte flow-reductie toont
-    t.o.v. de directe pre-event ademhaling.
+    """v0.8.22/v0.2.8: validate that an event shows a real flow reduction
+    relative to immediately-preceding breathing.
 
-    v0.2.8 toevoeging: stabiliteits-bewuste drempel.
-    Bij stabiele ademhaling (lage CV in het omringende venster) wordt de
-    minimale reductie-eis verhoogd van 20% naar 30%. Dit voorkomt dat
-    normale ademhalingsvariatie als hypopneu gescoord wordt bij patiënten
-    zonder significante OSA — precies wat menselijke scorers intuïtief doen.
+    NOT in AASM 2.6/v3 — this is a deliberate refinement on top of the
+    AASM ≥30% envelope-baseline criterion, intended to reject scoring
+    normal breath-to-breath variability as hypopnea on patients with
+    very stable breathing (low CV). It approximates the intuitive
+    behaviour of a careful human scorer.
+
+    Stability-aware threshold (v0.2.8):
+        if local CV < stability_cv_threshold:
+            min_reduction_pct ← max(min_reduction_pct, stability_strict_reduction)
+
+    To **disable** the stability-aware tightening for a given profile,
+    set ``stability_strict_reduction == min_reduction_pct`` in the
+    profile's ``PostProcessingRules`` so the ``max(..., ...)`` is a no-op.
+    Sensitive UARS profiles do this implicitly by setting a low
+    ``local_baseline_cv_threshold`` so the stability branch rarely fires.
 
     Parameters
     ----------
-    env : np.ndarray         Flow-envelope
-    event_start, event_end : int  Sample-indices van het event
-    sf : float               Samplerate
-    min_reduction_pct : float  Minimale reductie (default 20%)
-    pre_win_s : float        Pre-event venster in seconden (default 30s)
+    env : np.ndarray         Flow envelope
+    event_start, event_end : int  Sample-indices of the candidate event
+    sf : float               Sample rate (Hz)
+    min_reduction_pct : float
+        Minimum required local reduction (default 20%). The AASM
+        envelope-baseline reduction (≥30%) is checked elsewhere; this
+        function only confirms the candidate is also locally reduced
+        relative to the immediate pre-event baseline.
+    pre_win_s : float
+        Pre-event window in seconds (default 30 s). Note: AASM allows
+        a 2-minute baseline if periodicity is present; we use 30 s for
+        robustness against post-apnea recovery artefacts. Profile-tunable
+        if longer windows are needed.
+    stability_cv_threshold : float
+        CV threshold below which the surrounding 120 s segment is deemed
+        "stable breathing" and the stricter reduction requirement applies
+        (default 0.30). Profile-overridable.
+    stability_strict_reduction : float
+        Minimum local reduction (%) required when stable breathing is
+        detected (default 30%). Profile-overridable; equal to
+        ``min_reduction_pct`` to disable the tightening.
 
     Returns
     -------
     (is_valid, local_reduction_pct)
+        ``local_reduction_pct`` is the measured reduction (%) when valid;
+        ``float('nan')`` when validation could not be measured (insufficient
+        pre-event data or flat-line baseline). Callers expecting a numeric
+        percentage MUST guard against NaN.
     """
     pre_samples = int(pre_win_s * sf)
     pre_start   = max(0, event_start - pre_samples)
 
-    # Minimaal 3s pre-event signaal nodig
+    # Minimum 3 s of pre-event signal required to compute a meaningful baseline.
+    # If less is available (recording start, fragmented sleep) we don't reject
+    # the event but we explicitly mark the reduction as "not measured" so
+    # downstream consumers don't treat the missing measurement as 100%.
     if event_start - pre_start < int(3 * sf):
-        return True, 100.0   # te weinig data → niet afwijzen
+        return True, float("nan")
 
     pre_seg   = env[pre_start:event_start]
     event_seg = env[event_start:event_end]
 
     if len(pre_seg) == 0 or len(event_seg) == 0:
-        return True, 100.0
+        return True, float("nan")
 
     pre_mean   = float(np.mean(pre_seg))
     event_mean = float(np.mean(event_seg))
 
     if pre_mean < 1e-9:
-        return True, 100.0   # pre-event ook plat → niet afwijzen
+        # Pre-event flat-lined — likely sensor dropout, not a true baseline.
+        # Don't reject the event but do not pretend we measured a reduction.
+        return True, float("nan")
 
     local_reduction = (1.0 - event_mean / pre_mean) * 100.0
 
-    # v0.2.8: Stabiliteits-bewuste drempel
-    # Bij stabiele ademhaling (lage CV) is de basislijn-variatie de oorzaak
-    # van schijnbare reducties. Verhoog de drempel om valse positieven te voorkomen.
-    # Gebruik een breder venster (120s) voor stabiliteitsbeoordeling.
+    # v0.2.8: Stability-aware threshold.
+    # Use a wider window (120 s) for stability assessment so a single
+    # long apnea cluster does not skew the CV computation.
     stability_win = int(120 * sf)
     stab_start = max(0, event_start - stability_win)
     stab_end = min(len(env), event_end + stability_win)
@@ -1311,9 +1345,10 @@ def _validate_local_reduction(
 
     if len(stab_seg) > int(10 * sf) and np.mean(stab_seg) > 1e-9:
         local_cv = float(np.std(stab_seg) / np.mean(stab_seg))
-        # v0.4.2: Profile-aware stabiliteits-bewuste drempel.
-        # Strict profile gebruikt strengere reductie-eis bij stabiele ademhaling;
-        # sensitive profile gebruikt geen extra strengheid (cv_threshold lager).
+        # v0.4.2: profile-aware. Strict profile uses a tighter reduction
+        # requirement (30%) when surrounding breathing is stable;
+        # sensitive UARS profile lowers the CV threshold so this branch
+        # rarely fires.
         if local_cv < stability_cv_threshold:
             min_reduction_pct = max(min_reduction_pct, stability_strict_reduction)
 

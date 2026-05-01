@@ -231,6 +231,16 @@ def detect_cheyne_stokes(
     A normalised autocorrelation peak > 0.3 in the 40–120 s lag range
     indicates a significant crescendo-decrescendo pattern.
 
+    NOTE (v0.4.4 review): the literature on autocorrelation-based CSR
+    detection uses tighter thresholds (Trinder et al., Sleep 1991: >0.4;
+    He et al., EHJ 2023: >0.5). At 0.3 this detector is more sensitive
+    but may over-flag non-CSR periodic breathing, leading to
+    over-aggressive central reclassification downstream in
+    postprocess.reclassify_csr_events. Default kept at 0.3 for backward
+    compatibility with paper v31 numerics; tighten to 0.4-0.5 for a more
+    conservative CSR call by passing a higher threshold to the caller
+    (currently the parameter is hard-coded; v0.5 will expose it).
+
     Returns
     -------
     dict: success, csr_detected, periodicity_s, csr_minutes,
@@ -280,7 +290,7 @@ def detect_cheyne_stokes(
             peak_idx = int(np.argmax(acorr))
             peak_val = float(acorr[peak_idx])
 
-            if peak_val > 0.3:
+            if peak_val > 0.3:  # paper v31 default; see docstring NOTE above
                 period_s = lags[peak_idx] / sf
                 out["periodicity_s"] = safe_r(period_s)
                 out["csr_detected"]  = True
