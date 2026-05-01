@@ -40,17 +40,27 @@ def analyze_plm(
     hypno: list,
     resp_events: list | None = None,
     artifact_epochs: list | None = None,
+    leg_unit: str = "auto",
 ) -> dict:
     """
     Detect PLMs on left and/or right tibialis anterior EMG channels.
 
     Parameters
     ----------
-    leg_l / leg_r   : raw EMG arrays (Volt or µV; auto-converted)
+    leg_l / leg_r   : raw EMG arrays
     sf              : sample rate
     hypno           : string hypnogram
     resp_events     : respiratory events (used for resp-associated exclusion)
     artifact_epochs : epochs to exclude from TST denominator
+    leg_unit        : EMG physical unit. One of:
+                       'V'    : volts (will be scaled ×1e6 to µV)
+                       'mV'   : millivolts (will be scaled ×1e3 to µV)
+                       'uV'   : already in µV (no scaling)
+                       'auto' : amplitude-based heuristic (default)
+                     The 8 µV detection threshold (AASM 2.6) is sensitive
+                     to scaling errors; pass an explicit unit when the EDF
+                     physical_unit is available rather than relying on
+                     'auto'.
 
     Returns
     -------
@@ -62,8 +72,8 @@ def analyze_plm(
             result["error"] = "No leg-EMG channels available"
             return result
 
-        lms_l = _detect_lm_channel(leg_l, sf) if leg_l is not None else []
-        lms_r = _detect_lm_channel(leg_r, sf) if leg_r is not None else []
+        lms_l = _detect_lm_channel(leg_l, sf, unit=leg_unit) if leg_l is not None else []
+        lms_r = _detect_lm_channel(leg_r, sf, unit=leg_unit) if leg_r is not None else []
         all_lms = _merge_bilateral(lms_l, lms_r)
         all_lms.sort(key=lambda x: x["onset_s"])
 
@@ -132,12 +142,61 @@ def analyze_plm(
 # Private helpers
 # ---------------------------------------------------------------------------
 
-def _detect_lm_channel(data: np.ndarray, sf: float) -> list[dict]:
-    """Detect LM events on a single EMG channel (AASM 2.6)."""
-    # Auto-convert Volt -> µV if signal is clearly in Volt
-    data_uv = data.copy()
-    if np.max(np.abs(data_uv)) < 0.1:
+def _detect_lm_channel(
+    data: np.ndarray,
+    sf: float,
+    unit: str = "auto",
+) -> list[dict]:
+    """Detect LM events on a single EMG channel (AASM 2.6).
+
+    The AASM amplitude criterion (≥8 µV above resting) is unit-sensitive,
+    so the input must be scaled correctly. ``unit`` controls scaling:
+
+      'V'    → multiply by 1e6  (volts → µV)
+      'mV'   → multiply by 1e3  (millivolts → µV)
+      'uV'   → leave as-is
+      'auto' → amplitude heuristic with logging of likely scaling errors
+
+    The 'auto' heuristic (v0.4.4 hardened):
+
+      max|x| < 0.01    → assume V    (×1e6 → µV)
+      max|x| < 10      → assume mV   (×1e3 → µV) and warn
+      otherwise        → assume µV
+    """
+    import logging
+    _log = logging.getLogger(__name__)
+
+    data_uv = np.asarray(data, dtype=float).copy()
+    if unit == "V":
         data_uv = data_uv * 1e6
+    elif unit == "mV":
+        data_uv = data_uv * 1e3
+    elif unit == "uV":
+        pass
+    elif unit == "auto":
+        max_abs = float(np.max(np.abs(data_uv))) if data_uv.size else 0.0
+        if max_abs < 1e-12:
+            # All-zero signal (stuck/disconnected channel); leave as-is.
+            pass
+        elif max_abs < 0.01:
+            # Almost certainly volts (raw V-scaled EMG max typically 1–5 mV
+            # = 0.001–0.005 V). Scale ×1e6 to µV.
+            data_uv = data_uv * 1e6
+        elif max_abs < 10:
+            # Plausibly millivolts (e.g. EDF stored with mV physical_unit),
+            # max ≈ 1–5 mV. Scale ×1e3 and emit a warning so callers can
+            # pass `unit='mV'` explicitly to silence it.
+            _log.warning(
+                "PLM EMG amplitude max=%.3f looks like mV-scaled data; "
+                "scaling ×1000 to µV. Pass leg_unit='mV' to silence this warning.",
+                max_abs,
+            )
+            data_uv = data_uv * 1e3
+        # else: max_abs >= 10 → assume already in µV, no scaling
+    else:
+        raise ValueError(
+            f"Unknown leg_unit={unit!r}; expected 'V', 'mV', 'uV', or 'auto'"
+        )
 
     nyq = sf / 2
     lo  = min(10.0 / nyq, 0.99)

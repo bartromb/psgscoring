@@ -28,19 +28,41 @@ def get_desaturation(
     sf_spo2: float,
     global_spo2_baseline: float | None = None,
     post_win_s: float = 45,
+    early_nadir_min_drop_pct: float = 5.0,
+    global_baseline_min_local_pct: float | None = None,
 ) -> tuple[float | None, float | None]:
     """
     Compute SpO2 desaturation associated with a respiratory event.
 
-    AASM criteria:
+    AASM v3 criteria:
     - Baseline = 90th percentile of 120 s pre-event window
-    - Nadir search window = event onset -> post_win_s after event end
-    - Nadir must occur >= 3 s after event onset (circulatory delay)
-    - Very early nadir with < 5 % drop -> rejected as coincidental
+    - Nadir search window = event onset → post_win_s after event end
+    - Nadir must occur ≥ 3 s after event onset (circulatory delay)
+    - Desaturation = baseline − nadir ≥ 3% (recommended) or ≥ 4% (1B optional)
 
     For severe OSAS the pre-event window may already be desaturated; the
-    *global_spo2_baseline* (95th pct of all sleep SpO2) is used when it
-    exceeds the local baseline.
+    *global_spo2_baseline* (95th percentile of all sleep SpO2) is used
+    when it exceeds the local baseline.
+
+    NOTE (v0.4.4 review): for chronic-desaturator patients (COPD, OHS)
+    whose true baseline is genuinely below the cohort 95th percentile,
+    the global override may artificially inflate the baseline and
+    under-count events. To opt into the chronic-baseline-aware behaviour,
+    set ``global_baseline_min_local_pct`` to a value (e.g. 88) so the
+    override only fires when the local baseline is implausibly low.
+    Default is None (always-override = paper v31 behaviour).
+
+    Parameters
+    ----------
+    early_nadir_min_drop_pct : float
+        Reject nadirs occurring < 3 s after onset unless the drop is at
+        least this many percent (default 5.0, paper v31 behaviour).
+        Lower this to 3.0 to align with the AASM ≥3% criterion and
+        retain genuine fast responders.
+    global_baseline_min_local_pct : float | None
+        If not None, only fall back to the global baseline when the local
+        pre-event baseline is below this value. Default None preserves
+        v0.4.3 / paper-v31 behaviour (always override when global > local).
 
     Returns
     -------
@@ -49,7 +71,7 @@ def get_desaturation(
     if spo2_data is None:
         return None, None
     try:
-        POST_WIN_S = post_win_s  # v0.8.15: configureerbaar via scoring profile
+        POST_WIN_S = post_win_s  # v0.8.15: configurable via scoring profile
         s_start = max(0, int(onset_s * sf_spo2))
         s_end   = min(len(spo2_data),
                       int((onset_s + dur_s + POST_WIN_S) * sf_spo2))
@@ -65,15 +87,24 @@ def get_desaturation(
             float(np.percentile(pre_seg, 90)) if len(pre_seg) > 3
             else float(np.percentile(seg, 90))
         )
+        # Default behaviour (paper v31): always override local baseline
+        # with the global 95th-percentile baseline when global is higher.
+        # Opt-in chronic-baseline-aware behaviour: pass
+        # global_baseline_min_local_pct (e.g. 88) to gate the override
+        # so it only fires when the local baseline is implausibly low.
         if global_spo2_baseline is not None and global_spo2_baseline > spo2_bl:
-            spo2_bl = global_spo2_baseline
+            if (global_baseline_min_local_pct is None
+                or spo2_bl < global_baseline_min_local_pct):
+                spo2_bl = global_spo2_baseline
 
         min_spo2  = float(np.min(seg))
         desat     = spo2_bl - min_spo2
         nadir_idx = int(np.argmin(seg))
 
-        # Reject very early nadirs with small desaturation
-        if nadir_idx < int(3 * sf_spo2) and desat < 5:
+        # Reject very early nadirs (< 3 s after onset) only if the drop is
+        # below the AASM 3% criterion; genuine fast responders with ≥3%
+        # drop are kept.
+        if nadir_idx < int(3 * sf_spo2) and desat < early_nadir_min_drop_pct:
             return None, safe_r(min_spo2)
 
         return safe_r(desat), safe_r(min_spo2)
@@ -335,6 +366,11 @@ def compute_hypoxic_burden(
                     local_bl = float(np.percentile(pre_seg, 90))
                 else:
                     local_bl = global_bl
+                # Paper v31 behaviour: always use the higher of local and
+                # global baseline. Note (v0.4.4 review): for chronic-
+                # desaturator patients (COPD, OHS) this can artificially
+                # inflate the baseline; future v0.5 will gate the override
+                # on local_bl < ~88% via a profile-configurable threshold.
                 baseline = max(local_bl, global_bl)
 
                 # Integration window: event onset → recovery or max_recovery_s

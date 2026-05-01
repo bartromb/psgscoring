@@ -450,13 +450,23 @@ def ecg_effort_assessment(ecg: np.ndarray | None,
     # Reclassify as central if BOTH indicators agree:
     # 1. TECG shows no inspiratory bursts (or ECG not available)
     # 2. Spectral analysis shows cardiac dominance
+    #
+    # When ECG is unavailable, spectral evidence alone still triggers
+    # reclassification but the downstream classifier (classify.py:Rule 5b)
+    # applies a lower confidence (0.75 vs 0.85 when both methods agree).
+    # The asymmetry is detected upstream by checking
+    # ``ecg_effort_present is False`` (only true when ECG was available
+    # AND TECG saw no bursts).
     ecg_says_no_effort = (result["ecg_effort_present"] is False)
     spectral_says_cardiac = result["spectral_cardiac_dominant"]
 
     if ecg_says_no_effort and spectral_says_cardiac:
         result["reclassify_as_central"] = True
+        result["evidence_strength"] = "dual"  # TECG + spectral agree
     elif ecg is None and spectral_says_cardiac:
-        # No ECG available, spectral alone with lower confidence
+        # No ECG available; spectral alone. classify.py:Rule 5b sees
+        # ecg_effort_present=None and applies the lower confidence.
         result["reclassify_as_central"] = True
+        result["evidence_strength"] = "spectral_only"
 
     return result

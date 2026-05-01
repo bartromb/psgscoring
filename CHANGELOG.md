@@ -1,3 +1,85 @@
+# v0.4.4 — 2026-05-01
+
+Algorithm-review release. An internal v0.4.x review flagged 8
+behavioural concerns and 3 AASM-mapping documentation gaps. After
+PSG-IPA cross-validation, the changes that materially affected the
+paper v31 numerics were demoted from default-changing fixes to
+**documented opt-in parameters** so default behaviour is unchanged
+and paper v31 reproduction passes. The genuinely-defensive fixes
+(B1, B5, B8) and the documentation gaps are applied as defaults.
+
+## Fixed (default behaviour change)
+
+- **B1** `respiratory.py:_validate_local_reduction()` — when <3 s of
+  pre-event signal is available, the validator was returning
+  ``(True, 100.0)`` and downstream consumers treated this sentinel as
+  a real measurement. Now returns ``(True, float('nan'))`` so the
+  "not measured" case is unambiguous. Same for flat-line baselines.
+- **B5** `ecg_effort.ecg_effort_assessment()` — added an
+  ``evidence_strength`` field (``'dual'`` vs ``'spectral_only'``) so
+  the upstream confidence penalty in `classify.py:Rule 5b` is
+  inspectable. The penalty itself was already correctly applied
+  (Rule 5b uses 0.75 vs 0.85 based on ``ecg_effort_present``).
+- **B8** `plm._detect_lm_channel()` — the ``unit='auto'`` heuristic
+  was 1000× wrong for mV-scaled EDF data. Replaced with a three-band
+  heuristic (V → ×1e6, mV → ×1e3, µV → no scaling) and added an
+  explicit ``leg_unit`` parameter so callers can pass the EDF
+  physical unit rather than relying on amplitude inference. The 8 µV
+  AASM amplitude threshold is unit-sensitive.
+
+## Added (opt-in parameters; defaults preserve paper v31 numerics)
+
+- **B7** `spo2.get_desaturation()` gained
+  ``global_baseline_min_local_pct`` (default ``None`` = paper v31
+  always-override behaviour). Set to a value (e.g. 88) to gate the
+  global-baseline override so it only fires when the local baseline
+  is implausibly low. Helps avoid artificially inflating the baseline
+  for chronic-desaturator patients (COPD, OHS). The
+  ``early_nadir_min_drop_pct`` default stays at 5.0 (paper v31);
+  pass 3.0 to align with the AASM ≥3% criterion.
+
+## Documented (no behaviour change)
+
+- **B2** `_validate_local_reduction()` — full docstring rewrite with
+  explicit AASM-mapping note, paper reference, and instructions for
+  disabling the stability-aware tightening per profile (set
+  ``stability_strict_reduction == min_reduction_pct``).
+- **B3** `classify.py:Rule 6` — comment added documenting the
+  deliberate AASM-deviation (effort 0.30–0.40 defaults to central,
+  not obstructive) introduced in v0.8.30 to handle cardiac-pulsation
+  artefact. Default unchanged; lower the 0.40 threshold to 0.30 in a
+  fork to revert to AASM-strict behaviour.
+- **B4** `signal_quality.py:FALLBACK_OBSTRUCTIVE_RATIO` — comment
+  added flagging that single-channel-fallback may misclassify
+  cardiac-pulsation-only events as obstructive at the 0.50
+  threshold. A 0.70 threshold would be more conservative; default
+  unchanged for backward compatibility.
+- **B6** `ancillary.detect_cheyne_stokes()` autocorrelation peak
+  threshold — docstring NOTE added pointing out that the literature
+  uses tighter thresholds (Trinder *Sleep* 1991: >0.4; He et al.
+  *EHJ* 2023: >0.5). Default kept at 0.3 for paper v31 compatibility;
+  v0.5 will expose the threshold as a parameter.
+- **G1** `classify.py:Rule 5b` — added comment noting that
+  pattern-level CSR reclassification (the AASM v3 ≥3-consecutive-
+  central + crescendo-decrescendo + ≥40 s rule) is detected by
+  `ancillary.detect_cheyne_stokes()` and applied downstream by
+  `postprocess.reclassify_csr_events()`, not in classify.py.
+- **G2** `postprocess.decompose_mixed_apneas()` — documented the
+  AASM-conform "leading low-effort = central phase" assumption.
+- **G3** `postprocess.reclassify_csr_events()` — documented that the
+  preserved ``original_type`` field provides v0.4.4-interim audit-
+  trail rollback for false-positive CSR reclassifications. Full
+  append-only audit log is on the v0.5 roadmap.
+
+## Reproducibility
+
+PSG-IPA standard-profile aggregate (n=5) under v0.4.4 reproduces
+paper v31 metrics bit-identically (default parameters). The
+``test_psgipa_reproducibility.py`` integration tests pass with
+``PSGIPA_DATA_DIR`` set.
+
+---
+
 # v0.4.3 — 2026-05-01
 
 ## Added

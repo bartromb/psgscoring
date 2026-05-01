@@ -368,6 +368,11 @@ def classify_apnea_type(
     # ── Rule 5b (v0.8.23): ECG-derived reclassification ──────────────────
     # If TECG shows no inspiratory bursts AND spectral analysis shows
     # cardiac dominance, reclassify borderline/effort-present as central.
+    # G1 note: pattern-level CSR reclassification (the AASM v3 rule
+    # "≥3 consecutive central + crescendo-decrescendo + ≥40 s cycle")
+    # is detected by ancillary.detect_cheyne_stokes() and applied
+    # downstream by postprocess.reclassify_csr_events() — not here.
+    # Rule 5b is per-event ECG-based effort reclassification only.
     if ecg_assessment is not None and ecg_assessment.get("reclassify_as_central"):
         detail["ecg_assessment"] = {
             k: v for k, v in ecg_assessment.items()
@@ -384,10 +389,16 @@ def classify_apnea_type(
             return "central", safe_r(_conf(conf, 5), 2), detail
 
     # ── Rule 6: Borderline default ────────────────────────────────────────
-    # v0.8.30: if effort is in the "low" range and no clear obstructive
-    # evidence, classify as central rather than defaulting to obstructive.
+    # v0.8.30: if effort is in the low-but-not-absent range and no
+    # clear obstructive evidence, classify as central rather than
+    # defaulting to obstructive. This catches cardiac-pulsation-only
+    # events that Rule 5a missed (typical effort_ratio 0.10-0.40 with
+    # low raw_var). The v0.4.4 review noted that this is a deliberate
+    # deviation from the AASM "when in doubt, obstructive" convention,
+    # documented here so it is inspectable. To revert to AASM-strict
+    # behaviour, lower the 0.40 threshold below to 0.30.
     if (
-        effort_ratio < EFFORT_PRESENT_RATIO and
+        effort_ratio < EFFORT_PRESENT_RATIO and  # 0.40 (AASM-deviation, see above)
         raw_var_ratio < 0.30 and
         not is_paradox and
         no_phase_signal
@@ -398,7 +409,9 @@ def classify_apnea_type(
         )
         return "central", safe_r(_conf(conf_6, 6), 2), detail
 
-    conf_6 = 0.40 + _flat_obstr_boost  # flattening can lift borderline confidence
+    # Final default: obstructive (AASM "when in doubt, obstructive" convention).
+    # Flattening boost lifts confidence when flow limitation is present.
+    conf_6 = 0.40 + _flat_obstr_boost
     detail["decision_reason"] = (
         f"borderline_default_var={safe_r(raw_var_ratio,3)}_effort={safe_r(effort_ratio,3)}"
     )
