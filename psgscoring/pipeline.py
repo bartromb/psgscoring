@@ -59,6 +59,7 @@ def run_pneumo_analysis(
     channel_map: dict | None = None,
     artifact_epochs: list | None = None,
     scoring_profile: str = "aasm_v3_rec",
+    arousal_events: list | None = None,
 ) -> dict:
     """
     Run the full pneumological analysis on a single PSG recording.
@@ -76,6 +77,14 @@ def run_pneumo_analysis(
                         - 'cms_medicare', 'mesa_shhs', 'chicago_1999'
                       Legacy names (deprecated, still work):
                         - 'strict', 'standard', 'sensitive'
+    arousal_events  : optional list of pre-scored arousals to use for
+                      Rule 1B reinstatement, bypassing internal
+                      EEG-based detection. Each item must be a dict
+                      with at least ``onset_s`` and ``duration_s``
+                      keys (seconds). Use this for dataset-faithful
+                      validation against scorer-derived AHI variants
+                      that include arousal-coupled hypopneas
+                      (e.g. NSRR ``ahi_hp3u``).
 
     Returns
     -------
@@ -382,8 +391,27 @@ def run_pneumo_analysis(
         output["plm"] = {"success": False, "error": "No leg-EMG channels", "summary": {}}
 
     # ── Step 7: Arousal detection ──────────────────────────────────────────
-    logger.info("[pneumo 7/9] Arousal detection & respiratory coupling...")
-    if eeg_data is not None and _AROUSAL_AVAILABLE:
+    if arousal_events is not None:
+        logger.info(
+            "[pneumo 7/9] Using %d externally provided arousals "
+            "(EEG-based detection skipped)",
+            len(arousal_events),
+        )
+        ext = _empty_arousal("external_arousals")
+        ext["success"] = True
+        ext["error"]   = None
+        ext["source"]  = "external"
+        ext["events"]  = list(arousal_events)
+        # Compute arousal index against TST from hypno (best-effort).
+        from .constants import EPOCH_LEN_S as _EPOCH
+        n_tst_eps = sum(1 for s in hypno if s in ("N1", "N2", "N3", "R"))
+        tst_h     = (n_tst_eps * _EPOCH) / 3600.0 if n_tst_eps else 0.0
+        ext["summary"]["arousal_index"] = (
+            round(len(arousal_events) / tst_h, 2) if tst_h > 0 else None
+        )
+        output["arousal"] = ext
+    elif eeg_data is not None and _AROUSAL_AVAILABLE:
+        logger.info("[pneumo 7/9] Arousal detection & respiratory coupling...")
         flow_env_norm = _compute_flow_norm(apnea_flow, sf_apnea)
         output["arousal"] = run_arousal_respiratory_analysis(
             eeg_data    = eeg_data,
@@ -445,7 +473,7 @@ def run_pneumo_analysis(
     # ── Fix 3: Retroactief CSR-event markering na CSR-detectie ────────────
     csr_info = output.get("cheyne_stokes", {})
     if csr_info.get("csr_detected") and output["respiratory"].get("success"):
-        from .respiratory import _flag_csr_events, _compute_summary
+        from .respiratory import _flag_csr_events
         events_flagged = _flag_csr_events(
             output["respiratory"]["events"], csr_info
         )

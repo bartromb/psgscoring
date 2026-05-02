@@ -1,3 +1,50 @@
+# v0.4.5 — 2026-05-02
+
+External-arousal injection for dataset-faithful validation. Motivated
+by MESA cohort smoke runs where comparison to NSRR ``ahi_hp3u``
+(3%-desat OR arousal) was systematically biased low (−9.4/h on n=30,
+q≥5 cohort) because the algorithm's Rule 1B reinstatement was firing
+against EEG-detected arousals (or, on quiet recordings, no arousals
+at all) instead of the scorer-determined arousals embedded in the
+NSRR XML. Default behaviour unchanged; PSG-IPA reproducibility 10/10
+pass.
+
+## Added
+
+- ``run_pneumo_analysis(arousal_events=...)`` — optional list of
+  pre-scored arousals to use for Rule 1B reinstatement, bypassing
+  internal EEG-based detection. Each item must be a dict with at
+  least ``onset_s`` and ``duration_s``. Use this for dataset-faithful
+  validation against scorer-derived AHI variants that include
+  arousal-coupled hypopneas. When ``None`` (default), the existing
+  EEG-based path runs as before.
+
+## Fixed
+
+- ``pipeline.py`` — removed a duplicate local import of
+  ``_compute_summary`` inside ``run_pneumo_analysis`` that shadowed
+  the module-level binding and would have raised
+  ``UnboundLocalError`` whenever Rule 1B reinstatement actually fired
+  on a recording. The bug was latent because PSG-IPA's EEG-detected
+  arousal stream rarely produces reinstatable hypopneas; on MESA with
+  injected arousals the path lights up and the shadowing surfaced.
+
+## Validation context (informational, not part of the release)
+
+- MESA n=30, q≥5, seed=42, profile ``aasm_v2_rec`` + injected NSRR
+  arousals: bias **−2.52/h** (within Anderer 2022 reasonable target
+  ≤5), MAE 7.46, weighted κ 0.241, severity-match 51.7%. Same cohort
+  with no arousals: bias −9.43, κ 0.045, severity-match 44.8%.
+- A diagnostic on mesaid 6139 (severe AHI, ref 42.4/h → algo 10.9/h
+  default): 406/411 hypopnea candidates rejected by
+  ``_validate_local_reduction``. Even with the profile-tunable
+  stability branch fully relaxed, only ~16 events recoverable due to
+  a hardcoded ``min_reduction_pct=20.0`` floor that is **not**
+  profile-aware. Making it profile-tunable is queued for v0.5; the
+  larger gap (~198 events the algorithm never sees as candidates) is
+  a flow-detection-sensitivity issue specific to MESA Compumedics
+  data and out of scope for v0.4.x.
+
 # v0.4.4 — 2026-05-01
 
 Algorithm-review release. An internal v0.4.x review flagged 8
