@@ -356,8 +356,13 @@ def detect_respiratory_events(
                 _tecg = None
 
         # ── Apnea-channel preprocessing (thermistor, no sqrt) ──────────────
+        # v0.5.1: profile-tunable baseline window/percentile
+        _BL_WIN_S  = sp.get("BASELINE_WINDOW_S", 300)
+        _BL_PCT    = sp.get("BASELINE_PERCENTILE", 95.0)
         flow_env = preprocess_flow(flow_data, sf_flow, is_nasal_pressure=False)
-        baseline = compute_dynamic_baseline(flow_env, sf_flow)
+        baseline = compute_dynamic_baseline(
+            flow_env, sf_flow, window_s=_BL_WIN_S, percentile=_BL_PCT
+        )
         pos_changes: list[dict] = []
 
         # MMSD – drift-independent apnea validation

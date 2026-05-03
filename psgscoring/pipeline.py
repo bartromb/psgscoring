@@ -152,6 +152,16 @@ def run_pneumo_analysis(
     leg_l_data,   sf_leg   = get("leg_l")
     leg_r_data,   _        = get("leg_r")
 
+    # v0.5.1: optional RIPsum fallback for hypopnea channel when nasal
+    # pressure is degraded (mesa_shhs profile). Clinical profiles default
+    # to FLOW_FALLBACK_STRATEGY="none" and this is a no-op.
+    sf_rip = raw.info["sfreq"]
+    hypop_flow, sf_hypop = _maybe_apply_ripsum_fallback(
+        hypop_flow, sf_hypop,
+        thorax_data, abdomen_data, sf_rip,
+        profile, output,
+    )
+
     eeg_data, sf_eeg = _pick_eeg(raw, ch)
     emg_data         = _pick_emg(raw, ch)
 
@@ -544,6 +554,99 @@ def run_pneumo_analysis(
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+def _maybe_apply_ripsum_fallback(
+    hypop_flow, sf_hypop,
+    thorax_data, abdomen_data, sf_rip,
+    profile_dict, output,
+):
+    """v0.5.1: when profile requests it AND nasal pressure quality is
+    poor (sensor flat / unplugged / extreme attenuation), substitute
+    the thoracoabdominal RIP sum as the hypopnea-detection input.
+
+    Quality test: per-30-second peak-to-trough excursions on the
+    Pres signal; trigger fallback if median excursion is below 0.5%
+    of the signal's 99th-percentile absolute amplitude (essentially
+    flat) OR excursion-CV across the night is below 0.10
+    (signal not modulated by breathing).
+
+    Reference: Vaquerizo-Villar et al. DRIVEN, npj Dig Med 2024;
+    Nassi et al. IEEE TBME 2022.
+    """
+    strategy = profile_dict.get("FLOW_FALLBACK_STRATEGY", "none")
+    if strategy != "ripsum_on_nasal_failure":
+        output["meta"]["flow_fallback"] = {"strategy": strategy, "triggered": False}
+        return hypop_flow, sf_hypop
+    if (hypop_flow is None or thorax_data is None or abdomen_data is None
+            or sf_hypop is None or sf_rip is None):
+        output["meta"]["flow_fallback"] = {
+            "strategy": strategy, "triggered": False,
+            "reason": "channels_unavailable",
+        }
+        return hypop_flow, sf_hypop
+
+    try:
+        seg_n  = max(1, int(sf_hypop * 30))
+        n_segs = len(hypop_flow) // seg_n
+        if n_segs < 5:
+            output["meta"]["flow_fallback"] = {
+                "strategy": strategy, "triggered": False,
+                "reason": "recording_too_short",
+            }
+            return hypop_flow, sf_hypop
+        excursions = np.array([
+            float(hypop_flow[i*seg_n:(i+1)*seg_n].max()
+                  - hypop_flow[i*seg_n:(i+1)*seg_n].min())
+            for i in range(n_segs)
+        ])
+        median_exc = float(np.median(excursions))
+        amp99      = float(np.percentile(np.abs(hypop_flow), 99))
+        rel_exc    = (median_exc / amp99) if amp99 > 1e-9 else 0.0
+        cv = (float(np.std(excursions) / median_exc)
+              if median_exc > 1e-9 else 0.0)
+        nasal_failed = (rel_exc < 0.005) or (cv < 0.10)
+    except Exception as e:
+        logger.warning("Nasal pressure quality check failed: %s", e)
+        output["meta"]["flow_fallback"] = {
+            "strategy": strategy, "triggered": False,
+            "reason": f"qc_exception: {e!s}",
+        }
+        return hypop_flow, sf_hypop
+
+    if not nasal_failed:
+        output["meta"]["flow_fallback"] = {
+            "strategy":            strategy,
+            "triggered":           False,
+            "nasal_excursion_cv":  round(cv, 3),
+            "nasal_relative_excursion": round(rel_exc, 4),
+        }
+        return hypop_flow, sf_hypop
+
+    # Build RIPsum at sf_hypop sample rate
+    if sf_rip != sf_hypop:
+        from scipy import signal as sp_signal
+        n_target = int(len(thorax_data) * sf_hypop / sf_rip)
+        thorax_r  = sp_signal.resample(thorax_data,  n_target)
+        abdomen_r = sp_signal.resample(abdomen_data, n_target)
+    else:
+        thorax_r  = thorax_data
+        abdomen_r = abdomen_data
+    L = min(len(thorax_r), len(abdomen_r))
+    ripsum = thorax_r[:L] + abdomen_r[:L]
+    output["meta"]["flow_fallback"] = {
+        "strategy":           strategy,
+        "triggered":          True,
+        "nasal_excursion_cv": round(cv, 3),
+        "nasal_relative_excursion": round(rel_exc, 4),
+        "fallback_signal":    "thorax+abdomen_sum",
+    }
+    logger.info(
+        "[pneumo] RIPsum fallback: nasal-pressure quality poor "
+        "(rel_exc=%.4f, cv=%.3f) → using thorax+abdomen sum as hypopnea input",
+        rel_exc, cv,
+    )
+    return ripsum, sf_hypop
+
 
 def _resolve_flow_channels(
     flow_data, sf_flow,

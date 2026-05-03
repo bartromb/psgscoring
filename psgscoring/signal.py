@@ -132,15 +132,28 @@ def compute_dynamic_baseline(
     flow_env: np.ndarray,
     sf: float,
     window_s: int = BASELINE_WINDOW_S,
+    percentile: float = 95.0,
 ) -> np.ndarray:
     """
-    Per-sample dynamic baseline via a 5-minute sliding window (95th pct).
+    Per-sample dynamic baseline via a sliding-window percentile.
 
     Sampled every 10 s then linearly interpolated: ~2 500× faster than
     per-sample computation (2 880 vs 7.4 M iterations for 8 h @ 256 Hz).
 
-    Segments at or below 30 % of the local 95th percentile are excluded from
-    the baseline computation to prevent apnea periods from suppressing it.
+    Segments at or below 30 % of the local high-percentile envelope are
+    excluded from the baseline computation to prevent apnea periods from
+    suppressing it.
+
+    Parameters
+    ----------
+    window_s   : sliding-window length in seconds (default 300 = 5 min).
+                 Shorter windows (e.g. 120) track local quiet-breathing
+                 more responsively at the cost of more variable baseline.
+    percentile : envelope percentile used as the baseline anchor. The
+                 default 95 captures the upper end of breathing
+                 amplitude; 80-90 reduces inflation by transient peaks
+                 (Lazazzera et al. 2020; Koley & Dey 2014). Profile-
+                 tunable as of v0.5.1.
     """
     win  = int(window_s * sf)
     n    = len(flow_env)
@@ -153,10 +166,10 @@ def compute_dynamic_baseline(
         start = max(0, center - win // 2)
         end   = min(n, center + win // 2)
         seg   = flow_env[start:end]
-        p95   = np.percentile(seg, 95)
-        stable = seg[seg > 0.30 * p95]
+        anchor = np.percentile(seg, percentile)
+        stable = seg[seg > 0.30 * anchor]
         baseline_sparse[idx] = (
-            np.percentile(stable, 95) if len(stable) > 10 else p95
+            np.percentile(stable, percentile) if len(stable) > 10 else anchor
         )
 
     baseline = np.interp(np.arange(n), sample_points, baseline_sparse)

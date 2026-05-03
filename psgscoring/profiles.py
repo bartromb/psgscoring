@@ -207,6 +207,56 @@ class PostProcessingRules:
     keep 15.0.
     """
 
+    baseline_window_s: int = 300
+    """v0.5.1: Sliding-window length (seconds) for `compute_dynamic_baseline`.
+
+    Previously hard-coded as `BASELINE_WINDOW_S = 300` (5 min). Lazazzera
+    et al. 2020 (Sleep Breath, PMID 33019189) and Koley & Dey 2014
+    (Med Biol Eng Comput, PMID 24876133) report higher hypopnea recall
+    on heterogeneous cohorts using a 2-3 min window — the shorter window
+    tracks local quiet-breathing periods more responsively, which helps
+    on Compumedics-type recordings where DC amplitude varies across the
+    night. The `mesa_shhs` profile uses 120 (2 min); clinical profiles
+    keep 300. Range typically 60-600s.
+    """
+
+    baseline_percentile: float = 95.0
+    """v0.5.1: Percentile of envelope amplitude used as the local baseline
+    in `compute_dynamic_baseline`.
+
+    Previously hard-coded as `np.percentile(seg, 95)`. The 95th percentile
+    captures the upper end of breathing amplitude (peak inspiration in
+    quiet sleep), but on cohorts with intermittent arousal-driven peaks
+    it can be inflated by spikes that are not representative of true
+    baseline. The Lazazzera/Koley line of work uses 80-90th percentile
+    over the local window. The `mesa_shhs` profile uses 85.0; clinical
+    profiles keep 95.0.
+    """
+
+    flow_fallback_strategy: str = "none"
+    """v0.5.1: Behaviour when the primary nasal-pressure flow channel
+    appears low-quality on a recording.
+
+    Options:
+      ``"none"``                       — never fall back (legacy behaviour).
+      ``"ripsum_on_nasal_failure"``    — if Pres signal amplitude-CV over
+                                         the whole recording falls below a
+                                         threshold (sensor dropout / flat
+                                         line / extreme attenuation), use
+                                         the thoracoabdominal RIP sum
+                                         (thorax + abdomen) as the
+                                         hypopnea-detection input
+                                         instead. Vaquerizo-Villar et al.
+                                         (DRIVEN, npj Dig Med 2024) and
+                                         Nassi et al. (IEEE TBME 2022)
+                                         both show that effort-belt-only
+                                         scoring achieves r²~0.79 when
+                                         airflow channels degrade.
+
+    Clinical profiles default to ``"none"``; ``mesa_shhs`` sets
+    ``"ripsum_on_nasal_failure"``.
+    """
+
 
 @dataclass
 class Profile:
@@ -429,6 +479,13 @@ _mesa_shhs = Profile(
         local_baseline_min_reduction_pct=15.0,
         local_baseline_pre_win_s=60.0,
         rule1b_arousal_window_s=5.0,
+        # v0.5.1: shorter / lower-percentile baseline tracks local quiet
+        # breathing more responsively on heterogeneous Compumedics
+        # recordings (Lazazzera 2020, Koley 2014).
+        baseline_window_s=120,
+        baseline_percentile=85.0,
+        # v0.5.1: when nasal pressure quality is poor, fall back to RIPsum.
+        flow_fallback_strategy="ripsum_on_nasal_failure",
     ),
 )
 

@@ -1,3 +1,69 @@
+# v0.5.1 — 2026-05-03
+
+Profile-tunable dynamic baseline parameters and opt-in RIPsum fallback
+for the hypopnea channel. Both adaptations were motivated by the
+research review of best-performing tools on MESA/SHHS (Vaquerizo-Villar
+DRIVEN, Nassi WaveNet, Lazazzera per-sample digitised, Koley & Dey
+robust airflow envelope tracking). Defaults preserve paper v31
+PSG-IPA reproducibility (10/10 pass on
+`tests/test_psgipa_reproducibility.py`).
+
+## Added
+
+- `PostProcessingRules.baseline_window_s` (default `300`).
+  Sliding-window length (seconds) for `signal.compute_dynamic_baseline`.
+  Previously hard-coded.
+- `PostProcessingRules.baseline_percentile` (default `95.0`).
+  Envelope percentile used as the local baseline anchor in
+  `compute_dynamic_baseline`. Previously hard-coded as 95.
+- `PostProcessingRules.flow_fallback_strategy` (default `"none"`).
+  When set to `"ripsum_on_nasal_failure"`, the pipeline checks
+  the Pres-signal amplitude excursion; if median 30-second
+  peak-to-trough excursion is below 0.5% of the 99th-percentile
+  amplitude, OR the night-wide excursion-CV is below 0.10
+  (signal flat / sensor disconnected), the thoracoabdominal RIP
+  sum (thorax + abdomen) is substituted as the hypopnea
+  detection input. The quality test runs in
+  `pipeline._maybe_apply_ripsum_fallback`.
+
+## Changed (`mesa_shhs` profile only)
+
+- `mesa_shhs.post_processing.baseline_window_s = 120`
+  (Lazazzera 2020-style 2-minute window; clinical profiles keep 300).
+- `mesa_shhs.post_processing.baseline_percentile = 85.0`
+  (Lazazzera/Koley range 80–90; clinical profiles keep 95).
+- `mesa_shhs.post_processing.flow_fallback_strategy = "ripsum_on_nasal_failure"`.
+
+## Validation
+
+- **PSG-IPA reproducibility (regression):** 10/10 tests pass in 11:58.
+  Paper v31 strict/standard/sensitive numerics on SN1–SN5 are
+  bit-identical because clinical-profile defaults are unchanged.
+- **MESA q=7 n=99:** with the v0.5.1 `mesa_shhs` profile,
+  bias $-1.55$/h (was $-0.78$ on v0.5.0), MAE 6.05 (≈unchanged),
+  Pearson $r$ 0.775 (up from 0.759, +0.016), weighted $\kappa$ 0.40
+  (unchanged), severity-match 53% (≈unchanged).
+- **Per-recording diagnostic on `mesaid` 6382:** the RIPsum
+  fallback did NOT trigger (Pres signal `rel_exc=0.352`,
+  `cv=2.808`; both well above the trigger thresholds), confirming
+  that the under-detection on this recording is not driven by
+  nasal-pressure quality but by something deeper in the
+  airflow-envelope or breath-segmentation logic. The MESA cohort
+  outliers thus remain a v0.6 (real algorithmic rework) target;
+  v0.5.1 nevertheless ships these knobs because they (a) are useful
+  for cohorts where the Pres signal does degrade, and (b) the
+  baseline window/percentile tuning produced a small but real
+  $r$ improvement on the highest-quality MESA stratum.
+
+## Known limitations carried forward
+
+- Severe under-detection on dense-cluster OSA recordings
+  (\S~S5.7–S5.8 of paper v34) remains. The flow-detection-sensitivity
+  gap on `mesaid` 6382 (91% never-seen candidates) is not closed by
+  v0.5.1's profile-tunable baseline; the gap appears upstream of the
+  baseline computation in the per-breath segmentation or Hilbert
+  envelope construction. Identified as the v0.6 priority.
+
 # v0.5.0 — 2026-05-03
 
 Profile-tunable local-baseline validator and Rule 1B arousal-coupling

@@ -90,6 +90,10 @@ def _profile_to_legacy_dict(profile) -> dict:
         "LOCAL_BL_MIN_REDUCTION_PCT": pp.local_baseline_min_reduction_pct,
         "LOCAL_BL_PRE_WIN_S":         pp.local_baseline_pre_win_s,
         "RULE1B_AROUSAL_WINDOW_S":    pp.rule1b_arousal_window_s,
+        # v0.5.1: profile-tunable dynamic baseline parameters
+        "BASELINE_WINDOW_S":          pp.baseline_window_s,
+        "BASELINE_PERCENTILE":        pp.baseline_percentile,
+        "FLOW_FALLBACK_STRATEGY":     pp.flow_fallback_strategy,
         # Audit metadata — read by pipeline.py for output["meta"]["profile"]
         "_PROFILE_NAME":          profile.name,
         "_AASM_VERSION":          profile.aasm_version,
