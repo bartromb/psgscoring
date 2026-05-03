@@ -157,22 +157,30 @@ class TestCMSMedicare:
 
 
 class TestMESAShhs:
-    """NSRR dataset reproduction profile."""
+    """NSRR dataset reproduction profile.
 
-    def test_rip_bands_primary(self):
-        """MESA uses thoracoabdominal bands, not nasal pressure primarily."""
-        p = get_profile("mesa_shhs")
-        assert p.hypopnea.sensor == "rip_bands_primary"
+    v0.5.0 metadata correction: previously the profile was
+    declared as `rip_bands_primary` with `desat_threshold=None`,
+    but the MESA Sleep PSG Scoring Manual identifies hypopneas from
+    airflow signals (nasal pressure primary, with thermistor and
+    RIP-bands as supporting context) and the canonical NSRR clinical
+    AHI is `nsrr_ahi_hp3u` (3% desat OR arousal). The profile
+    metadata now reflects that.
+    """
 
-    def test_nasal_pressure_fallback(self):
+    def test_nasal_pressure_primary(self):
+        """MESA Brigham Reading Center scores hypopneas from nasal pressure
+        as primary airflow signal (per the MESA Sleep PSG Scoring Manual)."""
         p = get_profile("mesa_shhs")
-        assert p.hypopnea.nasal_pressure_fallback is True
+        assert p.hypopnea.sensor == "nasal_pressure_primary"
 
-    def test_desat_independent(self):
-        """MESA marks events without desat coupling."""
+    def test_desat_or_arousal_gating(self):
+        """Canonical MESA clinical AHI (`nsrr_ahi_hp3u`) gates on
+        3% desat OR arousal, equivalent to AASM v2 Rule 1A."""
         p = get_profile("mesa_shhs")
-        assert p.hypopnea.desat_threshold is None
+        assert p.hypopnea.desat_threshold == 0.03
         assert p.hypopnea.desat_required is False
+        assert p.hypopnea.desat_or_arousal is True
 
     def test_emits_multiple_ahi_variants(self):
         p = get_profile("mesa_shhs")
@@ -383,9 +391,12 @@ class TestPublicAPI:
         assert "aasm_version" in meta
 
     def test_profile_metadata_for_mesa(self):
+        # v0.5.0 metadata correction: mesa_shhs now reflects the actual
+        # MESA Brigham Reading Center scoring rules (nasal-pressure-primary,
+        # 3%-desat-OR-arousal gating = nsrr_ahi_hp3u).
         meta = profile_metadata("mesa_shhs")
         assert meta["profile_family"] == "dataset"
-        assert meta["desat_threshold_pct"] is None  # desat-independent
+        assert meta["desat_threshold_pct"] == 3
 
     def test_profile_to_dict_serializable(self):
         """Profile must be JSON-serializable for audit output."""
