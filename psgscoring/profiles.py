@@ -174,6 +174,39 @@ class PostProcessingRules:
     - Sensitive:      20.0 (no extra strictness — accept borderline events)
     """
 
+    local_baseline_min_reduction_pct: float = 20.0
+    """v0.5.0: Floor for required local-baseline reduction percentage.
+
+    Previously hard-coded as the `min_reduction_pct=20.0` parameter default in
+    `respiratory._validate_local_reduction`. The MESA/SHHS validation in
+    paper v34 §S5.6 found that this floor over-rejects events on dense-cluster
+    OSA recordings; the `mesa_shhs` dataset profile lowers it to 15.0 to align
+    with NSRR-scorer behaviour. Clinical profiles keep 20.0 to preserve
+    paper v31 PSG-IPA reproducibility.
+    """
+
+    local_baseline_pre_win_s: float = 30.0
+    """v0.5.0: Pre-event window (seconds) for local-baseline-reduction
+    validation.
+
+    Previously hard-coded as the `pre_win_s=30.0` parameter default in
+    `respiratory._validate_local_reduction`. NSRR scorers use a 1-2 minute
+    visual baseline; the `mesa_shhs` profile uses 60.0 to match. Clinical
+    profiles keep 30.0.
+    """
+
+    rule1b_arousal_window_s: float = 15.0
+    """v0.5.0: Window (seconds) within which a scored arousal must follow a
+    rejected hypopnea candidate for AASM Rule~1B reinstatement.
+
+    Previously hard-coded as `RULE1B_AROUSAL_WINDOW_S = 15.0` in constants.py.
+    On dense-arousal recordings (e.g. MESA mesaid 519 with 121 reinstatements
+    at 15s) the wide window allows one arousal to couple to many rejected
+    events, inflating Rule 1B counts. The `mesa_shhs` profile uses 5.0
+    (≈ one breath cycle) to enforce closer 1:1 coupling. Clinical profiles
+    keep 15.0.
+    """
+
 
 @dataclass
 class Profile:
@@ -347,31 +380,35 @@ _cms_medicare = Profile(
 #   3. "Unsure" tag = hypopnea with >50% reduction (not uncertainty)
 _mesa_shhs = Profile(
     name="mesa_shhs",
-    display_name="MESA / NSRR (band-based, multi-variant AHI)",
+    display_name="MESA / NSRR (nasal-pressure-primary, NSRR clinical AHI)",
     family="dataset",
     aasm_version="NSRR convention (R&K staging era)",
     aasm_rule="mesa_shhs",
     description=(
         "Reproduction of scoring as documented in the MESA Sleep "
         "Polysomnography Scoring Manual (Brigham Reading Center). "
-        "Hypopneas are identified from thoracoabdominal band amplitude "
-        "reductions of ≥30%, independent of desaturation. Multiple AHI "
-        "variants (AHI_3pct, AHI_3pct_arousal, AHI_4pct) are emitted "
-        "post-hoc. The 'Unsure' tag in MESA XML denotes a hypopnea with "
-        ">50% reduction, NOT uncertainty. Use for reproduction of "
-        "NSRR-dataset analyses (MESA, SHHS, CFS, CHAT)."
+        "Hypopneas are identified from airflow signals (nasal pressure "
+        "primary, with thermistor and RIP-bands as supporting context). "
+        "Gating follows the NSRR `nsrr_ahi_hp3u` clinical AHI definition: "
+        "≥30% airflow reduction with ≥3% desaturation OR coupled arousal, "
+        "functionally equivalent to AASM v2 Rule 1A. Local-baseline "
+        "validator and Rule-1B arousal-coupling window are tuned for "
+        "NSRR-cohort scoring conventions (paper v34 §S5.6). The 'Unsure' "
+        "tag in MESA XML denotes a hypopnea with >50% reduction, NOT "
+        "uncertainty. Use for reproduction of NSRR-dataset analyses "
+        "(MESA, SHHS, CFS, CHAT)."
     ),
     citation="MESA Sleep PSG Scoring Manual, NSRR / Brigham Reading Center.",
     hypopnea=HypopneaRules(
         flow_reduction_threshold=0.30,
-        sensor="rip_bands_primary",
+        sensor="nasal_pressure_primary",
         min_duration_s=10.0,
         max_duration_s=60.0,
-        desat_threshold=None,
+        desat_threshold=0.03,
         desat_required=False,
         arousal_required=False,
-        desat_or_arousal=False,
-        nasal_pressure_fallback=True,
+        desat_or_arousal=True,
+        nasal_pressure_fallback=False,
         square_root_linearisation=True,
         output_variants=["ahi_3pct", "ahi_3pct_arousal", "ahi_4pct"],
     ),
@@ -384,9 +421,14 @@ _mesa_shhs = Profile(
         breath_level_detection=True,
         artefact_flank_exclusion=True,
         mixed_apnea_decomposition=True,
-        unsure_as_hypopnea=True,  # ← NSRR-specific,
+        unsure_as_hypopnea=True,  # ← NSRR-specific
         local_baseline_cv_threshold=0.3,
         local_baseline_strict_reduction=25.0,
+        # Paper v34 §S5.6 MESA tuning: relax local-baseline validator
+        # and shrink Rule-1B arousal window for dense-arousal recordings.
+        local_baseline_min_reduction_pct=15.0,
+        local_baseline_pre_win_s=60.0,
+        rule1b_arousal_window_s=5.0,
     ),
 )
 

@@ -86,6 +86,10 @@ def _profile_to_legacy_dict(profile) -> dict:
         # v0.4.2: profile-aware local baseline validation
         "LOCAL_BL_CV_THRESHOLD":  pp.local_baseline_cv_threshold,
         "LOCAL_BL_STRICT_RED":    pp.local_baseline_strict_reduction,
+        # v0.5.0: profile-aware floors previously hard-coded in respiratory.py
+        "LOCAL_BL_MIN_REDUCTION_PCT": pp.local_baseline_min_reduction_pct,
+        "LOCAL_BL_PRE_WIN_S":         pp.local_baseline_pre_win_s,
+        "RULE1B_AROUSAL_WINDOW_S":    pp.rule1b_arousal_window_s,
         # Audit metadata — read by pipeline.py for output["meta"]["profile"]
         "_PROFILE_NAME":          profile.name,
         "_AASM_VERSION":          profile.aasm_version,

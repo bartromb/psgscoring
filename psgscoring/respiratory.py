@@ -548,6 +548,9 @@ def detect_respiratory_events(
             signal_quality=signal_quality,  # v0.3.001 BUG2 gate,
             local_bl_cv_threshold=sp.get("LOCAL_BL_CV_THRESHOLD", 0.30),
             local_bl_strict_reduction=sp.get("LOCAL_BL_STRICT_RED", 30.0),
+            # v0.5.0: profile-aware floors previously hard-coded
+            local_bl_min_reduction_pct=sp.get("LOCAL_BL_MIN_REDUCTION_PCT", 20.0),
+            local_bl_pre_win_s=sp.get("LOCAL_BL_PRE_WIN_S", 30.0),
         )
         events = new_events
 
@@ -633,6 +636,7 @@ def reinstate_rule1b_hypopneas(
     resp_events:    list,
     hypno:          list,
     breaths:        list | None = None,
+    arousal_window_s: float | None = None,
 ) -> tuple[list, list]:
     """
     Reinstate hypopnea candidates that are coupled to an arousal
@@ -665,6 +669,11 @@ def reinstate_rule1b_hypopneas(
         sorted(b["onset_s"] for b in breaths if b.get("amplitude", 0) > 0)
         if breaths else None
     )
+    # v0.5.0: profile-aware arousal-coupling window. Caller may pass an
+    # explicit value via `arousal_window_s` (mesa_shhs profile sets 5.0);
+    # otherwise the legacy module-level constant is used.
+    _arousal_win = (RULE1B_AROUSAL_WINDOW_S if arousal_window_s is None
+                    else float(arousal_window_s))
 
     reinstated: list[dict] = []
     for cand in rejected:
@@ -674,7 +683,7 @@ def reinstate_rule1b_hypopneas(
 
         matched_arousal = next(
             (a_onset for a_onset, _ in arousal_times
-             if onset <= a_onset <= end + RULE1B_AROUSAL_WINDOW_S),
+             if onset <= a_onset <= end + _arousal_win),
             None,
         )
         if matched_arousal is None:
@@ -1090,6 +1099,8 @@ def _detect_hypopneas(
     signal_quality: dict | None = None,
     local_bl_cv_threshold: float = 0.30,        # v0.4.2: profile-aware
     local_bl_strict_reduction: float = 30.0,    # v0.4.2: profile-aware
+    local_bl_min_reduction_pct: float = 20.0,   # v0.5.0: profile-aware
+    local_bl_pre_win_s: float = 30.0,           # v0.5.0: profile-aware
 ) -> tuple[list[dict], list[dict]]:
     """Return (all_events_including_new_hypopneas, rejected_candidates)."""
     # Build apnea exclusion mask (±5 s around each confirmed apnea)
@@ -1135,6 +1146,8 @@ def _detect_hypopneas(
             # rollende basislijn (post-apnea recovery hyperpnea).
             local_valid, local_red = _validate_local_reduction(
                 hypop_env, sub_idx[0], sub_idx[-1] + 1, sf_hy,
+                min_reduction_pct=local_bl_min_reduction_pct,
+                pre_win_s=local_bl_pre_win_s,
                 stability_cv_threshold=local_bl_cv_threshold,
                 stability_strict_reduction=local_bl_strict_reduction,
             )

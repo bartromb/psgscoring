@@ -441,6 +441,7 @@ def run_pneumo_analysis(
             resp_events    = resp.get("events", []),
             hypno          = hypno,
             breaths        = resp.get("_breaths", []),
+            arousal_window_s = profile.get("RULE1B_AROUSAL_WINDOW_S"),
         )
         if reinstated:
             logger.info("[pneumo 8] Rule 1B: %d hypopneas reinstated", len(reinstated))

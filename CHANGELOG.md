@@ -1,3 +1,75 @@
+# v0.5.0 — 2026-05-03
+
+Profile-tunable local-baseline validator and Rule 1B arousal-coupling
+window. Three previously-hardcoded thresholds in `respiratory.py` are
+now exposed as fields on `PostProcessingRules`, enabling per-profile
+cohort-specific tuning. The MESA/SHHS dataset profile (`mesa_shhs`)
+gets a corrected metadata block plus the cohort-tuned values
+established in paper v34 §S5.6. Clinical profiles (`aasm_v3_*`,
+`aasm_v2_rec`, `aasm_v1_rec`, `cms_medicare`, `chicago_1999`) keep the
+released defaults; PSG-IPA reproducibility 10/10 pass — paper v31
+numerics bit-identical.
+
+## Added (profile-tunable; defaults preserve paper v31 reproducibility)
+
+- `PostProcessingRules.local_baseline_min_reduction_pct`
+  (default `20.0`). Floor for the local-baseline-validator's
+  reduction requirement, previously the hard-coded
+  `min_reduction_pct=20.0` parameter default in
+  `respiratory._validate_local_reduction`.
+- `PostProcessingRules.local_baseline_pre_win_s`
+  (default `30.0`). Pre-event window (seconds) for the local baseline
+  computation, previously hard-coded as `pre_win_s=30.0`.
+- `PostProcessingRules.rule1b_arousal_window_s`
+  (default `15.0`). Window within which a scored arousal must follow
+  a rejected hypopnea candidate for AASM Rule 1B reinstatement,
+  previously the module-level constant `RULE1B_AROUSAL_WINDOW_S=15.0`.
+
+These three fields are wired through `constants.py:_profile_to_legacy_dict`
+into the legacy SCORING_PROFILES dict, then read in
+`respiratory.detect_respiratory_events` and passed down to
+`_detect_hypopneas` → `_validate_local_reduction`. The Rule 1B
+window is plumbed via a new `arousal_window_s` parameter on
+`reinstate_rule1b_hypopneas` (kw-only; falls back to module-level
+constant if `None`), and `pipeline.py` forwards
+`profile["RULE1B_AROUSAL_WINDOW_S"]` from the legacy dict.
+
+## Changed (`mesa_shhs` profile only)
+
+- `mesa_shhs` metadata block corrected: `sensor` is now
+  `"nasal_pressure_primary"` (was `"rip_bands_primary"`, which
+  contradicted the MESA Sleep PSG Scoring Manual);
+  `desat_threshold=0.03` (was `None` which fell back to the legacy
+  default), `desat_or_arousal=True` and `desat_required=False`,
+  matching the canonical NSRR `nsrr_ahi_hp3u` clinical AHI definition
+  (≥30% airflow reduction with ≥3% desat OR coupled arousal).
+- `mesa_shhs.post_processing` cohort-tuning per paper v34 §S5.6:
+  `local_baseline_min_reduction_pct=15.0`,
+  `local_baseline_pre_win_s=60.0`,
+  `rule1b_arousal_window_s=5.0`.
+
+## Validation
+
+- **PSG-IPA reproducibility:** 10/10 tests pass (`tests/test_psgipa_reproducibility.py`).
+  Paper v31 strict/standard/sensitive numerics on SN1–SN5 are
+  bit-identical to v0.3.2 and v0.4.5 because clinical-profile
+  `PostProcessingRules` defaults are unchanged.
+- **MESA q=7 n=99 (full highest-quality stratum):** with the
+  natively-tuned `mesa_shhs` profile (no monkey-patches),
+  bias **$-0.78$/h**, MAE 6.04/h, SD 9.20/h, Pearson $r$ 0.76,
+  weighted $\kappa$ 0.40, severity-match 54%. Within Anderer 2022
+  stretch target ($|\text{bias}|<3$/h). Bit-identical to the
+  monkey-patched v0.4.5 recipe documented in paper v34 §S5.6,
+  confirming clean source-level integration.
+
+## Known limitations carried forward
+
+- The flow-detection-sensitivity gap on severe MESA recordings
+  (\S~S5.7–S5.8 of paper v34: `mesaid` 6139 with 40% never-seen
+  candidates, `mesaid` 6382 with 91%) is upstream of these
+  profile-tunable knobs and remains a v0.5.x/v0.6 algorithmic
+  rework target.
+
 # v0.4.5 — 2026-05-02
 
 External-arousal injection for dataset-faithful validation. Motivated
