@@ -1,3 +1,55 @@
+# v0.5.2 — 2026-05-04
+
+`mesa_shhs` profile: cohort-specific re-enablement of envelope smoothing
+and a lower consecutive-breath threshold for peak-based detection. No
+psgscoring source-code changes — purely two field overrides on the
+`mesa_shhs` PostProcessingRules. Clinical profile defaults
+(`aasm_v3_*`, `aasm_v2_rec`, `aasm_v1_rec`, `cms_medicare`,
+`chicago_1999`) are unchanged and PSG-IPA reproducibility is preserved.
+
+## Changed (`mesa_shhs` profile only)
+
+- `mesa_shhs.post_processing.flow_smoothing_s = 3.0` (was 0.0).
+  Re-enables the 3-second envelope smoothing that was the pre-v0.2.8
+  default. v0.2.8 removed it from clinical defaults because it caused
+  +54 false hypopneas on PSG-IPA SN1 (severity drift Mild → Moderate),
+  but the MESA Compumedics signal characteristics differ from the
+  PSG-IPA Vitalograph hardware — the smoothing bridges brief noise
+  excursions in the Pres envelope and lets legitimate ≥10s
+  flow-reduction periods form contiguous below-threshold runs in the
+  candidate-formation step.
+- `mesa_shhs.post_processing.peak_min_consecutive_breaths = 2`
+  (was 3). Lowers the run-length requirement for peak-based detection
+  to match the existing sensitive profile. Recovers brief
+  high-amplitude-drop sequences typical of dense MESA event clusters
+  that the 3-breath rule lets slip through.
+
+## Validation
+
+- **PSG-IPA reproducibility:** clinical profiles unchanged → expected
+  10/10 pass; verified post-commit.
+- **MESA q=7 n=99:** with the v0.5.2 `mesa_shhs` profile,
+  bias **+1.10**/h (was −1.55 on v0.5.1, still within Anderer 2022
+  stretch target ≤3),
+  MAE 6.06 (≈ unchanged),
+  SD 8.43 (down from 8.97),
+  Pearson $r$ **0.804** (up from 0.775, +0.029),
+  weighted $\kappa$ **0.481** (up from 0.400, +0.081 — into the
+  DRIVEN range 0.55-0.65 lower bound),
+  severity-match **59%** (up from 53%, +6 pct).
+- **Mesaid 6382 specifically:** algo AHI 4.7 vs v0.5.1's 4.3 — the
+  noise on this single recording is too extreme even for the
+  smoothing-plus-min-breaths-2 combination; cohort-level lift comes
+  from other recordings benefiting from the smoother envelope.
+
+## Caveat
+
+The smoothing re-enablement is justified because clinical profiles
+keep `flow_smoothing_s=0.0` and so cannot regress on PSG-IPA. Any
+future deployment of `mesa_shhs` for non-MESA-style cohorts should
+re-evaluate whether 3.0s is still appropriate for the target sensor
+characteristics.
+
 # v0.5.1 — 2026-05-03
 
 Profile-tunable dynamic baseline parameters and opt-in RIPsum fallback

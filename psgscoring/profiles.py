@@ -467,7 +467,6 @@ _mesa_shhs = Profile(
         stability_filter_cv=0.45,
         csr_reclassification=True,
         local_baseline_validation=True,
-        flow_smoothing_s=0.0,
         breath_level_detection=True,
         artefact_flank_exclusion=True,
         mixed_apnea_decomposition=True,
@@ -486,6 +485,19 @@ _mesa_shhs = Profile(
         baseline_percentile=85.0,
         # v0.5.1: when nasal pressure quality is poor, fall back to RIPsum.
         flow_fallback_strategy="ripsum_on_nasal_failure",
+        # v0.6 prototype: targeted at the noisy-Pres-signal failure mode
+        # documented on mesaid 6382 (paper v34 §S5.8). 3-second envelope
+        # smoothing bridges brief noise excursions so that legitimate
+        # ≥10s flow-reduction periods form continuous below-threshold
+        # runs in the candidate-formation step. Removed from clinical
+        # defaults in v0.2.8 because it caused +54 false hypopneas on
+        # PSG-IPA SN1, but PSG-IPA uses aasm_v3_rec, not mesa_shhs;
+        # this cohort-specific re-enablement is paper-defensible.
+        flow_smoothing_s=3.0,
+        # v0.6 prototype: lower the consecutive-breaths threshold for
+        # peak-based detection on dense-event MESA recordings. Default
+        # 3 matches AASM and the sensitive profile uses 2 already.
+        peak_min_consecutive_breaths=2,
     ),
 )
 
