@@ -463,6 +463,52 @@ def run_pneumo_analysis(
     else:
         output["respiratory"].setdefault("rule1b_reinstated", 0)
 
+    # ── Step 8a (v0.6.0): LightGBM candidate re-classification ────────────
+    ml_path = profile.get("ML_CLASSIFIER_PATH")
+    if ml_path:
+        logger.info("[pneumo 8a/10] LightGBM re-classification...")
+        try:
+            from .ml_classifier import apply_ml_reclassification
+            cur_accepted = output["respiratory"].get("events", [])
+            cur_rejected = output["respiratory"].get("rejected_hypopneas", [])
+            # Compute median SpO2 + thermistor type for context features
+            _spo2_for_med = spo2_data
+            if _spo2_for_med is not None:
+                valid = _spo2_for_med[(_spo2_for_med > 50) & (_spo2_for_med <= 100)]
+                _median_spo2 = float(np.median(valid)) if len(valid) else 95.0
+            else:
+                _median_spo2 = 95.0
+            _therm_name = ch.get("flow_thermistor", "") or ""
+            _therm_type = 0 if "therm" in _therm_name.lower() else 1
+            # overall_qual5 not generally available; pass 0 as neutral
+            _qual5 = 0
+            new_acc, new_rej, ml_meta = apply_ml_reclassification(
+                accepted=cur_accepted,
+                rejected=cur_rejected,
+                arousals=arousals,
+                hypno=hypno,
+                sig_dur_s=raw.times[-1],
+                tst_h=sum(1 for s in hypno if s in ("N1","N2","N3","R")) * 30 / 3600.0,
+                overall_qual5=_qual5,
+                median_spo2=_median_spo2,
+                thermistor_type=_therm_type,
+                booster_path=ml_path,
+                threshold=profile.get("ML_THRESHOLD", 0.65),
+            )
+            if ml_meta.get("status") == "ok":
+                output["respiratory"]["events"]               = new_acc
+                output["respiratory"]["rejected_hypopneas"]   = new_rej
+                output["respiratory"]["summary"]              = _compute_summary(
+                    new_acc, hypno, artifact_epochs
+                )
+                output["respiratory"]["ml_reclassification"]  = ml_meta
+            else:
+                output["respiratory"]["ml_reclassification"] = ml_meta
+                logger.warning("[ml] Skipped: %s", ml_meta.get("status"))
+        except Exception as e:
+            logger.warning("[ml] Re-classification failed: %s", e)
+            output["respiratory"]["ml_reclassification"] = {"status": f"exception: {e}"}
+
     # ── Step 8b (v0.8.16): RERA index and RDI ─────────────────────────────
     logger.info("[pneumo 8b/10] RERA and RDI computation...")
     _compute_rera_rdi(output, hypno, arousals, artifact_epochs)

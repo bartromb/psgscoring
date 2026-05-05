@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "psgscoring"
-version = "0.5.2"
+version = "0.6.0"
 description = "Open-source Python library for AASM 2.6-compliant automated polysomnography scoring"
 readme = "README.md"
 license = "BSD-3-Clause"
@@ -43,6 +43,7 @@ dependencies = [
 
 [project.optional-dependencies]
 full = ["yasa>=0.6", "lightgbm>=3.0"]
+ml   = ["lightgbm>=3.0"]
 test = ["pytest>=7.0", "hypothesis>=6.0"]
 plot = ["matplotlib>=3.5"]
 
@@ -55,3 +56,6 @@ Changelog = "https://github.com/bartromb/psgscoring/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 include = ["psgscoring*"]
+
+[tool.setuptools.package-data]
+"psgscoring" = ["data/*.txt"]

@@ -233,6 +233,26 @@ class PostProcessingRules:
     profiles keep 95.0.
     """
 
+    ml_classifier_path: Optional[str] = None
+    """v0.6.0: optional path to a LightGBM booster file for candidate-level
+    re-classification. When set, after Rule 1B reinstatement the pipeline
+    calls `psgscoring.ml_classifier.apply_ml_reclassification` to score
+    every candidate (current accepted + current rejected) and keep only
+    those with `booster.predict(...) >= ml_threshold`.
+
+    The path may be absolute or relative to the package data directory
+    (`psgscoring/data/`). The shipped model
+    `data/lightgbm_v06_q7holdout.txt` is consumed by the `mesa_shhs`
+    profile by default. Clinical profiles leave this `None` and skip
+    the re-classification step entirely (PSG-IPA paper-v31
+    reproducibility unaffected).
+    """
+
+    ml_threshold: float = 0.65
+    """v0.6.0: probability threshold for the LightGBM re-classifier.
+    Default 0.65 was the bias-near-zero operating point on the q=7
+    holdout (paper v34 §S5.6 sweep table)."""
+
     flow_fallback_strategy: str = "none"
     """v0.5.1: Behaviour when the primary nasal-pressure flow channel
     appears low-quality on a recording.
@@ -498,6 +518,11 @@ _mesa_shhs = Profile(
         # peak-based detection on dense-event MESA recordings. Default
         # 3 matches AASM and the sensitive profile uses 2 already.
         peak_min_consecutive_breaths=2,
+        # v0.6.0: LightGBM candidate re-classifier (paper v35 §S5.9).
+        # Trained on q≥5∖q=7 stratum (n=653, ~210k candidates).
+        # Threshold 0.65 = bias-near-zero operating point on q=7 holdout.
+        ml_classifier_path="data/lightgbm_v06_q7holdout.txt",
+        ml_threshold=0.65,
     ),
 )
 

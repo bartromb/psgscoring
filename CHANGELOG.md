@@ -1,3 +1,64 @@
+# v0.6.0 — 2026-05-05
+
+LightGBM candidate-level re-classifier as an optional post-detection
+step. Trained on the q$\geq$5∖q=7 stratum of the MESA cohort
+(n=653 recordings, ~210k labelled candidates) with 5-fold group-CV
+by mesaid; held out q=7 entirely from training. Default in the
+`mesa_shhs` profile; clinical profiles leave it None and skip the
+step (PSG-IPA paper-v31 reproducibility 10/10 pass).
+
+## Added
+
+- `psgscoring/ml_classifier.py` — module providing `load_booster`,
+  `apply_ml_reclassification`, and a runtime feature extractor
+  (`_extract_candidate_features`) mirroring the training-time
+  `build_lightgbm_dataset.extract_features` (32 features per
+  candidate: event-intrinsic, sleep-stage, cluster context,
+  recording-level, surrounding arousals).
+- `PostProcessingRules.ml_classifier_path: str | None = None`
+  — path (absolute or relative to package data dir) to a LightGBM
+  booster file. None disables the step (default for clinical).
+- `PostProcessingRules.ml_threshold: float = 0.65`
+  — bias-near-zero operating point established on q=7 holdout.
+- `psgscoring/data/lightgbm_v06_q7holdout.txt` — shipped 810 KB
+  trained model. Top-5 features by gain: `desaturation_pct`,
+  `n_arousals_per_h`, `stage_r`, `time_to_next_event_s`,
+  `n_arousals_within_30s`.
+- `pyproject.toml` — `ml` extra (`pip install psgscoring[ml]`)
+  installs `lightgbm>=3.0`; package-data section ships
+  `data/*.txt`.
+- `pipeline.py` — Step 8a (between Rule 1B and RERA/RDI) calls
+  `apply_ml_reclassification` when profile sets a path.
+
+## Changed
+
+- `mesa_shhs` profile sets
+  `ml_classifier_path="data/lightgbm_v06_q7holdout.txt"` and
+  `ml_threshold=0.65`. Clinical profiles unchanged.
+
+## Validation
+
+- **PSG-IPA reproducibility:** 10/10 tests pass in 11:59
+  (clinical-profile defaults unchanged → paper v31 strict / standard
+  / sensitive numerics bit-identical to v0.5.2 and earlier).
+- **MESA q=7 holdout:** with the natively-loaded `mesa_shhs`
+  profile and threshold 0.65,
+  **bias $-0.02$/h, MAE 5.34/h, Pearson $r$ 0.872, weighted $\kappa$
+  0.497, severity-match 63\%** vs the v0.5.2 rule-based baseline
+  (bias $+1.10$, $r$ 0.804, $\kappa$ 0.481, sev 59\%). Threshold
+  sweep (paper v35 §3.6.1) exposes the calibration curve from
+  0.45 to 0.70.
+- **Cross-validation:** 5-fold AUC $0.818\pm 0.006$;
+  within-distribution test AUC $0.811$.
+
+## Known limitations carried forward
+
+- Severe-AHI under-detection on Compumedics (paper v34 §S5.7–S5.8:
+  mesaid 6382 with 91% never-seen events) is upstream of this
+  re-classifier — the LightGBM cannot recover events the rule-based
+  detector never proposes. Closing that residual is targeted for
+  v0.7 (multi-channel candidate fusion or deep-feature extraction).
+
 # v0.5.2 — 2026-05-04
 
 `mesa_shhs` profile: cohort-specific re-enablement of envelope smoothing
