@@ -1,6 +1,6 @@
 # YASAFlaskified & psgscoring — Developer Handbook
 
-**Last updated:** April 2026 (v0.4.2 release) · **Versions:** YASAFlaskified v0.9.1, psgscoring v0.4.2
+**Last updated:** May 2026 (v0.6.0 release) · **Versions:** YASAFlaskified v0.9.7, psgscoring v0.6.0
 
 ---
 
@@ -21,12 +21,13 @@ psgscoring is **bundled inside** YASAFlaskified (not installed from PyPI at runt
 | Person | Role |
 |---|---|
 | Bart Rombaut, MD | Principal developer, pulmonologist, Slaapkliniek AZORG Aalst |
-| Briek Rombaut | Co-developer (MSc candidate Computer Science Eng., UGent) |
-| Cedric Rombaut | Co-developer (BSc Electrical Engineering, UGent) |
-| Raphaël Vallat, PhD | Scientific advisor, YASA creator. **NOT co-author on papers** |
-| Remington Mallett, PhD | Second scientific advisor, YASA co-maintainer |
+| Briek Rombaut | Co-developer (MSc Computer Science Eng., UGent — graduated) |
+| Cedric Rombaut | Co-developer (BSc Electrical Engineering, UGent — graduated) |
+| Raphaël Vallat, PhD | Scientific advisor, YASA creator (UC Berkeley) — **co-author candidate on paper v36** |
+| Remington Mallett, PhD | Second scientific advisor, YASA co-maintainer — **co-author candidate on paper v36** |
+| Didier Pevernagie, MD PhD | Planned senior outreach (UGent emeritus, sleep medicine) |
 
-**CRITICAL:** Vallat is NOT a co-author on psgscoring NOR on the YASAFlaskified paper. Only reference him via YASA citations (Vallat & Walker, eLife 2021). No JCSM references (paper not yet submitted).
+**Status update (May 2026):** The earlier rule "Vallat NOT co-author" has been retired. Vallat reviewed paper v36 in early May 2026, his feedback is being incorporated, and he has been formally invited to join as co-author (middle or senior position open). Same offer extended to Remy Mallett. Paper target: *Physiological Measurement* (not JCSM).
 
 ---
 
@@ -91,12 +92,24 @@ psgscoring is **bundled inside** YASAFlaskified (not installed from PyPI at runt
 │   ├── Post-Processing.md
 │   └── _Sidebar.md
 │
-└── psgscoring_lgbm/            # LightGBM training (future)
-    ├── config.py
-    ├── feature_extraction.py
-    ├── prepare_mesa.py
-    ├── train_lgbm.py
-    └── hybrid.py
+├── psgscoring_lgbm/            # LightGBM training (now integrated in v0.6.0)
+│   ├── config.py
+│   ├── feature_extraction.py   # 32 hand-crafted candidate-level features
+│   ├── prepare_mesa.py
+│   ├── train_lgbm.py           # Trained on q∈{5,6}, q=7 fully held out
+│   └── hybrid.py               # Re-classifier @ 0.65 threshold (default)
+│
+├── /home/bart/MESA-ab-test/    # MESA validation harness (NOT a git repo)
+│   ├── score_mesa.py           # Native v0.5.0 mesa_shhs profile run
+│   ├── score_mesa_yasa_e2e.py  # End-to-end YASA + psgscoring pipeline (§S7)
+│   └── score_mesa_q*_n*.json   # Per-cohort run artefacts
+│
+└── /home/bart/CODE/docs/       # Paper / supplement / cover letter
+    ├── YASAFlaskified_Paper_v36_PhysiolMeas.tex          # 20p, paper v36
+    ├── YASAFlaskified_Supplement_v36_PhysiolMeas.tex     # 18p
+    ├── cover_letter_v36_PhysiolMeas.tex
+    ├── email_vallat_reply_v36_v4.md
+    └── email_hertegonne_reply.md
 ```
 
 ### Hetzner production server (65.108.230.243)
@@ -127,15 +140,15 @@ DNS: Gandi (slaapkliniek.be, longziekten.eu, dedodedodo.be, sleepai.be/eu)
 
 **psgscoring:**
 ```
-pyproject.toml          → version = "0.4.2"
-psgscoring/__init__.py  → __version__ = "0.4.2"
+pyproject.toml          → version = "0.6.0"
+psgscoring/__init__.py  → __version__ = "0.6.0"
 ```
 Both MUST match. PyPI uses pyproject.toml.
 
 **YASAFlaskified:**
 ```
-myproject/version.py    → __version__ = "0.9.1"
-                        → PSGSCORING_VERSION = "0.4.2"
+myproject/version.py    → __version__ = "0.9.7"
+                        → PSGSCORING_VERSION = "0.6.0"
 ```
 The bundled `myproject/psgscoring/__init__.py` must also match.
 
@@ -307,6 +320,7 @@ ssh root@dedodedodo.be "cd /data/slaapkliniek && \
 | 11 | postprocess.py | CSR reclassification, mixed decomp, CII |
 | 12 | plm.py | PLM detection (AASM 2.6 + WASM) |
 | 13 | ancillary.py | HR, snore, position |
+| 14 (opt) | hybrid.py | LightGBM candidate-level re-classification (@ 0.65) |
 
 ### Key algorithms
 
@@ -314,10 +328,16 @@ ssh root@dedodedodo.be "cd /data/slaapkliniek && \
 - 6 over-counting: post-apnea baseline inflation, SpO₂ cross-contamination, Cheyne-Stokes trough, borderline classification, artefact-flank, local baseline validation
 - 6 under-counting: peak-based breath detection, SpO₂ de-blocking, extended nadir window (45s), flow smoothing, position auto-mapping, configurable profiles
 
-**3 scoring profiles:**
-- Strict: 70% threshold, 30s nadir, no smoothing, no peak detection
-- Standard (default): 70%, 45s nadir, 3s smoothing, peak detection ON
-- Sensitive: 75% (≥25% reduction), 45s nadir, 5s smoothing, peak detection ON
+**Scoring profiles (v0.6.0):**
+- `strict`: 70% threshold, 30s nadir, no smoothing, no peak detection
+- `standard` (default): 70%, 45s nadir, 3s smoothing, peak detection ON
+- `sensitive`: 75% (≥25% reduction), 45s nadir, 5s smoothing, peak detection ON
+- `aasm_v2_rec`: PSG-IPA / clinical AASM v2 baseline
+- `mesa_shhs`: native NSRR `mesa_shhs` hp3u convention (v0.5.0+, bit-identical to the v0.4.5 monkey-patched recipe)
+- `chicago_1999`: SHHS-1 pre-AASM convention (in development)
+- `cms`: CMS reimbursement profile
+
+**Optional LightGBM re-classifier (v0.6.0):** 32 hand-crafted candidate-level features → trained on MESA q∈{5,6} stratum, q=7 fully held out. Threshold 0.65 by default. Runs after rule-based detection; preserves event-level structure but reclassifies candidates as keep/drop. On MESA q=7 honest holdout (n=92): bias −0.02/h, κ 0.50 (vs scorer-faithful baseline bias −0.78 to +1.10/h, κ 0.40-0.48).
 
 **Effort classification chain:** Hilbert phase angle (Rule 0) → 6-rule decision tree → ECG-derived TECG (Berry 2019) → spectral effort classifier
 
@@ -389,6 +409,15 @@ User uploads EDF → app.py → Redis queue → tasks.py worker
 | **Hardcoded fallbacks** | v0.4.1 had hardcoded 0.30 in `_validate_local_reduction` that ignored profile config | Always use profile dict; check for hidden hardcoded values when refactoring |
 | **Arousal index location** | `arousal_index` is in `arousal.summary`, not `respiratory.summary` | Check correct dict path |
 | **ESS data flow** | 3 separate breaks: form read, whitelist, task extraction | All three must be patched together |
+| **YASA Hypnogram API** | `Hypnogram.labels` returns 7 categorical level names; `.hypno` returns per-epoch series | Use `list(hypno.hypno)` for YASA 0.7, fallback `tolist()` for 0.6 |
+| **MESA worker OOM** | 28 workers × ~6.5GB anon-rss > 128GB RAM → BrokenProcessPool | Cap at `--workers 12` for end-to-end MESA runs |
+| **MESA missing EDFs** | mesaids 93, 255, 1662, 2544, 2565, 3605, 5013 not on local disk | Report n=92/99 transparently; do not fail the run |
+| **Cross-document `\ref`** | `\ref{sec:limitations}` from supplement to main paper is undefined | Use hard text "Section~5.3 (Limitations) of the main paper" |
+| **PyPI venv outside project** | Project venv pollutes build artefacts and resolves wrong deps | Use dedicated `~/venv-pypi` outside the project tree |
+| **edfio drops annotations** | edfio 0.4.13 silently writes plain EDF when EDF+ requested | Use pyedflib with `FILETYPE_EDFPLUS` |
+| **i18n t-shadowing** | `t = date.today()` shadows the `t()` translation function → total PDF failure | Never name local vars `t` |
+| **sklearn pinning** | LightGBM trained on sklearn 1.4 fails to load with sklearn 1.5+ | Pin sklearn version in pyproject.toml |
+| **Classification ordering** | Paradoxical breathing must be checked before effort-absent | Otherwise obstructive → central misclassification |
 
 ---
 
@@ -396,66 +425,64 @@ User uploads EDF → app.py → Redis queue → tasks.py worker
 
 | Dataset | n | Role | Status |
 |---|---|---|---|
-| PSG-IPA (PhysioNet) | 5 rec, 60 sessions | External validation + benchmarking | ✅ Complete |
+| PSG-IPA (PhysioNet) | 5 rec × 12 scorers | External validation + benchmarking | ✅ Complete (paper v36 §3) |
 | iSLEEPS (stroke) | 96 patients | Cross-population validation | ✅ Complete |
-| MESA (NSRR) | ~2,056 PSGs | Training (LightGBM) + large-scale validation | ⏳ DUA pending |
-| AZORG (prospective) | ≥50 PSGs | Independent clinical validation | ⏳ EC approval pending |
+| MESA q=7 (NSRR) | 99 (92 EDFs on disk) | Honest LightGBM holdout + e2e §S7 | ✅ Complete (paper v36 §4 + §S7) |
+| MESA q∈{2,3,4} (NSRR) | 100 random | Graceful-degradation §S6 | ✅ Complete |
+| MESA q∈{5,6} (NSRR) | ~training stratum | LightGBM training | ✅ Complete |
+| SHHS-1 (NSRR) | smoke-test pending | Chicago 1999 profile validation | ⏳ Blocked on POOR-quality robustness bug |
+| AZORG-YASA-2026-001 | ≥50 PSGs | Single-centre prospective | ⏳ Protocol v7.0 dept-head approved; EC approval expected this week |
+| UZ Gent (UGent) | TBD | Possible second clinical site | ⏳ Hertegonne contact ongoing (May 2026) |
 
-### Key results
+### Paper v36 — headline results (PSG-IPA + MESA q=7)
 
-| Metric | PSG-IPA | iSLEEPS |
-|---|---|---|
-| AHI bias | +1.6/h | — |
-| Correlation | r = 0.990 | — |
-| Event-level F1 (severe) | 0.890 | — |
-| Event-level Δt (severe) | 2.3 s | — |
-| MAE (normal/mild) | — | 3.3/h |
-| Severity concordance | 75% (4/5) | — |
-
-
-## 10b. Validation Results — v0.4.2 (April 2026)
-
-After the architectural refactor (profile-aware local baseline validation),
-re-validation on PSG-IPA shows:
-
-| Metric | v0.2.951 (paper v31) | v0.4.2 (current) | Note |
+| Metric | PSG-IPA | MESA q=7 (rule-based) | MESA q=7 (LightGBM @0.65) |
 |---|---|---|---|
-| AHI bias | +1.8/h | +2.9/h | Slight increase in over-counting |
-| LoA | [-2.1, +5.7] | [-1.54, +7.35] | Wider but symmetric |
-| Pearson r | 0.997 | 0.994 | Negligible change |
-| Weighted κ | 0.91 | 0.800 | Above 0.7 protocol target |
-| F1 SN3 | 0.886 | 0.860 | Comparable |
-| Mean Δt SN3 | 2.0 s | **1.39 s** | **Improved** |
-| Severity concordance | 5/5 | 4/5 | SN2 now Mild (was Normal) |
+| AHI bias | +1.6/h | −0.78 to +1.10/h (per profile) | −0.02/h |
+| Pearson r | 0.997 | 0.84 | 0.87 |
+| Weighted κ | 0.91 | 0.40–0.48 | 0.50 |
+| Event-level F1 (severe rec.) | 0.886 | — | — |
+| Mean Δt (severe rec.) | < 2 s | — | — |
+| ROC AUC @ AHI≥5/15/30 | — | 0.88–0.93 | 0.88–0.93 |
 
-Note: SN2 is a borderline recording where the 12 PSG-IPA scorers
-themselves are split (8 Normal, 4 Mild). The v0.4.2 classification
-of Mild is within the scorer range.
+### End-to-end pipeline (§S7) — YASA staging + arousal detector + psgscoring
 
-The slight κ decrease reflects the architectural shift from a
-hardcoded heuristic to profile-driven parameters. The architecture
-is now consistent and generalizable; future calibration on MESA
-should improve performance on diverse populations.
+Same q=7 cohort, n=92, NSRR upstream replaced by YASA + internal EEG-arousal detector:
+
+| Metric | Manual upstream | End-to-end | Δ |
+|---|---|---|---|
+| AHI bias | within ±3.5/h | within ±3.5/h | preserved |
+| Pearson r | 0.80 | 0.66 | −0.14 |
+| Severity match | 59% | 51% | −8 pp |
+| |ΔTST| | — | 0.29 h | YASA staging is fine |
+| |Δarousals| | — | 71 | Variance locus |
+
+**Interpretation:** The locus of e2e degradation is the EEG-arousal detector, not YASA staging. This drives the Future Work item on arousal-detector improvement (parameter tuning / candidate-level re-classifier / 1D-CNN; see §5.5 of paper v36).
 
 ---
 
-## 11. Pending Items
+## 11. Pending Items (May 2026)
 
 | Priority | Item | Status |
 |---|---|---|
-| ✅ DONE | Deploy v0.9.1 to Hetzner | Done 2026-04-29 |
-| ✅ DONE | psgscoring v0.4.2 architectural refactor | Done 2026-04-29 |
-| ✅ DONE | YASAFlaskified PDF blank page fix | Done 2026-04-29 |
-| HIGH | psgscoring v0.4.2 on PyPI | Run scripts/05_pypi_psgscoring.sh |
-| HIGH | YASAFlaskified v0.9.1 on GitHub | Run scripts/04_github_yasaflaskified.sh |
-| HIGH | psgscoring v0.4.2 on GitHub | Run scripts/03_github_psgscoring.sh |
-| HIGH | Wiki v0.4.2 push | Apply wiki diff after GitHub deploy |
-| MEDIUM | MESA DUA approval | Waiting on NSRR |
-| MEDIUM | MESA download + validation | DUA |
-| MEDIUM | EC submission AZORG | Piet Vercauter approved |
-| LOW | Mail Didier Pevernagie | Draft ready |
-| LOW | LightGBM training on MESA | After validation |
-| LOW | Re-enable epoch signal examples | Fix alignment first |
+| ✅ DONE | psgscoring v0.5.0 native `mesa_shhs` profile | Bit-identical to v0.4.5 monkey-patched recipe |
+| ✅ DONE | psgscoring v0.6.0 on PyPI + GitHub | Optional LightGBM re-classifier shipped |
+| ✅ DONE | YASAFlaskified v0.9.7 on Hetzner | Production deployment current |
+| ✅ DONE | MESA q=7 LightGBM honest holdout (n=92) | bias −0.02/h, κ 0.50 |
+| ✅ DONE | End-to-end §S7 (YASA + psgscoring on q=7) | bias ±3.5/h, r 0.66 |
+| ✅ DONE | Paper v36 + supplement v36 + cover letter | 20p + 18p + 2p, clean compile |
+| ✅ DONE | Vallat paper v36 review round 1 | Feedback received early May 2026 |
+| ✅ DONE | UGent (Hertegonne) initial outreach | Reply received 2026-05-09 |
+| HIGH | Send paper v36 reply to Vallat (v4) | `email_vallat_reply_v36_v4.md` ready |
+| HIGH | Send reply to Hertegonne (UGent) | `email_hertegonne_reply.md` ready |
+| HIGH | Humanisation pass on paper v36 (weekend) | Per Vallat feedback point 1 |
+| HIGH | EC submission AZORG-YASA-2026-001 | Approval expected this week (May 2026); inclusion start June |
+| MEDIUM | Confirm Vallat / Mallett co-author position | Awaiting reply |
+| MEDIUM | Pevernagie senior-author outreach | Draft ready |
+| MEDIUM | SHHS-1 smoke test | Blocked on POOR-quality robustness bug |
+| MEDIUM | Arousal-detector improvement (Future Work §5.5) | Optie A: parameter tuning vs NSRR labels |
+| LOW | Hybrid CNN + GBM (next-paper scope) | Sketched in §5.5 |
+| LOW | Re-enable epoch signal examples in PDF | Fix alignment first |
 
 ---
 
@@ -475,7 +502,7 @@ cat ~/Desktop/GITHUB/github_YASAFlaskified/myproject/version.py
 ssh root@dedodedodo.be "docker compose -f /data/slaapkliniek/docker-compose.yml exec app python -c 'from version import __version__; print(__version__)'"
 
 # PyPI
-pip index versions psgscoring
+pip index versions psgscoring   # expect 0.6.0 latest
 ```
 
 ### Full deploy cycle (all components)
@@ -510,17 +537,24 @@ ssh root@dedodedodo.be "cd /data/slaapkliniek && unzip -qo YASAFlaskified_*.zip 
 When starting a new Claude conversation about this project, provide:
 
 1. **This document** (as upload or project file)
-2. **Current versions**: psgscoring vX.X.X, YASAFlaskified vX.X.X
+2. **Current versions**: psgscoring v0.6.0, YASAFlaskified v0.9.7
 3. **What you're working on** (code, paper, protocol, deployment)
 4. **Any files needed** (ZIP of current code, specific .py files, .tex files)
 
 Key context to mention:
-- Vallat is NOT a co-author (only YASA references)
-- No JCSM reference (paper not submitted)
+- Paper v36 target: *Physiological Measurement* (NOT JCSM — that target was retired)
+- **Vallat IS a co-author candidate** on paper v36 (rule changed May 2026); Mallett same offer
+- Pevernagie is the planned senior-author outreach
 - Six over-counting corrections (not five)
-- Briek → MSc candidate (not BSc)
+- Briek → MSc graduated; Cedric → BSc graduated
 - pyproject.toml build-backend = "setuptools.build_meta"
 - Docker: always build --no-cache, never restart for Python changes
-- PyPI venv: `source ~/venv-pypi/bin/activate`
-- v0.4.2: local baseline validation is profile-aware via 2 new fields
-  in PostProcessingRules (cv_threshold, strict_reduction)
+- PyPI venv: `source ~/venv-pypi/bin/activate` — outside the project tree
+- v0.5.0: native `mesa_shhs` profile (bit-identical to v0.4.5 monkey-patched recipe)
+- v0.6.0: optional LightGBM candidate-level re-classifier (32 features, threshold 0.65)
+- MESA q=7 honest holdout n=92 (7 EDFs missing); LightGBM trained on q∈{5,6}
+- §S7 end-to-end variance locates in EEG-arousal detector, not YASA staging
+- AZORG-YASA-2026-001 protocol v7.0 (dept-head approved); EC approval expected week of 2026-05-09
+- UGent / Hertegonne: possible second clinical site, contact ongoing
+- No commit/PR attribution to Claude/AI in messages or PR bodies
+- Memory location: `/home/bart/.claude/projects/-home-bart-CODE/memory/`
