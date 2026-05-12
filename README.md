@@ -121,5 +121,4 @@ BSD-3-Clause. See [LICENSE](LICENSE).
 
 ---
 
-*Developed at Slaapkliniek AZORG, Aalst, Belgium.*
-*Contact: bart.rombaut@azorg.be*
+*Contact: bart.rombaut@gmail.com*
