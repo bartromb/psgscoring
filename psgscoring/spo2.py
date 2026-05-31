@@ -283,9 +283,13 @@ def compute_hypoxic_burden(
         spo2[(spo2 < 50) | (spo2 > 100)] = np.nan
         n_spo2 = len(spo2)
 
-        # Total sleep time
+        # Total sleep time — require both in-sleep AND valid SpO2 so the
+        # numerator (whose per-event integration already drops NaN samples)
+        # and the denominator span the same time set. Without this, sensor
+        # dropouts during sleep inflate the denominator and deflate HB.
+        # Matches the de Chazal calcHB.m reference (HourSleep). See #2.
         sleep_mask = build_sleep_mask(hypno, sf_spo2, n_spo2)
-        tst_h = float(np.sum(sleep_mask)) / sf_spo2 / 3600
+        tst_h = float(np.sum(sleep_mask & ~np.isnan(spo2))) / sf_spo2 / 3600
         if tst_h < 0.1:
             return result
 
