@@ -1,0 +1,541 @@
+{
+  "apnea_clean": {
+    "events": [
+      {
+        "conf": 0.95,
+        "d": 12.3,
+        "t": 61.6,
+        "type": "obstructive"
+      },
+      {
+        "conf": 0.95,
+        "d": 12.5,
+        "t": 121.6,
+        "type": "obstructive"
+      },
+      {
+        "conf": 0.9,
+        "d": 12.4,
+        "t": 241.7,
+        "type": "central"
+      },
+      {
+        "conf": 0.95,
+        "d": 12.4,
+        "t": 301.6,
+        "type": "obstructive"
+      },
+      {
+        "conf": 0.9,
+        "d": 12.3,
+        "t": 361.7,
+        "type": "central"
+      }
+    ],
+    "profile": "aasm_v3_rec",
+    "quality": {
+      "channels": {
+        "ABDOMEN": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "FLOW": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "SPO2": {
+          "clip_pct": 90.1,
+          "flat_pct": 90.0,
+          "grade": "poor"
+        },
+        "THORAX": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        }
+      },
+      "overall_grade": "acceptable"
+    },
+    "resp": {
+      "ahi_excl_noise": 31.6,
+      "ahi_total": 31.6,
+      "n_by_type": {
+        "central": 2,
+        "obstructive": 3
+      },
+      "n_events": 5,
+      "n_rejected_hypopneas": 0,
+      "oahi_all": 18.9,
+      "oahi_conf60": 18.9,
+      "rdi": null,
+      "rule1b_reinstated": 0,
+      "success": true
+    },
+    "spo2": {
+      "hypoxic_burden": 0.2,
+      "min_spo2": 91.0,
+      "n_desaturations": 5,
+      "odi_3pct": 31.6,
+      "odi_4pct": 0.0
+    }
+  },
+  "cms_arousal": {
+    "events": [
+      {
+        "conf": 0.53,
+        "d": 10.3,
+        "t": 30.0,
+        "type": "hypopnea"
+      },
+      {
+        "conf": 0.69,
+        "d": 25.8,
+        "t": 62.3,
+        "type": "hypopnea_mixed"
+      },
+      {
+        "conf": 0.4,
+        "d": 14.4,
+        "t": 119.2,
+        "type": "hypopnea"
+      },
+      {
+        "conf": 0.7,
+        "d": 35.8,
+        "t": 167.5,
+        "type": "hypopnea"
+      },
+      {
+        "conf": 0.7,
+        "d": 19.1,
+        "t": 296.1,
+        "type": "hypopnea"
+      },
+      {
+        "conf": 0.43,
+        "d": 33.6,
+        "t": 359.2,
+        "type": "hypopnea"
+      }
+    ],
+    "profile": "cms_medicare",
+    "quality": {
+      "channels": {
+        "ABDOMEN": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "FLOW": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "SPO2": {
+          "clip_pct": 90.1,
+          "flat_pct": 90.0,
+          "grade": "poor"
+        },
+        "THORAX": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        }
+      },
+      "overall_grade": "acceptable"
+    },
+    "resp": {
+      "ahi_excl_noise": 37.9,
+      "ahi_total": 37.9,
+      "n_by_type": {
+        "hypopnea": 5,
+        "hypopnea_mixed": 1
+      },
+      "n_events": 6,
+      "n_rejected_hypopneas": 15,
+      "oahi_all": 37.9,
+      "oahi_conf60": 18.9,
+      "rdi": 50.5,
+      "rule1b_reinstated": 2,
+      "success": true
+    },
+    "spo2": {
+      "hypoxic_burden": 12.5,
+      "min_spo2": 91.0,
+      "n_desaturations": 5,
+      "odi_3pct": 31.6,
+      "odi_4pct": 0.0
+    }
+  },
+  "flat_dropout": {
+    "events": [
+      {
+        "conf": 0.95,
+        "d": 12.3,
+        "t": 61.6,
+        "type": "obstructive"
+      },
+      {
+        "conf": 0.95,
+        "d": 12.5,
+        "t": 121.6,
+        "type": "central"
+      },
+      {
+        "conf": 0.95,
+        "d": 32.5,
+        "t": 195.8,
+        "type": "central"
+      },
+      {
+        "conf": 0.95,
+        "d": 12.4,
+        "t": 301.6,
+        "type": "obstructive"
+      },
+      {
+        "conf": 0.9,
+        "d": 12.3,
+        "t": 361.7,
+        "type": "central"
+      }
+    ],
+    "profile": "aasm_v3_rec",
+    "quality": {
+      "channels": {
+        "ABDOMEN": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "FLOW": {
+          "clip_pct": 0.0,
+          "flat_pct": 5.8,
+          "grade": "acceptable"
+        },
+        "SPO2": {
+          "clip_pct": 90.1,
+          "flat_pct": 90.0,
+          "grade": "poor"
+        },
+        "THORAX": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        }
+      },
+      "overall_grade": "acceptable"
+    },
+    "resp": {
+      "ahi_excl_noise": 31.6,
+      "ahi_total": 31.6,
+      "n_by_type": {
+        "central": 3,
+        "obstructive": 2
+      },
+      "n_events": 5,
+      "n_rejected_hypopneas": 0,
+      "oahi_all": 25.3,
+      "oahi_conf60": 25.3,
+      "rdi": null,
+      "rule1b_reinstated": 0,
+      "success": true
+    },
+    "spo2": {
+      "hypoxic_burden": 0.2,
+      "min_spo2": 91.0,
+      "n_desaturations": 5,
+      "odi_3pct": 31.6,
+      "odi_4pct": 0.0
+    }
+  },
+  "hypopnea_clean": {
+    "events": [
+      {
+        "conf": 0.53,
+        "d": 10.3,
+        "t": 30.0,
+        "type": "hypopnea"
+      },
+      {
+        "conf": 0.69,
+        "d": 25.8,
+        "t": 62.3,
+        "type": "hypopnea_mixed"
+      },
+      {
+        "conf": 0.4,
+        "d": 14.4,
+        "t": 119.2,
+        "type": "hypopnea"
+      },
+      {
+        "conf": 0.43,
+        "d": 33.6,
+        "t": 359.2,
+        "type": "hypopnea"
+      }
+    ],
+    "profile": "aasm_v3_rec",
+    "quality": {
+      "channels": {
+        "ABDOMEN": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "FLOW": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "SPO2": {
+          "clip_pct": 90.1,
+          "flat_pct": 90.0,
+          "grade": "poor"
+        },
+        "THORAX": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        }
+      },
+      "overall_grade": "acceptable"
+    },
+    "resp": {
+      "ahi_excl_noise": 25.3,
+      "ahi_total": 25.3,
+      "n_by_type": {
+        "hypopnea": 3,
+        "hypopnea_mixed": 1
+      },
+      "n_events": 4,
+      "n_rejected_hypopneas": 15,
+      "oahi_all": 25.3,
+      "oahi_conf60": 6.3,
+      "rdi": 25.3,
+      "rule1b_reinstated": 0,
+      "success": true
+    },
+    "spo2": {
+      "hypoxic_burden": 6.3,
+      "min_spo2": 91.0,
+      "n_desaturations": 5,
+      "odi_3pct": 31.6,
+      "odi_4pct": 0.0
+    }
+  },
+  "poor_quality": {
+    "events": [
+      {
+        "conf": 0.9,
+        "d": 10.0,
+        "t": 41.5,
+        "type": "central"
+      },
+      {
+        "conf": 0.9,
+        "d": 17.2,
+        "t": 51.5,
+        "type": "central"
+      },
+      {
+        "conf": 0.9,
+        "d": 10.0,
+        "t": 68.7,
+        "type": "central"
+      },
+      {
+        "conf": 0.9,
+        "d": 10.0,
+        "t": 78.7,
+        "type": "central"
+      },
+      {
+        "conf": 0.9,
+        "d": 10.0,
+        "t": 88.7,
+        "type": "central"
+      },
+      {
+        "conf": 0.9,
+        "d": 10.0,
+        "t": 98.7,
+        "type": "central"
+      },
+      {
+        "conf": 0.9,
+        "d": 10.0,
+        "t": 108.7,
+        "type": "central"
+      },
+      {
+        "conf": 0.9,
+        "d": 10.0,
+        "t": 118.7,
+        "type": "central"
+      },
+      {
+        "conf": 0.9,
+        "d": 10.0,
+        "t": 128.7,
+        "type": "central"
+      },
+      {
+        "conf": 0.9,
+        "d": 10.0,
+        "t": 138.7,
+        "type": "central"
+      },
+      {
+        "conf": 0.9,
+        "d": 10.0,
+        "t": 148.7,
+        "type": "central"
+      },
+      {
+        "conf": 0.9,
+        "d": 81.3,
+        "t": 158.7,
+        "type": "central"
+      },
+      {
+        "conf": 0.95,
+        "d": 12.4,
+        "t": 301.6,
+        "type": "central"
+      },
+      {
+        "conf": 0.9,
+        "d": 12.3,
+        "t": 361.7,
+        "type": "central"
+      }
+    ],
+    "profile": "aasm_v3_rec",
+    "quality": {
+      "channels": {
+        "ABDOMEN": {
+          "clip_pct": 0.0,
+          "flat_pct": 33.3,
+          "grade": "poor"
+        },
+        "FLOW": {
+          "clip_pct": 0.0,
+          "flat_pct": 33.3,
+          "grade": "poor"
+        },
+        "SPO2": {
+          "clip_pct": 90.1,
+          "flat_pct": 90.0,
+          "grade": "poor"
+        },
+        "THORAX": {
+          "clip_pct": 0.0,
+          "flat_pct": 33.3,
+          "grade": "poor"
+        }
+      },
+      "overall_grade": "poor"
+    },
+    "resp": {
+      "ahi_excl_noise": 88.4,
+      "ahi_total": 88.4,
+      "n_by_type": {
+        "central": 14
+      },
+      "n_events": 14,
+      "n_rejected_hypopneas": 0,
+      "oahi_all": 6.3,
+      "oahi_conf60": 6.3,
+      "rdi": null,
+      "rule1b_reinstated": 0,
+      "success": true
+    },
+    "spo2": {
+      "hypoxic_burden": 9.7,
+      "min_spo2": 91.0,
+      "n_desaturations": 5,
+      "odi_3pct": 31.6,
+      "odi_4pct": 0.0
+    }
+  },
+  "spo2_dropout": {
+    "events": [
+      {
+        "conf": 0.53,
+        "d": 10.3,
+        "t": 30.0,
+        "type": "hypopnea"
+      },
+      {
+        "conf": 0.69,
+        "d": 25.8,
+        "t": 62.3,
+        "type": "hypopnea_mixed"
+      },
+      {
+        "conf": 0.4,
+        "d": 14.4,
+        "t": 119.2,
+        "type": "hypopnea"
+      },
+      {
+        "conf": 0.43,
+        "d": 33.6,
+        "t": 359.2,
+        "type": "hypopnea"
+      }
+    ],
+    "profile": "aasm_v3_rec",
+    "quality": {
+      "channels": {
+        "ABDOMEN": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "FLOW": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "SPO2": {
+          "clip_pct": 91.0,
+          "flat_pct": 91.0,
+          "grade": "poor"
+        },
+        "THORAX": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        }
+      },
+      "overall_grade": "acceptable"
+    },
+    "resp": {
+      "ahi_excl_noise": 25.3,
+      "ahi_total": 25.3,
+      "n_by_type": {
+        "hypopnea": 3,
+        "hypopnea_mixed": 1
+      },
+      "n_events": 4,
+      "n_rejected_hypopneas": 15,
+      "oahi_all": 25.3,
+      "oahi_conf60": 6.3,
+      "rdi": 25.3,
+      "rule1b_reinstated": 0,
+      "success": true
+    },
+    "spo2": {
+      "hypoxic_burden": 6.3,
+      "min_spo2": 91.0,
+      "n_desaturations": 4,
+      "odi_3pct": 25.3,
+      "odi_4pct": 0.0
+    }
+  }
+}
