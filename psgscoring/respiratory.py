@@ -67,6 +67,8 @@ def _detect_signal_gaps(
     (gap_exclusion_mask, n_gaps_detected)
     """
     n = len(flow_data)
+    if n == 0:
+        return np.zeros(0, dtype=bool), 0
     excl = np.zeros(n, dtype=bool)
     min_samp = int(min_gap_s * sf)
     post_samp = int(postgap_excl_s * sf)

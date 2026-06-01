@@ -149,10 +149,19 @@ def _count_flat_samples(data: np.ndarray, sf: float,
     std_w = np.sqrt(var_w)
 
     flat_mask = std_w < threshold
-    # Each True in flat_mask represents a window of `win` samples
-    # Count unique flat samples (approximate)
-    return int(np.sum(flat_mask) * win / max(len(flat_mask), 1)
-               * len(flat_mask))
+    # Each True at index i means data[i : i+win] is flat. Count the union
+    # of those (overlapping) spans — the number of distinct flat samples —
+    # via a difference array so overlapping windows are not double-counted.
+    # (The old formula reduced to sum(flat_mask) * win, overcounting by ~win
+    #  and letting flat_pct exceed 100%.)
+    if not np.any(flat_mask):
+        return 0
+    starts = np.flatnonzero(flat_mask)
+    delta = np.zeros(n + 1, dtype=np.int64)
+    np.add.at(delta, starts, 1)
+    np.add.at(delta, np.minimum(starts + win, n), -1)
+    covered = np.cumsum(delta[:-1]) > 0
+    return int(covered.sum())
 
 
 def _count_clipped(data: np.ndarray) -> int:

@@ -178,10 +178,15 @@ class PLMSummary(TypedDict, total=False):
     """
     n_lm_total: int
     n_lm_sleep: int
-    n_respiratory_associated: int
-    n_plm_series: int
+    n_lm_wake: int
+    n_resp_associated: int
+    n_plm_eligible: int
     n_plm: int                    # PLMs in series
-    plmi: float                   # PLM index (/h sleep)
+    n_plm_series: int
+    lm_index: float               # leg-movement index (/h sleep)
+    plm_index: float              # PLM index (/h sleep)
+    plm_severity: str
+    total_sleep_h: float
 
 
 class PositionSummary(TypedDict, total=False):

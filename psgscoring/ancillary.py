@@ -57,7 +57,8 @@ def analyze_position(
             sleep_time[name] = safe_r(dur_min)
             n_ev = sum(
                 1 for ev in resp_events
-                if pos_per_epoch[ev.get("epoch", 0)] == code
+                if 0 <= ev.get("epoch", 0) < len(pos_per_epoch)
+                and pos_per_epoch[ev.get("epoch", 0)] == code
             )
             dur_h         = dur_min / 60
             ahi_pos[name] = safe_r(n_ev / dur_h) if dur_h > 0 else 0
