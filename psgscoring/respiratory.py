@@ -585,11 +585,14 @@ def detect_respiratory_events(
                         # Stabiele ademhaling: dit is waarschijnlijk normale variatie
                         n_stable_rejected += 1
                         rejected.append({
+                            # type/stage/epoch are required by downstream
+                            # consumers of rejected candidates: ML promotion
+                            # (mesa_shhs) feeds them straight into _compute_summary
+                            # (reads ["type"]) and Rule 1B reinstatement reads
+                            # ["stage"]/["epoch"]. Omitting them crashes those paths.
+                            "type": ev.get("type", "hypopnea"),
                             "onset_s": ev["onset_s"],
                             "duration_s": ev["duration_s"],
-                            # stage/epoch are required by reinstate_rule1b_hypopneas;
-                            # without them Rule 1B crashes when a stability-rejected
-                            # candidate coincides with an arousal.
                             "stage": ev.get("stage"),
                             "epoch": ev.get("epoch"),
                             "desat": ev.get("desat"),
@@ -1167,6 +1170,7 @@ def _detect_hypopneas(
             )
             if not local_valid:
                 rejected.append({
+                    "type":       "hypopnea",
                     "onset_s":    safe_r(onset_s),
                     "duration_s": safe_r(sub_dur),
                     "stage":      stage,
@@ -1191,6 +1195,7 @@ def _detect_hypopneas(
 
             if not rule1a:
                 rejected.append({
+                    "type":       "hypopnea",
                     "onset_s":    safe_r(onset_s),
                     "duration_s": safe_r(sub_dur),
                     "stage":      stage,
