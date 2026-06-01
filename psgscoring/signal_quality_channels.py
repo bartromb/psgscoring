@@ -9,6 +9,7 @@ Detects:
 
 v0.8.30 — AZORG Slaapkliniek
 """
+from __future__ import annotations  # PEP 604 `X | None` annotations on Python 3.9
 
 import numpy as np
 from scipy import signal as sp_signal
