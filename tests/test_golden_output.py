@@ -26,6 +26,17 @@ Inspect the diff, confirm the change is expected, then re-bless:
     python tests/test_golden_output.py bless      # regenerate the baseline
     python tests/test_golden_output.py show       # print current summaries
 
+Running under pytest
+--------------------
+This is a same-environment *characterization* test: the baseline is blessed on
+one interpreter, so it is NOT part of the default CI matrix (pinning exact
+numbers across an unpinned 4-version matrix is inherently fragile). It is
+SKIPPED unless PSGSCORING_GOLDEN is set:
+
+    PSGSCORING_GOLDEN=1 pytest tests/test_golden_output.py -v
+
+The bless/show CLI above always runs regardless of that variable.
+
 Caveat: an mne.RawArray has a single shared sample rate for all channels, so
 these cases do NOT exercise the *mixed* sample-rate hypopnea-baseline branch
 (review finding #4). Use scripts/golden_snapshot.py on real EDFs for that.
@@ -34,6 +45,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 import warnings
 from collections import Counter
@@ -310,6 +322,12 @@ def load_golden() -> dict:
 # The test
 # ─────────────────────────────────────────────────────────────────────────
 
+@pytest.mark.skipif(
+    not os.environ.get("PSGSCORING_GOLDEN"),
+    reason="golden-output characterization test — set PSGSCORING_GOLDEN=1 to run. "
+           "Kept out of the default CI matrix because pinning exact scoring "
+           "output across an unpinned multi-version matrix is fragile.",
+)
 @pytest.mark.parametrize("name", list(CASES))
 def test_golden_output(name):
     golden = load_golden()

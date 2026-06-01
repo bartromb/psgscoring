@@ -23,7 +23,18 @@ against the blessed baseline `synthetic_baseline.json`.
 | `cms_arousal`    | `cms_medicare` profile + arousal events / Rule 1B (finding #3) |
 | `poor_quality`   | degraded channels → `channel_quality` grading (finding #2) |
 
-The test runs as part of `pytest`. When an **intended** output-changing fix
+This is a same-environment **characterization** test, so it is **not part of
+the default CI matrix** — pinning exact scoring output across an unpinned
+four-version Python matrix is inherently fragile (the precise numbers, and even
+whether the channel-quality module runs cleanly, shift with dependency
+versions). It is **skipped unless `PSGSCORING_GOLDEN` is set**:
+
+```bash
+PSGSCORING_GOLDEN=1 pytest tests/test_golden_output.py -v
+```
+
+Run it locally before/after any output-changing fix, or wire it into a
+dedicated pinned-environment CI job. When an **intended** output-changing fix
 lands, the relevant case(s) fail with a readable diff. Confirm the change is
 expected, then re-bless:
 
