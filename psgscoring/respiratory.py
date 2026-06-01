@@ -587,6 +587,13 @@ def detect_respiratory_events(
                         rejected.append({
                             "onset_s": ev["onset_s"],
                             "duration_s": ev["duration_s"],
+                            # stage/epoch are required by reinstate_rule1b_hypopneas;
+                            # without them Rule 1B crashes when a stability-rejected
+                            # candidate coincides with an arousal.
+                            "stage": ev.get("stage"),
+                            "epoch": ev.get("epoch"),
+                            "desat": ev.get("desat"),
+                            "min_spo2": ev.get("min_spo2"),
                             "reject_reason": f"stable_breathing_cv_{local_cv:.2f}<{_STABILITY_CV:.2f}",
                         })
                         continue
