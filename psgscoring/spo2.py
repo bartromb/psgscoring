@@ -552,15 +552,29 @@ def detect_desaturations(
     the 60 s rolling maximum) using vectorised rolling-max approximation.
     """
     win         = max(1, int(sf * 3))
-    spo2_smooth = np.convolve(
-        np.nan_to_num(spo2, nan=95.0),
-        np.ones(win) / win, mode="same",
-    )
+    # Interpolate NaN / sensor-dropout gaps for smoothing instead of filling a
+    # constant 95% — a fixed fill manufactures a fake plateau at gap edges that
+    # registers as a spurious desaturation. Dropout regions are then excluded
+    # from detection (below), so they never produce or anchor an event.
+    finite = np.isfinite(spo2)
+    if finite.all():
+        spo2_filled = spo2
+    elif finite.any():
+        _x = np.arange(len(spo2))
+        spo2_filled = np.interp(_x, _x[finite], spo2[finite])
+    else:
+        spo2_filled = np.full(len(spo2), 95.0)
+    spo2_smooth = np.convolve(spo2_filled, np.ones(win) / win, mode="same")
     baseline_win  = int(sf * 60)
     rolling_peak  = maximum_filter1d(
         spo2_smooth, size=baseline_win, origin=-baseline_win // 2
     )
-    desat_mask = (spo2_smooth <= rolling_peak - drop_pct) & sleep_mask
+    # Exclude samples that were NaN (dropout), dilated by the smoothing window so
+    # fill-contaminated edges cannot register as desaturations.
+    invalid = ~finite
+    if invalid.any():
+        invalid = np.convolve(invalid.astype(float), np.ones(win), mode="same") > 0
+    desat_mask = (spo2_smooth <= rolling_peak - drop_pct) & sleep_mask & ~invalid
 
     events: list[dict] = []
     labeled, n_ev = label(desat_mask)

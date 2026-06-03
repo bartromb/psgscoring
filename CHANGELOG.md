@@ -1,3 +1,50 @@
+# v0.7.0 (UNRELEASED — 0.7.x branch) — Tier-1 scoring-accuracy fixes
+
+⚠️ **These fixes CHANGE scoring output.** They correct over-detection on
+degraded signal and profile-specific counting, and are staged on the `0.7.x`
+branch for validation before any release — the released 0.6.x line is
+unaffected. Clean-signal output is unchanged (golden `apnea_clean` /
+`hypopnea_clean` identical to 0.6.x).
+
+## Fixed
+
+- **Dead/flat signal regions no longer scored as apneas**
+  (`respiratory.py` `_detect_signal_gaps`). A frozen/dead channel had
+  `flow_norm ≈ 0` across the flat span and scored as back-to-back apneas;
+  the span itself is now excluded from event detection (not just the
+  post-gap recovery ramp). Large effect on POOR-quality / dropout
+  recordings — golden `poor_quality`: 14→2 events, AHI 88.4→12.6;
+  `flat_dropout`: 5→4, AHI 31.6→25.3.
+- **CMS / AASM-v1 profiles no longer reinstate arousal-only hypopneas**
+  (`pipeline.py` Rule 1B gated on `DESAT_OR_AROUSAL`). `cms_medicare` and
+  `aasm_v1_rec` score hypopneas on desaturation only; arousal-coupled
+  reinstatement is now skipped for them — golden `cms_arousal`:
+  `rule1b_reinstated` 2→0, AHI 37.9→25.3. No effect on `aasm_v3_*` /
+  `mesa_shhs` (`DESAT_OR_AROUSAL=True`).
+- **Hypopnea baseline honors the profile window/percentile on the
+  mixed-sample-rate / RIPsum-fallback path** (`respiratory.py`
+  `_setup_hypop_channel`). Previously reverted to the 300 s / 95th
+  defaults instead of e.g. `mesa_shhs`'s 120 s / 85th. Affects `mesa_shhs`
+  on mixed-sample-rate / degraded-nasal recordings — needs real-data
+  validation (single-sfreq synthetic cases do not exercise it).
+- **SpO2 sensor-dropout gaps no longer manufacture desaturations**
+  (`spo2.py` `detect_desaturations`). NaN gaps were filled with a constant
+  95%, creating a fake plateau at gap edges that registered as a
+  desaturation; gaps are now interpolated for smoothing and the dropout
+  regions are excluded from detection.
+- **Mixed-apnea decomposition is NaN-safe** (`postprocess.py`). A NaN in
+  the effort segment made `np.max` → NaN, silently defeating central-portion
+  detection; now uses `np.nanmax` with a finite guard. (Type label only;
+  no AHI change.)
+
+## Validation status
+
+#1 and #3 are quantified by the golden harness (above). #4 and #6 are
+implemented but need real `mesa_shhs` / MESA validation. Before any 0.7.0
+release: run the q7 cohort on 0.7.x vs 0.6.2 (golden_snapshot / score_mesa)
+and re-run the PSG-IPA clinical validation to confirm the clinical headline
+is unchanged.
+
 # v0.6.2 — 2026-06-03
 
 Dual AHI reporting for unsubtyped apneas. No change to event detection or to

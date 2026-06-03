@@ -183,8 +183,10 @@ def decompose_mixed_apneas(
 
         # Determine effort threshold: amplitude < 20% of segment max
         # indicates absent effort (central portion)
-        seg_max = np.max(seg)
-        if seg_max < 1e-10:
+        # NaN-safe: a single NaN in the effort segment would otherwise make
+        # np.max → NaN, silently defeating the central-portion detection.
+        seg_max = np.nanmax(seg) if np.any(np.isfinite(seg)) else 0.0
+        if not np.isfinite(seg_max) or seg_max < 1e-10:
             # Entire event has no effort → pure central
             ev["central_duration_s"] = safe_r(dur_s)
             ev["obstructive_duration_s"] = 0.0

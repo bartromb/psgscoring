@@ -444,7 +444,12 @@ def run_pneumo_analysis(
     logger.info("[pneumo 8/10] Rule 1B reinstatement...")
     rejected  = resp.get("rejected_hypopneas", [])
     arousals  = output.get("arousal", {}).get("events", [])
-    if rejected and arousals:
+    # Rule 1B reinstates arousal-coupled hypopneas that lacked a qualifying
+    # desaturation. Profiles that score hypopneas on desaturation ONLY (no
+    # arousal qualifier) — cms_medicare, aasm_v1_rec (DESAT_OR_AROUSAL=False) —
+    # must not do this, or their AHI is inflated by arousal-only events.
+    allow_arousal = profile.get("DESAT_OR_AROUSAL", True)
+    if rejected and arousals and allow_arousal:
         reinstated, updated_events = reinstate_rule1b_hypopneas(
             rejected       = rejected,
             arousal_events = arousals,

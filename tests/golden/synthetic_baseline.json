@@ -102,18 +102,6 @@
         "type": "hypopnea"
       },
       {
-        "conf": 0.7,
-        "d": 35.8,
-        "t": 167.5,
-        "type": "hypopnea"
-      },
-      {
-        "conf": 0.7,
-        "d": 19.1,
-        "t": 296.1,
-        "type": "hypopnea"
-      },
-      {
         "conf": 0.43,
         "d": 33.6,
         "t": 359.2,
@@ -147,22 +135,22 @@
       "overall_grade": "acceptable"
     },
     "resp": {
-      "ahi_excl_noise": 37.9,
-      "ahi_total": 37.9,
+      "ahi_excl_noise": 25.3,
+      "ahi_total": 25.3,
       "n_by_type": {
-        "hypopnea": 5,
+        "hypopnea": 3,
         "hypopnea_mixed": 1
       },
-      "n_events": 6,
+      "n_events": 4,
       "n_rejected_hypopneas": 15,
-      "oahi_all": 37.9,
-      "oahi_conf60": 18.9,
-      "rdi": 50.5,
-      "rule1b_reinstated": 2,
+      "oahi_all": 25.3,
+      "oahi_conf60": 6.3,
+      "rdi": 50.6,
+      "rule1b_reinstated": 0,
       "success": true
     },
     "spo2": {
-      "hypoxic_burden": 12.5,
+      "hypoxic_burden": 6.3,
       "min_spo2": 91.0,
       "n_desaturations": 5,
       "odi_3pct": 31.6,
@@ -181,13 +169,7 @@
         "conf": 0.95,
         "d": 12.5,
         "t": 121.6,
-        "type": "central"
-      },
-      {
-        "conf": 0.95,
-        "d": 32.5,
-        "t": 195.8,
-        "type": "central"
+        "type": "obstructive"
       },
       {
         "conf": 0.95,
@@ -229,16 +211,16 @@
       "overall_grade": "acceptable"
     },
     "resp": {
-      "ahi_excl_noise": 31.6,
-      "ahi_total": 31.6,
+      "ahi_excl_noise": 25.3,
+      "ahi_total": 25.3,
       "n_by_type": {
-        "central": 3,
-        "obstructive": 2
+        "central": 1,
+        "obstructive": 3
       },
-      "n_events": 5,
+      "n_events": 4,
       "n_rejected_hypopneas": 0,
-      "oahi_all": 25.3,
-      "oahi_conf60": 25.3,
+      "oahi_all": 18.9,
+      "oahi_conf60": 18.9,
       "rdi": null,
       "rule1b_reinstated": 0,
       "success": true
@@ -330,78 +312,6 @@
   "poor_quality": {
     "events": [
       {
-        "conf": 0.9,
-        "d": 10.0,
-        "t": 41.5,
-        "type": "central"
-      },
-      {
-        "conf": 0.9,
-        "d": 17.2,
-        "t": 51.5,
-        "type": "central"
-      },
-      {
-        "conf": 0.9,
-        "d": 10.0,
-        "t": 68.7,
-        "type": "central"
-      },
-      {
-        "conf": 0.9,
-        "d": 10.0,
-        "t": 78.7,
-        "type": "central"
-      },
-      {
-        "conf": 0.9,
-        "d": 10.0,
-        "t": 88.7,
-        "type": "central"
-      },
-      {
-        "conf": 0.9,
-        "d": 10.0,
-        "t": 98.7,
-        "type": "central"
-      },
-      {
-        "conf": 0.9,
-        "d": 10.0,
-        "t": 108.7,
-        "type": "central"
-      },
-      {
-        "conf": 0.9,
-        "d": 10.0,
-        "t": 118.7,
-        "type": "central"
-      },
-      {
-        "conf": 0.9,
-        "d": 10.0,
-        "t": 128.7,
-        "type": "central"
-      },
-      {
-        "conf": 0.9,
-        "d": 10.0,
-        "t": 138.7,
-        "type": "central"
-      },
-      {
-        "conf": 0.9,
-        "d": 10.0,
-        "t": 148.7,
-        "type": "central"
-      },
-      {
-        "conf": 0.9,
-        "d": 81.3,
-        "t": 158.7,
-        "type": "central"
-      },
-      {
         "conf": 0.95,
         "d": 12.4,
         "t": 301.6,
@@ -441,12 +351,12 @@
       "overall_grade": "poor"
     },
     "resp": {
-      "ahi_excl_noise": 88.4,
-      "ahi_total": 88.4,
+      "ahi_excl_noise": 12.6,
+      "ahi_total": 12.6,
       "n_by_type": {
-        "central": 14
+        "central": 2
       },
-      "n_events": 14,
+      "n_events": 2,
       "n_rejected_hypopneas": 0,
       "oahi_all": 6.3,
       "oahi_conf60": 6.3,
@@ -455,7 +365,7 @@
       "success": true
     },
     "spo2": {
-      "hypoxic_burden": 9.7,
+      "hypoxic_burden": 0.1,
       "min_spo2": 91.0,
       "n_desaturations": 5,
       "odi_3pct": 31.6,

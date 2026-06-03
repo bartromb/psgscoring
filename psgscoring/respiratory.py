@@ -85,6 +85,10 @@ def _detect_signal_gaps(
         sl0 = sl[0]
         seg_len = sl0.stop - sl0.start
         if seg_len >= min_samp:
+            # Exclude the flat/frozen span ITSELF (a dead or frozen channel has
+            # flow_norm ≈ 0 across it and would otherwise score as back-to-back
+            # apneas) as well as the post-gap recovery ramp.
+            excl[sl0.start : sl0.stop] = True
             end = sl0.stop
             excl[end : end + post_samp] = True
 
@@ -387,6 +391,7 @@ def detect_respiratory_events(
             hypop_flow, sf_hypop, flow_env, baseline, flow_norm, sf_flow,
             hypno, artifact_epochs, pos_changes, pos_data, sf_pos, result,
             precomputed_hypop_baseline=baseline,  # hergebruik apnea-basislijn als sf gelijk
+            baseline_window_s=_BL_WIN_S, baseline_percentile=_BL_PCT,
         )
 
         # ── Breath-by-breath analysis ────────────────────────────────────
@@ -799,6 +804,7 @@ def _setup_hypop_channel(
     hypop_flow, sf_hypop, flow_env, baseline, flow_norm,
     sf_flow, hypno, artifact_epochs, pos_changes, pos_data, sf_pos, result,
     precomputed_hypop_baseline=None,
+    baseline_window_s=300.0, baseline_percentile=95.0,
 ):
     """Return (hypop_env, hypop_norm, hypop_baseline, sf_hy)."""
     if hypop_flow is not None and sf_hypop is not None:
@@ -820,8 +826,13 @@ def _setup_hypop_channel(
         if precomputed_hypop_baseline is not None and sf_hypop == sf_flow:
             hypop_bl = precomputed_hypop_baseline
         else:
-            # Andere sf (bv. 2Hz SpO₂ vs 256Hz flow): apart berekenen
-            hypop_bl = compute_dynamic_baseline(hypop_env, sf_hypop)
+            # Andere sf (bv. 2Hz SpO₂ vs 256Hz flow): apart berekenen.
+            # Honor the profile baseline window/percentile (mesa_shhs uses
+            # 120 s / 85th, not the 300 s / 95th defaults) on this branch too.
+            hypop_bl = compute_dynamic_baseline(
+                hypop_env, sf_hypop,
+                window_s=baseline_window_s, percentile=baseline_percentile,
+            )
             try:
                 hyp_stage_bl = compute_stage_baseline(
                     hypop_env, sf_hypop, hypno, artifact_epochs
