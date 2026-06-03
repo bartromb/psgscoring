@@ -1,10 +1,14 @@
-# v0.7.0 (UNRELEASED — 0.7.x branch) — Tier-1 scoring-accuracy fixes
+# v0.7.0 — 2026-06-03 — Tier-1 scoring-accuracy fixes
 
-⚠️ **These fixes CHANGE scoring output.** They correct over-detection on
-degraded signal and profile-specific counting, and are staged on the `0.7.x`
-branch for validation before any release — the released 0.6.x line is
-unaffected. Clean-signal output is unchanged (golden `apnea_clean` /
-`hypopnea_clean` identical to 0.6.x).
+These fixes correct over-detection on degraded signal and profile-specific
+counting. They were **validated to leave both paper cohorts byte-identical**
+(PSG-IPA clinical and the MESA q=7 holdout: 0 recordings changed vs v0.6.2)
+and to have negligible real-data impact on the MESA q∈[2,4] POOR cohort
+(1/94 recordings changed; agreement vs the scorer reference unchanged) — i.e.
+they fix genuine edge-case bugs without moving any validation number. The
+large effects on synthetic stress cases (a literal flat-line channel; the
+`cms_medicare` profile) do not arise on real recordings. Clean-signal output
+is unchanged.
 
 ## Fixed
 
