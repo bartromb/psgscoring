@@ -67,7 +67,7 @@ print(f"Robustness: {interval['robustness_grade']}")
 
 **PSG-IPA** (PhysioNet): 5 recordings, 59 independent scorer sessions. Mean |ΔAHI| = 1.8/h, Pearson r = 0.997, severity concordance 4/5 (standard profile). See the [paper](#paper) for full results.
 
-**PSG-Audio** (Sismanoglio Hospital, Athens): n=194, open access. External validation in progress.
+**MESA** (NSRR, external cohort): q=7 high-quality holdout, n=92 (held out from the optional LightGBM re-classifier's training). LightGBM-augmented AHI: bias −0.02/h, MAE 5.3/h, Pearson r = 0.87 against the NSRR `nsrr_ahi_hp3u` reference. SHHS-1 validation in progress.
 
 ## Twelve Bias Corrections
 
