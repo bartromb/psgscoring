@@ -1,3 +1,15 @@
+# v0.7.1 — 2026-06-03 — documentation
+
+Docs-only release — **no code or scoring changes** (identical scoring to
+v0.7.0). Corrects the README / PyPI project description:
+
+- Quick Start uses the canonical profile name `aasm_v3_rec` (not the
+  deprecated `standard` alias) and the correct `results["ahi_interval"]` key.
+- Architecture section: drop the removed `pipeline_profiles` module, add
+  `ml_classifier`; refresh module/test/line counts (17 submodules, 115 tests).
+- PSG-IPA validation figure corrected to the validated mean |ΔAHI| = 1.8/h
+  (Pearson r = 0.997).
+
 # v0.7.0 — 2026-06-03 — Tier-1 scoring-accuracy fixes
 
 These fixes correct over-detection on degraded signal and profile-specific
