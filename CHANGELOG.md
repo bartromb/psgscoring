@@ -1,3 +1,58 @@
+# v0.6.1 — 2026-06-03
+
+Robustness and reproducibility patch. Fixes two POOR-quality scoring
+crashes, a Python 3.9 import regression, and a signal-quality grading
+bug; adds a golden-output regression harness. **Clinical AASM profiles
+are unchanged** — PSG-IPA reproducibility (10/10) is intact and the
+fixes only recover recordings that previously crashed; they do not
+alter the scoring of any recording that already produced a result.
+
+## Fixed
+
+- **Rule 1B reinstatement crash (`KeyError: 'stage'`).** The
+  stable-breathing rejection filter stored rejected hypopnea
+  candidates without `stage`/`epoch`, so `reinstate_rule1b_hypopneas`
+  crashed whenever such a candidate coincided with an arousal — i.e.
+  any recording scored with EEG arousal detection (the normal clinical
+  path). The Rule 1B call had no `try/except`, so the whole analysis
+  aborted.
+- **ML re-classification crash (`KeyError: 'type'`).** The `mesa_shhs`
+  LightGBM re-classifier promotes pooled candidates into the accepted
+  list, but rejected hypopnea candidates carried no `type` key, so a
+  promoted one was type-less and crashed `_compute_summary`. Recovered
+  ~64% of the MESA q∈[2,4] graceful-degradation cohort (30/100 → 94/100
+  scored). No effect on ML decisions (feature extraction already
+  defaulted `type` to `"hypopnea"`).
+- **Python 3.9 import crash.** `signal_quality_channels.py` used a
+  PEP 604 `list | None` annotation without
+  `from __future__ import annotations`, making the module unimportable
+  on Python 3.9 — silently disabling per-channel quality grading
+  (`channel_quality: "unknown"`) for all 3.9 users.
+- **`_count_flat_samples` overcount.** The flat-sample count was
+  inflated by ~the window length (a `/len*len` cancellation), so
+  `flat_pct` could exceed 100% and clean channels were mis-graded
+  `"poor"`. Metadata only — no effect on AHI.
+- **Robustness guards.** Empty-flow input in `_detect_signal_gaps`;
+  out-of-range event epoch in `analyze_position` (one bad epoch no
+  longer drops the whole per-position summary).
+
+## Added
+
+- `tests/test_golden_output.py` + `tests/golden/` — golden-output
+  regression harness (6 deterministic synthetic cases; gated behind
+  the `PSGSCORING_GOLDEN` env var, out of the default CI matrix).
+- `scripts/golden_snapshot.py` — bless/check pipeline output on real
+  EDFs with a per-recording AHI-delta table.
+- `tests/test_rejected_candidate_invariant.py` — guards the invariant
+  that rejected candidates carry `type`/`stage`/`epoch`.
+
+## Changed
+
+- `_types.PLMSummary` field names aligned with `analyze_plm` output
+  (`plm_index`, `n_resp_associated`, …); added the missing keys.
+- Removed the unreferenced `pipeline_profiles.py` stub (stale
+  duplicate `run_pneumo_analysis`).
+
 # v0.6.0 — 2026-05-05
 
 LightGBM candidate-level re-classifier as an optional post-detection
