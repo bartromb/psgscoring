@@ -42,7 +42,7 @@ raw = mne.io.read_raw_edf("recording.edf", preload=True)
 hypnogram = ["W", "N1", "N2", "N2", "N3", ...]  # per 30-s epoch
 
 # Run the full pipeline
-results = run_pneumo_analysis(raw, hypnogram, scoring_profile="standard")
+results = run_pneumo_analysis(raw, hypnogram, scoring_profile="aasm_v3_rec")
 
 # Access results
 resp = results["respiratory"]["summary"]
@@ -50,7 +50,7 @@ print(f"AHI: {resp['ahi_total']}, Severity: {resp['severity']}")
 print(f"Events: {resp['n_obstructive']} OA, {resp['n_hypopnea']} Hyp")
 
 # AHI confidence interval
-interval = results["interval"]
+interval = results["ahi_interval"]
 print(f"AHI interval: [{interval['strict']['ahi']}–{interval['sensitive']['ahi']}]")
 print(f"Robustness: {interval['robustness_grade']}")
 ```
@@ -65,7 +65,7 @@ print(f"Robustness: {interval['robustness_grade']}")
 
 ## Validation
 
-**PSG-IPA** (PhysioNet): 5 recordings, 59 independent scorer sessions. Mean |ΔAHI| = 2.0/h, severity concordance 4/5. See the [paper](#paper) for full results.
+**PSG-IPA** (PhysioNet): 5 recordings, 59 independent scorer sessions. Mean |ΔAHI| = 1.8/h, Pearson r = 0.997, severity concordance 4/5 (standard profile). See the [paper](#paper) for full results.
 
 **PSG-Audio** (Sismanoglio Hospital, Athens): n=194, open access. External validation in progress.
 
@@ -88,9 +88,9 @@ print(f"Robustness: {interval['robustness_grade']}")
 
 ## Architecture
 
-~8,000 lines across 18 submodules, 98 unit tests (CI: Python 3.9–3.12):
+~8,900 lines across 17 submodules, 115 unit tests (CI: Python 3.9–3.12):
 
-`constants` · `utils` · `signal` · `breath` · `classify` · `spo2` · `plm` · `ancillary` · `respiratory` · `pipeline` · `pipeline_profiles` · `profiles` · `postprocess` · `signal_quality` · `signal_quality_channels` · `ecg_effort` · `_types`
+`constants` · `utils` · `signal` · `breath` · `classify` · `spo2` · `plm` · `ancillary` · `respiratory` · `pipeline` · `ml_classifier` · `profiles` · `postprocess` · `signal_quality` · `signal_quality_channels` · `ecg_effort` · `_types`
 
 ## Related
 
