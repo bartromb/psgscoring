@@ -1,3 +1,27 @@
+# v0.6.2 — 2026-06-03
+
+Dual AHI reporting for unsubtyped apneas. No change to event detection or to
+any existing field; adds two summary keys.
+
+## Added
+
+- **`summary["ahi_incl_uncertain"]`** — scorer-calibrated AHI that also counts
+  apneas the effort-based classifier could not subtype (`type == "uncertain"`,
+  typically when the RIP/effort signal is degraded). `ahi_total` continues to
+  exclude these (conservative, flag-for-review). On the MESA q=7 holdout the
+  inclusive index is essentially unbiased against the NSRR scorer reference
+  (bias ≈ −0.3/h), whereas `ahi_total` runs ≈1.5/h lower; both are now
+  reported so downstream consumers can choose.
+- **`summary["n_uncertain_apnea"]`** — count of detected-but-unsubtyped apneas
+  (the events that distinguish the two indices), for transparency / review.
+
+## Notes
+
+- An `uncertain` apnea is still a scored apnea; AHI by definition counts every
+  apnea regardless of obstructive/central/mixed subtype. Clinical (non-ML)
+  profiles produce no `uncertain` apneas, so `ahi_incl_uncertain == ahi_total`
+  there and PSG-IPA reproducibility is unchanged.
+
 # v0.6.1 — 2026-06-03
 
 Robustness and reproducibility patch. Fixes two POOR-quality scoring

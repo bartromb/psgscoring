@@ -1414,6 +1414,14 @@ def _compute_summary(
     obstr     = [e for e in events if e["type"] == "obstructive"]
     central   = [e for e in events if e["type"] == "central"]
     mixed     = [e for e in events if e["type"] == "mixed"]
+    # "uncertain" = an apnea the effort-based classifier could not subtype
+    # (obstructive/central/mixed), typically when the RIP/effort signal is
+    # degraded. It is still a scored apnea, so it belongs in the AHI. ahi_total
+    # historically excludes it (conservative, flag-for-review); apneas_incl
+    # restores it for the scorer-calibrated ahi_incl_uncertain (validated to
+    # ~0 bias vs scorer reference; ahi_total runs ~1.5/h lower).
+    uncertain_ap = [e for e in events if e["type"] == "uncertain"]
+    apneas_incl  = apneas + uncertain_ap
 
     def idx(n, h):
         """Bereken index (events/uur) met veilige deling."""
@@ -1432,6 +1440,7 @@ def _compute_summary(
     hyp_r,     hyp_n     = split_rn(hypopneas)
 
     ahi        = idx(len(apneas) + len(hypopneas), total_sleep_h)
+    ahi_incl_uncertain = idx(len(apneas_incl) + len(hypopneas), total_sleep_h)
     confs      = [e.get("confidence", 0.5) for e in apneas if e.get("confidence")]
     avg_conf   = safe_r(float(np.mean(confs))) if confs else None
 
@@ -1514,6 +1523,8 @@ def _compute_summary(
         "n_ah_total":      len(apneas) + len(hypopneas),
 
         "ahi_total":       ahi,
+        "ahi_incl_uncertain": ahi_incl_uncertain,  # scorer-calibrated: also counts unsubtyped ("uncertain") apneas (~0 bias vs scorers)
+        "n_uncertain_apnea":  len(uncertain_ap),    # apneas detected but not subtyped (degraded effort signal)
         "oahi":            oahi_all,      # officieel: ALLE obstructief + hypopneas (AASM-conform)
         "oahi_conf60":     oahi_conf60,   # supplementair: enkel conf > 0.60 (informatief)
         "oahi_all":        oahi_all,      # alias voor backward compat
