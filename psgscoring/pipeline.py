@@ -198,6 +198,10 @@ def run_pneumo_analysis(
     logger.info("[pneumo 1/9] Apnea / hypopnea detection (AASM 2.6)...")
     # Extract ECG for effort-based apnea type classification (v0.8.23)
     ecg_data_resp, sf_ecg_resp = get("ecg")
+    # perf (v0.7.x): shared-preprocessing cache reused by the primary call and
+    # the 3-profile AHI-interval reruns below — envelopes / dynamic baseline /
+    # position changes are computed once (byte-identical, same signals + params).
+    _precomp: dict = {}
     if apnea_flow is not None:
         resp = detect_respiratory_events(
             flow_data    = apnea_flow,
@@ -216,6 +220,7 @@ def run_pneumo_analysis(
             ecg_data     = ecg_data_resp,
             sf_ecg       = sf_ecg_resp,
             signal_quality = output.get("signal_quality"),  # v0.3.001 BUG2
+            _precomputed = _precomp,
         )
     else:
         resp = {
@@ -231,12 +236,18 @@ def run_pneumo_analysis(
     try:
         _all_profiles = ["strict", "standard", "sensitive"]
         _profile_results = {}
+        # Reuse the primary result for whichever interval profile is the same as
+        # the primary. Match on the resolved profile name (_PROFILE_NAME), not the
+        # legacy alias string — fixes a bug where canonical names like
+        # 'aasm_v3_rec' never equalled 'standard', so the primary was needlessly
+        # re-scored as a 4th full pass.
+        _primary_name = (profile or {}).get("_PROFILE_NAME")
         for _pname in _all_profiles:
-            if _pname == scoring_profile:
-                # Reuse primary result
+            _alt_profile = SCORING_PROFILES.get(_pname, {})
+            if _alt_profile.get("_PROFILE_NAME") == _primary_name:
+                # Reuse primary result (identical profile)
                 _profile_results[_pname] = resp.get("summary", {})
             else:
-                _alt_profile = SCORING_PROFILES.get(_pname, {})
                 _alt_resp = detect_respiratory_events(
                     flow_data    = apnea_flow,
                     hypop_flow   = hypop_flow,
@@ -254,6 +265,7 @@ def run_pneumo_analysis(
                     ecg_data     = ecg_data_resp,
                     sf_ecg       = sf_ecg_resp,
                     signal_quality = output.get("signal_quality"),  # v0.3.001 BUG2
+                    _precomputed = _precomp,
                 )
                 _profile_results[_pname] = _alt_resp.get("summary", {})
 
