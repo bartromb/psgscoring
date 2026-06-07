@@ -1,3 +1,37 @@
+# v0.7.2 — 2026-06-07 — performance (shared preprocessing)
+
+**No scoring changes — output is byte-identical.** Speeds up `run_pneumo_analysis`
+by ~1.8–2.0× by removing redundant work in the 3-profile AHI confidence interval.
+
+## Performance
+
+- **Preprocessing computed once across the AHI-interval profiles** (`pipeline.py`,
+  `respiratory.py`). The confidence interval ran `detect_respiratory_events` 4×
+  per recording (primary + strict/standard/sensitive), each redoing the full
+  preprocessing: Hilbert envelopes (~43 s), dynamic baseline / rolling percentile
+  (~24 s), position-change detection (~10 s), MMSD, effort/SpO₂ baselines, breath
+  detection. All of this depends only on the raw signals and on baseline params
+  that are identical across the three interval profiles, so it is byte-identical
+  across the reruns. A shared `_precomputed` cache now computes it once; only
+  per-profile event qualification reruns. Baseline-dependent caches are keyed by
+  `(BASELINE_WINDOW_S, BASELINE_PERCENTILE)` so a non-v3 primary stays correct.
+- **Position changes computed once** (part of the cached baseline block).
+- **Fixed an interval reuse bug:** the primary result was matched against the
+  legacy alias (`standard`), so canonical names (`aasm_v3_rec`) never matched and
+  the primary was needlessly re-scored a 4th time. Now matched on `_PROFILE_NAME`.
+
+Validated byte-identical (every summary field, AHI interval, and individual
+event matches the previous output exactly) against:
+- the golden harness (6/6) and the full unit suite (104 passed, 11 skipped);
+- the **MESA q7 holdout** — all 92 locally-available recordings, via the
+  `score_one_mesa` validation path (arousal injection + artifact epochs +
+  the `aasm_v2_rec` profile with the validation-mode tuning);
+- the **PSG-IPA clinical cohort** (SN1–SN5, profile `standard` = `aasm_v3_rec`);
+- the `cms_medicare` param-keyed cache path (MESA id 301).
+
+Measured speedup on the analysis: MESA id 301 125.8 s → 62.5 s (2.0×),
+id 33 90.5 s → 49.7 s (1.8×).
+
 # v0.7.1 — 2026-06-03 — documentation
 
 Docs-only release — **no code or scoring changes** (identical scoring to

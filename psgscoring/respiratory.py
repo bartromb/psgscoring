@@ -280,6 +280,7 @@ def detect_respiratory_events(
     ecg_data:          np.ndarray | None = None,
     sf_ecg:            float | None = None,
     signal_quality:    dict | None = None,
+    _precomputed:      dict | None = None,
 ) -> dict:
     """
     Detect and classify apneas and hypopneas per AASM 2.6.
@@ -340,8 +341,25 @@ def detect_respiratory_events(
             "peak_min_consecutive_breaths": _PEAK_MIN_BR,
         }
 
+        # ── perf (v0.7.x): shared-preprocessing cache ────────────────────
+        # The 3-profile AHI interval (pipeline.py) calls this function 4×
+        # with the SAME signals but different profiles. Everything up to event
+        # qualification (envelopes, dynamic baseline, position changes, MMSD,
+        # effort/SpO2 baselines, breath detection) depends only on the raw
+        # signals and on baseline params that are IDENTICAL across strict/
+        # standard/sensitive — so it is byte-identical across the reruns.
+        # A shared `_precomputed` dict lets the first call compute everything
+        # (full result, unchanged) and the reruns reuse it. _cache(key, fn)
+        # computes fn() once per key and reuses it on later calls.
+        _pc = _precomputed if _precomputed is not None else {}
+        def _cache(_key, _fn):
+            if _key not in _pc:
+                _pc[_key] = _fn()
+            return _pc[_key]
+
         # ── Fix 5: Artefact-flanken — post-gap exclusiemasker ─────────────
-        gap_mask_ap, n_gaps = _detect_signal_gaps(flow_data, sf_flow)
+        gap_mask_ap, n_gaps = _cache(
+            "gap_resp", lambda: _detect_signal_gaps(flow_data, sf_flow))
         result["n_gap_excluded"] = n_gaps
         if n_gaps > 0:
             logger.info("Fix5: %d signaaluitvalgaten gedetecteerd → post-gap masker actief", n_gaps)
@@ -365,48 +383,60 @@ def detect_respiratory_events(
         # v0.5.1: profile-tunable baseline window/percentile
         _BL_WIN_S  = sp.get("BASELINE_WINDOW_S", 300)
         _BL_PCT    = sp.get("BASELINE_PERCENTILE", 95.0)
-        flow_env = preprocess_flow(flow_data, sf_flow, is_nasal_pressure=False)
-        baseline = compute_dynamic_baseline(
-            flow_env, sf_flow, window_s=_BL_WIN_S, percentile=_BL_PCT
-        )
-        pos_changes: list[dict] = []
+        flow_env = _cache("flow_env", lambda: preprocess_flow(
+            flow_data, sf_flow, is_nasal_pressure=False))
 
         # MMSD – drift-independent apnea validation
-        mmsd_norm = _compute_mmsd_norm(flow_data, sf_flow, result)
+        mmsd_norm = _cache(
+            "mmsd_norm", lambda: _compute_mmsd_norm(flow_data, sf_flow, result))
 
-        # Stage-specific baseline
-        baseline = _apply_stage_baseline(flow_env, sf_flow, hypno,
-                                          artifact_epochs, baseline, result)
-
-        # Position-reset baseline
-        if pos_data is not None and sf_pos is not None:
-            baseline, pos_changes = _apply_position_reset(
-                baseline, flow_env, sf_flow, pos_data, sf_pos, result
-            )
+        # Dynamic baseline → stage-specific → position-reset. The final baseline
+        # and position changes (#4) are cached as one unit: all inputs (flow_env,
+        # hypno, artifacts, position, identical baseline params) are profile-
+        # independent across the interval profiles.
+        def _build_baseline():
+            _bl = compute_dynamic_baseline(
+                flow_env, sf_flow, window_s=_BL_WIN_S, percentile=_BL_PCT)
+            _bl = _apply_stage_baseline(flow_env, sf_flow, hypno,
+                                        artifact_epochs, _bl, result)
+            _pc_changes: list[dict] = []
+            if pos_data is not None and sf_pos is not None:
+                _bl, _pc_changes = _apply_position_reset(
+                    _bl, flow_env, sf_flow, pos_data, sf_pos, result)
+            return _bl, _pc_changes
+        baseline, pos_changes = _cache(
+            f"baseline_final|{_BL_WIN_S}|{_BL_PCT}", _build_baseline)
 
         flow_norm = np.clip(flow_env / baseline, 0, 2)
 
         # ── Hypopnea-channel preprocessing (nasal pressure, with sqrt) ─────
-        hypop_env, hypop_norm, hypop_baseline, sf_hy = _setup_hypop_channel(
-            hypop_flow, sf_hypop, flow_env, baseline, flow_norm, sf_flow,
-            hypno, artifact_epochs, pos_changes, pos_data, sf_pos, result,
-            precomputed_hypop_baseline=baseline,  # hergebruik apnea-basislijn als sf gelijk
-            baseline_window_s=_BL_WIN_S, baseline_percentile=_BL_PCT,
-        )
+        def _build_hypop():
+            return _setup_hypop_channel(
+                hypop_flow, sf_hypop, flow_env, baseline, flow_norm, sf_flow,
+                hypno, artifact_epochs, pos_changes, pos_data, sf_pos, result,
+                precomputed_hypop_baseline=baseline,  # hergebruik apnea-basislijn als sf gelijk
+                baseline_window_s=_BL_WIN_S, baseline_percentile=_BL_PCT,
+            )
+        hypop_env, hypop_norm, hypop_baseline, sf_hy = _cache(
+            f"hypop|{_BL_WIN_S}|{_BL_PCT}", _build_hypop)
 
         # ── Breath-by-breath analysis ────────────────────────────────────
-        breaths, bb_apneas, bb_hypopneas = _run_breath_analysis(
+        breaths, bb_apneas, bb_hypopneas = _cache("breaths", lambda: _run_breath_analysis(
             hypop_flow if hypop_flow is not None else flow_data,
             sf_hy, hypno, result,
-        )
+        ))
 
         # ── Effort envelopes ─────────────────────────────────────────────
-        thorax_env  = preprocess_effort(thorax_data, sf_flow) if thorax_data  is not None else None
-        abdomen_env = preprocess_effort(abdomen_data, sf_flow) if abdomen_data is not None else None
-        effort_bl   = _compute_effort_baseline(thorax_env, abdomen_env, flow_norm, sf_flow)
+        thorax_env  = _cache("thorax_env", lambda: (
+            preprocess_effort(thorax_data, sf_flow) if thorax_data  is not None else None))
+        abdomen_env = _cache("abdomen_env", lambda: (
+            preprocess_effort(abdomen_data, sf_flow) if abdomen_data is not None else None))
+        effort_bl   = _cache("effort_bl", lambda: _compute_effort_baseline(
+            thorax_env, abdomen_env, flow_norm, sf_flow))
 
         # ── Global SpO2 baseline ─────────────────────────────────────────
-        global_spo2_bl = _global_spo2_baseline(spo2_data, sf_spo2, hypno, artifact_epochs)
+        global_spo2_bl = _cache("global_spo2_bl", lambda: _global_spo2_baseline(
+            spo2_data, sf_spo2, hypno, artifact_epochs))
 
         # ── Event masks ──────────────────────────────────────────────────
         sleep_mask_ap = build_sleep_mask(hypno, sf_flow, len(flow_norm),  artifact_epochs)
