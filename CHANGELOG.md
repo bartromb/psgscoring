@@ -1,4 +1,4 @@
-# Unreleased — performance (shared preprocessing)
+# v0.7.2 — 2026-06-07 — performance (shared preprocessing)
 
 **No scoring changes — output is byte-identical.** Speeds up `run_pneumo_analysis`
 by ~1.8–2.0× by removing redundant work in the 3-profile AHI confidence interval.
