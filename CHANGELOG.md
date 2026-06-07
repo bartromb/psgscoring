@@ -1,3 +1,30 @@
+# Unreleased — performance (shared preprocessing)
+
+**No scoring changes — output is byte-identical.** Speeds up `run_pneumo_analysis`
+by ~1.8–2.0× by removing redundant work in the 3-profile AHI confidence interval.
+
+## Performance
+
+- **Preprocessing computed once across the AHI-interval profiles** (`pipeline.py`,
+  `respiratory.py`). The confidence interval ran `detect_respiratory_events` 4×
+  per recording (primary + strict/standard/sensitive), each redoing the full
+  preprocessing: Hilbert envelopes (~43 s), dynamic baseline / rolling percentile
+  (~24 s), position-change detection (~10 s), MMSD, effort/SpO₂ baselines, breath
+  detection. All of this depends only on the raw signals and on baseline params
+  that are identical across the three interval profiles, so it is byte-identical
+  across the reruns. A shared `_precomputed` cache now computes it once; only
+  per-profile event qualification reruns. Baseline-dependent caches are keyed by
+  `(BASELINE_WINDOW_S, BASELINE_PERCENTILE)` so a non-v3 primary stays correct.
+- **Position changes computed once** (part of the cached baseline block).
+- **Fixed an interval reuse bug:** the primary result was matched against the
+  legacy alias (`standard`), so canonical names (`aasm_v3_rec`) never matched and
+  the primary was needlessly re-scored a 4th time. Now matched on `_PROFILE_NAME`.
+
+Validated byte-identical against the golden harness and real MESA recordings
+(ids 33, 301; profiles `aasm_v3_rec` and `cms_medicare`) — every summary field,
+AHI interval, and individual event matches the previous output exactly.
+Measured: id 301 125.8 s → 62.5 s, id 33 90.5 s → 49.7 s.
+
 # v0.7.1 — 2026-06-03 — documentation
 
 Docs-only release — **no code or scoring changes** (identical scoring to
