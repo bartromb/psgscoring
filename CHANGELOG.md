@@ -20,10 +20,17 @@ by ~1.8–2.0× by removing redundant work in the 3-profile AHI confidence inter
   legacy alias (`standard`), so canonical names (`aasm_v3_rec`) never matched and
   the primary was needlessly re-scored a 4th time. Now matched on `_PROFILE_NAME`.
 
-Validated byte-identical against the golden harness and real MESA recordings
-(ids 33, 301; profiles `aasm_v3_rec` and `cms_medicare`) — every summary field,
-AHI interval, and individual event matches the previous output exactly.
-Measured: id 301 125.8 s → 62.5 s, id 33 90.5 s → 49.7 s.
+Validated byte-identical (every summary field, AHI interval, and individual
+event matches the previous output exactly) against:
+- the golden harness (6/6) and the full unit suite (104 passed, 11 skipped);
+- the **MESA q7 holdout** — all 92 locally-available recordings, via the
+  `score_one_mesa` validation path (arousal injection + artifact epochs +
+  the `aasm_v2_rec` profile with the validation-mode tuning);
+- the **PSG-IPA clinical cohort** (SN1–SN5, profile `standard` = `aasm_v3_rec`);
+- the `cms_medicare` param-keyed cache path (MESA id 301).
+
+Measured speedup on the analysis: MESA id 301 125.8 s → 62.5 s (2.0×),
+id 33 90.5 s → 49.7 s (1.8×).
 
 # v0.7.1 — 2026-06-03 — documentation
 
