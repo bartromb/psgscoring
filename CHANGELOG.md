@@ -1,3 +1,19 @@
+# v0.7.3 — 2026-06-09 — documentation / terminology
+
+Docs and terminology only — **no code or scoring changes** (golden harness
+byte-identical; full suite green).
+
+- **Dropped the "AASM 2.6" version label throughout** (project description, README,
+  DISCLAIMER, docstrings and code comments). The library supports AASM v1 / v2 / v3
+  via scoring profiles (default `aasm_v3_rec` = AASM 2023), so pinning the prose to the
+  2.6 manual was inaccurate. Text now reads "AASM-compliant" / "AASM" / the specific
+  profile name.
+- **Refreshed the developer handbook** (`docs/developer_handbook.md`) to the current
+  state: v0.7.2 / YASAFlaskified v0.12.4, psgscoring now pip-installed (not bundled),
+  the git → PR → CI → GitHub-Release/OIDC → rsync workflow, the v0.7.x profile set +
+  3-profile AHI interval + v0.7.2 shared-preprocessing speed-up, and the paper-v37
+  validation table. Authors section updated.
+
 # v0.7.2 — 2026-06-07 — performance (shared preprocessing)
 
 **No scoring changes — output is byte-identical.** Speeds up `run_pneumo_analysis`
@@ -992,9 +1008,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Dual-sensor flow detection** per AASM 2.6.
+- **Dual-sensor flow detection** per AASM.
   Apneas are now scored on the oronasal thermistor signal; hypopneas
-  on the nasal pressure transducer, following AASM 2.6 recommendations.
+  on the nasal pressure transducer, following AASM recommendations.
   - Channel auto-detection via transducer metadata and channel-name
     patterns.
   - Intelligent fallback: when only one flow channel is available, it
@@ -1196,7 +1212,7 @@ extracted from the YASAFlaskified clinical platform.
   with Hilbert phase-angle analysis.
 - Two-phase arousal detection with spindle exclusion and
   cardiovascular reactivity (CVR) coupling.
-- PLM scoring per AASM 2.6 and WASM criteria (Zucconi 2006).
+- PLM scoring per AASM and WASM criteria (Zucconi 2006).
 - Cheyne-Stokes detection via autocorrelation.
 
 **Package**:

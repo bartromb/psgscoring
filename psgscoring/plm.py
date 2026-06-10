@@ -1,7 +1,7 @@
 """
 psgscoring.plm
 ==============
-Periodic Limb Movement (PLM) detection per AASM 2.6 criteria.
+Periodic Limb Movement (PLM) detection per AASM criteria.
 
 AASM criteria summary
 ---------------------
@@ -57,7 +57,7 @@ def analyze_plm(
                        'mV'   : millivolts (will be scaled ×1e3 to µV)
                        'uV'   : already in µV (no scaling)
                        'auto' : amplitude-based heuristic (default)
-                     The 8 µV detection threshold (AASM 2.6) is sensitive
+                     The 8 µV detection threshold (AASM) is sensitive
                      to scaling errors; pass an explicit unit when the EDF
                      physical_unit is available rather than relying on
                      'auto'.
@@ -147,7 +147,7 @@ def _detect_lm_channel(
     sf: float,
     unit: str = "auto",
 ) -> list[dict]:
-    """Detect LM events on a single EMG channel (AASM 2.6).
+    """Detect LM events on a single EMG channel (AASM).
 
     The AASM amplitude criterion (≥8 µV above resting) is unit-sensitive,
     so the input must be scaled correctly. ``unit`` controls scaling:

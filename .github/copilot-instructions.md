@@ -1,7 +1,7 @@
 # psgscoring AI Coding Guidelines
 
 ## Project Overview
-`psgscoring` is a Python library for automated AASM 2.6-compliant polysomnography (PSG) respiratory event scoring. It processes sleep study data to detect apneas, hypopneas, and RERAs, providing Apnea-Hypopnea Index (AHI) with confidence intervals and clinical auditability.
+`psgscoring` is a Python library for automated AASM-compliant polysomnography (PSG) respiratory event scoring. It processes sleep study data to detect apneas, hypopneas, and RERAs, providing Apnea-Hypopnea Index (AHI) with confidence intervals and clinical auditability.
 
 **Key Features:**
 - Extends YASA (sleep staging) into respiratory scoring

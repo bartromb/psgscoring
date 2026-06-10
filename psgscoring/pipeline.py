@@ -195,7 +195,7 @@ def run_pneumo_analysis(
         output["signal_quality"] = {"error": str(e)}
 
     # ── Step 1: Respiratory events ─────────────────────────────────────────
-    logger.info("[pneumo 1/9] Apnea / hypopnea detection (AASM 2.6)...")
+    logger.info("[pneumo 1/9] Apnea / hypopnea detection (AASM)...")
     # Extract ECG for effort-based apnea type classification (v0.8.23)
     ecg_data_resp, sf_ecg_resp = get("ecg")
     # perf (v0.7.x): shared-preprocessing cache reused by the primary call and
@@ -717,7 +717,7 @@ def _resolve_flow_channels(
     flow_therm_data, sf_ft,
     ch, output,
 ):
-    """Assign apnea (thermistor) and hypopnea (pressure) channels per AASM 2.6."""
+    """Assign apnea (thermistor) and hypopnea (pressure) channels per AASM."""
     if flow_pressure_data is not None or flow_therm_data is not None:
         # v0.8.4 FIX: Python 'or' crashes on numpy arrays ("truth value ambiguous").
         # Use explicit None-checks instead.

@@ -19,7 +19,7 @@ from .utils import is_nrem, is_rem, safe_r
 
 
 # ---------------------------------------------------------------------------
-# Nasal pressure linearization  (AASM 2.6 Rule 3)
+# Nasal pressure linearization  (AASM Rule 3)
 # ---------------------------------------------------------------------------
 
 def linearize_nasal_pressure(data: np.ndarray) -> np.ndarray:
@@ -100,7 +100,7 @@ def preprocess_flow(
     flow_data         : raw signal array
     sf                : sample rate (Hz)
     is_nasal_pressure : if True, apply sqrt-linearization before filtering
-                        (AASM 2.6 Rule 3; use for hypopnea channel only)
+                        (AASM Rule 3; use for hypopnea channel only)
     """
     if is_nasal_pressure:
         flow_data = linearize_nasal_pressure(flow_data)

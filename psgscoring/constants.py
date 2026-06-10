@@ -1,7 +1,7 @@
 """
 psgscoring.constants
 ====================
-AASM 2.6 thresholds, channel-name patterns, and other shared constants.
+AASM thresholds, channel-name patterns, and other shared constants.
 
 v0.4.0: SCORING_PROFILES is now derived from psgscoring.profiles. The
 dataclass-based registry in profiles.py is the single source of truth.
@@ -16,7 +16,7 @@ than .profiles, so it is safe to import from any layer of the package.
 """
 
 # ---------------------------------------------------------------------------
-# AASM 2.6 respiratory scoring thresholds (used by respiratory.py as fallback)
+# AASM respiratory scoring thresholds (used by respiratory.py as fallback)
 # ---------------------------------------------------------------------------
 APNEA_THRESHOLD        = 0.10   # flow < 10% of baseline -> apnea
 HYPOPNEA_THRESHOLD     = 0.70   # flow < 70% of baseline -> hypopnea candidate
@@ -136,13 +136,13 @@ MMSD_CONFIRM_THRESH    = 0.15   # MMSD < 15% -> breathing truly absent
 # EDF channel-name patterns  (multilingual: EN / NL / DE / FR)
 # ---------------------------------------------------------------------------
 CHANNEL_PATTERNS: dict[str, list[str]] = {
-    # AASM 2.6: nasal pressure transducer -> hypopnea (more sensitive)
+    # AASM: nasal pressure transducer -> hypopnea (more sensitive)
     "flow_pressure": [
         "nasal pressure", "nasalpressure", "ptaf", "pnasale",
         "cannula", "npt", "nasal pres", "pflow", "np ",
         "naf", "nasal flow",
     ],
-    # AASM 2.6: oronasal thermistor -> apnea (detects cessation)
+    # AASM: oronasal thermistor -> apnea (detects cessation)
     "flow_thermistor": [
         "thermistor", "therm", "thermist", "oronasal",
         "oro-nasal", "airflow", "air flow",

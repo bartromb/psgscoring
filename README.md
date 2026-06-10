@@ -1,6 +1,6 @@
 # psgscoring
 
-**Open-source AASM 2.6–compliant respiratory scoring for polysomnography.**
+**Open-source AASM-compliant respiratory scoring for polysomnography.**
 
 [![PyPI](https://img.shields.io/pypi/v/psgscoring)](https://pypi.org/project/psgscoring/)
 [![Python](https://img.shields.io/pypi/pyversions/psgscoring)](https://pypi.org/project/psgscoring/)
@@ -15,7 +15,7 @@ Technical details (signal processing chain, classification logic, all twelve bia
 
 ## What this library does
 
-`psgscoring` detects and classifies respiratory events (apneas, hypopneas, RERAs) in polysomnography recordings following AASM 2.6 rules. It extends [YASA](https://github.com/raphaelvallat/yasa) (Vallat & Walker, *eLife* 2021) from sleep staging into a complete clinical respiratory scoring pipeline.
+`psgscoring` detects and classifies respiratory events (apneas, hypopneas, RERAs) in polysomnography recordings following AASM rules. It extends [YASA](https://github.com/raphaelvallat/yasa) (Vallat & Walker, *eLife* 2021) from sleep staging into a complete clinical respiratory scoring pipeline.
 
 **Three contributions that distinguish this library:**
 

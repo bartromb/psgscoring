@@ -1,7 +1,7 @@
 """
 psgscoring.respiratory
 ======================
-AASM 2.6 apnea / hypopnea event detection and Rule 1B reinstatement.
+AASM apnea / hypopnea event detection and Rule 1B reinstatement.
 
 This module orchestrates the signal-level primitives from ``signal``,
 ``breath``, ``classify``, and ``spo2`` into the full respiratory-event
@@ -283,9 +283,9 @@ def detect_respiratory_events(
     _precomputed:      dict | None = None,
 ) -> dict:
     """
-    Detect and classify apneas and hypopneas per AASM 2.6.
+    Detect and classify apneas and hypopneas per AASM.
 
-    Sensor assignment (AASM 2.6)
+    Sensor assignment (AASM)
     ----------------------------
     ``flow_data``  : oronasal thermistor  -> apnea detection (cessation)
     ``hypop_flow`` : nasal pressure transducer -> hypopnea detection (more sensitive)
@@ -458,7 +458,7 @@ def detect_respiratory_events(
         _flow_filt_snap = bandpass_flow(flow_data, sf_flow) if _USE_SNAP else None
 
         # ── v0.8.14: AASM-conforme peak-gebaseerde hypopnea-detectie ─────
-        # AASM 2.6: "peak signal excursions drop by ≥30%"
+        # AASM: "peak signal excursions drop by ≥30%"
         # = per-ademhaling piek-amplitude, NIET continue envelope.
         # We combineren peak-mask met envelope-mask (OR) voor max. sensitiviteit.
         _smooth_win = max(1, int(_SMOOTH_S * sf_hy)) if _SMOOTH_S > 0 else 1
@@ -692,7 +692,7 @@ def reinstate_rule1b_hypopneas(
 ) -> tuple[list, list]:
     """
     Reinstate hypopnea candidates that are coupled to an arousal
-    (AASM 2.6 Rule 1B).
+    (AASM Rule 1B).
 
     v0.8.1 improvement: if more than one complete breath cycle occurs between
     event termination and arousal onset, the coupling is classified as
@@ -1077,7 +1077,7 @@ def _detect_apneas(
     flow_filt: np.ndarray | None = None,
     signal_quality: dict | None = None,
 ) -> list[dict]:
-    """Detecteer apnea-events: ≥90% flow-reductie gedurende ≥10s (AASM 2.6)."""
+    """Detecteer apnea-events: ≥90% flow-reductie gedurende ≥10s (AASM)."""
     events: list[dict] = []
     labeled, n_ap = label(apnea_raw & sleep_mask_ap)
     slices_ap = find_objects(labeled)
@@ -1334,7 +1334,7 @@ def _validate_local_reduction(
     """v0.8.22/v0.2.8: validate that an event shows a real flow reduction
     relative to immediately-preceding breathing.
 
-    NOT in AASM 2.6/v3 — this is a deliberate refinement on top of the
+    NOT in AASM/v3 — this is a deliberate refinement on top of the
     AASM ≥30% envelope-baseline criterion, intended to reject scoring
     normal breath-to-breath variability as hypopnea on patients with
     very stable breathing (low CV). It approximates the intuitive

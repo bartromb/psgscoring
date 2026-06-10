@@ -1,6 +1,6 @@
 # Medical and Clinical Disclaimer
 
-**psgscoring** — Open-source AASM 2.6-compliant respiratory scoring library
+**psgscoring** — Open-source AASM-compliant respiratory scoring library
 Copyright (c) 2024–2026 Bart Rombaut, Briek Rombaut, Cedric Rombaut
 https://github.com/bartromb/psgscoring
 

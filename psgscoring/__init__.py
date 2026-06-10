@@ -1,7 +1,7 @@
 """
 psgscoring
 ==========
-Open-source Python library for AASM 2.6-compliant PSG respiratory scoring.
+Open-source Python library for AASM-compliant PSG respiratory scoring.
 
 Quick start
 -----------
@@ -17,7 +17,7 @@ signal       – preprocessing: linearize, MMSD, bandpass, envelope, baselines
 breath       – breath segmentation, amplitude ratios, flattening index
 classify     – apnea-type classification (obstructive / central / mixed)
 spo2         – SpO2 coupling (Rule 1A), full SpO2 analysis, hypoxic burden
-plm          – PLM detection (AASM 2.6)
+plm          – PLM detection (AASM)
 ancillary    – position, heart rate, snore, Cheyne-Stokes
 respiratory  – apnea/hypopnea detection, Rule 1B, summary statistics
 ecg_effort   – ECG-derived effort (TECG, spectral classifier) for central/obstructive differentiation
@@ -82,7 +82,7 @@ from .utils import (
     safe_r,
 )
 
-__version__ = "0.7.2"
+__version__ = "0.7.3"
 __all__ = [
     # Master
     "run_pneumo_analysis",

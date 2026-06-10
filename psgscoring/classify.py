@@ -1,7 +1,7 @@
 """
 psgscoring.classify
 ===================
-AASM 2.6 apnea-type classification: obstructive / central / mixed.
+AASM apnea-type classification: obstructive / central / mixed.
 
 v0.8.11 additions
 -----------------
@@ -118,7 +118,7 @@ def classify_apnea_type(
 ) -> tuple[str, float, dict]:
     """
     Classify an apnea event as ``"obstructive"``, ``"central"``, or
-    ``"mixed"`` per AASM 2.6 Adult Scoring Rules (section 3B).
+    ``"mixed"`` per AASM Adult Scoring Rules (section 3B).
 
     Decision logic (in priority order)
     -----------------------------------

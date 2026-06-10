@@ -2,7 +2,7 @@
 psgscoring.spo2
 ===============
 SpO2 analysis: ODI, time-below thresholds, desaturation detection,
-and per-event desaturation coupling (AASM 2.6 Rule 1A / Uddin 2021).
+and per-event desaturation coupling (AASM Rule 1A / Uddin 2021).
 
 Dependencies: numpy, scipy, psgscoring.constants, psgscoring.utils
 """
