@@ -76,3 +76,23 @@ def test_hypoxic_burden_zero_events():
     hb = compute_hypoxic_burden(np.full(600, 97.0), 1.0, [], ["N2"] * 20)
     assert hb["hypoxic_burden"] is None
     assert hb["n_events_with_burden"] == 0
+
+
+def test_hypoxic_burden_tst_excludes_invalid_spo2():
+    """v0.7.6 (de Chazal calcHB.m): invalid in-sleep SpO2 samples (NaN /
+    outside [50,100]) are excluded from the TST denominator, so a sensor
+    dropout during sleep raises HB (the numerator already skips those samples)
+    instead of deflating it."""
+    sf = 1.0
+    spo2 = _spo2_with_dips()                       # three 6% event dips
+    hyp = _sleep_hypno(len(spo2), sf)
+    events = [{"onset_s": float(o), "duration_s": 15.0, "desaturation_pct": 6.0}
+              for o in (100, 300, 500)]
+    hb_base = compute_hypoxic_burden(spo2, sf, events, hyp)["hypoxic_burden"]
+    # 60 s of in-sleep sensor dropout (SpO2 = 0 → invalid), no events there
+    spo2_drop = spo2.copy()
+    spo2_drop[200:260] = 0.0
+    hb_drop = compute_hypoxic_burden(spo2_drop, sf, events, hyp)["hypoxic_burden"]
+    # numerator identical (no event in the dropout); TST 600 s → 540 s → HB×600/540
+    assert hb_drop == pytest.approx(hb_base * 600 / 540, abs=0.3)
+    assert hb_drop > hb_base

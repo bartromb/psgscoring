@@ -1,3 +1,24 @@
+# v0.7.6 — 2026-07-22 — fix: hypoxic-burden TST denominator excludes invalid SpO2
+
+**Numerics-changing — hypoxic burden only; no AHI/ODI/event change.** Closes #2
+(PR #3).
+
+## Fixed
+
+- **Hypoxic-burden TST denominator now excludes invalid SpO2 samples**
+  (`spo2.py`, `compute_hypoxic_burden`). The per-event desaturation-area
+  numerator already drops NaN / out-of-[50,100] samples, but the TST
+  denominator was built from the hypnogram alone (`sleep_mask`), so sensor
+  dropouts during sleep inflated the denominator and **deflated** the burden.
+  `tst_h` now uses `sleep_mask & ~np.isnan(spo2)`, matching the de Chazal
+  `calcHB.m` reference (`HourSleep`). On a recording with ~32 min of in-sleep
+  SpO2 < 50 the reference TST shifts 7.20 h → 6.67 h (higher, correct HB).
+- Only `hypoxic_burden` changes, and only on recordings with invalid in-sleep
+  SpO2; recordings with clean oximetry are byte-identical (`~np.isnan` is all
+  True). AHI / ODI / events / all other fields are untouched. Golden 6/6
+  unchanged (synthetic cases have no in-sleep dropouts). New unit test
+  (`test_spo2_numeric.py`) asserts HB rises by exactly the TST reduction.
+
 # v0.7.5 — 2026-07-22 — fix: RERA/RDI dropped on Cheyne-Stokes nights
 
 > Stacks on **v0.7.4** (the output-preserving robustness/test PR); merge that first.
