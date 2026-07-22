@@ -49,6 +49,9 @@ def test_compute_tecg_low_samplerate_does_not_crash():
 # ── ml_classifier: any error keeps the rule-based result ────────────────────
 
 def test_ml_reclass_missing_key_keeps_rulebased():
+    # Needs a loadable booster so featurisation/sort is actually reached; the
+    # base install (.[test]) has no lightgbm, in which case load fails first.
+    pytest.importorskip("lightgbm")
     if not os.path.exists(_MODEL):
         pytest.skip("shipped LightGBM model not present")
     accepted = [{"onset_s": 10.0, "type": "apnea", "conf": 0.9}]
