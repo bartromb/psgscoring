@@ -1,5 +1,5 @@
 """
-signal_quality.py — Signal quality assessment for PSG recordings.
+signal_quality_channels.py — Per-channel signal quality assessment for PSG.
 
 Detects:
   1. Flat-line segments (electrode disconnect / amplifier saturation)
@@ -7,7 +7,9 @@ Detects:
   3. High-impedance noise (50/60 Hz dominant)
   4. Montage plausibility (cross-correlation sanity checks)
 
-v0.8.30 — AZORG Slaapkliniek
+Distinct from ``signal_quality.py`` (which assesses RIP-effort channel quality);
+the two are surfaced separately as ``output["channel_quality"]`` and
+``output["signal_quality"]``.
 """
 from __future__ import annotations  # PEP 604 `X | None` annotations on Python 3.9
 
@@ -15,7 +17,7 @@ import numpy as np
 from scipy import signal as sp_signal
 import logging
 
-logger = logging.getLogger("psgscoring.signal_quality")
+logger = logging.getLogger("psgscoring.signal_quality_channels")
 
 EPOCH_LEN_S = 30
 

@@ -57,6 +57,14 @@ def detect_r_peaks(ecg: np.ndarray, sf: float) -> np.ndarray:
     r_peaks : array of int
         Sample indices of detected R-peaks.
     """
+    # Guard: the 5–30 Hz QRS bandpass needs the Nyquist frequency above 30 Hz
+    # (sf > 60) and enough samples for zero-phase filtering. Low-rate or
+    # degenerate ECG channels would otherwise raise inside butter/sosfiltfilt
+    # and crash the caller — return no peaks instead (graceful degradation).
+    # Real PSG ECG is sampled at 128–512 Hz, so this never fires on valid data.
+    if ecg is None or sf <= 60 or len(ecg) < int(4 * sf):
+        return np.array([], dtype=int)
+
     # Bandpass 5-30 Hz to isolate QRS
     sos_bp = butter(3, [5.0, 30.0], btype="bandpass", fs=sf, output="sos")
     ecg_filt = sosfiltfilt(sos_bp, ecg)

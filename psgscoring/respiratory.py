@@ -463,41 +463,15 @@ def detect_respiratory_events(
         # We combineren peak-mask met envelope-mask (OR) voor max. sensitiviteit.
         _smooth_win = max(1, int(_SMOOTH_S * sf_hy)) if _SMOOTH_S > 0 else 1
 
-        # Peak-based mask from breath-by-breath analysis
-        # v0.2.8: require MIN_CONSEC consecutive reduced breaths to avoid
-        # scoring isolated low breaths as hypopnea (human scorers see patterns)
-        peak_mask_hy = np.zeros(len(hypop_norm), dtype=bool)
+        # NOTE (v0.7.4): the initial hypopnea mask (peak + envelope + OR) is
+        # intentionally NOT built here. The corrected pass below unconditionally
+        # rebuilds peak_mask_corrected / envelope_mask_corrected /
+        # hypopnea_raw_corrected (with post-apnea recovery excluded), and only
+        # that corrected mask is consumed by _detect_hypopneas. The initial mask
+        # was computed and then discarded — dead work (an extra breath-amplitude
+        # pass plus two whole-record boolean masks, ×N per profile interval).
+        # _MIN_CONSEC is retained here because the corrected pass reuses it.
         _MIN_CONSEC = sp.get("PEAK_MIN_CONSECUTIVE_BREATHS", 3)
-        if _USE_PEAK and breaths and len(breaths) > 10:
-            ratios = compute_breath_amplitudes(breaths, sf_hy)
-            reduced = [(ratios[i] < _HYPOP_THRESH and ratios[i] >= APNEA_THRESHOLD)
-                       for i in range(len(breaths))]
-            i = 0
-            while i < len(breaths):
-                if not reduced[i]:
-                    i += 1
-                    continue
-                # Count consecutive reduced breaths from position i
-                j = i
-                while j < len(breaths) and reduced[j]:
-                    j += 1
-                if (j - i) >= _MIN_CONSEC:
-                    for k in range(i, j):
-                        br = breaths[k]
-                        s_idx = int(br["onset_s"] * sf_hy)
-                        e_idx = int((br["onset_s"] + br["duration_s"]) * sf_hy)
-                        peak_mask_hy[max(0, s_idx):min(len(peak_mask_hy), e_idx)] = True
-                i = j
-            n_peak = int(peak_mask_hy.sum())
-            logger.info("[pneumo] Peak-based hypopnea mask (min %d consec): %d samples (%.1f s)",
-                        _MIN_CONSEC, n_peak, n_peak / sf_hy)
-
-        # Envelope-based mask (smoothed, originele methode)
-        hypop_norm_smooth = uniform_filter1d(hypop_norm, _smooth_win)
-        envelope_mask_hy = (hypop_norm_smooth < _HYPOP_THRESH) & ~(hypop_norm_smooth < APNEA_THRESHOLD)
-
-        # Combineer: event gevonden door PEAK óf ENVELOPE → scoren
-        hypopnea_raw = peak_mask_hy | envelope_mask_hy
 
         events: list[dict]    = []
         rejected: list[dict] = []

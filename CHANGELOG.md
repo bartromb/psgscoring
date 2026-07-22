@@ -1,3 +1,37 @@
+# v0.7.4 — 2026-07-22 — robustness & test coverage (output-preserving)
+
+Code-review follow-up. **No scoring changes** — golden harness + PSG-IPA
+reproducibility byte-identical; full suite green (129 passed).
+
+- **Graceful degradation for ancillary steps.** A failure in any single
+  ancillary analysis (SpO2, position, heart rate, snore, PLM, arousal) now
+  degrades to a `{"success": False, "error": …}` result via a new `_run_step`
+  helper instead of aborting the whole `run_pneumo_analysis`, matching the
+  pattern the interval/ML/CSR/hypoxic-burden/post-processing steps already used.
+- **`apply_ml_reclassification` honours its docstring contract.** The whole
+  featurise → predict → sort body is guarded, so a malformed candidate (missing
+  `onset_s`), a booster shape/NaN mismatch, or the onset sort now falls back to
+  the rule-based result rather than crashing.
+- **`ecg_effort.detect_r_peaks` guards low sample rates.** The 5–30 Hz QRS
+  bandpass would raise for `sf ≤ 60` (Nyquist ≤ 30); it now returns no peaks,
+  which also stops `compute_tecg` crashing on low-rate ECG. Never fires on real
+  PSG ECG (128–512 Hz), so output is unchanged.
+- **Removed dead recomputation in `detect_respiratory_events`.** The initial
+  hypopnea mask (peak + envelope + OR, plus a full breath-amplitude pass) was
+  computed and then discarded — only the post-apnea-corrected mask is consumed.
+  Deleting it removes redundant work per profile with byte-identical output.
+- **New numeric unit tests** (`test_spo2_numeric`, `test_respiratory_core`,
+  `test_postprocess_numeric`, `test_crash_safety`) so ODI / T90 / hypoxic
+  burden / breath segmentation / dynamic baseline / CII and the crash-safety
+  guards are checked on every `pytest tests/` — previously the only numeric
+  coverage was the env-gated golden test.
+- **Packaging:** ship `py.typed` (PEP 561) so downstream mypy/pyright see the
+  inline annotations.
+- Housekeeping: `signal_quality_channels.py` gets its own logger name (was
+  colliding with `signal_quality.py`), a correct filename docstring, and the
+  fictitious "v0.8.30" stamp removed; dropped a redundant inline
+  `preprocess_flow` re-import in `pipeline.py`.
+
 # v0.7.3 — 2026-06-09 — documentation / terminology
 
 Docs and terminology only — **no code or scoring changes** (golden harness

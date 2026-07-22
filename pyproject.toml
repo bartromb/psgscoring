@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "psgscoring"
-version = "0.7.3"
+version = "0.7.4"
 description = "Open-source Python library for AASM-compliant automated polysomnography scoring"
 readme = "README.md"
 license = "BSD-3-Clause"
@@ -58,4 +58,4 @@ Changelog = "https://github.com/bartromb/psgscoring/blob/main/CHANGELOG.md"
 include = ["psgscoring*"]
 
 [tool.setuptools.package-data]
-"psgscoring" = ["data/*.txt"]
+"psgscoring" = ["data/*.txt", "py.typed"]
