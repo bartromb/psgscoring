@@ -218,39 +218,48 @@ def apply_ml_reclassification(
     if not all_candidates:
         return accepted, rejected, {"status": "no_candidates", "threshold": threshold}
 
-    feat_rows = [
-        _extract_candidate_features(
-            cand, is_acc, all_candidates, arousals, hypno,
-            sig_dur_s, tst_h, overall_qual5, median_spo2, thermistor_type,
-        )
-        for cand, is_acc in zip(all_candidates, is_acc_flags)
-    ]
-    X = np.array([[r[c] for c in FEATURE_COLUMNS] for r in feat_rows], dtype=float)
-    scores = booster.predict(X)
-    keep_mask = scores >= threshold
+    # The entire body is guarded: a malformed candidate/arousal dict (missing
+    # key, e.g. no 'onset_s'), a booster shape/NaN mismatch, or the onset sort
+    # must degrade to the rule-based result — never crash the pipeline (honours
+    # the docstring contract).
+    try:
+        feat_rows = [
+            _extract_candidate_features(
+                cand, is_acc, all_candidates, arousals, hypno,
+                sig_dur_s, tst_h, overall_qual5, median_spo2, thermistor_type,
+            )
+            for cand, is_acc in zip(all_candidates, is_acc_flags)
+        ]
+        X = np.array([[r[c] for c in FEATURE_COLUMNS] for r in feat_rows], dtype=float)
+        scores = booster.predict(X)
+        keep_mask = scores >= threshold
 
-    new_accepted = [c for c, k in zip(all_candidates, keep_mask) if k]
-    new_rejected = [c for c, k in zip(all_candidates, keep_mask) if not k]
+        new_accepted = [c for c, k in zip(all_candidates, keep_mask) if k]
+        new_rejected = [c for c, k in zip(all_candidates, keep_mask) if not k]
 
-    # Sort by onset for downstream consistency
-    new_accepted.sort(key=lambda x: float(x["onset_s"]))
-    new_rejected.sort(key=lambda x: float(x["onset_s"]))
+        # Sort by onset for downstream consistency
+        new_accepted.sort(key=lambda x: float(x["onset_s"]))
+        new_rejected.sort(key=lambda x: float(x["onset_s"]))
 
-    type_counts = Counter(c.get("type", "?") for c in new_accepted)
-    meta = {
-        "status":             "ok",
-        "threshold":          threshold,
-        "n_candidates":       len(all_candidates),
-        "n_accepted_input":   len(accepted),
-        "n_rejected_input":   len(rejected),
-        "n_accepted_output":  len(new_accepted),
-        "n_rejected_output":  len(new_rejected),
-        "score_min":          float(scores.min()),
-        "score_max":          float(scores.max()),
-        "score_mean":         float(scores.mean()),
-        "score_p50":          float(np.percentile(scores, 50)),
-        "type_counts_output": dict(type_counts),
-    }
+        type_counts = Counter(c.get("type", "?") for c in new_accepted)
+        meta = {
+            "status":             "ok",
+            "threshold":          threshold,
+            "n_candidates":       len(all_candidates),
+            "n_accepted_input":   len(accepted),
+            "n_rejected_input":   len(rejected),
+            "n_accepted_output":  len(new_accepted),
+            "n_rejected_output":  len(new_rejected),
+            "score_min":          float(scores.min()),
+            "score_max":          float(scores.max()),
+            "score_mean":         float(scores.mean()),
+            "score_p50":          float(np.percentile(scores, 50)),
+            "type_counts_output": dict(type_counts),
+        }
+    except Exception as e:
+        logger.warning("[ml] Re-classification failed, keeping rule-based result: %s", e)
+        return accepted, rejected, {"status": f"error: {e}"}
+
     logger.info(
         "[ml] Re-classified %d candidates → %d accepted (threshold %.2f); "
         "delta vs rule-based = %+d events",

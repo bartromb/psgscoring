@@ -1,3 +1,107 @@
+# v0.7.6 — 2026-07-22 — fix: hypoxic-burden TST denominator excludes invalid SpO2
+
+**Numerics-changing — hypoxic burden only; no AHI/ODI/event change.** Closes #2
+(PR #3).
+
+## Fixed
+
+- **Hypoxic-burden TST denominator now excludes invalid SpO2 samples**
+  (`spo2.py`, `compute_hypoxic_burden`). The per-event desaturation-area
+  numerator already drops NaN / out-of-[50,100] samples, but the TST
+  denominator was built from the hypnogram alone (`sleep_mask`), so sensor
+  dropouts during sleep inflated the denominator and **deflated** the burden.
+  `tst_h` now uses `sleep_mask & ~np.isnan(spo2)`, matching the de Chazal
+  `calcHB.m` reference (`HourSleep`). On a recording with ~32 min of in-sleep
+  SpO2 < 50 the reference TST shifts 7.20 h → 6.67 h (higher, correct HB).
+- Only `hypoxic_burden` changes, and only on recordings with invalid in-sleep
+  SpO2; recordings with clean oximetry are byte-identical (`~np.isnan` is all
+  True). AHI / ODI / events / all other fields are untouched. Golden 6/6
+  unchanged (synthetic cases have no in-sleep dropouts). New unit test
+  (`test_spo2_numeric.py`) asserts HB rises by exactly the TST reduction.
+- **MESA A/B (2026-07-22):** on the same 16-recording sample, `hypoxic_burden`
+  changed on 5 recordings — all **raised** (e.g. 156.18→167.52, 17.06→18.34),
+  never lowered — while AHI/events stayed byte-identical, confirming the
+  denominator correction behaves as intended on real data.
+
+# v0.7.5 — 2026-07-22 — fix: RERA/RDI dropped on Cheyne-Stokes nights
+
+> Stacks on **v0.7.4** (the output-preserving robustness/test PR); merge that first.
+
+**Numerics-changing — but strictly additive: no AHI, event, or SpO2 number
+changes.** On recordings where Cheyne-Stokes respiration is detected, the RERA
+index, RDI, and REM/NREM AHI silently vanished from `summary`; they are now
+retained.
+
+## Fixed
+
+- **RERA/RDI/REM-NREM AHI no longer wiped on CSR-positive nights**
+  (`pipeline.py`). `_compute_rera_rdi` (step 8b) wrote `rera_index` / `rdi` /
+  `n_rera` / `rem_ahi` / `nrem_ahi` into the respiratory summary, but the
+  Cheyne-Stokes "Fix 3" step then replaced `output["respiratory"]["summary"]`
+  wholesale with a fresh `_compute_summary()` — dropping every one of those keys
+  whenever `csr_detected` was true. `_compute_rera_rdi` now runs **after** the
+  CSR summary recompute, so the keys survive. Non-CSR nights are unaffected
+  (the CSR block does not fire, and nothing between the old and new call
+  position touches the summary → byte-identical); CSR nights now report RDI et
+  al. instead of `None`.
+
+## Validation
+
+- The fix is a pure statement reorder. `_compute_rera_rdi` only ever **reads**
+  `ahi_total` and **writes** the RERA-family keys, so it cannot move any AHI /
+  OAHI / event / SpO2 value — RDI is derived as `ahi_total + rera_index`, never
+  the reverse.
+- **Golden harness (6/6):** the 3 CSR-positive synthetic cases show exactly one
+  changed field — `resp.rdi: null → value` (= `ahi_total`, no arousals) — with
+  `ahi_total`, every event, and all other summary fields byte-identical;
+  re-blessed accordingly. The 3 non-CSR cases are unchanged.
+- **PSG-IPA reproducibility:** byte-identical (clinical cohort, non-CSR).
+- **New regression tests** (`test_rera_csr_ordering.py`, 4 cases) build a
+  CSR-positive synthetic recording (periodic apneas) and assert the full RERA
+  family — including non-trivial values with arousals (`rera_index > 0`) and REM
+  (`rem_ahi` populated) — survives to the final output.
+- **MESA empirical A/B — CONFIRMED (2026-07-22).** Ran `scripts/ab_rera_csr.py`
+  on a 16-recording MESA sample (9 CSR-positive) with the validated `score_mesa`
+  harness (validation-mode tuning, NSRR hypnogram + arousals): 0.7.3 vs 0.7.6.
+  Result — **0 invariant fields moved** (`ahi_total` / `ahi_incl_uncertain` /
+  `n_events` byte-identical on all 16), and the RERA family restored (None→value)
+  on exactly the 9 CSR-positive recordings (45 keys). Confirms the fix is
+  strictly additive on real clinical data.
+
+# v0.7.4 — 2026-07-22 — robustness & test coverage (output-preserving)
+
+Code-review follow-up. **No scoring changes** — golden harness + PSG-IPA
+reproducibility byte-identical; full suite green (129 passed).
+
+- **Graceful degradation for ancillary steps.** A failure in any single
+  ancillary analysis (SpO2, position, heart rate, snore, PLM, arousal) now
+  degrades to a `{"success": False, "error": …}` result via a new `_run_step`
+  helper instead of aborting the whole `run_pneumo_analysis`, matching the
+  pattern the interval/ML/CSR/hypoxic-burden/post-processing steps already used.
+- **`apply_ml_reclassification` honours its docstring contract.** The whole
+  featurise → predict → sort body is guarded, so a malformed candidate (missing
+  `onset_s`), a booster shape/NaN mismatch, or the onset sort now falls back to
+  the rule-based result rather than crashing.
+- **`ecg_effort.detect_r_peaks` guards low sample rates.** The 5–30 Hz QRS
+  bandpass would raise for `sf ≤ 60` (Nyquist ≤ 30); it now returns no peaks,
+  which also stops `compute_tecg` crashing on low-rate ECG. Never fires on real
+  PSG ECG (128–512 Hz), so output is unchanged.
+- **Removed dead recomputation in `detect_respiratory_events`.** The initial
+  hypopnea mask (peak + envelope + OR, plus a full breath-amplitude pass) was
+  computed and then discarded — only the post-apnea-corrected mask is consumed.
+  Deleting it removes redundant work per profile with byte-identical output.
+- **New numeric unit tests** (`test_spo2_numeric`, `test_respiratory_core`,
+  `test_postprocess_numeric`, `test_crash_safety`) so ODI / T90 / hypoxic
+  burden / breath segmentation / dynamic baseline / CII and the crash-safety
+  guards are checked on every `pytest tests/` — previously the only numeric
+  coverage was the env-gated golden test.
+- **Packaging:** ship `py.typed` (PEP 561) so downstream mypy/pyright see the
+  inline annotations.
+- Housekeeping: `signal_quality_channels.py` gets its own logger name (was
+  colliding with `signal_quality.py`), a correct filename docstring, and the
+  fictitious "v0.8.30" stamp removed; dropped a redundant inline
+  `preprocess_flow` re-import in `pipeline.py`.
+
 # v0.7.3 — 2026-06-09 — documentation / terminology
 
 Docs and terminology only — **no code or scoring changes** (golden harness

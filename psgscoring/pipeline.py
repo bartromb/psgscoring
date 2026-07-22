@@ -53,6 +53,22 @@ except ImportError:
 logger = logging.getLogger("psgscoring.pipeline")
 
 
+def _run_step(step_name: str, fn):
+    """Run an ancillary analysis, degrading to a ``{success: False, error}`` dict
+    on any exception instead of crashing the whole run.
+
+    Mirrors the ``try/except`` already used by the AHI-interval, ML, CSR,
+    hypoxic-burden and post-processing steps: one malformed/unexpected channel
+    (e.g. a NaN-laden leg-EMG) must not abort the entire respiratory analysis.
+    On success the return value is exactly ``fn()`` (output-preserving).
+    """
+    try:
+        return fn()
+    except Exception as e:  # noqa: BLE001 — deliberate graceful degradation
+        logger.warning("[pneumo] step '%s' failed, continuing: %s", step_name, e)
+        return {"success": False, "error": f"{step_name}_failed: {e}", "summary": {}}
+
+
 def run_pneumo_analysis(
     raw,                                 # mne.io.BaseRaw
     hypno: list,
@@ -343,8 +359,8 @@ def run_pneumo_analysis(
     # ── Step 1c (v0.8.11): Baseline Anchoring ─────────────────────────────
     if apnea_flow is not None:
         try:
-            from .signal import preprocess_flow as _pf, compute_anchor_baseline
-            _anchor_env = _pf(apnea_flow, sf_apnea, is_nasal_pressure=False)
+            from .signal import compute_anchor_baseline  # not in the top-level import
+            _anchor_env = preprocess_flow(apnea_flow, sf_apnea, is_nasal_pressure=False)
             anchor_info = compute_anchor_baseline(
                 _anchor_env, sf_apnea, hypno,
                 events=resp.get("events", []),
@@ -365,7 +381,7 @@ def run_pneumo_analysis(
     # ── Step 2: SpO2 ───────────────────────────────────────────────────────
     logger.info("[pneumo 2/11] SpO2 analysis...")
     if spo2_data is not None:
-        output["spo2"] = analyze_spo2(spo2_data, sf_spo2, hypno)
+        output["spo2"] = _run_step("spo2", lambda: analyze_spo2(spo2_data, sf_spo2, hypno))
         # v0.8.16: SpO2 samplerate check (AASM: max 3s averaging)
         if sf_spo2 is not None and sf_spo2 < 0.33:
             output["spo2"]["spo2_low_samplerate"] = True
@@ -378,7 +394,7 @@ def run_pneumo_analysis(
     # ── Step 3: Position ───────────────────────────────────────────────────
     logger.info("[pneumo 3/9] Position analysis...")
     output["position"] = (
-        analyze_position(pos_data, sf_pos, hypno, resp.get("events", []))
+        _run_step("position", lambda: analyze_position(pos_data, sf_pos, hypno, resp.get("events", [])))
         if pos_data is not None
         else {"success": False, "error": "No position channel", "summary": {}}
     )
@@ -387,7 +403,7 @@ def run_pneumo_analysis(
     logger.info("[pneumo 4/9] Heart rate...")
     hr_data, sf_hr = (pulse_data, sf_pulse) if pulse_data is not None else get("ecg")
     output["heart_rate"] = (
-        analyze_heart_rate(hr_data, sf_hr, hypno)
+        _run_step("heart_rate", lambda: analyze_heart_rate(hr_data, sf_hr, hypno))
         if hr_data is not None
         else {"success": False, "error": "No HR/ECG channel", "summary": {}}
     )
@@ -395,7 +411,7 @@ def run_pneumo_analysis(
     # ── Step 5: Snore ──────────────────────────────────────────────────────
     logger.info("[pneumo 5/9] Snore analysis...")
     output["snore"] = (
-        analyze_snore(snore_data, sf_snore, hypno)
+        _run_step("snore", lambda: analyze_snore(snore_data, sf_snore, hypno))
         if snore_data is not None
         else {"success": False, "error": "No snore channel", "summary": {}}
     )
@@ -403,12 +419,12 @@ def run_pneumo_analysis(
     # ── Step 6: PLM ────────────────────────────────────────────────────────
     logger.info("[pneumo 6/9] PLM detection...")
     if leg_l_data is not None or leg_r_data is not None:
-        output["plm"] = analyze_plm(
+        output["plm"] = _run_step("plm", lambda: analyze_plm(
             leg_l_data, leg_r_data,
             sf_leg or raw.info["sfreq"], hypno,
             resp_events=resp.get("events", []),
             artifact_epochs=artifact_epochs,
-        )
+        ))
     else:
         output["plm"] = {"success": False, "error": "No leg-EMG channels", "summary": {}}
 
@@ -435,19 +451,23 @@ def run_pneumo_analysis(
     elif eeg_data is not None and _AROUSAL_AVAILABLE:
         logger.info("[pneumo 7/9] Arousal detection & respiratory coupling...")
         flow_env_norm = _compute_flow_norm(apnea_flow, sf_apnea)
-        output["arousal"] = run_arousal_respiratory_analysis(
-            eeg_data    = eeg_data,
-            sf_eeg      = sf_eeg,
-            flow_data   = apnea_flow,
-            flow_norm   = flow_env_norm,
-            sf_flow     = sf_apnea,
-            resp_events = resp.get("events", []),
-            hypno       = hypno,
-            emg_data    = emg_data,
-            artifact_epochs = artifact_epochs,
-            hr_data     = hr_data,
-            sf_hr       = sf_hr or 1.0,
-        )
+        try:
+            output["arousal"] = run_arousal_respiratory_analysis(
+                eeg_data    = eeg_data,
+                sf_eeg      = sf_eeg,
+                flow_data   = apnea_flow,
+                flow_norm   = flow_env_norm,
+                sf_flow     = sf_apnea,
+                resp_events = resp.get("events", []),
+                hypno       = hypno,
+                emg_data    = emg_data,
+                artifact_epochs = artifact_epochs,
+                hr_data     = hr_data,
+                sf_hr       = sf_hr or 1.0,
+            )
+        except Exception as e:  # noqa: BLE001 — arousal failure must not abort the run
+            logger.warning("[pneumo] arousal analysis failed, continuing: %s", e)
+            output["arousal"] = _empty_arousal(f"arousal_failed: {e}")
     else:
         reason = "No EEG channel" if eeg_data is None else "arousal_analysis not loaded"
         output["arousal"] = _empty_arousal(reason)
@@ -526,10 +546,6 @@ def run_pneumo_analysis(
             logger.warning("[ml] Re-classification failed: %s", e)
             output["respiratory"]["ml_reclassification"] = {"status": f"exception: {e}"}
 
-    # ── Step 8b (v0.8.16): RERA index and RDI ─────────────────────────────
-    logger.info("[pneumo 8b/10] RERA and RDI computation...")
-    _compute_rera_rdi(output, hypno, arousals, artifact_epochs)
-
     # ── Step 9: Cheyne-Stokes ──────────────────────────────────────────────
     logger.info("[pneumo 9/10] Cheyne-Stokes detection...")
     if apnea_flow is not None:
@@ -564,6 +580,16 @@ def run_pneumo_analysis(
         )
         n_flagged = sum(1 for e in events_flagged if e.get("csr_flagged"))
         logger.info("Fix3 (pipeline): %d events gemarkeerd als CSR-gerelateerd", n_flagged)
+
+    # ── Step 9b (v0.8.16): RERA index and RDI ─────────────────────────────
+    # MUST run AFTER the CSR summary recompute above: Fix 3 replaces
+    # output["respiratory"]["summary"] with a fresh _compute_summary() dict on
+    # CSR-positive nights, which would otherwise drop the RERA/RDI/REM-NREM keys
+    # this adds. On non-CSR nights Fix 3 does not fire and nothing between the
+    # old (step 8b) and this position touches the summary, so the values are
+    # unchanged; on CSR nights the keys are now retained (bug fix, v0.7.4).
+    logger.info("[pneumo 9b/11] RERA and RDI computation...")
+    _compute_rera_rdi(output, hypno, arousals, artifact_epochs)
 
     # ── Step 10: Hypoxic burden (Azarbarzin et al., AJRCCM 2019) ──────────
     if spo2_data is not None and output["respiratory"].get("success"):

@@ -341,6 +341,8 @@ convention (the library excludes `uncertain` apneas).
 | Status | Item |
 |---|---|
 | ✅ DONE | psgscoring **v0.7.2** on PyPI + GitHub (0.6.1 crash/3.9 fixes + golden harness; 0.6.2 dual-AHI; 0.7.0 five Tier-1 fixes; 0.7.1 docs; 0.7.2 ~2× perf, byte-identical) |
+| 🔁 IN PR | **v0.7.4** — output-preserving robustness/test cleanup (crash-safety for ancillary steps + ML/ECG guards, dead-code removal, +25 numeric unit tests, `py.typed`); byte-identical (PR #7) |
+| 🔁 IN PR | **v0.7.5** — fix: RERA/RDI/REM-NREM AHI were wiped on Cheyne-Stokes-positive nights (`_compute_rera_rdi` now runs after the CSR summary recompute). Strictly additive: no AHI/event/SpO2 number changes (golden 6/6 with only `resp.rdi` restored on the 3 CSR cases; PSG-IPA byte-identical). MESA/SHHS empirical A/B pending data (`scripts/ab_rera_csr.py`, 56-core) |
 | ✅ DONE | YASAFlaskified **v0.12.4** on GitHub, **deployed to Hetzner production + test VM** |
 | ✅ DONE | MESA q=7 LightGBM holdout (n=92): bias −0.02/h, κ 0.50; cms_medicare validated vs `ahi_a0h4` |
 | ✅ DONE | golden harness now runs in CI; both repos on Node 24 actions |

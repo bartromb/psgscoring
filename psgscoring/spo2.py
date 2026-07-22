@@ -285,7 +285,11 @@ def compute_hypoxic_burden(
 
         # Total sleep time
         sleep_mask = build_sleep_mask(hypno, sf_spo2, n_spo2)
-        tst_h = float(np.sum(sleep_mask)) / sf_spo2 / 3600
+        # Total sleep time — require both in-sleep AND valid SpO2 so numerator
+        # (per-event integration already drops NaN) and denominator span the
+        # same time set; sensor dropouts during sleep would otherwise inflate the
+        # denominator and deflate HB. Matches de Chazal calcHB.m (HourSleep). #2
+        tst_h = float(np.sum(sleep_mask & ~np.isnan(spo2))) / sf_spo2 / 3600
         if tst_h < 0.1:
             return result
 
