@@ -18,6 +18,10 @@
   True). AHI / ODI / events / all other fields are untouched. Golden 6/6
   unchanged (synthetic cases have no in-sleep dropouts). New unit test
   (`test_spo2_numeric.py`) asserts HB rises by exactly the TST reduction.
+- **MESA A/B (2026-07-22):** on the same 16-recording sample, `hypoxic_burden`
+  changed on 5 recordings — all **raised** (e.g. 156.18→167.52, 17.06→18.34),
+  never lowered — while AHI/events stayed byte-identical, confirming the
+  denominator correction behaves as intended on real data.
 
 # v0.7.5 — 2026-07-22 — fix: RERA/RDI dropped on Cheyne-Stokes nights
 
@@ -56,11 +60,14 @@ retained.
   CSR-positive synthetic recording (periodic apneas) and assert the full RERA
   family — including non-trivial values with arousals (`rera_index > 0`) and REM
   (`rem_ahi` populated) — survives to the final output.
-- **MESA/SHHS empirical sweep is confirmatory-pending:** those cohorts are not
-  on this workstation. Because the paper metric (`ahi_incl_uncertain`) is never
-  written by `_compute_rera_rdi`, the MESA numbers are invariant by
-  construction; `scripts/ab_rera_csr.py` is provided to run the A/B on 56 cores
-  when the data is available.
+- **MESA empirical A/B — CONFIRMED (2026-07-22).** Ran `scripts/ab_rera_csr.py`
+  on a 16-recording MESA sample (9 CSR-positive) with the validated `score_mesa`
+  harness (validation-mode tuning, NSRR hypnogram + arousals): 0.7.3 vs 0.7.6.
+  Result — **0 invariant fields moved** (`ahi_total` / `ahi_incl_uncertain` /
+  `n_events` byte-identical on all 16), and the RERA family restored (None→value)
+  on exactly the 9 CSR-positive recordings (45 keys). Confirms the fix is
+  strictly additive on real clinical data.
+
 # v0.7.4 — 2026-07-22 — robustness & test coverage (output-preserving)
 
 Code-review follow-up. **No scoring changes** — golden harness + PSG-IPA
