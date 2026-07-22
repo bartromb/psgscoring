@@ -526,10 +526,6 @@ def run_pneumo_analysis(
             logger.warning("[ml] Re-classification failed: %s", e)
             output["respiratory"]["ml_reclassification"] = {"status": f"exception: {e}"}
 
-    # ── Step 8b (v0.8.16): RERA index and RDI ─────────────────────────────
-    logger.info("[pneumo 8b/10] RERA and RDI computation...")
-    _compute_rera_rdi(output, hypno, arousals, artifact_epochs)
-
     # ── Step 9: Cheyne-Stokes ──────────────────────────────────────────────
     logger.info("[pneumo 9/10] Cheyne-Stokes detection...")
     if apnea_flow is not None:
@@ -564,6 +560,16 @@ def run_pneumo_analysis(
         )
         n_flagged = sum(1 for e in events_flagged if e.get("csr_flagged"))
         logger.info("Fix3 (pipeline): %d events gemarkeerd als CSR-gerelateerd", n_flagged)
+
+    # ── Step 9b (v0.8.16): RERA index and RDI ─────────────────────────────
+    # MUST run AFTER the CSR summary recompute above: Fix 3 replaces
+    # output["respiratory"]["summary"] with a fresh _compute_summary() dict on
+    # CSR-positive nights, which would otherwise drop the RERA/RDI/REM-NREM keys
+    # this adds. On non-CSR nights Fix 3 does not fire and nothing between the
+    # old (step 8b) and this position touches the summary, so the values are
+    # unchanged; on CSR nights the keys are now retained (bug fix, v0.7.4).
+    logger.info("[pneumo 9b/11] RERA and RDI computation...")
+    _compute_rera_rdi(output, hypno, arousals, artifact_epochs)
 
     # ── Step 10: Hypoxic burden (Azarbarzin et al., AJRCCM 2019) ──────────
     if spo2_data is not None and output["respiratory"].get("success"):

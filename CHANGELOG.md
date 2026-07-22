@@ -1,3 +1,46 @@
+# v0.7.5 — 2026-07-22 — fix: RERA/RDI dropped on Cheyne-Stokes nights
+
+> Stacks on **v0.7.4** (the output-preserving robustness/test PR); merge that first.
+
+**Numerics-changing — but strictly additive: no AHI, event, or SpO2 number
+changes.** On recordings where Cheyne-Stokes respiration is detected, the RERA
+index, RDI, and REM/NREM AHI silently vanished from `summary`; they are now
+retained.
+
+## Fixed
+
+- **RERA/RDI/REM-NREM AHI no longer wiped on CSR-positive nights**
+  (`pipeline.py`). `_compute_rera_rdi` (step 8b) wrote `rera_index` / `rdi` /
+  `n_rera` / `rem_ahi` / `nrem_ahi` into the respiratory summary, but the
+  Cheyne-Stokes "Fix 3" step then replaced `output["respiratory"]["summary"]`
+  wholesale with a fresh `_compute_summary()` — dropping every one of those keys
+  whenever `csr_detected` was true. `_compute_rera_rdi` now runs **after** the
+  CSR summary recompute, so the keys survive. Non-CSR nights are unaffected
+  (the CSR block does not fire, and nothing between the old and new call
+  position touches the summary → byte-identical); CSR nights now report RDI et
+  al. instead of `None`.
+
+## Validation
+
+- The fix is a pure statement reorder. `_compute_rera_rdi` only ever **reads**
+  `ahi_total` and **writes** the RERA-family keys, so it cannot move any AHI /
+  OAHI / event / SpO2 value — RDI is derived as `ahi_total + rera_index`, never
+  the reverse.
+- **Golden harness (6/6):** the 3 CSR-positive synthetic cases show exactly one
+  changed field — `resp.rdi: null → value` (= `ahi_total`, no arousals) — with
+  `ahi_total`, every event, and all other summary fields byte-identical;
+  re-blessed accordingly. The 3 non-CSR cases are unchanged.
+- **PSG-IPA reproducibility:** byte-identical (clinical cohort, non-CSR).
+- **New regression tests** (`test_rera_csr_ordering.py`, 4 cases) build a
+  CSR-positive synthetic recording (periodic apneas) and assert the full RERA
+  family — including non-trivial values with arousals (`rera_index > 0`) and REM
+  (`rem_ahi` populated) — survives to the final output.
+- **MESA/SHHS empirical sweep is confirmatory-pending:** those cohorts are not
+  on this workstation. Because the paper metric (`ahi_incl_uncertain`) is never
+  written by `_compute_rera_rdi`, the MESA numbers are invariant by
+  construction; `scripts/ab_rera_csr.py` is provided to run the A/B on 56 cores
+  when the data is available.
+
 # v0.7.3 — 2026-06-09 — documentation / terminology
 
 Docs and terminology only — **no code or scoring changes** (golden harness

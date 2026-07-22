@@ -69,7 +69,7 @@
       "n_rejected_hypopneas": 0,
       "oahi_all": 18.9,
       "oahi_conf60": 18.9,
-      "rdi": null,
+      "rdi": 31.6,
       "rule1b_reinstated": 0,
       "success": true
     },
@@ -221,7 +221,7 @@
       "n_rejected_hypopneas": 0,
       "oahi_all": 18.9,
       "oahi_conf60": 18.9,
-      "rdi": null,
+      "rdi": 25.3,
       "rule1b_reinstated": 0,
       "success": true
     },
@@ -360,7 +360,7 @@
       "n_rejected_hypopneas": 0,
       "oahi_all": 6.3,
       "oahi_conf60": 6.3,
-      "rdi": null,
+      "rdi": 12.6,
       "rule1b_reinstated": 0,
       "success": true
     },
