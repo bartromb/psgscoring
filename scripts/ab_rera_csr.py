@@ -51,20 +51,22 @@ import json
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-# Fields that MUST be identical across the fix (core scoring is untouched).
+# Fields that MUST be identical across the fixes (core scoring is untouched).
 INVARIANT = ("ahi_total", "ahi_incl_uncertain", "n_events")
-# Fields the fix restores on CSR-positive nights.
+# Fields the RERA/CSR fix (v0.7.5) restores on CSR-positive nights.
 RERA = ("rdi", "rera_index", "n_rera", "rem_ahi", "nrem_ahi")
 
 
 def _digest(out: dict) -> dict:
     resp = out.get("respiratory", {}) or {}
     s = resp.get("summary", {}) or {}
+    hb = (out.get("hypoxic_burden", {}) or {}).get("hypoxic_burden")
     return {
         "csr_detected": bool((out.get("cheyne_stokes", {}) or {}).get("csr_detected")),
         "ahi_total": s.get("ahi_total"),
         "ahi_incl_uncertain": s.get("ahi_incl_uncertain"),
         "n_events": len(resp.get("events", []) or []),
+        "hypoxic_burden": hb,   # v0.7.6 HB-TST fix may raise this on dropout recs
         **{k: s.get(k) for k in RERA},
     }
 
@@ -115,7 +117,7 @@ def cmd_diff(a):
         print("[ab] no common recordings to compare", file=sys.stderr)
         return 2
 
-    ahi_moved, restored, csr_n = [], [], 0
+    ahi_moved, restored, hb_changed, csr_n = [], [], [], 0
     for rid in common:
         p, q = pre[rid], post[rid]
         if q["csr_detected"]:
@@ -126,17 +128,25 @@ def cmd_diff(a):
         for k in RERA:
             if p.get(k) is None and q.get(k) is not None:
                 restored.append((rid, k, q.get(k)))
+        pb, qb = p.get("hypoxic_burden"), q.get("hypoxic_burden")
+        if pb != qb and not (pb is None and qb is None):
+            hb_changed.append((rid, pb, qb))
 
     print(f"compared {len(common)} recordings ({csr_n} CSR-positive)")
     print(f"  invariant fields moved : {len(ahi_moved)}  (MUST be 0)")
     print(f"  RERA-family restored   : {len(restored)} keys across "
           f"{len({r for r, _, _ in restored})} recordings")
+    print(f"  hypoxic_burden changed : {len(hb_changed)} recordings "
+          f"(HB-TST fix; expect raised, not lowered)")
+    for rid, pb, qb in hb_changed[:10]:
+        print(f"     HB {rid}: {pb} -> {qb}")
     for rid, k, pv, qv in ahi_moved[:20]:
         print(f"    !! {rid}.{k}: {pv} -> {qv}")
     if ahi_moved:
-        print("FAIL: core scoring changed — the fix is not additive.")
+        print("FAIL: core scoring changed — the fixes are not additive.")
         return 1
-    print("PASS: no AHI/event/SpO2 number changed; RERA/RDI restored on CSR nights only.")
+    print("PASS: no AHI/event number changed; RERA/RDI restored on CSR nights, "
+          "HB raised on invalid-SpO2 recordings only.")
     return 0
 
 
