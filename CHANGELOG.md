@@ -1,3 +1,26 @@
+# v0.10.0 — 2026-07-25 — clinical phenotypes (POSA, REM-predominant) + ventilatory burden
+
+**Output-additive — no AHI/OSAS-grade change** (golden regression byte-identical;
+validated on PSG-IPA: SN1 AHI 8.1 unchanged).
+
+## Added
+
+- **Phenotype flags** in the respiratory summary (`summary["phenotypes"]`), derived
+  from the already-computed position + REM/NREM indices (`_compute_phenotypes()`):
+  - **Positional OSA (Cartwright):** supine AHI ≥ 2× non-supine AHI, with OSA present
+    (AHI ≥ 5) and ≥ 30 min sleep in both the supine and non-supine groups. Reports
+    supine/non-supine AHI + ratio + positional-therapy candidacy (non-supine AHI < 5).
+    Requires a body-position channel.
+  - **REM-predominant OSA:** REM-AHI ≥ 2× NREM-AHI, with ≥ 30 min REM.
+- **Ventilatory burden** (`summary["ventilatory_burden"]`, %·min/h;
+  `compute_ventilatory_burden` in new module `ventilation.py`): total event-associated
+  airflow deficit relative to the eupneic baseline — pairs with the hypoxic burden as a
+  cardiovascular-risk duo beyond the AHI. Method after Labarca et al. 2023.
+  ⚠️ The exact parameterization/scale should be confirmed against Labarca 2023 before
+  clinical interpretation (no reference range asserted yet).
+
+Both are output-additive; the AHI and all existing indices are unchanged.
+
 # v0.9.0 — 2026-07-25 — multi-derivation arousal detection is now the DEFAULT
 
 **Behaviour change (clinical profiles only).** Arousal detection now defaults to

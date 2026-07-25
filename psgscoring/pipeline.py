@@ -43,6 +43,7 @@ from .ancillary import (
     analyze_position, analyze_heart_rate, analyze_snore, detect_cheyne_stokes,
 )
 from .plm import analyze_plm
+from .ventilation import compute_ventilatory_burden
 
 # Arousal & RERA detection — in-package as of v0.8.0 (ported from YASAFlaskified).
 # Kept behind a guard so a broken optional dep (e.g. lightgbm) never aborts scoring.
@@ -618,6 +619,23 @@ def run_pneumo_analysis(
     logger.info("[pneumo 9b/11] RERA and RDI computation...")
     _compute_rera_rdi(output, hypno, arousals, artifact_epochs)
 
+    # ── Step 9c: clinical phenotype flags (POSA, REM-predominant) — v0.10.0 ──
+    # Output-additive; derived from the already-computed position + REM/NREM indices.
+    _compute_phenotypes(output, hypno)
+
+    # ── Step 9d: ventilatory burden (Labarca et al. 2023) — v0.10.0 ──────────
+    if apnea_flow is not None and output["respiratory"].get("success"):
+        try:
+            _vb_fn = _compute_flow_norm(apnea_flow, sf_apnea)
+            _vb_summ = output["respiratory"]["summary"]
+            _tst_h = _vb_summ.get("tst_hours")
+            if _tst_h is None:
+                _tst_h = (_vb_summ.get("tst_minutes", 0) or 0) / 60.0
+            _vb_summ["ventilatory_burden"] = compute_ventilatory_burden(
+                _vb_fn, sf_apnea, output["respiratory"].get("events", []), _tst_h)
+        except Exception as e:  # noqa: BLE001 — VB failure must not abort scoring
+            logger.warning("[pneumo] ventilatory burden failed: %s", e)
+
     # ── Step 10: Hypoxic burden (Azarbarzin et al., AJRCCM 2019) ──────────
     if spo2_data is not None and output["respiratory"].get("success"):
         try:
@@ -887,6 +905,68 @@ def _compute_flow_norm(flow_data, sf_flow) -> np.ndarray | None:
         return np.clip(env / bl, 0, 2)
     except Exception:
         return None
+
+
+def _compute_phenotypes(output: dict, hypno: list) -> None:
+    """v0.10.0: derive clinical phenotype flags from already-computed indices.
+
+    - **Positional OSA (Cartwright):** supine AHI ≥ 2× non-supine AHI, with OSA
+      present (AHI ≥ 5) and ≥ 30 min sleep in both the supine and non-supine groups.
+      Also flags positional-therapy candidacy (non-supine AHI < 5).
+    - **REM-predominant OSA:** REM-AHI ≥ 2× NREM-AHI, with ≥ 30 min REM.
+
+    Output-additive: writes ``output["respiratory"]["summary"]["phenotypes"]``; the
+    AHI and every other index are untouched.
+    """
+    try:
+        from .constants import EPOCH_LEN_S
+        summ = output.get("respiratory", {}).get("summary", {})
+        if not summ:
+            return
+        ahi = summ.get("ahi_total")
+        ph: dict = {}
+
+        # ---- Positional OSA (Cartwright) ----
+        pos = (output.get("position") or {}).get("summary", {}) or {}
+        ahi_pos = pos.get("ahi_per_pos", {}) or {}
+        st_min = pos.get("sleep_time_min", {}) or {}
+        sup_ahi = ahi_pos.get("Supine")
+        sup_min = st_min.get("Supine") or 0.0
+        ns_keys = ("Left", "Right", "Prone")
+        ns_min = sum((st_min.get(k) or 0.0) for k in ns_keys)
+        ns_events = sum((ahi_pos.get(k) or 0.0) * ((st_min.get(k) or 0.0) / 60.0)
+                        for k in ns_keys)
+        ns_ahi = round(ns_events / (ns_min / 60.0), 1) if ns_min > 0 else None
+        if (ahi is not None and ahi >= 5 and sup_ahi is not None and ns_ahi is not None
+                and sup_min >= 30 and ns_min >= 30):
+            ratio = round(sup_ahi / ns_ahi, 1) if ns_ahi > 0 else None
+            flag = bool(sup_ahi >= 2 * ns_ahi) if ns_ahi > 0 else True
+            ph["positional_osa"] = {
+                "flag": flag,
+                "ahi_supine": sup_ahi,
+                "ahi_non_supine": ns_ahi,
+                "supine_non_supine_ratio": ratio,
+                "positional_therapy_candidate": bool(flag and ns_ahi < 5),
+                "pct_supine": (pos.get("sleep_pct", {}) or {}).get("Supine"),
+            }
+
+        # ---- REM-predominant OSA ----
+        rem_ahi = summ.get("rem_ahi")
+        nrem_ahi = summ.get("nrem_ahi")
+        rem_min = sum(1 for s in hypno if s == "R") * (EPOCH_LEN_S / 60.0)
+        if (ahi is not None and ahi >= 5 and rem_ahi is not None
+                and nrem_ahi is not None and nrem_ahi > 0 and rem_min >= 30):
+            ph["rem_predominant"] = {
+                "flag": bool(rem_ahi >= 2 * nrem_ahi),
+                "rem_ahi": rem_ahi,
+                "nrem_ahi": nrem_ahi,
+                "rem_nrem_ratio": round(rem_ahi / nrem_ahi, 1),
+                "rem_min": round(rem_min, 1),
+            }
+
+        summ["phenotypes"] = ph
+    except Exception as e:  # noqa: BLE001 — phenotype derivation must not abort scoring
+        logger.warning("[pneumo] phenotype computation failed: %s", e)
 
 
 def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
