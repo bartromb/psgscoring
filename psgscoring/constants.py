@@ -97,6 +97,11 @@ def _profile_to_legacy_dict(profile) -> dict:
         # v0.6.0: LightGBM candidate re-classifier
         "ML_CLASSIFIER_PATH":         pp.ml_classifier_path,
         "ML_THRESHOLD":               pp.ml_threshold,
+        # v0.9.0: arousal-derivation mode. Multi-derivation (central + occipital +
+        # frontal, event-level union + EOG-reject) is the DEFAULT for clinical use;
+        # dataset profiles stay 'single' so NSRR/MESA reproduction is byte-identical.
+        "AROUSAL_DERIVATION_MODE":    "single" if profile.family == "dataset" else "multi",
+        "FAMILY":                     profile.family,
         # Audit metadata — read by pipeline.py for output["meta"]["profile"]
         "_PROFILE_NAME":          profile.name,
         "_AASM_VERSION":          profile.aasm_version,

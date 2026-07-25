@@ -21,6 +21,7 @@ run_pneumo_analysis
 
 from __future__ import annotations
 import logging
+import os
 
 import numpy as np
 
@@ -43,11 +44,12 @@ from .ancillary import (
 )
 from .plm import analyze_plm
 
-# Optional arousal module (part of YASAFlaskified; not required for standalone use)
+# Arousal & RERA detection — in-package as of v0.8.0 (ported from YASAFlaskified).
+# Kept behind a guard so a broken optional dep (e.g. lightgbm) never aborts scoring.
 try:
-    from arousal_analysis import run_arousal_respiratory_analysis
+    from .arousal import run_arousal_respiratory_analysis
     _AROUSAL_AVAILABLE = True
-except ImportError:
+except Exception:  # noqa: BLE001
     _AROUSAL_AVAILABLE = False
 
 logger = logging.getLogger("psgscoring.pipeline")
@@ -451,6 +453,28 @@ def run_pneumo_analysis(
     elif eeg_data is not None and _AROUSAL_AVAILABLE:
         logger.info("[pneumo 7/9] Arousal detection & respiratory coupling...")
         flow_env_norm = _compute_flow_norm(apnea_flow, sf_apnea)
+        # v0.9.0: arousal-afleidingsmodus. Clinical profielen defaulten naar 'multi'
+        # (centraal + occipitaal + frontaal, event-level union + EOG-reject); dataset-
+        # profielen (mesa_shhs) blijven 'single' voor NSRR-reproductie. Env
+        # `PSGSCORING_AROUSAL_DERIVATION` overschrijft het profiel; bij < 2 bruikbare
+        # afleidingen degradeert 'multi' vanzelf naar single (byte-identiek).
+        _ar_mode = (os.environ.get("PSGSCORING_AROUSAL_DERIVATION")
+                    or profile.get("AROUSAL_DERIVATION_MODE", "single")).lower()
+        _derivations = None
+        _eog_arousal = None
+        _eog_reject = False
+        if _ar_mode == "multi":
+            _multi = _pick_eeg_multi(raw, ch)
+            if len(_multi) > 1:
+                _derivations = _multi
+                _eog_arousal = _pick_eog(raw, ch)
+                # Human-like: drop occipital-only events coinciding with an eye
+                # movement (EOG-doorslag). On by default in multi mode when EOG is
+                # available; disable with PSGSCORING_AROUSAL_EOG_REJECT=0.
+                _eog_reject = (os.environ.get("PSGSCORING_AROUSAL_EOG_REJECT", "1") == "1"
+                               and _eog_arousal is not None)
+                logger.info("[pneumo] multi-derivatie arousal over %s (eog_reject=%s)",
+                            [n for n, _d, _s in _multi], _eog_reject)
         try:
             output["arousal"] = run_arousal_respiratory_analysis(
                 eeg_data    = eeg_data,
@@ -464,6 +488,9 @@ def run_pneumo_analysis(
                 artifact_epochs = artifact_epochs,
                 hr_data     = hr_data,
                 sf_hr       = sf_hr or 1.0,
+                derivations = _derivations,
+                eog_data    = _eog_arousal,
+                eog_reject  = _eog_reject,
             )
         except Exception as e:  # noqa: BLE001 — arousal failure must not abort the run
             logger.warning("[pneumo] arousal analysis failed, continuing: %s", e)
@@ -789,12 +816,60 @@ def _pick_eeg(raw, ch) -> tuple:
     return None, None
 
 
+def _pick_eeg_multi(raw, ch) -> list:
+    """Geordende [(naam, data, sf), ...] voor de arousal-afleidingsset in ``raw``:
+    centraal (== ``_pick_eeg``) + occipitaal + frontaal — enkel wat aanwezig is.
+    Element 0 is de single-channel pick, zodat single-modus een strikte subset is;
+    ontdubbeld op kanaalnaam."""
+    data0, sf0 = _pick_eeg(raw, ch)
+    if data0 is None:
+        return []
+    name0 = ch.get("eeg")
+    if not name0:
+        for c in raw.ch_names:
+            if any(p in c.upper() for p in ("EEG", "C3", "C4", "F3", "F4", "CZ")):
+                name0 = c
+                break
+    out = [(name0, data0, sf0)]
+    used = {name0}
+
+    def _find(keys):
+        for k in keys:
+            for c in raw.ch_names:
+                if k in c.upper() and c not in used:
+                    return c
+        return None
+
+    for keys in (("O2-M1", "O1-M2", "O2-A1", "O1-A2", "O2", "O1", "OZ"),   # occipitaal
+                 ("F4-M1", "F3-M2", "F4-A1", "F3-A2", "F4", "F3")):         # frontaal
+        nm = _find(keys)
+        if nm:
+            out.append((nm, raw.get_data(picks=[nm])[0], sf0))
+            used.add(nm)
+    return out
+
+
 def _pick_emg(raw, ch) -> np.ndarray | None:
     """Selecteer het beste EMG-kanaal (kin-EMG) uit de beschikbare kanalen."""
     name = ch.get("emg")
     if not name:
         for c in raw.ch_names:
             if any(p in c.upper() for p in ("EMG", "CHIN", "MENT")):
+                name = c
+                break
+    if name and name in raw.ch_names:
+        return raw.get_data(picks=[name])[0]
+    return None
+
+
+def _pick_eog(raw, ch) -> np.ndarray | None:
+    """Selecteer een EOG-kanaal (voor de occipitaal-EOG-reject in multi-modus)."""
+    name = ch.get("eog")
+    if isinstance(name, (list, tuple)):
+        name = name[0] if name else None
+    if not name:
+        for c in raw.ch_names:
+            if any(p in c.upper() for p in ("EOG", "E1-", "E2-", "LOC", "ROC")):
                 name = c
                 break
     if name and name in raw.ch_names:

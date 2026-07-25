@@ -1,3 +1,134 @@
+# v0.9.0 — 2026-07-25 — multi-derivation arousal detection is now the DEFAULT
+
+**Behaviour change (clinical profiles only).** Arousal detection now defaults to
+**multi-derivation** (central + occipital + frontal, event-level union + EOG-reject)
+for all `family="clinical"` profiles (`aasm_v3_rec`/`_strict`/`_sensitive` and their
+aliases). `single` is retained as an explicit option.
+
+## Changed
+
+- **Default arousal mode per profile family** (`constants.py`,
+  `AROUSAL_DERIVATION_MODE`): **clinical → `multi`**, **dataset → `single`**
+  (`mesa_shhs` and any NSRR-reproduction profile stay single-channel — their
+  reference was scored on one central derivation, so this keeps MESA/SHHS
+  reproduction byte-identical), legacy/exploratory → `multi`.
+- Choose explicitly at any time with env `PSGSCORING_AROUSAL_DERIVATION=single|multi`
+  (overrides the profile) or the profile field. With < 2 usable EEG derivations,
+  `multi` degrades to `single` automatically.
+
+## Impact & reproducibility
+
+- **The AHI is unchanged** by this flip on the validation cohort (arousals
+  contribute 0 arousal-only events; the golden cases carry no EEG so they are
+  unaffected). The **arousal index rises** (multi is more sensitive: PSG-IPA
+  sens 0.38 → 0.47 vs the scorer consensus).
+- **For exact single-channel reproduction of the paper's PSG-IPA numbers**, set
+  `PSGSCORING_AROUSAL_DERIVATION=single`. MESA reproduction is unaffected
+  (`mesa_shhs` is a dataset profile → already single).
+- Rationale: clinicians score arousals by scanning the whole montage; multi
+  (union + EOG-reject) is the more sensitive, more human-like operating point.
+  Note the Fase-3 finding stands — the gain is *generic sensitivity*, not an
+  occipital-specific recovery (see v0.8.1 notes) — so this is a deliberate
+  sensitivity-first product choice, not an accuracy improvement.
+
+# v0.8.1 — 2026-07-25 — multi-derivation arousal detection (opt-in; default unchanged)
+
+**No default behaviour change — `single` mode is byte-identical to v0.8.0.**
+
+## Added
+
+- **Multi-derivation arousal scoring** (`arousal.detect_arousals_multi` + event-level
+  `_union_arousals`; `pipeline._pick_eeg_multi`). Runs the mature single-channel
+  detector independently on central (C4-M1) + occipital (O2-M1) + frontal (F4-M1)
+  and unions overlapping events, keeping per-channel validation (spindle exclusion,
+  K-complex, REM-EMG) intact. Events gain `derivation`/`derivations` provenance.
+- Opt-in via env `PSGSCORING_AROUSAL_DERIVATION=multi` (or a future profile field
+  `AROUSAL_DERIVATION_MODE`). **Default stays `single`**; with < 2 usable
+  derivations it degrades to single automatically.
+- **Hard invariant** (unit-tested): multi with one derivation == `detect_arousals`
+  byte-for-byte.
+
+### Fase 2 — human-like refinement (also opt-in)
+
+- **Per-channel detection thresholds are now parameters** (`detect_arousals(...,
+  ratio_thresh=, abrupt_thresh=)`), replacing module-global mutation — concurrency-safe
+  (8 workers + the multi-derivation loop) and enabling per-derivation calibration.
+  Defaults unchanged → **byte-identical** (unit-tested), incl. the LGBM hybrid path.
+- **`detect_arousals_multi(..., per_channel_thresh=, eog_data=, eog_reject=)`**: each
+  derivation can run at its own calibrated threshold, and an **EOG-based reject drops
+  occipital-only events that coincide with a large eye movement** (EOG-doorslag) —
+  mirroring a scorer cross-referencing the EOG. Cross-channel-confirmed events are
+  never touched. All default-off.
+
+## Validation (PSG-IPA, 5 recordings × 12 scorers, consensus ≥6/12)
+
+- **Per-channel sweep vs scorer consensus** — best single-channel F1: C4-M1 0.28,
+  O2-M1 0.32, **F4-M1 0.41** (frontal > occipital > central), i.e. the standard
+  single central derivation is the *weakest* for arousals. F1 peaks near the current
+  defaults; frontal benefits from ratio 2.5.
+- **Payoff (single vs multi-default vs multi-tuned+EOG-reject):**
+  sens **0.38 → 0.53 → 0.47**, PPV **0.36 → 0.30 → 0.32**, F1 **0.37 / 0.38 / 0.38**.
+  The tuning+EOG-reject **cuts ~16% of the naïve-union detections (mostly false
+  positives) and recovers PPV while keeping most of the sensitivity gain** — but no
+  configuration dominates on F1 (arousal-vs-consensus agreement is fundamentally
+  modest, consistent with low inter-scorer reliability).
+- **Net:** multi (esp. tuned+EOG-reject) is a defensible, more sensitive, more
+  human-like operating point (its value is *sensitivity* — catching arousals the
+  single central channel misses — not overall accuracy). The **AHI is unaffected**
+  (0 arousal-only events on this cohort). Kept **opt-in**; no default flip. The
+  scorer consensus is itself an imperfect reference (low inter-scorer agreement),
+  so F1 understates true performance.
+
+### Fase 3 — pipeline-wired + the occipital question settled
+
+- **Multi mode is now fully reachable through `run_pneumo_analysis`** (not just the
+  low-level API): set `PSGSCORING_AROUSAL_DERIVATION=multi` (or profile field
+  `AROUSAL_DERIVATION_MODE`). In multi mode the pipeline unions the available
+  central/occipital/frontal derivations **and applies the EOG-reject by default**
+  (picks an EOG channel; disable with `PSGSCORING_AROUSAL_EOG_REJECT=0`). New
+  `pipeline._pick_eog`. **Default stays `single` → byte-identical** (re-verified:
+  SN1 8.1/32 unchanged).
+- **The original occipital hypothesis is NOT supported by the data.** Per-derivation
+  recall on scorer-consensus arousals split by where scorers marked them
+  (posterior/occipital-involving vs anterior): C4-M1 **0.29 post / 0.23 ant** (no
+  posterior blind spot — central is if anything slightly *better* posteriorly),
+  O2-M1 **0.31 / 0.31** (occipital is not specifically better at occipital-evident
+  arousals), **F4-M1 0.39 / 0.46 (frontal is the strongest single channel)**, multi
+  0.50 / 0.55 (a *generic* sensitivity gain across both classes). So multi-derivation
+  is a coverage/sensitivity choice, not a fix for a central occipital blind spot.
+- **Design decision:** ship multi as a well-engineered, EOG-aware, **opt-in
+  high-sensitivity mode**; keep single-central as the reproducible default. No
+  default flip is justified by the current evidence (F1 does not improve; the AHI is
+  unchanged; occipital adds no specific class of arousals).
+
+# v0.8.0 — 2026-07-25 — arousal & RERA detection moved in-package (byte-identical)
+
+**Structural — no scoring change. AHI / ODI / events / hypoxic burden byte-identical.**
+Validated on the real PSG-IPA cohort (5 recordings): AHI, arousal counts and
+arousal index unchanged to the digit (SN1 8.1/32 arousals, SN3 53.8/185, …;
+0/516 AH-events arousal-only — the AHI is desaturation-driven).
+
+## Added / Changed
+
+- **New module `psgscoring.arousal`** — EEG arousal detection, RERA detection,
+  flow-limitation detection and respiratory-arousal coupling now live **inside
+  psgscoring**. Ported verbatim from YASAFlaskified `arousal_analysis.py` so the
+  library is self-contained; `run_pneumo_analysis` no longer depends on an
+  external, optionally-importable module. New public API: `detect_arousals`,
+  `detect_reras`, `run_arousal_respiratory_analysis`.
+- `pipeline.py` imports the detector in-package (`from .arousal import …`) instead
+  of the fragile `from arousal_analysis import …` optional import.
+- Added `from __future__ import annotations` to the ported module — fixes a
+  Python 3.9 crash (PEP 604 `X | None` unions evaluated at def-time).
+- Optional LightGBM arousal re-classifier carried over; model path/env made
+  psgscoring-neutral (`PSGSCORING_AROUSAL_LGBM[_MODEL/_THRESHOLD]`, old
+  `YASAFLASKIFIED_*` env still honoured). Default off → pure rule-based, identical.
+- YASAFlaskified `arousal_analysis.py` becomes a thin re-export shim
+  (requires psgscoring ≥ 0.8.0; deploy the pair together).
+
+This lands the groundwork for **multi-derivation arousal scoring** (central +
+occipital + frontal), which will be added as an opt-in mode on top.
+
 # v0.7.6 — 2026-07-22 — fix: hypoxic-burden TST denominator excludes invalid SpO2
 
 **Numerics-changing — hypoxic burden only; no AHI/ODI/event change.** Closes #2
