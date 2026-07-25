@@ -21,6 +21,7 @@ plm          – PLM detection (AASM)
 ancillary    – position, heart rate, snore, Cheyne-Stokes
 respiratory  – apnea/hypopnea detection, Rule 1B, summary statistics
 ecg_effort   – ECG-derived effort (TECG, spectral classifier) for central/obstructive differentiation
+arousal      – EEG arousal & RERA detection + respiratory-arousal coupling (multi-derivation-ready)
 postprocess  – CSR reclassification, mixed apnea decomposition, central instability index
 pipeline     – MNE-facing master function (run_pneumo_analysis)
 """
@@ -59,6 +60,12 @@ from .breath import (
 )
 from .classify import classify_apnea_type
 from .ecg_effort import ecg_effort_assessment, compute_tecg, compute_adaptive_cardiac_band
+from .arousal import (
+    detect_arousals,
+    detect_arousals_multi,
+    detect_reras,
+    run_arousal_respiratory_analysis,
+)
 from .spo2 import analyze_spo2, compute_hypoxic_burden, detect_desaturations, get_desaturation
 from .plm import analyze_plm
 from .ancillary import (
@@ -82,7 +89,7 @@ from .utils import (
     safe_r,
 )
 
-__version__ = "0.7.6"
+__version__ = "0.9.0"
 __all__ = [
     # Master
     "run_pneumo_analysis",
@@ -111,6 +118,11 @@ __all__ = [
     "ecg_effort_assessment",
     "compute_adaptive_cardiac_band",
     "compute_tecg",
+    # Arousal & RERA
+    "detect_arousals",
+    "detect_arousals_multi",
+    "detect_reras",
+    "run_arousal_respiratory_analysis",
     # SpO2
     "analyze_spo2",
     "compute_hypoxic_burden",
