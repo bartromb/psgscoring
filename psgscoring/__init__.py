@@ -66,6 +66,7 @@ from .arousal import (
     detect_reras,
     run_arousal_respiratory_analysis,
 )
+from .ventilation import compute_ventilatory_burden
 from .spo2 import analyze_spo2, compute_hypoxic_burden, detect_desaturations, get_desaturation
 from .plm import analyze_plm
 from .ancillary import (
@@ -89,7 +90,7 @@ from .utils import (
     safe_r,
 )
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 __all__ = [
     # Master
     "run_pneumo_analysis",
@@ -123,6 +124,8 @@ __all__ = [
     "detect_arousals_multi",
     "detect_reras",
     "run_arousal_respiratory_analysis",
+    # Ventilatory burden
+    "compute_ventilatory_burden",
     # SpO2
     "analyze_spo2",
     "compute_hypoxic_burden",
