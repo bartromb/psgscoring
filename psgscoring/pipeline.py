@@ -634,7 +634,9 @@ def run_pneumo_analysis(
         try:
             _vb_fn = _compute_flow_norm(apnea_flow, sf_apnea)
             output["respiratory"]["summary"]["ventilatory_burden"] = (
-                compute_ventilatory_burden(_vb_fn, sf_apnea, hypno))
+                compute_ventilatory_burden(
+                    _vb_fn, sf_apnea,
+                    output["respiratory"].get("_breaths", []), hypno))
         except Exception as e:  # noqa: BLE001 — VB failure must not abort scoring
             logger.warning("[pneumo] ventilatory burden failed: %s", e)
 

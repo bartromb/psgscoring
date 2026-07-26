@@ -1,3 +1,18 @@
+# v0.12.1 — 2026-07-26 — ventilatory burden made breath-based (fixes over-count)
+
+**Output-additive — no AHI/OSAS-grade change** (golden regression byte-identical).
+
+## Fixed
+
+- **Ventilatory burden is now breath-based.** v0.12.0 computed VB as the *time-fraction*
+  of the normalized flow envelope below 0.5, which over-counted heavily (the smoothed
+  Hilbert envelope dips between breaths even during normal breathing, and the baseline is
+  the 95th percentile) — a real severe-OSA recording gave an implausible **82.9 %**.
+  VB is now the **proportion of breaths whose peak amplitude is < 50 % of the eupneic
+  baseline** (per breath, using `output["respiratory"]["_breaths"]`), matching the AJRCCM
+  2023 definition and excluding inter-breath troughs. Signature:
+  `compute_ventilatory_burden(flow_norm, sf_flow, breaths, hypno=None, threshold=0.5)`.
+
 # v0.12.0 — 2026-07-26 — VB recalibration + saturation bands + arousal-aetiology fix
 
 **Output-additive — no AHI/OSAS-grade change** (golden regression byte-identical).
