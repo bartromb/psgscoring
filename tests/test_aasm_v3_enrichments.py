@@ -87,20 +87,25 @@ def test_csr_density_not_met_below_5_per_hour():
 
 # ── A3: arousal aetiology indices ──────────────────────────────────────────
 
-def test_arousal_etiology_indices():
+def test_arousal_etiology_indices_sum_to_arousal_index():
+    # arousal_index (25.0) is split by aetiology fraction; resp + spont == AI exactly,
+    # regardless of the (artifact-corrected) TST used to compute the index.
     out = {
-        "arousal": {"summary": {"n_respiratory_arousals": 40,
+        "arousal": {"summary": {"arousal_index": 25.0,
+                                "n_respiratory_arousals": 40,
                                 "n_spontaneous_arousals": 10},
                     "events": [{"onset_s": 100.0}]},
         "plm": {"events": [{"onset_s": 99.8, "duration_s": 1.0},   # arousal @100 within window
                            {"onset_s": 500.0, "duration_s": 1.0}]},  # no arousal near
     }
-    _compute_arousal_etiology(out, ["N2"] * EPOCHS_2H)             # 2 h sleep
+    _compute_arousal_etiology(out, ["N2"] * EPOCHS_2H)
     s = out["arousal"]["summary"]
-    assert s["respiratory_arousal_index"] == 20.0                 # 40 / 2 h
-    assert s["spontaneous_arousal_index"] == 5.0                  # 10 / 2 h
+    assert s["respiratory_arousal_index"] == 20.0                 # 25 × 40/50
+    assert s["spontaneous_arousal_index"] == 5.0                  # 25 × 10/50
+    # the whole point of the fix: sub-indices reconstitute the total
+    assert round(s["respiratory_arousal_index"] + s["spontaneous_arousal_index"], 1) == 25.0
     assert s["n_plm_arousals"] == 1
-    assert s["plm_arousal_index"] == 0.5                          # 1 / 2 h
+    assert s["plm_arousal_index"] == 0.5                          # 25 × 1/50 (subset of spont)
 
 
 # ── A4: apnea-at-cap flag ──────────────────────────────────────────────────

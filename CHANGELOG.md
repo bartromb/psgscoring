@@ -1,3 +1,31 @@
+# v0.12.0 — 2026-07-26 — VB recalibration + saturation bands + arousal-aetiology fix
+
+**Output-additive — no AHI/OSAS-grade change** (golden regression byte-identical).
+Three report-driven fixes found while verifying a real v0.11.0/v0.15.0 report.
+
+## Changed
+
+- **Ventilatory burden recalibrated to the validated metric.** `summary["ventilatory_burden"]`
+  is now **the percentage of sleep with airflow < 50% of the eupneic baseline** (proportion
+  of "small breaths"), per *Ventilatory Burden*, AJRCCM 2023;208(11):1153 & 1216 — a bounded
+  0–100% measure that predicts CV/all-cause mortality (normative ≈ ≤25%). Replaces the earlier
+  unbounded %·min/h area integral (which produced implausible values, e.g. ~1074). Computed on
+  the normalized flow envelope restricted to sleep. `compute_ventilatory_burden` signature is
+  now `(flow_norm, sf_flow, hypno=None, threshold=0.5)`; `VB_NORMATIVE_MAX = 25.0` exported.
+- **Arousal-aetiology indices now reconcile with the arousal index.** `respiratory_arousal_index`
+  + `spontaneous_arousal_index` are derived by splitting `arousal_index` by aetiology fraction,
+  so they **sum to the arousal index exactly** (previously divided the raw counts by a
+  differently-computed TST, so resp + spont < AI). `plm_arousal_index` is reported as a subset
+  of the spontaneous group.
+
+## Added
+
+- **Time-in-saturation-bands** in the SpO2 summary: `time_95_100_min`/`pct_95_100`,
+  `time_90_95_min`/`pct_90_95`, `time_80_90_min`/`pct_80_90`, `time_70_80_min`/`pct_70_80`,
+  `time_below_70_min` (the report's band table read these keys, which did not exist → all 0.0).
+
+All output-additive; AHI/OSAS/CSAS grade and arousal index unchanged.
+
 # v0.11.0 — 2026-07-26 — AASM v3 clinical enrichments (dual-AHI, CSR density, arousal aetiology)
 
 **Output-additive — no AHI/OSAS-grade change** (golden regression byte-identical).

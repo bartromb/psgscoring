@@ -5,23 +5,39 @@ from psgscoring.pipeline import _compute_phenotypes
 
 
 def test_vb_zero_when_at_baseline():
+    # VB = % of time with amplitude < 50% of eupneic baseline.
     sf = 10.0
     fn = np.ones(int(sf * 600))                       # flow at eupneic baseline
-    ev = [{"onset_s": 100, "duration_s": 20}]
-    assert compute_ventilatory_burden(fn, sf, ev, tst_h=1.0) == 0.0
+    assert compute_ventilatory_burden(fn, sf) == 0.0
 
 
-def test_vb_integrates_event_deficit():
+def test_vb_is_percentage_of_small_breaths():
     sf = 10.0
     fn = np.ones(int(sf * 600))
-    fn[int(100 * sf):int(120 * sf)] = 0.5             # 50% deficit for 20 s
-    vb = compute_ventilatory_burden(fn, sf, [{"onset_s": 100, "duration_s": 20}], tst_h=1.0)
-    assert abs(vb - 16.67) < 0.1                       # 0.5 * 20 s = 16.67 %·min/h
+    fn[int(0 * sf):int(120 * sf)] = 0.3               # 120 s of 600 s = 20% "small breaths"
+    vb = compute_ventilatory_burden(fn, sf)
+    assert abs(vb - 20.0) < 0.1                        # bounded 0–100 %
+
+
+def test_vb_threshold_is_strict_below_50pct():
+    sf = 10.0
+    fn = np.full(int(sf * 100), 0.5)                   # exactly 50% → NOT counted (<0.5)
+    assert compute_ventilatory_burden(fn, sf) == 0.0
+
+
+def test_vb_restricts_to_sleep():
+    sf = 1.0
+    # 4 epochs: W, N2, N2, W. Small breaths only in the two N2 (sleep) epochs.
+    fn = np.ones(4 * 30)
+    fn[30:90] = 0.2                                    # epochs 1–2 fully reduced
+    hypno = ["W", "N2", "N2", "W"]
+    vb = compute_ventilatory_burden(fn, sf, hypno=hypno)
+    assert abs(vb - 100.0) < 0.1                       # all sleep time is "small"
 
 
 def test_vb_guards():
-    assert compute_ventilatory_burden(None, 10, [], 1.0) is None
-    assert compute_ventilatory_burden(np.ones(10), 10, [{"onset_s": 0, "duration_s": 1}], 0) is None
+    assert compute_ventilatory_burden(None, 10) is None
+    assert compute_ventilatory_burden(np.array([]), 10) is None
 
 
 def test_phenotypes_posa_and_rem():
