@@ -626,16 +626,15 @@ def run_pneumo_analysis(
     # Output-additive; derived from the already-computed position + REM/NREM indices.
     _compute_phenotypes(output, hypno)
 
-    # ── Step 9d: ventilatory burden (Labarca et al. 2023) — v0.10.0 ──────────
+    # ── Step 9d: ventilatory burden (AJRCCM 2023) — v0.10.0, recalibrated v0.12.0 ──
+    # VB = % of sleep with airflow < 50% of the eupneic baseline (proportion of
+    # "small breaths"); bounded 0–100%, normative ≈ ≤25%. Replaces the earlier
+    # %·min/h area integral.
     if apnea_flow is not None and output["respiratory"].get("success"):
         try:
             _vb_fn = _compute_flow_norm(apnea_flow, sf_apnea)
-            _vb_summ = output["respiratory"]["summary"]
-            _tst_h = _vb_summ.get("tst_hours")
-            if _tst_h is None:
-                _tst_h = (_vb_summ.get("tst_minutes", 0) or 0) / 60.0
-            _vb_summ["ventilatory_burden"] = compute_ventilatory_burden(
-                _vb_fn, sf_apnea, output["respiratory"].get("events", []), _tst_h)
+            output["respiratory"]["summary"]["ventilatory_burden"] = (
+                compute_ventilatory_burden(_vb_fn, sf_apnea, hypno))
         except Exception as e:  # noqa: BLE001 — VB failure must not abort scoring
             logger.warning("[pneumo] ventilatory burden failed: %s", e)
 
@@ -1194,25 +1193,34 @@ def _compute_arousal_etiology(output: dict, hypno: list) -> None:
     """A3: surface arousal aetiology as per-hour indices (AASM V.A Note 4):
     respiratory-, spontaneous- and PLM-related arousal indices. Output-additive;
     writes into ``output["arousal"]["summary"]``.
+
+    v0.12.0 fix: the aetiology counts (``n_respiratory_arousals`` +
+    ``n_spontaneous_arousals``) and the ``arousal_index`` are derived from the *same*
+    arousal set, but the index uses the artifact-corrected sleep time as denominator.
+    Dividing the raw counts by a differently-computed TST made the sub-indices
+    inconsistent with the total. We therefore split the ``arousal_index`` itself by
+    aetiology fraction, so ``respiratory + spontaneous == arousal_index`` exactly.
+    PLM-related arousals are a SUBSET of the spontaneous group ("of which PLM").
     """
     try:
         ar = output.get("arousal", {})
         summ = ar.get("summary", {})
         if not summ:
             return
-        from .constants import EPOCH_LEN_S
-        n_sleep_ep = sum(1 for s in hypno if s in ("N1", "N2", "N3", "R"))
-        tst_h = n_sleep_ep * EPOCH_LEN_S / 3600.0
-        if tst_h <= 0:
-            return
+        ai = summ.get("arousal_index")
         n_resp = summ.get("n_respiratory_arousals")
         n_spont = summ.get("n_spontaneous_arousals")
-        if n_resp is not None:
-            summ["respiratory_arousal_index"] = round(n_resp / tst_h, 1)
-        if n_spont is not None:
-            summ["spontaneous_arousal_index"] = round(n_spont / tst_h, 1)
-        # PLMS arousal index (AASM II.E.4): a PLM with an arousal onset within
-        # -0.5 .. +3 s of the movement.
+        if ai is None or n_resp is None or n_spont is None:
+            return
+        n_total = n_resp + n_spont
+        if n_total <= 0:
+            summ["respiratory_arousal_index"] = 0.0
+            summ["spontaneous_arousal_index"] = 0.0
+            return
+        summ["respiratory_arousal_index"] = round(ai * n_resp / n_total, 1)
+        summ["spontaneous_arousal_index"] = round(ai * n_spont / n_total, 1)
+        # PLMS arousal index (subset of spontaneous): a PLM with an arousal onset
+        # within -0.5 .. +3 s of the movement, expressed on the same denominator.
         plm_events = (output.get("plm", {}) or {}).get("events", []) or []
         arousals = ar.get("events", []) or []
         if plm_events and arousals:
@@ -1224,7 +1232,7 @@ def _compute_arousal_etiology(output: dict, hypno: list) -> None:
                 if any(p0 - 0.5 <= ao <= p1 + 3.0 for ao in a_onsets):
                     n_plm_ar += 1
             summ["n_plm_arousals"] = n_plm_ar
-            summ["plm_arousal_index"] = round(n_plm_ar / tst_h, 1)
+            summ["plm_arousal_index"] = round(ai * min(n_plm_ar, n_total) / n_total, 1)
     except Exception as e:  # noqa: BLE001
         logger.warning("[pneumo] arousal-etiology indices failed: %s", e)
 

@@ -466,6 +466,19 @@ def analyze_spo2(
         pct80, t80 = pct_below(80)
         pct70, t70 = pct_below(70)
 
+        def _band(lo: float, hi: float):
+            """Minutes and % of sleep time with lo ≤ SpO2 < hi (NaN excluded)."""
+            n_in = int(np.sum((spo2_sleep >= lo) & (spo2_sleep < hi)))
+            t_s = float(n_in) / sf
+            pct = t_s / total_sleep_s * 100 if total_sleep_s > 0 else 0.0
+            return safe_r(t_s / 60.0), safe_r(pct)          # minutes, %
+
+        band_95_100_min, band_95_100_pct = _band(95, 101)   # include 100
+        band_90_95_min,  band_90_95_pct  = _band(90, 95)
+        band_80_90_min,  band_80_90_pct  = _band(80, 90)
+        band_70_80_min,  band_70_80_pct  = _band(70, 80)
+        band_below_70_min = safe_r(float(np.sum(spo2_sleep < 70)) / sf / 60.0)
+
         desaturations_3pct = detect_desaturations(spo2_clean, sf, sleep_mask, drop_pct=3.0)
         desaturations_4pct = detect_desaturations(spo2_clean, sf, sleep_mask, drop_pct=4.0)
         desaturations = desaturations_3pct  # backward compat
@@ -518,6 +531,17 @@ def analyze_spo2(
             "time_below_80":      t80,
             "pct_below_70":       pct70,
             "time_below_70":      t70,
+            # v0.12.0: time-in-saturation-bands (minutes + % of sleep time) for the
+            # report's saturation-band table. Keys match generate_pdf_report's reader.
+            "time_95_100_min":    band_95_100_min,
+            "pct_95_100":         band_95_100_pct,
+            "time_90_95_min":     band_90_95_min,
+            "pct_90_95":          band_90_95_pct,
+            "time_80_90_min":     band_80_90_min,
+            "pct_80_90":          band_80_90_pct,
+            "time_70_80_min":     band_70_80_min,
+            "pct_70_80":          band_70_80_pct,
+            "time_below_70_min":  band_below_70_min,
             "total_sleep_s":      safe_r(total_sleep_s),
             "rem_pct_below_90":   rem_p90,
             "rem_time_below_90":  rem_t90,
