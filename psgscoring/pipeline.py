@@ -137,6 +137,9 @@ def run_pneumo_analysis(
             "scoring_profile": resolved_name,
             "scoring_label":   profile["label"],
             "scoring_input_name": scoring_profile,  # ← what user actually passed (may be legacy)
+            # v0.11.0 (A5): explicit hypopnea scoring criterion for the report
+            # (AASM v3 VIII.D Note 1 — the criterion used must be stated).
+            "hypopnea_criterion": _hypopnea_criterion_str(profile),
             "patient_info":  _parse_edf_patient_info(raw),
         },
         "channel_availability": {k: (v in raw.ch_names) for k, v in ch.items()},
@@ -681,6 +684,16 @@ def run_pneumo_analysis(
             logger.warning("Post-processing failed: %s", e)
             output["postprocess"] = {"error": str(e)}
 
+    # ── Step 12 (v0.11.0): AASM v3 clinical enrichments (output-additive) ──
+    # Run last, after every summary recompute + central/CSR reclassification, so
+    # the fields survive and reflect the final events. None of these touch the
+    # AHI / OSAS grade (golden regression stays byte-identical).
+    _compute_dual_ahi(output, profile)                 # A1: Rule 1A vs 1B (4%) AHI
+    _annotate_csr_density(output, hypno)               # A2: CSR density criterion G.1(b)
+    _compute_arousal_etiology(output, hypno)           # A3: resp/spont/PLM arousal indices
+    _flag_apneas_at_cap(output, profile)               # A4: possible long-central-apnea truncation
+    _mark_hypoventilation_not_assessed(output)         # A6: explicit scope statement
+
     logger.info("Pneumo analysis complete.")
     return output
 
@@ -1072,6 +1085,182 @@ def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
                 rera_count, fri_rera_count, flat_rera_count,
                 rera_index, rdi,
                 resp["summary"]["rem_ahi"], resp["summary"]["nrem_ahi"])
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# v0.11.0 — AASM v3 clinical enrichments (output-additive; see docs/aasm)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _ahi_severity(ahi) -> str | None:
+    """AASM AHI severity band (5 / 15 / 30)."""
+    if ahi is None:
+        return None
+    if ahi < 5:
+        return "normal"
+    if ahi < 15:
+        return "mild"
+    if ahi < 30:
+        return "moderate"
+    return "severe"
+
+
+def _hypopnea_criterion_str(profile: dict) -> str | None:
+    """A5: human-readable hypopnea scoring criterion (AASM v3 VIII.D Note 1)."""
+    try:
+        flow = round((1.0 - float(profile.get("HYPOPNEA_THRESHOLD", 0.70))) * 100)
+        desat = float(profile.get("DESATURATION_DROP_PCT", 3.0))
+        rule = str(profile.get("_AASM_RULE") or "")
+        prefix = f"{rule}: " if rule[:1].isdigit() else ""
+        if profile.get("DESAT_OR_AROUSAL"):
+            return f"{prefix}≥{flow}% flow reduction ≥10 s + (≥{desat:g}% desaturation OR arousal)"
+        if profile.get("DESAT_REQUIRED"):
+            return f"{prefix}≥{flow}% flow reduction ≥10 s + ≥{desat:g}% desaturation"
+        return f"{prefix}≥{flow}% flow reduction ≥10 s"
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _compute_dual_ahi(output: dict, profile: dict) -> None:
+    """A1: expose AASM v3 hypopnea Rule 1A (≥3% desat OR arousal) and Rule 1B
+    (≥4% desat) AHI side by side.
+
+    Reuses the 3-profile confidence pass from step 1a: ``standard`` = aasm_v3_rec
+    (Rule 1A), ``strict`` = aasm_v3_strict (Rule 1B / CMS, 4%). When the active
+    profile itself scores on 3%/arousal (the clinical default), Rule 1A is taken
+    from the fully post-processed headline AHI so the two match. Output-additive.
+    """
+    try:
+        iv = output.get("ahi_interval", {}) or {}
+        if "error" in iv:
+            return
+        summ = output.get("respiratory", {}).get("summary", {})
+        if not summ:
+            return
+        strict = iv.get("strict", {}) or {}
+        standard = iv.get("standard", {}) or {}
+        if profile.get("DESAT_OR_AROUSAL", True):
+            ahi_1a = summ.get("ahi_total")
+        else:
+            ahi_1a = standard.get("ahi")
+        ahi_1b = strict.get("ahi")
+        if ahi_1a is None or ahi_1b is None:
+            return
+        summ["ahi_dual"] = {
+            "rule_1a": {
+                "ahi": round(float(ahi_1a), 1),
+                "severity": _ahi_severity(float(ahi_1a)),
+                "criterion": "≥30% flow + (≥3% desat OR arousal)",
+                "label": "AASM v3 Rule 1A (recommended)",
+            },
+            "rule_1b_4pct": {
+                "ahi": round(float(ahi_1b), 1),
+                "severity": strict.get("severity") or _ahi_severity(float(ahi_1b)),
+                "criterion": "≥30% flow + ≥4% desat",
+                "label": "AASM v3 Rule 1B / CMS (4%)",
+            },
+        }
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[pneumo] dual-AHI computation failed: %s", e)
+
+
+def _annotate_csr_density(output: dict, hypno: list) -> None:
+    """A2: add the AASM v3 Cheyne-Stokes *density* criterion G.1(b) — ≥5 central
+    apneas/hypopneas per hour of sleep over ≥2 h of monitoring — on top of the
+    existing crescendo/decrescendo periodicity criterion G.1(a). Output-additive.
+    """
+    try:
+        csr = output.get("cheyne_stokes", {})
+        if not csr or csr.get("error"):
+            return
+        from .constants import EPOCH_LEN_S
+        events = output.get("respiratory", {}).get("events", []) or []
+        n_central = sum(1 for e in events
+                        if e.get("type") in ("central", "hypopnea_central"))
+        n_sleep_ep = sum(1 for s in hypno if s in ("N1", "N2", "N3", "R"))
+        tst_h = n_sleep_ep * EPOCH_LEN_S / 3600.0
+        monitoring_h = len(hypno) * EPOCH_LEN_S / 3600.0
+        central_idx = round(n_central / tst_h, 1) if tst_h > 0 else 0.0
+        density_ok = bool(central_idx >= 5 and monitoring_h >= 2.0)
+        csr["central_events"] = n_central
+        csr["central_events_per_h"] = central_idx
+        csr["monitoring_hours"] = round(monitoring_h, 1)
+        csr["density_criterion_met"] = density_ok             # G.1(b)
+        csr["criteria_met"] = bool(csr.get("csr_detected") and density_ok)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[pneumo] CSR density annotation failed: %s", e)
+
+
+def _compute_arousal_etiology(output: dict, hypno: list) -> None:
+    """A3: surface arousal aetiology as per-hour indices (AASM V.A Note 4):
+    respiratory-, spontaneous- and PLM-related arousal indices. Output-additive;
+    writes into ``output["arousal"]["summary"]``.
+    """
+    try:
+        ar = output.get("arousal", {})
+        summ = ar.get("summary", {})
+        if not summ:
+            return
+        from .constants import EPOCH_LEN_S
+        n_sleep_ep = sum(1 for s in hypno if s in ("N1", "N2", "N3", "R"))
+        tst_h = n_sleep_ep * EPOCH_LEN_S / 3600.0
+        if tst_h <= 0:
+            return
+        n_resp = summ.get("n_respiratory_arousals")
+        n_spont = summ.get("n_spontaneous_arousals")
+        if n_resp is not None:
+            summ["respiratory_arousal_index"] = round(n_resp / tst_h, 1)
+        if n_spont is not None:
+            summ["spontaneous_arousal_index"] = round(n_spont / tst_h, 1)
+        # PLMS arousal index (AASM II.E.4): a PLM with an arousal onset within
+        # -0.5 .. +3 s of the movement.
+        plm_events = (output.get("plm", {}) or {}).get("events", []) or []
+        arousals = ar.get("events", []) or []
+        if plm_events and arousals:
+            a_onsets = sorted(float(a.get("onset_s", 0)) for a in arousals)
+            n_plm_ar = 0
+            for p in plm_events:
+                p0 = float(p.get("onset_s", 0))
+                p1 = p0 + float(p.get("duration_s", 0) or 0)
+                if any(p0 - 0.5 <= ao <= p1 + 3.0 for ao in a_onsets):
+                    n_plm_ar += 1
+            summ["n_plm_arousals"] = n_plm_ar
+            summ["plm_arousal_index"] = round(n_plm_ar / tst_h, 1)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[pneumo] arousal-etiology indices failed: %s", e)
+
+
+def _flag_apneas_at_cap(output: dict, profile: dict) -> None:
+    """A4: count apneas sitting at the max-duration cap (possible split of a
+    genuinely long central apnea). Output-additive; no effect on AHI."""
+    try:
+        cap = float(os.environ.get("PSGSCORING_APNEA_MAX_DUR_S")
+                    or profile.get("APNEA_MAX_DUR_S", 90.0))
+        events = output.get("respiratory", {}).get("events", []) or []
+        apneas = [e for e in events
+                  if e.get("type") in ("obstructive", "central", "mixed", "uncertain")]
+        at_cap = sum(1 for e in apneas if float(e.get("duration_s", 0) or 0) >= cap - 1.0)
+        output["respiratory"]["summary"]["n_apneas_at_max_dur"] = at_cap
+        output["respiratory"]["summary"]["apnea_max_dur_s"] = cap
+        if at_cap:
+            logger.info("[pneumo] A4: %d apnea(s) at the %.0fs duration cap "
+                        "(possible split of a long central apnea)", at_cap, cap)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[pneumo] apnea-cap flag failed: %s", e)
+
+
+def _mark_hypoventilation_not_assessed(output: dict) -> None:
+    """A6: state explicitly that hypoventilation (AASM VIII.F) is out of scope —
+    it requires an arterial/transcutaneous/end-tidal PCO2 channel absent from the
+    standard montage. Output-additive."""
+    try:
+        summ = output.get("respiratory", {}).get("summary")
+        if summ is not None and "hypoventilation" not in summ:
+            summ["hypoventilation"] = {
+                "assessed": False,
+                "reason": "no arterial/transcutaneous/end-tidal PCO2 channel in montage",
+            }
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[pneumo] hypoventilation stub failed: %s", e)
 
 
 def _find_flattening_sequences(breaths: list,

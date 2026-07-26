@@ -14,6 +14,7 @@ reinstate_rule1b_hypopneas(...) -> (reinstated, all_events)
 """
 
 from __future__ import annotations
+import os
 import traceback
 import logging
 
@@ -325,8 +326,16 @@ def detect_respiratory_events(
         _CONTAM_WIN    = sp.get("CROSS_CONTAM_WINDOW_S", 15.0)
         _USE_PEAK      = sp.get("USE_PEAK_DETECTION", True)
         _USE_SNAP      = sp.get("USE_BREATH_SNAP", False)  # v0.8.30: off by default
-        _APNEA_MAX     = sp.get("APNEA_MAX_DUR_S", APNEA_MAX_DUR_S)
-        _HYPOP_MAX     = sp.get("HYPOPNEA_MAX_DUR_S", HYPOPNEA_MAX_DUR_S)
+        # v0.11.0 (A4): the max-duration cap splits over-long events at a partial
+        # recovery point. For genuinely long *central* apneas (CSA/Cheyne-Stokes,
+        # which can exceed 90 s) this over-counts. AASM v3 imposes no maximum apnea
+        # duration; the cap is a pragmatic artefact guard. It stays profile-default
+        # (90 s / 60 s → byte-identical) but is now overridable per-site via env for
+        # CSA-heavy montages, and events hitting the cap are flagged downstream.
+        _APNEA_MAX     = float(os.environ.get("PSGSCORING_APNEA_MAX_DUR_S")
+                               or sp.get("APNEA_MAX_DUR_S", APNEA_MAX_DUR_S))
+        _HYPOP_MAX     = float(os.environ.get("PSGSCORING_HYPOPNEA_MAX_DUR_S")
+                               or sp.get("HYPOPNEA_MAX_DUR_S", HYPOPNEA_MAX_DUR_S))
         # v0.4.1: monotonie-herstel parameters
         _STABILITY_CV  = sp.get("STABILITY_FILTER_CV", 0.45)
         _PEAK_MIN_BR   = sp.get("PEAK_MIN_CONSECUTIVE_BREATHS", 3)

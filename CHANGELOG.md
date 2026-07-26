@@ -1,3 +1,37 @@
+# v0.11.0 — 2026-07-26 — AASM v3 clinical enrichments (dual-AHI, CSR density, arousal aetiology)
+
+**Output-additive — no AHI/OSAS-grade change** (golden regression byte-identical).
+Derived from the manual re-read in `docs/aasm/` (AASM Scoring Manual v3, 2023).
+
+## Added
+
+- **Dual AHI (A1)** — `summary["ahi_dual"]`: AASM v3 hypopnea **Rule 1A** (≥30% flow +
+  ≥3% desat OR arousal — the recommended standard) and **Rule 1B / CMS** (≥4% desat)
+  AHI side by side, with severity per rule. Reuses the existing 3-profile confidence
+  pass (`standard`=aasm_v3_rec, `strict`=aasm_v3_strict); no extra detection pass.
+- **Cheyne-Stokes density criterion (A2)** — `cheyne_stokes` now also reports the AASM
+  G.1(b) criterion: `central_events_per_h`, `monitoring_hours`, `density_criterion_met`
+  (≥5 central apneas/hypopneas per hour over ≥2 h), and `criteria_met` (periodicity
+  G.1(a) **and** density G.1(b)).
+- **Arousal aetiology indices (A3)** — `arousal["summary"]`: `respiratory_arousal_index`,
+  `spontaneous_arousal_index`, and `plm_arousal_index` (+ `n_plm_arousals`) per hour of
+  sleep (AASM V.A Note 4). Counts existed; now exposed as clinical indices.
+- **Hypopnea criterion string (A5)** — `meta["hypopnea_criterion"]`: the exact scoring
+  rule in words (AASM v3 VIII.D Note 1 requires the criterion be stated in the report).
+- **Hypoventilation scope statement (A6)** — `summary["hypoventilation"]` explicitly
+  marks it *not assessed* (no PCO2/capnography channel), rather than silently omitting it.
+
+## Changed
+
+- **Apnea/hypopnea max-duration cap (A4)** — the split cap stays profile-default (90 s /
+  60 s → **byte-identical**) but is now overridable per site via
+  `PSGSCORING_APNEA_MAX_DUR_S` / `PSGSCORING_HYPOPNEA_MAX_DUR_S` (AASM imposes no maximum
+  apnea duration; splitting a genuinely long *central* apnea over-counts). Apneas sitting
+  at the cap are flagged in `summary["n_apneas_at_max_dur"]`.
+
+All of the above are output-additive; the AHI, OSAS/CSAS grade and arousal index are
+unchanged from v0.10.0.
+
 # v0.10.0 — 2026-07-25 — clinical phenotypes (POSA, REM-predominant) + ventilatory burden
 
 **Output-additive — no AHI/OSAS-grade change** (golden regression byte-identical;
