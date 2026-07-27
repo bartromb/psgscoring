@@ -113,7 +113,7 @@ print(f"Robustness: {interval['robustness_grade']}")
 
 ## Disclaimer
 
-**psgscoring is research software — not a medical device.** It is not CE-marked (MDR 2017/745) or FDA-cleared. All outputs are research-grade estimates that must be reviewed by a qualified clinician before any diagnostic or therapeutic decision. See **[DISCLAIMER.md](DISCLAIMER.md)** for the full text.
+**psgscoring is research software — not a medical device.** It is not CE-marked (MDR 2017/745) or FDA-cleared. All outputs are research-grade estimates that must be reviewed by a qualified clinician before any diagnostic or therapeutic decision. See **[DISCLAIMER.md](https://github.com/bartromb/psgscoring/blob/main/DISCLAIMER.md)** for the full text.
 
 ## License
 
