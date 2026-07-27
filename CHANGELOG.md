@@ -1,3 +1,12 @@
+# v0.12.2 — 2026-07-27 — docs: absolute DISCLAIMER link (fix dead link on PyPI)
+
+**Docs-only — no code change** (golden regression byte-identical).
+
+- README: the `DISCLAIMER.md` link is now absolute
+  (`https://github.com/bartromb/psgscoring/blob/main/DISCLAIMER.md`). Relative links
+  break on the PyPI project page (404); this release re-renders the README on PyPI with
+  the working link. No API or behaviour change.
+
 # v0.12.1 — 2026-07-26 — ventilatory burden made breath-based (fixes over-count)
 
 **Output-additive — no AHI/OSAS-grade change** (golden regression byte-identical).
