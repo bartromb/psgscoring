@@ -166,6 +166,55 @@ def iou(a0, a1, b0, b1):
     return inter / union if union > 0 else 0.0
 
 
+def match_events(a_events, b_events, iou_thresh=0.20, type_aware=False, optimal=False):
+    """Match twee eventlijsten [(onset, offset, type), ...].
+
+    Returns dict met: tp, fp, fn, precision, recall, f1, mean_dt,
+    n_merges, n_splits, matched_pairs.
+
+    De legacy-modus (type_aware=False, optimal=False) reproduceert exact de
+    inline-matching van paper v31: greedy in volgorde van a_events, één-op-één,
+    IoU-drempel 0.20, eventtype genegeerd. Wijzig die tak niet zonder de
+    byte-identieke invariant opnieuw aan te tonen — de gepubliceerde cijfers
+    hangen eraan.
+    """
+    matched_a, matched_b, onset_diffs, pairs = set(), set(), [], []
+
+    for i, (a0, a1, _atype) in enumerate(a_events):
+        best_j, best_v = -1, 0.0
+        for j, (b0, b1, _btype) in enumerate(b_events):
+            if j in matched_b:
+                continue
+            v = iou(a0, a1, b0, b1)
+            if v >= iou_thresh and v > best_v:
+                best_v, best_j = v, j
+        if best_j >= 0:
+            matched_a.add(i)
+            matched_b.add(best_j)
+            onset_diffs.append(abs(a_events[i][0] - b_events[best_j][0]))
+            pairs.append((i, best_j, best_v))
+
+    tp = len(matched_a)
+    fp = len(a_events) - tp
+    fn = len(b_events) - len(matched_b)
+    prec = tp / (tp + fp) if (tp + fp) else 0
+    rec_ = tp / (tp + fn) if (tp + fn) else 0
+    f1 = 2 * prec * rec_ / (prec + rec_) if (prec + rec_) else 0
+
+    return {
+        "tp": tp,
+        "fp": fp,
+        "fn": fn,
+        "precision": prec,
+        "recall": rec_,
+        "f1": f1,
+        "mean_dt": float(np.mean(onset_diffs)) if onset_diffs else None,
+        "n_merges": 0,
+        "n_splits": 0,
+        "matched_pairs": pairs,
+    }
+
+
 def event_set(scorer_edf, signal_duration_s):
     try:
         ann = mne.read_annotations(str(scorer_edf))
@@ -247,7 +296,9 @@ def analyse_one(sn_id, data_dir):
             "robustness_grade": grade_from_severities(sev_strict, sev_std, sev_sens),
         }
 
-        if sn_id == "SN3" and algo_events_std:
+        # Event-level metriek voor ELKE opname. Stond hiervoor achter een
+        # `sn_id == "SN3"`-gate terwijl het paper SN1-SN5 rapporteert.
+        if algo_events_std:
             algo_events = [
                 (float(e["onset_s"]), float(e["onset_s"]) + float(e["duration_s"]), e["type"])
                 for e in algo_events_std
@@ -260,35 +311,27 @@ def analyse_one(sn_id, data_dir):
                 ref_events = event_set(f, sig_dur_s)
                 if not ref_events:
                     continue
-                matched_a, matched_r, onset_diffs = set(), set(), []
-                for i, (a0, a1, _) in enumerate(algo_events):
-                    best_j, best_v = -1, 0.0
-                    for j, (r0, r1, _) in enumerate(ref_events):
-                        if j in matched_r:
-                            continue
-                        v = iou(a0, a1, r0, r1)
-                        if v >= 0.20 and v > best_v:
-                            best_v, best_j = v, j
-                    if best_j >= 0:
-                        matched_a.add(i)
-                        matched_r.add(best_j)
-                        onset_diffs.append(abs(algo_events[i][0] - ref_events[best_j][0]))
-                tp = len(matched_a)
-                fp = len(algo_events) - tp
-                fn = len(ref_events) - len(matched_r)
-                prec = tp / (tp + fp) if (tp + fp) else 0
-                rec_ = tp / (tp + fn) if (tp + fn) else 0
-                f1 = 2 * prec * rec_ / (prec + rec_) if (prec + rec_) else 0
-                f1_list.append(f1)
-                tp_list.append(tp); fp_list.append(fp); fn_list.append(fn)
-                if onset_diffs:
-                    dt_list.append(float(np.mean(onset_diffs)))
+                m = match_events(algo_events, ref_events, iou_thresh=0.20)
+                f1_list.append(m["f1"])
+                tp_list.append(m["tp"]); fp_list.append(m["fp"]); fn_list.append(m["fn"])
+                if m["mean_dt"] is not None:
+                    dt_list.append(m["mean_dt"])
             if f1_list:
-                out["sn3_f1_median"]   = round(float(median(f1_list)), 3)
-                out["sn3_dt_median_s"] = round(float(median(dt_list)), 2) if dt_list else None
-                out["sn3_tp_median"]   = int(median(tp_list))
-                out["sn3_fp_median"]   = int(median(fp_list))
-                out["sn3_fn_median"]   = int(median(fn_list))
+                out["ev_f1_median"]   = round(float(median(f1_list)), 3)
+                out["ev_dt_median_s"] = round(float(median(dt_list)), 2) if dt_list else None
+                out["ev_tp_median"]   = int(median(tp_list))
+                out["ev_fp_median"]   = int(median(fp_list))
+                out["ev_fn_median"]   = int(median(fn_list))
+                out["ev_n_scorers"]   = len(f1_list)
+                # Oude sleutels blijven bestaan voor SN3: validation_report.py
+                # en tests/test_psgipa_reproducibility.py lezen ze, en paper v31
+                # rapporteert ze onder deze naam.
+                if sn_id == "SN3":
+                    out["sn3_f1_median"]   = out["ev_f1_median"]
+                    out["sn3_dt_median_s"] = out["ev_dt_median_s"]
+                    out["sn3_tp_median"]   = out["ev_tp_median"]
+                    out["sn3_fp_median"]   = out["ev_fp_median"]
+                    out["sn3_fn_median"]   = out["ev_fn_median"]
         return out
     except Exception as e:
         import traceback
@@ -356,6 +399,23 @@ def to_report_json(results, agg):
             "weighted_kappa": agg.get("weighted_kappa"),
         },
     }
+    # Event-level per opname (nieuw). sn3_event_level blijft eronder staan als
+    # alias: validation_report.py en de reproduceerbaarheidstest lezen die.
+    event_level = {
+        r["recording"]: {
+            "f1":   r["ev_f1_median"],
+            "dt_s": r.get("ev_dt_median_s"),
+            "tp":   r.get("ev_tp_median"),
+            "fp":   r.get("ev_fp_median"),
+            "fn":   r.get("ev_fn_median"),
+            "n_scorers": r.get("ev_n_scorers"),
+        }
+        for r in results
+        if "error" not in r and "ev_f1_median" in r
+    }
+    if event_level:
+        payload["event_level"] = event_level
+
     if sn3 and "sn3_f1_median" in sn3:
         payload["sn3_event_level"] = {
             "f1":   sn3["sn3_f1_median"],
@@ -381,10 +441,10 @@ def print_summary(results, agg):
               f"{r['algo_strict']:>5.1f}  {r['algo_standard']:>4.1f}  {r['algo_sensitive']:>4.1f}  "
               f"{r['robustness_grade']:>5s}  {r['severity_ref'][:1]}/{r['severity_standard'][:1]}"
               f" {'✓' if r['severity_match_standard'] else '✗'}")
-        if "sn3_f1_median" in r:
-            print(f"        SN3 events: F1={r['sn3_f1_median']:.3f}  "
-                  f"Δt={r['sn3_dt_median_s']:.2f}s  "
-                  f"TP/FP/FN={r['sn3_tp_median']}/{r['sn3_fp_median']}/{r['sn3_fn_median']}")
+        if "ev_f1_median" in r:
+            print(f"        {r['recording']} events: F1={r['ev_f1_median']:.3f}  "
+                  f"Δt={r['ev_dt_median_s']:.2f}s  "
+                  f"TP/FP/FN={r['ev_tp_median']}/{r['ev_fp_median']}/{r['ev_fn_median']}")
     if agg:
         print()
         print("─── Aggregate (standard profile) ─────────────────")
