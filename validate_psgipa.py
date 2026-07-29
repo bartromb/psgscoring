@@ -215,6 +215,89 @@ def match_events(a_events, b_events, iou_thresh=0.20, type_aware=False, optimal=
     }
 
 
+def match_events_symmetric(ev_a, ev_b, **match_kw):
+    """Match in beide richtingen en middel.
+
+    F1 = 2·TP / (2·TP + FP + FN) is symmetrisch in A en B, want FP + FN =
+    |A| + |B| − 2·TP. Het verschil tussen de richtingen zit dus volledig in
+    de gevonden TP: greedy loopt over de eerste lijst, dus wie "kandidaat" is
+    bepaalt welk paar als eerste een partner inpikt. Voor een mens-tegen-mens
+    vergelijking is geen van beide scorers de waarheid, dus is één richting
+    kiezen willekeurig. We rapporteren beide plus het gemiddelde.
+
+    Met optimal=True is de toewijzing per constructie richtingsonafhankelijk
+    en wordt f1_ab == f1_ba; `asymmetry` is dan 0.
+    """
+    m_ab = match_events(ev_a, ev_b, **match_kw)
+    m_ba = match_events(ev_b, ev_a, **match_kw)
+    dts = [m["mean_dt"] for m in (m_ab, m_ba) if m["mean_dt"] is not None]
+    return {
+        "f1":        (m_ab["f1"] + m_ba["f1"]) / 2.0,
+        "f1_ab":     m_ab["f1"],
+        "f1_ba":     m_ba["f1"],
+        "asymmetry": abs(m_ab["f1"] - m_ba["f1"]),
+        "tp_ab":     m_ab["tp"],
+        "fp_ab":     m_ab["fp"],
+        "fn_ab":     m_ab["fn"],
+        "precision_ab": m_ab["precision"],
+        "recall_ab":    m_ab["recall"],
+        "mean_dt":   float(np.mean(dts)) if dts else None,
+        "n_a":       len(ev_a),
+        "n_b":       len(ev_b),
+    }
+
+
+def human_baseline(scorer_files, sig_dur_s, **match_kw):
+    """Alle paarsgewijze F1's tussen scorers van één opname.
+
+    Zonder deze referentie is een algoritme-F1 oninterpreteerbaar: 0.29 kan
+    slecht zijn of gewoon de bovengrens van wat op die opname haalbaar is.
+    Bij 12 scorers zijn dit 12·11/2 = 66 paren.
+    """
+    sets = []
+    for f in scorer_files:
+        ev = event_set(f, sig_dur_s)
+        if ev:
+            sets.append((Path(f).name, ev))
+    return pairwise_baseline(sets, **match_kw)
+
+
+def pairwise_baseline(sets, **match_kw):
+    """Paarsgewijze F1's over [(naam, eventlijst), ...] — de kern van
+    human_baseline(), los van het inlezen zodat hij testbaar is."""
+    pairs = []
+    for i in range(len(sets)):
+        for j in range(i + 1, len(sets)):
+            name_a, ev_a = sets[i]
+            name_b, ev_b = sets[j]
+            m = match_events_symmetric(ev_a, ev_b, **match_kw)
+            m["scorer_a"] = name_a
+            m["scorer_b"] = name_b
+            pairs.append(m)
+
+    f1s = sorted(p["f1"] for p in pairs)
+    summary = {"n_scorers": len(sets), "n_pairs": len(pairs)}
+    if f1s:
+        summary.update({
+            "median": float(median(f1s)),
+            "p25":    float(np.percentile(f1s, 25)),
+            "p75":    float(np.percentile(f1s, 75)),
+            "min":    float(f1s[0]),
+            "max":    float(f1s[-1]),
+            "max_asymmetry": float(max(p["asymmetry"] for p in pairs)),
+        })
+    return {"pairs": pairs, "summary": summary}
+
+
+def percentile_of(value, population):
+    """Percentiel van `value` binnen `population` (ties tellen half mee)."""
+    if not population or value is None:
+        return None
+    below = sum(1 for x in population if x < value)
+    equal = sum(1 for x in population if x == value)
+    return 100.0 * (below + 0.5 * equal) / len(population)
+
+
 def event_set(scorer_edf, signal_duration_s):
     try:
         ann = mne.read_annotations(str(scorer_edf))
@@ -307,6 +390,7 @@ def analyse_one(sn_id, data_dir):
                 and float(e["onset_s"]) < sig_dur_s
             ]
             f1_list, dt_list, tp_list, fp_list, fn_list = [], [], [], [], []
+            sym_f1_list = []
             for f in scorer_files:
                 ref_events = event_set(f, sig_dur_s)
                 if not ref_events:
@@ -316,6 +400,12 @@ def analyse_one(sn_id, data_dir):
                 tp_list.append(m["tp"]); fp_list.append(m["fp"]); fn_list.append(m["fn"])
                 if m["mean_dt"] is not None:
                     dt_list.append(m["mean_dt"])
+                # Zelfde symmetrisering als de mens-paren, zodat het
+                # percentiel hieronder appels met appels vergelijkt. Dit
+                # vervangt ev_f1_median niet — dat blijft paper v31.
+                sym_f1_list.append(
+                    match_events_symmetric(algo_events, ref_events, iou_thresh=0.20)["f1"]
+                )
             if f1_list:
                 out["ev_f1_median"]   = round(float(median(f1_list)), 3)
                 out["ev_dt_median_s"] = round(float(median(dt_list)), 2) if dt_list else None
@@ -332,6 +422,31 @@ def analyse_one(sn_id, data_dir):
                     out["sn3_tp_median"]   = out["ev_tp_median"]
                     out["sn3_fp_median"]   = out["ev_fp_median"]
                     out["sn3_fn_median"]   = out["ev_fn_median"]
+
+                # ── Mens-tegen-mens baseline ────────────────────────
+                # Zonder deze referentie is de algoritme-F1 hierboven
+                # oninterpreteerbaar. Zelfde matcher-instellingen aan beide
+                # kanten — anders is de vergelijking betekenisloos.
+                hb = human_baseline(scorer_files, sig_dur_s, iou_thresh=0.20)
+                hs = hb["summary"]
+                if hs.get("n_pairs"):
+                    algo_sym = float(median(sym_f1_list)) if sym_f1_list else None
+                    pair_f1s = [p["f1"] for p in hb["pairs"]]
+                    out["human_f1_median"]  = round(hs["median"], 3)
+                    out["human_f1_p25"]     = round(hs["p25"], 3)
+                    out["human_f1_p75"]     = round(hs["p75"], 3)
+                    out["human_f1_min"]     = round(hs["min"], 3)
+                    out["human_f1_max"]     = round(hs["max"], 3)
+                    out["human_f1_n_pairs"] = hs["n_pairs"]
+                    out["human_max_asymmetry"] = round(hs["max_asymmetry"], 4)
+                    out["algo_f1_symmetric_median"] = (
+                        round(algo_sym, 3) if algo_sym is not None else None
+                    )
+                    out["algo_f1_percentile"] = (
+                        round(percentile_of(algo_sym, pair_f1s), 1)
+                        if algo_sym is not None else None
+                    )
+                    out["_human_pairs"] = hb["pairs"]
         return out
     except Exception as e:
         import traceback
@@ -416,6 +531,24 @@ def to_report_json(results, agg):
     if event_level:
         payload["event_level"] = event_level
 
+    human = {
+        r["recording"]: {
+            "f1_median": r["human_f1_median"],
+            "f1_p25":    r["human_f1_p25"],
+            "f1_p75":    r["human_f1_p75"],
+            "f1_min":    r["human_f1_min"],
+            "f1_max":    r["human_f1_max"],
+            "n_pairs":   r["human_f1_n_pairs"],
+            "max_asymmetry":  r.get("human_max_asymmetry"),
+            "algo_f1_symmetric": r.get("algo_f1_symmetric_median"),
+            "algo_percentile":   r.get("algo_f1_percentile"),
+        }
+        for r in results
+        if "error" not in r and "human_f1_median" in r
+    }
+    if human:
+        payload["human_baseline"] = human
+
     if sn3 and "sn3_f1_median" in sn3:
         payload["sn3_event_level"] = {
             "f1":   sn3["sn3_f1_median"],
@@ -445,6 +578,13 @@ def print_summary(results, agg):
             print(f"        {r['recording']} events: F1={r['ev_f1_median']:.3f}  "
                   f"Δt={r['ev_dt_median_s']:.2f}s  "
                   f"TP/FP/FN={r['ev_tp_median']}/{r['ev_fp_median']}/{r['ev_fn_median']}")
+        if "human_f1_median" in r:
+            pct = r.get("algo_f1_percentile")
+            print(f"        {r['recording']} human:  F1 median={r['human_f1_median']:.3f}  "
+                  f"IQR=[{r['human_f1_p25']:.3f}-{r['human_f1_p75']:.3f}]  "
+                  f"range=[{r['human_f1_min']:.3f}-{r['human_f1_max']:.3f}]  "
+                  f"n={r['human_f1_n_pairs']} pairs  "
+                  f"→ algo {r['algo_f1_symmetric_median']:.3f} at p{pct:.0f}")
     if agg:
         print()
         print("─── Aggregate (standard profile) ─────────────────")

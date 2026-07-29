@@ -20,7 +20,13 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from validate_psgipa import iou, match_events  # noqa: E402
+from validate_psgipa import (  # noqa: E402
+    iou,
+    match_events,
+    match_events_symmetric,
+    pairwise_baseline,
+    percentile_of,
+)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -188,3 +194,105 @@ def test_legacy_mode_ignores_event_type():
     a = [(0.0, 20.0, "hypopnea")]
     b = [(0.0, 20.0, "obstructive")]
     assert match_events(a, b)["tp"] == 1
+
+
+# ══════════════════════════════════════════════════════════════
+#  3. Richtingsafhankelijkheid van greedy matching
+# ══════════════════════════════════════════════════════════════
+
+# Op de echte PSG-IPA-data is de asymmetrie exact 0 voor alle 5 opnames:
+# scorer-events liggen ver genoeg uit elkaar dat greedy in beide richtingen
+# dezelfde partners kiest. Dat is een meting, geen aanname — en dit geval
+# bewijst dat de detectie werkt, zodat die 0 niet stilletjes een bug is.
+ASYMMETRIC_A = [
+    (6.5, 61.5, "hypopnea"), (74.1, 117.9, "hypopnea"),
+    (82.9, 118.6, "hypopnea"), (93.6, 147.3, "hypopnea"),
+]
+ASYMMETRIC_B = [
+    (47.9, 63.1, "hypopnea"), (76.1, 89.2, "hypopnea"), (95.7, 125.4, "hypopnea"),
+]
+
+
+def test_greedy_matching_can_be_direction_dependent():
+    """Zwaar overlappende events: richting verandert de gevonden TP."""
+    ab = match_events(ASYMMETRIC_A, ASYMMETRIC_B)
+    ba = match_events(ASYMMETRIC_B, ASYMMETRIC_A)
+    assert ab["tp"] != ba["tp"], "dit geval hoort juist asymmetrisch te zijn"
+
+
+def test_symmetric_wrapper_detects_and_averages_asymmetry():
+    m = match_events_symmetric(ASYMMETRIC_A, ASYMMETRIC_B)
+    assert m["asymmetry"] > 0.0
+    assert m["f1"] == pytest.approx((m["f1_ab"] + m["f1_ba"]) / 2.0)
+
+
+def test_symmetric_wrapper_is_order_independent():
+    """f1 mag niet afhangen van de volgorde van de argumenten."""
+    ab = match_events_symmetric(ASYMMETRIC_A, ASYMMETRIC_B)
+    ba = match_events_symmetric(ASYMMETRIC_B, ASYMMETRIC_A)
+    assert ab["f1"] == pytest.approx(ba["f1"])
+    assert ab["asymmetry"] == pytest.approx(ba["asymmetry"])
+
+
+# ══════════════════════════════════════════════════════════════
+#  4. Mens-tegen-mens baseline
+# ══════════════════════════════════════════════════════════════
+
+def _sets(n, events):
+    return [(f"scorer{i}", list(events)) for i in range(n)]
+
+
+@pytest.mark.parametrize("n,expected", [(2, 1), (3, 3), (5, 10), (12, 66)])
+def test_pair_count_is_n_choose_2(n, expected):
+    ev = [(0.0, 20.0, "hypopnea"), (100.0, 130.0, "central")]
+    r = pairwise_baseline(_sets(n, ev), iou_thresh=0.20)
+    assert r["summary"]["n_pairs"] == expected
+    assert len(r["pairs"]) == expected
+
+
+def test_identical_scorers_give_baseline_of_one():
+    """Sanity: een scorer tegen zichzelf geeft F1 = 1.0."""
+    ev = [(0.0, 20.0, "hypopnea"), (100.0, 130.0, "central")]
+    r = pairwise_baseline(_sets(12, ev), iou_thresh=0.20)
+    s = r["summary"]
+    assert s["n_pairs"] == 66
+    assert s["median"] == pytest.approx(1.0)
+    assert s["min"] == pytest.approx(1.0)
+    assert s["max"] == pytest.approx(1.0)
+    assert s["max_asymmetry"] == pytest.approx(0.0)
+
+
+def test_baseline_spread_reflects_disagreement():
+    """Eén afwijkende scorer verlaagt het minimum, niet de mediaan."""
+    agree = [(0.0, 20.0, "hypopnea"), (100.0, 130.0, "central")]
+    odd = [(500.0, 520.0, "hypopnea")]
+    sets = _sets(4, agree) + [("outlier", odd)]
+    s = pairwise_baseline(sets, iou_thresh=0.20)["summary"]
+    assert s["n_pairs"] == 10
+    assert s["min"] == pytest.approx(0.0)
+    assert s["median"] == pytest.approx(1.0)
+
+
+def test_empty_scorer_set_is_handled():
+    assert pairwise_baseline([], iou_thresh=0.20)["summary"]["n_pairs"] == 0
+
+
+# ══════════════════════════════════════════════════════════════
+#  5. Percentiel
+# ══════════════════════════════════════════════════════════════
+
+def test_percentile_of_basic():
+    pop = [0.0, 0.25, 0.75, 1.0]
+    assert percentile_of(0.5, pop) == pytest.approx(50.0)
+    assert percentile_of(-1.0, pop) == pytest.approx(0.0)
+    assert percentile_of(2.0, pop) == pytest.approx(100.0)
+
+
+def test_percentile_of_counts_ties_as_half():
+    assert percentile_of(0.5, [0.5, 0.5]) == pytest.approx(50.0)
+    assert percentile_of(0.5, [0.0, 0.5]) == pytest.approx(75.0)
+
+
+def test_percentile_of_empty_population_is_none():
+    assert percentile_of(0.5, []) is None
+    assert percentile_of(None, [0.1, 0.2]) is None
