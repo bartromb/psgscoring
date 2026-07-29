@@ -1,3 +1,27 @@
+# v0.12.3 — 2026-07-29 — NSRR nasal pressure detected as flow_pressure, not pulse
+
+**Channel-detection fix — no scoring-logic change** (golden regression byte-identical;
+PSG-IPA output byte-identical, md5 5ddbcf42360d965cd20ce1b8796221da before and after).
+
+## Fixed
+
+- **`Pres` (the NSRR/MESA/SHHS nasal-pressure channel) was claimed by the `pulse` role.**
+  Channel matching is case-insensitive substring, first-match-wins per role, so pattern
+  *order* is semantics. The `pulse` list contained `"pr"` — a substring of `"pres"` — and
+  no `flow_pressure` pattern matched a bare `"Pres"`. Two silent consequences on MESA:
+  `flow_pressure` stayed empty, so `_resolve_flow_channels()` ran **both** apnea and
+  hypopnea detection on the thermistor (amplitude ~1500× smaller than the nasal pressure);
+  and the `pulse` role took the nasal pressure instead of `"HR"`.
+  `"pres"` is now in `flow_pressure` (deliberately *after* the specific patterns, so an
+  explicit `"Nasal Pressure"` still wins) and `"pr"` moved to the end of `pulse`.
+  MESA now resolves `flow_pressure=Pres`, `flow_thermistor=Therm`, `pulse=HR`.
+
+Recordings that already resolved their channels correctly are unaffected — PSG-IPA has
+neither a `Pres` nor an `HR` channel, and its full 5-recording output is byte-identical.
+On MESA the hypopnea F1 barely moves (median 0.304 → 0.321) even though the hypopnea
+sensor switches off a 1500× smaller channel: detection normalises, so amplitude scarcely
+matters. The value is correctness of sensor assignment, not a metric gain.
+
 # v0.12.2 — 2026-07-27 — docs: absolute DISCLAIMER link (fix dead link on PyPI)
 
 **Docs-only — no code change** (golden regression byte-identical).
