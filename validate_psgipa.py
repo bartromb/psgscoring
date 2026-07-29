@@ -744,6 +744,76 @@ def print_summary(results, agg):
         print(f"  Weighted κ: {agg['weighted_kappa']:.3f}")
 
 
+def print_matcher_table(results, matcher, preset):
+    """Overzichtstabel die rechtstreeks in het paper kan.
+
+    De matcher-config staat er bewust bovenop: een F1-tabel zonder de
+    instellingen waarmee hij gemaakt is, is niet interpreteerbaar — en een
+    algoritme-F1 uit de ene matcher naast een baseline uit de andere is
+    ronduit misleidend.
+    """
+    rows = [r for r in results if "error" not in r and "ev_f1_median" in r]
+    if not rows:
+        return
+
+    print()
+    print(f"─── Event-level vs human baseline — matcher: {preset} ───")
+    print(f"    {matcher}")
+    print()
+    print(f"{'Rec':<5s} {'n':>3s} {'AlgoF1':>7s} {'HumanF1':>8s} {'Human [min-max]':>17s} "
+          f"{'Pct':>6s} {'Merge':>6s} {'Split':>6s} {'F1apn':>6s} {'F1hyp':>6s}")
+    print("─" * 92)
+
+    def _fmt(v, spec=">6.3f"):
+        return format(v, spec) if isinstance(v, (int, float)) else f"{'—':>6s}"
+
+    for r in rows:
+        rng = f"[{r.get('human_f1_min', float('nan')):.3f}-{r.get('human_f1_max', float('nan')):.3f}]"
+        pct = r.get("algo_f1_percentile")
+        print(f"{r['recording']:<5s} {r.get('ev_n_scorers', 0):>3d} "
+              f"{r['ev_f1_median']:>7.3f} {r.get('human_f1_median', float('nan')):>8.3f} "
+              f"{rng:>17s} "
+              f"{('p' + format(pct, '.0f')) if pct is not None else '—':>6s} "
+              f"{r.get('ev_merges_median', 0):>6d} {r.get('ev_splits_median', 0):>6d} "
+              f"{_fmt(r.get('ev_f1_apnea'))} {_fmt(r.get('ev_f1_hypopnea'))}")
+
+    def _med(key):
+        vals = [r[key] for r in rows if isinstance(r.get(key), (int, float))]
+        return float(median(vals)) if vals else float("nan")
+
+    print("─" * 92)
+    print(f"{'med':<5s} {'':>3s} {_med('ev_f1_median'):>7.3f} {_med('human_f1_median'):>8.3f} "
+          f"{'':>17s} {'p' + format(_med('algo_f1_percentile'), '.0f'):>6s} "
+          f"{_med('ev_merges_median'):>6.0f} {_med('ev_splits_median'):>6.0f} "
+          f"{_med('ev_f1_apnea'):>6.3f} {_med('ev_f1_hypopnea'):>6.3f}")
+
+
+def write_pairs_csv(results, path):
+    """Alle paarsgewijze scorer-resultaten wegschrijven.
+
+    Zo kan de verdeling later geplot of herbekeken worden zonder de hele
+    analyse (~5 min) opnieuw te draaien.
+    """
+    import csv
+
+    fields = [
+        "recording", "scorer_a", "scorer_b", "f1", "f1_ab", "f1_ba", "asymmetry",
+        "tp_ab", "fp_ab", "fn_ab", "precision_ab", "recall_ab", "mean_dt",
+        "n_a", "n_b",
+    ]
+    n = 0
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
+        w.writeheader()
+        for r in results:
+            for p in r.get("_human_pairs", []) or []:
+                w.writerow({"recording": r["recording"], **p})
+                n += 1
+    return n
+
+
 def main():
     p = argparse.ArgumentParser(
         description=__doc__,
@@ -759,6 +829,8 @@ def main():
     p.add_argument("--output-json", type=Path,
                    default=Path("/tmp/validation_results.json"),
                    help="Where to write the report JSON")
+    p.add_argument("--out-pairs", type=Path, default=None,
+                   help="Write all pairwise scorer results to this CSV")
     p.add_argument("--matcher", choices=sorted(MATCHER_PRESETS), default="legacy",
                    help="Event matcher: 'legacy' reproduces paper v31 "
                         "(greedy, type-blind); 'improved' is type-aware with "
@@ -788,6 +860,11 @@ def main():
 
     agg = aggregate_metrics(results)
     print_summary(results, agg)
+    print_matcher_table(results, matcher, args.matcher)
+
+    if args.out_pairs:
+        n_pairs = write_pairs_csv(results, args.out_pairs)
+        print(f"\nPer-pair CSV written: {args.out_pairs}  ({n_pairs} rows)")
 
     payload = to_report_json(results, agg)
     payload["matcher_config"] = dict(matcher)

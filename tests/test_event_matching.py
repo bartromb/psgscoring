@@ -12,6 +12,7 @@ sys.path-toevoeging. `psgscoring/` zelf wordt hier niet geraakt.
 Run:
     pytest tests/test_event_matching.py -v
 """
+import csv
 import random
 import sys
 from pathlib import Path
@@ -29,6 +30,7 @@ from validate_psgipa import (  # noqa: E402
     pairwise_baseline,
     percentile_of,
     type_family,
+    write_pairs_csv,
 )
 
 
@@ -433,6 +435,30 @@ def test_clean_one_to_one_has_no_merges_or_splits():
 def test_legacy_preset_is_the_documented_default():
     assert LEGACY_MATCHER == {"iou_thresh": 0.20, "type_aware": False, "optimal": False}
     assert MATCHER_PRESETS["legacy"] == LEGACY_MATCHER
+
+
+def test_pairs_csv_has_one_row_per_pair(tmp_path):
+    """Elke scorer-combinatie moet exact één regel opleveren."""
+    ev = [(0.0, 20.0, "hypopnea"), (100.0, 130.0, "central")]
+    pairs = pairwise_baseline(_sets(4, ev), iou_thresh=0.20)["pairs"]
+    results = [{"recording": "SN1", "_human_pairs": pairs},
+               {"recording": "SN2", "_human_pairs": pairs}]
+
+    out = tmp_path / "pairs.csv"
+    n = write_pairs_csv(results, out)
+
+    assert n == 12                      # 2 opnames x C(4,2)=6
+    rows = list(csv.DictReader(out.open()))
+    assert len(rows) == 12
+    assert {r["recording"] for r in rows} == {"SN1", "SN2"}
+    assert rows[0]["scorer_a"] != rows[0]["scorer_b"]
+    assert float(rows[0]["f1"]) == pytest.approx(1.0)
+
+
+def test_pairs_csv_without_pairs_writes_header_only(tmp_path):
+    out = tmp_path / "empty.csv"
+    assert write_pairs_csv([{"recording": "SN1"}], out) == 0
+    assert out.read_text().strip().startswith("recording,scorer_a,scorer_b")
 
 
 def test_new_options_do_not_disturb_legacy_scores():
