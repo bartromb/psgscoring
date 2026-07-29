@@ -21,11 +21,14 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from validate_psgipa import (  # noqa: E402
+    LEGACY_MATCHER,
+    MATCHER_PRESETS,
     iou,
     match_events,
     match_events_symmetric,
     pairwise_baseline,
     percentile_of,
+    type_family,
 )
 
 
@@ -296,3 +299,152 @@ def test_percentile_of_counts_ties_as_half():
 def test_percentile_of_empty_population_is_none():
     assert percentile_of(0.5, []) is None
     assert percentile_of(None, [0.1, 0.2]) is None
+
+
+# ══════════════════════════════════════════════════════════════
+#  6. Type-bewuste matching
+# ══════════════════════════════════════════════════════════════
+
+def test_type_family_maps_both_vocabularies():
+    """
+    Scorers annoteren obstructive/central/mixed/hypopnea; psgscoring geeft
+    daarnaast samengestelde labels. Die MOETEN op de hypopnee-familie
+    vallen — anders matchen ze met niets en zakt de type-bewuste F1 stil.
+    Dit is precies wat er op SN3 in de output stond.
+    """
+    for t in ("obstructive", "central", "mixed", "apnea", "apnea_unspec"):
+        assert type_family(t) == "apnea", t
+    for t in ("hypopnea", "hypopnoea", "hypopnea_central", "hypopnea_mixed"):
+        assert type_family(t) == "hypopnea", t
+    assert type_family(None) is None
+    assert type_family("arousal") is None
+
+
+def test_type_aware_blocks_cross_family_match():
+    a = [(0.0, 20.0, "hypopnea")]
+    b = [(0.0, 20.0, "obstructive")]
+    assert match_events(a, b, type_aware=False)["tp"] == 1
+    assert match_events(a, b, type_aware=True)["tp"] == 0
+
+
+def test_type_aware_allows_same_family_subtypes():
+    """Obstructief vs centraal is dezelfde familie: subtypering is een
+    aparte vraag en wordt hier bewust niet afgestraft."""
+    a = [(0.0, 20.0, "obstructive")]
+    b = [(0.0, 20.0, "central")]
+    assert match_events(a, b, type_aware=True)["tp"] == 1
+
+
+def test_type_aware_matches_compound_hypopnea_labels():
+    a = [(0.0, 20.0, "hypopnea_central")]
+    b = [(0.0, 20.0, "hypopnea")]
+    assert match_events(a, b, type_aware=True)["tp"] == 1
+
+
+# ══════════════════════════════════════════════════════════════
+#  7. Optimale toewijzing
+# ══════════════════════════════════════════════════════════════
+
+def test_optimal_beats_greedy_on_a_constructed_case():
+    """
+    a1 overlapt zowel b1 als b2, maar b2 past veel beter bij a2. Greedy laat
+    a1 b2 inpikken (hoogste IoU voor a1) en a2 blijft over; de optimale
+    toewijzing vindt beide.
+    """
+    # a1 overlapt b1 (IoU 0.25) en b2 (IoU 0.67) -> greedy pakt b2.
+    # a2 past bijna perfect op b2 (IoU 0.90) maar heeft geen alternatief,
+    # dus greedy houdt 1 match over; optimaal levert er 2 (0.25 + 0.90).
+    a = [(80.0, 140.0, "hypopnea"), (102.0, 138.0, "hypopnea")]
+    b = [(60.0, 100.0, "hypopnea"), (100.0, 140.0, "hypopnea")]
+    greedy = match_events(a, b, optimal=False)
+    opt = match_events(a, b, optimal=True)
+    assert greedy["tp"] == 1
+    assert opt["tp"] == 2, (greedy["tp"], opt["tp"])
+    assert opt["f1"] > greedy["f1"]
+
+
+def test_optimal_never_finds_fewer_tp_than_greedy():
+    """Invariant over willekeurige gevallen, inclusief clusters."""
+    rng = random.Random(4242)
+    for case in range(400):
+        gen = _clustered_events if case % 2 else _random_events
+        a = gen(rng, rng.randint(0, 20))
+        b = gen(rng, rng.randint(0, 20))
+        greedy = match_events(a, b, optimal=False)
+        opt = match_events(a, b, optimal=True)
+        assert opt["tp"] >= greedy["tp"], (
+            f"case {case}: optimal {opt['tp']} < greedy {greedy['tp']}"
+        )
+
+
+def test_optimal_is_symmetric():
+    """Met optimal=True verdwijnt de richtingsafhankelijkheid."""
+    rng = random.Random(99)
+    for _ in range(200):
+        a = _clustered_events(rng, rng.randint(1, 15))
+        b = _clustered_events(rng, rng.randint(1, 15))
+        ab = match_events(a, b, optimal=True)
+        ba = match_events(b, a, optimal=True)
+        assert ab["tp"] == ba["tp"]
+        assert ab["f1"] == pytest.approx(ba["f1"])
+
+
+def test_optimal_respects_the_iou_threshold():
+    """linear_sum_assignment vult ook nul-cellen; die tellen niet als match."""
+    a = [(0.0, 20.0, "hypopnea"), (1000.0, 1020.0, "hypopnea")]
+    b = [(0.0, 20.0, "hypopnea"), (5000.0, 5020.0, "hypopnea")]
+    m = match_events(a, b, optimal=True)
+    assert m["tp"] == 1
+    assert m["fp"] == 1
+    assert m["fn"] == 1
+
+
+# ══════════════════════════════════════════════════════════════
+#  8. Merge/split-diagnostiek
+# ══════════════════════════════════════════════════════════════
+
+def test_merge_counts_one_a_over_several_b():
+    a = [(0.0, 300.0, "hypopnea")]
+    b = [(10.0, 40.0, "hypopnea"), (100.0, 130.0, "hypopnea"), (200.0, 230.0, "hypopnea")]
+    m = match_events(a, b)
+    assert m["n_merges"] == 1
+    assert m["n_splits"] == 0
+
+
+def test_split_counts_several_a_over_one_b():
+    a = [(10.0, 40.0, "hypopnea"), (100.0, 130.0, "hypopnea"), (200.0, 230.0, "hypopnea")]
+    b = [(0.0, 300.0, "hypopnea")]
+    m = match_events(a, b)
+    assert m["n_splits"] == 1
+    assert m["n_merges"] == 0
+
+
+def test_clean_one_to_one_has_no_merges_or_splits():
+    ev = [(0.0, 20.0, "hypopnea"), (100.0, 130.0, "hypopnea")]
+    m = match_events(ev, ev)
+    assert m["n_merges"] == 0
+    assert m["n_splits"] == 0
+
+
+# ══════════════════════════════════════════════════════════════
+#  9. Legacy blijft legacy
+# ══════════════════════════════════════════════════════════════
+
+def test_legacy_preset_is_the_documented_default():
+    assert LEGACY_MATCHER == {"iou_thresh": 0.20, "type_aware": False, "optimal": False}
+    assert MATCHER_PRESETS["legacy"] == LEGACY_MATCHER
+
+
+def test_new_options_do_not_disturb_legacy_scores():
+    """
+    De toevoegingen van fase 3 mogen tp/fp/fn/f1 in legacy-modus niet raken;
+    n_merges/n_splits zijn puur additief.
+    """
+    rng = random.Random(20260729)
+    for case in range(200):
+        a = _random_events(rng, rng.randint(0, 30))
+        b = _random_events(rng, rng.randint(0, 30))
+        tp, fp, fn, f1, _ = _legacy_match(a, b)
+        m = match_events(a, b, **LEGACY_MATCHER)
+        assert (m["tp"], m["fp"], m["fn"]) == (tp, fp, fn), f"case {case}"
+        assert m["f1"] == pytest.approx(f1)

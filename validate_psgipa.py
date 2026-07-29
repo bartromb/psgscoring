@@ -51,6 +51,13 @@ CLINICAL_PROFILES = {
     "sensitive": "aasm_v3_sensitive",
 }
 
+# Matcher-presets. LEGACY is de default en levert de gepubliceerde paper
+# v31-cijfers; IMPROVED staat achter --matcher improved. Nooit een baseline
+# uit de ene preset vergelijken met een algoritme-F1 uit de andere.
+LEGACY_MATCHER = {"iou_thresh": 0.20, "type_aware": False, "optimal": False}
+IMPROVED_MATCHER = {"iou_thresh": 0.20, "type_aware": True, "optimal": True}
+MATCHER_PRESETS = {"legacy": LEGACY_MATCHER, "improved": IMPROVED_MATCHER}
+
 STAGE_KEYS = [
     ("stage n3", "N3"), ("stage 3", "N3"), ("stage 4", "N3"),
     ("stage n2", "N2"), ("stage 2", "N2"),
@@ -166,6 +173,80 @@ def iou(a0, a1, b0, b1):
     return inter / union if union > 0 else 0.0
 
 
+# Scorer- en algoritmevocabulaire naar één noemer. De scorers annoteren
+# "obstructive apnea" / "central apnea" / "mixed apnea" / "hypopnea"; het
+# algoritme levert dezelfde woorden. Voor type-bewuste matching is de
+# klinisch relevante scheiding apneu-vs-hypopnee, niet het apneusubtype:
+# subtypering (obstructief/centraal/gemengd) is een aparte vraag met een
+# eigen foutbron (effort-signaal), en scorers zijn het daar onderling het
+# minst over eens.
+_TYPE_FAMILY = {
+    "obstructive":   "apnea",
+    "central":       "apnea",
+    "mixed":         "apnea",
+    "apnea_unspec":  "apnea",
+    "apnea":         "apnea",
+    "hypopnea":      "hypopnea",
+}
+
+
+def type_family(t):
+    """Grofste zinvolle klasse: 'apnea' of 'hypopnea' (None als onbekend).
+
+    Let op de samengestelde labels: psgscoring geeft op SN3 ook
+    'hypopnea_central' en 'hypopnea_mixed'. Dat zijn hypopneeën met een
+    morfologie-suffix, geen apneus — zonder de prefixregel vallen ze op None
+    en matcht type-bewuste matching ze met niets, wat de F1 stil zou drukken.
+    """
+    if t is None:
+        return None
+    s = str(t).strip().lower()
+    if s.startswith(("hypopnea", "hypopnoea")):
+        return "hypopnea"
+    return _TYPE_FAMILY.get(s)
+
+
+def _iou_matrix(a_events, b_events):
+    """IoU van elk a-event tegen elk b-event, vectorieel (numpy, geen lussen)."""
+    a = np.asarray([(e[0], e[1]) for e in a_events], dtype=float).reshape(-1, 2)
+    b = np.asarray([(e[0], e[1]) for e in b_events], dtype=float).reshape(-1, 2)
+    a0, a1 = a[:, 0][:, None], a[:, 1][:, None]
+    b0, b1 = b[:, 0][None, :], b[:, 1][None, :]
+    inter = np.maximum(0.0, np.minimum(a1, b1) - np.maximum(a0, b0))
+    union = np.maximum(a1, b1) - np.minimum(a0, b0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        m = np.where(union > 0, inter / union, 0.0)
+    return m
+
+
+def _count_merges_splits(a_events, b_events, type_aware=False):
+    """Segmentatiediagnostiek, buiten de één-op-één-toewijzing om.
+
+    merge: één a-event overlapt (IoU > 0) met >= 2 b-events
+    split: >= 2 a-events overlappen met één b-event
+
+    Dit is diagnostiek, geen scoring: het maakt zichtbaar hoeveel van de
+    FP/FN uit segmentatieverschillen komt in plaats van uit echt gemiste
+    events. Relevant omdat psgscoring een maximale eventduur afdwingt
+    (hypopnee <=60 s, apneu <=90 s) en menselijke scorers dat niet doen.
+    """
+    if not a_events or not b_events:
+        return 0, 0
+    overlap = _iou_matrix(a_events, b_events) > 0.0
+    if type_aware:
+        overlap = overlap & _type_compatible(a_events, b_events)
+    n_merges = int(np.sum(overlap.sum(axis=1) >= 2))
+    n_splits = int(np.sum(overlap.sum(axis=0) >= 2))
+    return n_merges, n_splits
+
+
+def _type_compatible(a_events, b_events):
+    """Booleaanse matrix: mogen a_i en b_j op type gematcht worden?"""
+    fam_a = np.array([type_family(e[2]) for e in a_events], dtype=object)
+    fam_b = np.array([type_family(e[2]) for e in b_events], dtype=object)
+    return fam_a[:, None] == fam_b[None, :]
+
+
 def match_events(a_events, b_events, iou_thresh=0.20, type_aware=False, optimal=False):
     """Match twee eventlijsten [(onset, offset, type), ...].
 
@@ -177,22 +258,53 @@ def match_events(a_events, b_events, iou_thresh=0.20, type_aware=False, optimal=
     IoU-drempel 0.20, eventtype genegeerd. Wijzig die tak niet zonder de
     byte-identieke invariant opnieuw aan te tonen — de gepubliceerde cijfers
     hangen eraan.
-    """
-    matched_a, matched_b, onset_diffs, pairs = set(), set(), [], []
 
-    for i, (a0, a1, _atype) in enumerate(a_events):
-        best_j, best_v = -1, 0.0
-        for j, (b0, b1, _btype) in enumerate(b_events):
-            if j in matched_b:
+    type_aware  match alleen events van dezelfde familie (apneu vs hypopnee).
+                Zonder deze vlag kan een algoritme-hypopnee matchen met een
+                referentie-apneu, waardoor de F1 een overschatting is.
+    optimal     optimale toewijzing (Hongaars, scipy.linear_sum_assignment)
+                in plaats van greedy. Lost het geval op waarin een vroeg
+                a-event een b-event inpikt dat veel beter bij een later
+                a-event paste — relevant in clusters.
+    """
+    pairs = []
+
+    if not a_events or not b_events:
+        matched_a, matched_b, onset_diffs = set(), set(), []
+    elif optimal:
+        from scipy.optimize import linear_sum_assignment
+
+        m = _iou_matrix(a_events, b_events)
+        if type_aware:
+            m = np.where(_type_compatible(a_events, b_events), m, 0.0)
+        m = np.where(m >= iou_thresh, m, 0.0)
+        rows, cols = linear_sum_assignment(-m)
+        matched_a, matched_b, onset_diffs = set(), set(), []
+        for i, j in zip(rows, cols):
+            # linear_sum_assignment vult ook nul-cellen op; die zijn geen match.
+            if m[i, j] < iou_thresh or m[i, j] <= 0.0:
                 continue
-            v = iou(a0, a1, b0, b1)
-            if v >= iou_thresh and v > best_v:
-                best_v, best_j = v, j
-        if best_j >= 0:
-            matched_a.add(i)
-            matched_b.add(best_j)
-            onset_diffs.append(abs(a_events[i][0] - b_events[best_j][0]))
-            pairs.append((i, best_j, best_v))
+            matched_a.add(int(i))
+            matched_b.add(int(j))
+            onset_diffs.append(abs(a_events[i][0] - b_events[j][0]))
+            pairs.append((int(i), int(j), float(m[i, j])))
+    else:
+        matched_a, matched_b, onset_diffs = set(), set(), []
+        for i, (a0, a1, atype) in enumerate(a_events):
+            best_j, best_v = -1, 0.0
+            for j, (b0, b1, btype) in enumerate(b_events):
+                if j in matched_b:
+                    continue
+                if type_aware and type_family(atype) != type_family(btype):
+                    continue
+                v = iou(a0, a1, b0, b1)
+                if v >= iou_thresh and v > best_v:
+                    best_v, best_j = v, j
+            if best_j >= 0:
+                matched_a.add(i)
+                matched_b.add(best_j)
+                onset_diffs.append(abs(a_events[i][0] - b_events[best_j][0]))
+                pairs.append((i, best_j, best_v))
 
     tp = len(matched_a)
     fp = len(a_events) - tp
@@ -200,6 +312,8 @@ def match_events(a_events, b_events, iou_thresh=0.20, type_aware=False, optimal=
     prec = tp / (tp + fp) if (tp + fp) else 0
     rec_ = tp / (tp + fn) if (tp + fn) else 0
     f1 = 2 * prec * rec_ / (prec + rec_) if (prec + rec_) else 0
+
+    n_merges, n_splits = _count_merges_splits(a_events, b_events, type_aware=type_aware)
 
     return {
         "tp": tp,
@@ -209,8 +323,8 @@ def match_events(a_events, b_events, iou_thresh=0.20, type_aware=False, optimal=
         "recall": rec_,
         "f1": f1,
         "mean_dt": float(np.mean(onset_diffs)) if onset_diffs else None,
-        "n_merges": 0,
-        "n_splits": 0,
+        "n_merges": n_merges,
+        "n_splits": n_splits,
         "matched_pairs": pairs,
     }
 
@@ -314,7 +428,12 @@ def event_set(scorer_edf, signal_duration_s):
     return out
 
 
-def analyse_one(sn_id, data_dir):
+def analyse_one(sn_id, data_dir, matcher=None):
+    """matcher: dict met iou_thresh/type_aware/optimal. None = legacy
+    (paper v31). Dezelfde instellingen gaan naar zowel de algoritme-F1 als
+    de mens-baseline — een baseline uit een andere matcher vergelijken is
+    betekenisloos."""
+    matcher = dict(LEGACY_MATCHER if matcher is None else matcher)
     data_dir = Path(data_dir)
     psg_path = data_dir / "Resp_events" / "PSG" / f"{sn_id}_Respiration.edf"
     if not psg_path.exists():
@@ -390,22 +509,32 @@ def analyse_one(sn_id, data_dir):
                 and float(e["onset_s"]) < sig_dur_s
             ]
             f1_list, dt_list, tp_list, fp_list, fn_list = [], [], [], [], []
-            sym_f1_list = []
+            sym_f1_list, merge_list, split_list = [], [], []
+            fam_f1 = {"apnea": [], "hypopnea": []}
             for f in scorer_files:
                 ref_events = event_set(f, sig_dur_s)
                 if not ref_events:
                     continue
-                m = match_events(algo_events, ref_events, iou_thresh=0.20)
+                m = match_events(algo_events, ref_events, **matcher)
                 f1_list.append(m["f1"])
                 tp_list.append(m["tp"]); fp_list.append(m["fp"]); fn_list.append(m["fn"])
+                merge_list.append(m["n_merges"]); split_list.append(m["n_splits"])
                 if m["mean_dt"] is not None:
                     dt_list.append(m["mean_dt"])
                 # Zelfde symmetrisering als de mens-paren, zodat het
                 # percentiel hieronder appels met appels vergelijkt. Dit
                 # vervangt ev_f1_median niet — dat blijft paper v31.
                 sym_f1_list.append(
-                    match_events_symmetric(algo_events, ref_events, iou_thresh=0.20)["f1"]
+                    match_events_symmetric(algo_events, ref_events, **matcher)["f1"]
                 )
+                # F1 per eventfamilie — daar zit de klinische informatie.
+                for fam in ("apnea", "hypopnea"):
+                    a_f = [e for e in algo_events if type_family(e[2]) == fam]
+                    r_f = [e for e in ref_events if type_family(e[2]) == fam]
+                    if a_f or r_f:
+                        fam_f1[fam].append(
+                            match_events(a_f, r_f, **matcher)["f1"]
+                        )
             if f1_list:
                 out["ev_f1_median"]   = round(float(median(f1_list)), 3)
                 out["ev_dt_median_s"] = round(float(median(dt_list)), 2) if dt_list else None
@@ -413,6 +542,12 @@ def analyse_one(sn_id, data_dir):
                 out["ev_fp_median"]   = int(median(fp_list))
                 out["ev_fn_median"]   = int(median(fn_list))
                 out["ev_n_scorers"]   = len(f1_list)
+                out["ev_merges_median"] = int(median(merge_list)) if merge_list else 0
+                out["ev_splits_median"] = int(median(split_list)) if split_list else 0
+                for fam in ("apnea", "hypopnea"):
+                    if fam_f1[fam]:
+                        out[f"ev_f1_{fam}"] = round(float(median(fam_f1[fam])), 3)
+                out["matcher_config"] = dict(matcher)
                 # Oude sleutels blijven bestaan voor SN3: validation_report.py
                 # en tests/test_psgipa_reproducibility.py lezen ze, en paper v31
                 # rapporteert ze onder deze naam.
@@ -427,7 +562,7 @@ def analyse_one(sn_id, data_dir):
                 # Zonder deze referentie is de algoritme-F1 hierboven
                 # oninterpreteerbaar. Zelfde matcher-instellingen aan beide
                 # kanten — anders is de vergelijking betekenisloos.
-                hb = human_baseline(scorer_files, sig_dur_s, iou_thresh=0.20)
+                hb = human_baseline(scorer_files, sig_dur_s, **matcher)
                 hs = hb["summary"]
                 if hs.get("n_pairs"):
                     algo_sym = float(median(sym_f1_list)) if sym_f1_list else None
@@ -524,6 +659,10 @@ def to_report_json(results, agg):
             "fp":   r.get("ev_fp_median"),
             "fn":   r.get("ev_fn_median"),
             "n_scorers": r.get("ev_n_scorers"),
+            "merges": r.get("ev_merges_median"),
+            "splits": r.get("ev_splits_median"),
+            "f1_apnea":    r.get("ev_f1_apnea"),
+            "f1_hypopnea": r.get("ev_f1_hypopnea"),
         }
         for r in results
         if "error" not in r and "ev_f1_median" in r
@@ -578,6 +717,15 @@ def print_summary(results, agg):
             print(f"        {r['recording']} events: F1={r['ev_f1_median']:.3f}  "
                   f"Δt={r['ev_dt_median_s']:.2f}s  "
                   f"TP/FP/FN={r['ev_tp_median']}/{r['ev_fp_median']}/{r['ev_fn_median']}")
+        if "ev_merges_median" in r:
+            fam = []
+            if r.get("ev_f1_apnea") is not None:
+                fam.append(f"apnea={r['ev_f1_apnea']:.3f}")
+            if r.get("ev_f1_hypopnea") is not None:
+                fam.append(f"hypopnea={r['ev_f1_hypopnea']:.3f}")
+            print(f"        {r['recording']} segm:   merges={r['ev_merges_median']}  "
+                  f"splits={r['ev_splits_median']}"
+                  + (f"   F1 per type: {', '.join(fam)}" if fam else ""))
         if "human_f1_median" in r:
             pct = r.get("algo_f1_percentile")
             print(f"        {r['recording']} human:  F1 median={r['human_f1_median']:.3f}  "
@@ -611,7 +759,12 @@ def main():
     p.add_argument("--output-json", type=Path,
                    default=Path("/tmp/validation_results.json"),
                    help="Where to write the report JSON")
+    p.add_argument("--matcher", choices=sorted(MATCHER_PRESETS), default="legacy",
+                   help="Event matcher: 'legacy' reproduces paper v31 "
+                        "(greedy, type-blind); 'improved' is type-aware with "
+                        "optimal assignment (default: legacy)")
     args = p.parse_args()
+    matcher = dict(MATCHER_PRESETS[args.matcher])
 
     import psgscoring
     print(f"\npsgscoring v{psgscoring.__version__} — clinical profile sweep "
@@ -619,22 +772,26 @@ def main():
     print(f"Method: paper v31 conventie — stages + events from Resp_events/ "
           f"(single time-axis)\n")
 
+    print(f"Matcher: {args.matcher} — {matcher}\n")
+
     results = []
     if args.workers > 1 and len(args.recordings) > 1:
         with ProcessPoolExecutor(max_workers=args.workers) as ex:
-            futures = {ex.submit(analyse_one, sn, args.data_dir): sn
+            futures = {ex.submit(analyse_one, sn, args.data_dir, matcher): sn
                        for sn in args.recordings}
             for fut in as_completed(futures):
                 results.append(fut.result())
     else:
         for sn in args.recordings:
-            results.append(analyse_one(sn, args.data_dir))
+            results.append(analyse_one(sn, args.data_dir, matcher))
     results.sort(key=lambda r: r["recording"])
 
     agg = aggregate_metrics(results)
     print_summary(results, agg)
 
     payload = to_report_json(results, agg)
+    payload["matcher_config"] = dict(matcher)
+    payload["matcher_preset"] = args.matcher
     args.output_json.parent.mkdir(parents=True, exist_ok=True)
     args.output_json.write_text(json.dumps(payload, indent=2))
     print(f"\nJSON written: {args.output_json}")
