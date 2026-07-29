@@ -125,7 +125,19 @@ def grade_from_severities(strict_sev, std_sev, sens_sev):
     return "C"
 
 
-def parse_scorer_file(scorer_edf, signal_duration_s):
+def parse_scorer_file(scorer_edf, signal_duration_s, strict_sleep=False):
+    """Referentie-AHI, TST en hypnogram van één scoorder.
+
+    strict_sleep=False (default) telt ALLE respiratoire annotaties in de
+    teller, terwijl de noemer (TST) wel op slaap gefilterd is. Dat is de
+    conventie waarmee paper v31 gerekend is; de vlag laat hem staan.
+
+    strict_sleep=True sluit events in een wake-epoch uit de teller uit, wat
+    strikter AASM is (respiratoire events worden alleen tijdens slaap
+    gescoord). Op PSG-IPA is het effect klein — 0,5% van de events ligt in
+    W — maar niet nul: SN3 53,98 -> 53,73 en SN5 9,98 -> 9,48. Het is dus
+    een wijziging aan GEPUBLICEERDE waarden, geen gratis correctie.
+    """
     try:
         ann = mne.read_annotations(str(scorer_edf))
     except Exception:
@@ -141,11 +153,10 @@ def parse_scorer_file(scorer_edf, signal_duration_s):
     tst_h = n_sleep_epochs * 30.0 / 3600.0
     if tst_h < 0.1:
         return None, None, None
-    n_events = sum(
-        1 for onset, desc in zip(ann.onset, ann.description)
-        if 0 <= onset < signal_duration_s and is_resp_event(str(desc))
-    )
-    ahi = n_events / tst_h
+
+    # Hypnogram vóór het tellen: strict_sleep heeft het stadium per event nodig.
+    # De volgorde is puur administratief — met strict_sleep=False verandert er
+    # niets aan de uitkomst.
     n_epochs = int(np.ceil(signal_duration_s / 30.0))
     hypno = ["W"] * n_epochs
     for onset, dur, desc in zip(ann.onset, ann.duration, ann.description):
@@ -159,6 +170,17 @@ def parse_scorer_file(scorer_edf, signal_duration_s):
         for i in range(n_eps):
             if 0 <= ep_start + i < n_epochs:
                 hypno[ep_start + i] = st
+
+    n_events = 0
+    for onset, desc in zip(ann.onset, ann.description):
+        if not (0 <= onset < signal_duration_s) or not is_resp_event(str(desc)):
+            continue
+        if strict_sleep:
+            ep = int(float(onset) // 30)
+            if ep >= n_epochs or hypno[ep] not in ("N1", "N2", "N3", "R"):
+                continue
+        n_events += 1
+    ahi = n_events / tst_h
     return ahi, tst_h, hypno
 
 
@@ -428,7 +450,7 @@ def event_set(scorer_edf, signal_duration_s):
     return out
 
 
-def analyse_one(sn_id, data_dir, matcher=None):
+def analyse_one(sn_id, data_dir, matcher=None, strict_sleep=False):
     """matcher: dict met iou_thresh/type_aware/optimal. None = legacy
     (paper v31). Dezelfde instellingen gaan naar zowel de algoritme-F1 als
     de mens-baseline — een baseline uit een andere matcher vergelijken is
@@ -449,7 +471,8 @@ def analyse_one(sn_id, data_dir, matcher=None):
         ref_ahis = []
         scorer1_hypno = None
         for i, f in enumerate(scorer_files):
-            ahi, _tst, hypno = parse_scorer_file(f, sig_dur_s)
+            ahi, _tst, hypno = parse_scorer_file(f, sig_dur_s,
+                                                 strict_sleep=strict_sleep)
             if ahi is not None:
                 ref_ahis.append(ahi)
                 if i == 0:
@@ -831,6 +854,10 @@ def main():
                    help="Where to write the report JSON")
     p.add_argument("--out-pairs", type=Path, default=None,
                    help="Write all pairwise scorer results to this CSV")
+    p.add_argument("--strict-sleep-ahi", action="store_true",
+                   help="Exclude events in a wake epoch from the reference AHI "
+                        "numerator (stricter AASM). Default off: the published "
+                        "paper v31 values count every annotation.")
     p.add_argument("--matcher", choices=sorted(MATCHER_PRESETS), default="legacy",
                    help="Event matcher: 'legacy' reproduces paper v31 "
                         "(greedy, type-blind); 'improved' is type-aware with "
@@ -844,18 +871,24 @@ def main():
     print(f"Method: paper v31 conventie — stages + events from Resp_events/ "
           f"(single time-axis)\n")
 
-    print(f"Matcher: {args.matcher} — {matcher}\n")
+    print(f"Matcher: {args.matcher} — {matcher}")
+    if args.strict_sleep_ahi:
+        print("Reference AHI: STRICT — events in a wake epoch are excluded "
+              "(deviates from the published paper v31 values)")
+    print()
 
     results = []
     if args.workers > 1 and len(args.recordings) > 1:
         with ProcessPoolExecutor(max_workers=args.workers) as ex:
-            futures = {ex.submit(analyse_one, sn, args.data_dir, matcher): sn
+            futures = {ex.submit(analyse_one, sn, args.data_dir, matcher,
+                                 args.strict_sleep_ahi): sn
                        for sn in args.recordings}
             for fut in as_completed(futures):
                 results.append(fut.result())
     else:
         for sn in args.recordings:
-            results.append(analyse_one(sn, args.data_dir, matcher))
+            results.append(analyse_one(sn, args.data_dir, matcher,
+                                       args.strict_sleep_ahi))
     results.sort(key=lambda r: r["recording"])
 
     agg = aggregate_metrics(results)
@@ -869,6 +902,7 @@ def main():
     payload = to_report_json(results, agg)
     payload["matcher_config"] = dict(matcher)
     payload["matcher_preset"] = args.matcher
+    payload["strict_sleep_ahi"] = bool(args.strict_sleep_ahi)
     args.output_json.parent.mkdir(parents=True, exist_ok=True)
     args.output_json.write_text(json.dumps(payload, indent=2))
     print(f"\nJSON written: {args.output_json}")

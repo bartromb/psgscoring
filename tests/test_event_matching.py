@@ -474,3 +474,73 @@ def test_new_options_do_not_disturb_legacy_scores():
         m = match_events(a, b, **LEGACY_MATCHER)
         assert (m["tp"], m["fp"], m["fn"]) == (tp, fp, fn), f"case {case}"
         assert m["f1"] == pytest.approx(f1)
+
+
+# ══════════════════════════════════════════════════════════════
+#  10. --strict-sleep-ahi
+# ══════════════════════════════════════════════════════════════
+
+def _ann(monkeypatch, entries):
+    """Laat parse_scorer_file deze annotaties zien: [(onset, duur, desc), ...].
+
+    Via monkeypatch in plaats van een bestand: mne.Annotations.save() naar een
+    .edf-pad schrijft een bestand dat leeg terugleest, en het formaat is hier
+    niet wat we willen testen.
+    """
+    mne = pytest.importorskip("mne")
+    import validate_psgipa as vp
+    ann = mne.Annotations([e[0] for e in entries], [e[1] for e in entries],
+                          [e[2] for e in entries])
+    monkeypatch.setattr(vp.mne, "read_annotations", lambda *a, **k: ann)
+    return "dummy.edf"
+
+
+def test_strict_sleep_ahi_excludes_wake_events(monkeypatch):
+    """
+    Twee slaap-epochs (N2) plus een wake-epoch met daarin één apneu.
+    Default telt die mee, strict_sleep niet.
+    """
+    from validate_psgipa import parse_scorer_file
+
+    # >=12 slaap-epochs nodig: parse_scorer_file geeft None terug onder 0.1 h TST
+    entries = [(30.0 * i, 30.0, "Sleep stage N2") for i in range(20)]
+    entries += [
+        (600.0, 30.0, "Sleep stage W"),
+        (100.0, 15.0, "Obstructive apnea"),     # in slaap
+        (605.0, 15.0, "Obstructive apnea"),     # in wake
+    ]
+    path = _ann(monkeypatch, entries)
+
+    ahi_loose, tst, _ = parse_scorer_file(path, 630.0, strict_sleep=False)
+    ahi_strict, tst2, _ = parse_scorer_file(path, 630.0, strict_sleep=True)
+
+    assert tst == tst2, "TST mag niet veranderen door de vlag"
+    assert ahi_loose == pytest.approx(2 / tst)
+    assert ahi_strict == pytest.approx(1 / tst)
+    assert ahi_strict < ahi_loose
+
+
+def test_strict_sleep_ahi_is_a_noop_without_wake_events(monkeypatch):
+    """Zonder events in wake moeten beide standen identiek zijn."""
+    from validate_psgipa import parse_scorer_file
+
+    entries = [(30.0 * i, 30.0, "Sleep stage N2") for i in range(20)]
+    entries += [(100.0, 15.0, "Hypopnea"), (400.0, 15.0, "Central apnea")]
+    path = _ann(monkeypatch, entries)
+    a, t, h = parse_scorer_file(path, 600.0, strict_sleep=False)
+    b, t2, h2 = parse_scorer_file(path, 600.0, strict_sleep=True)
+    assert a == pytest.approx(b)
+    assert t == t2 and h == h2
+
+
+def test_default_is_legacy_behaviour(monkeypatch):
+    """De default mag de gepubliceerde conventie niet stilzwijgend wijzigen."""
+    from validate_psgipa import parse_scorer_file
+
+    entries = [(30.0 * i, 30.0, "Sleep stage N2") for i in range(20)]
+    entries += [(600.0, 30.0, "Sleep stage W"), (605.0, 15.0, "Obstructive apnea")]
+    path = _ann(monkeypatch, entries)
+    default, _, _ = parse_scorer_file(path, 630.0)
+    loose, _, _ = parse_scorer_file(path, 630.0, strict_sleep=False)
+    assert default == pytest.approx(loose)
+    assert default > 0, "default telt het wake-event mee"
