@@ -534,7 +534,12 @@ def run_pneumo_analysis(
     # arousal qualifier) — cms_medicare, aasm_v1_rec (DESAT_OR_AROUSAL=False) —
     # must not do this, or their AHI is inflated by arousal-only events.
     allow_arousal = profile.get("DESAT_OR_AROUSAL", True)
-    limb_enabled  = bool(profile.get("RULE1A_AROUSAL_ENABLED", False))
+    # Env-override zodat fase 4 de 2x2 kan meten zonder profielen te
+    # muteren; zelfde patroon als PSGSCORING_BASELINE_MODE.
+    _limb_env = os.environ.get("PSGSCORING_RULE1A_AROUSAL")
+    limb_enabled  = (_limb_env.strip().lower() in ("1", "true", "yes", "on")
+                     if _limb_env is not None
+                     else bool(profile.get("RULE1A_AROUSAL_ENABLED", False)))
 
     # v0.12.3+: expliciete telling. De tak stond jarenlang op nul zonder dat
     # iets dat meldde; vanaf nu is 'nul' altijd zichtbaar mét reden.

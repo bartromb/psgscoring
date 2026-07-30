@@ -1,5 +1,31 @@
 # Unreleased — AASM Rule 1A/1B naming corrected + pre-event baseline (flagged off)
 
+## Known issue — blocks enabling any of this by default
+
+**The arousal plumbing repair changes `mesa_shhs`, which is a hard
+requirement violation, and the cause is the ML re-classifier.**
+
+`mesa_shhs` is the only profile that runs the LightGBM candidate
+re-classifier, and `apply_ml_reclassification()` takes the arousal list.
+Its highest-gain features are arousal-based (`n_arousals_per_h`,
+`n_arousals_within_30s`, `has_arousal_within_5s`). Because of issue #16
+those features were **always zero at inference**. Feeding them real values
+makes the model reclassify large numbers of rejected candidates:
+
+| mesa-sleep-2408 | main | this branch |
+|---|---|---|
+| AHI | 30.4 | **54.9** |
+| RDI | 30.4 | 84.4 |
+| events | 291 | 465 |
+| RERAs | 0 | 204 |
+| arousals visible | 0 | 372 |
+
+This happens with the arousal limb **disabled** — it is the classifier, not
+the limb. It also means the model has a train/serve mismatch that predates
+this work: whatever it learned about arousal features, it has never seen a
+non-zero one in production. Re-validating or retraining the classifier is a
+prerequisite for shipping the plumbing fix, and that is out of scope here.
+
 ## Fixed
 
 - **The AASM Rule 1A arousal limb was dead, and so was FRI-based RERA
