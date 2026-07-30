@@ -38,7 +38,8 @@ from ._types import (
 
 from .respiratory import (
     detect_respiratory_events,
-    reinstate_rule1b_hypopneas,
+    reinstate_rule1a_arousal_hypopneas,
+    reinstate_rule1b_hypopneas,      # deprecated alias
 )
 from .signal import (
     linearize_nasal_pressure,
@@ -96,7 +97,8 @@ __all__ = [
     "run_pneumo_analysis",
     # Respiratory
     "detect_respiratory_events",
-    "reinstate_rule1b_hypopneas",
+    "reinstate_rule1a_arousal_hypopneas",
+    "reinstate_rule1b_hypopneas",    # deprecated alias
     # Signal
     "linearize_nasal_pressure",
     "compute_mmsd",

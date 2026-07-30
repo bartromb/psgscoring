@@ -10,7 +10,7 @@ detection pipeline.
 Public API
 ----------
 detect_respiratory_events(...)  -> dict
-reinstate_rule1b_hypopneas(...) -> (reinstated, all_events)
+reinstate_rule1a_arousal_hypopneas(...) -> (reinstated, all_events)
 """
 
 from __future__ import annotations
@@ -662,10 +662,17 @@ def detect_respiratory_events(
 
 
 # ---------------------------------------------------------------------------
-# Rule 1B – arousal-coupled hypopnea reinstatement
+# AASM Rule 1A – arousal-coupled hypopnea qualification
+#
+# Naamgeving gecorrigeerd in v0.12.3+: de AASM plaatst het arousal-criterium
+# in Rule **1A** (">=30% flowreductie EN (>=3% desaturatie OF arousal)").
+# Rule 1B is juist de variant met >=4% desaturatie die arousals uitdrukkelijk
+# UITSLUIT. De code had het omgekeerd. De oude namen blijven als alias
+# bestaan (zie onderaan deze module en in de output), zodat YASAFlaskified
+# en bestaande rapporten niet breken.
 # ---------------------------------------------------------------------------
 
-def reinstate_rule1b_hypopneas(
+def reinstate_rule1a_arousal_hypopneas(
     rejected:       list,
     arousal_events: list,
     resp_events:    list,
@@ -739,9 +746,15 @@ def reinstate_rule1b_hypopneas(
             "min_spo2":         cand.get("min_spo2"),
             "flow_reduction":   None,
             "confidence":       0.7,
-            "classify_detail":  {"rule": "1B_arousal"},
+            # v0.12.3+: 1A is de correcte AASM-regel. `rule_legacy` en de
+            # vlag `rule1b` blijven staan als deprecatie-alias — die laatste
+            # is bovendien een feature van de getrainde LightGBM-classifier
+            # (ml_classifier.py leest candidate["rule1b"]), dus weghalen zou
+            # het model stil een kenmerk ontnemen.
+            "classify_detail":  {"rule": "1A_arousal", "rule_legacy": "1B_arousal"},
             "epoch":            cand["epoch"],
-            "rule1b":           True,
+            "rule1a_arousal":   True,
+            "rule1b":           True,   # deprecated alias
         })
 
     if reinstated:
@@ -1302,6 +1315,11 @@ def _pre_event_baseline(
         val = float(fallback_bl[onset_idx])
         return max(val, 1e-6)
     return float(fallback_bl) if np.ndim(fallback_bl) == 0 else 1.0
+
+
+# Deprecatie-alias. Verwijderen pas wanneer YASAFlaskified (pneumo_analysis.py)
+# en externe callers over zijn op de 1A-naam.
+reinstate_rule1b_hypopneas = reinstate_rule1a_arousal_hypopneas
 
 
 def _validate_local_reduction(

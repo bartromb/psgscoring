@@ -16,7 +16,7 @@ run_pneumo_analysis
   ├─ ancillary.analyze_position / heart_rate / snore / detect_cheyne_stokes
   ├─ plm.analyze_plm
   ├─ [arousal_analysis.run_arousal_respiratory_analysis]   <- optional
-  └─ respiratory.reinstate_rule1b_hypopneas
+  └─ respiratory.reinstate_rule1a_arousal_hypopneas
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ from .signal import (
     compute_dynamic_baseline, preprocess_flow,
 )
 from .respiratory import (
-    detect_respiratory_events, reinstate_rule1b_hypopneas, _compute_summary,
+    detect_respiratory_events, reinstate_rule1a_arousal_hypopneas, _compute_summary,
 )
 from .spo2 import analyze_spo2, compute_hypoxic_burden
 from .ancillary import (
@@ -513,7 +513,7 @@ def run_pneumo_analysis(
     # must not do this, or their AHI is inflated by arousal-only events.
     allow_arousal = profile.get("DESAT_OR_AROUSAL", True)
     if rejected and arousals and allow_arousal:
-        reinstated, updated_events = reinstate_rule1b_hypopneas(
+        reinstated, updated_events = reinstate_rule1a_arousal_hypopneas(
             rejected       = rejected,
             arousal_events = arousals,
             resp_events    = resp.get("events", []),
@@ -527,8 +527,12 @@ def run_pneumo_analysis(
             output["respiratory"]["summary"]          = _compute_summary(
                 updated_events, hypno, artifact_epochs
             )
+            # v0.12.3+: 1A is de correcte AASM-regel; de 1B-sleutel blijft
+            # als alias omdat YASAFlaskified hem in twee rapporten leest.
+            output["respiratory"]["rule1a_arousal_reinstated"] = len(reinstated)
             output["respiratory"]["rule1b_reinstated"] = len(reinstated)
     else:
+        output["respiratory"].setdefault("rule1a_arousal_reinstated", 0)
         output["respiratory"].setdefault("rule1b_reinstated", 0)
 
     # ── Step 8a (v0.6.0): LightGBM candidate re-classification ────────────

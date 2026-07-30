@@ -1,3 +1,36 @@
+# Unreleased — AASM Rule 1A/1B naming corrected (arousal limb)
+
+**Rename with aliases — no behaviour change** (golden regression green;
+PSG-IPA output byte-identical).
+
+## Changed
+
+- **The arousal qualifier is AASM Rule 1A, not 1B.** The AASM places the
+  arousal criterion in Rule 1A (">=30% flow reduction AND (>=3% desaturation
+  OR arousal)"); Rule 1B is the >=4%-desaturation variant that explicitly
+  *excludes* arousals. The code had it the other way round.
+
+  | was | is |
+  |---|---|
+  | `reinstate_rule1b_hypopneas()` | `reinstate_rule1a_arousal_hypopneas()` |
+  | event `classify_detail.rule = "1B_arousal"` | `"1A_arousal"` (+ `rule_legacy`) |
+  | event flag `rule1b` | `rule1a_arousal` |
+  | `respiratory.rule1b_reinstated` | `respiratory.rule1a_arousal_reinstated` |
+
+## Deprecated (kept working)
+
+Every old name is retained as an alias and is still emitted in the output.
+This is not cosmetic caution — three consumers depend on them:
+YASAFlaskified imports `reinstate_rule1b_hypopneas` in `pneumo_analysis.py`
+and reads `rule1b_reinstated` in both `generate_pdf_report.py` and
+`generate_psg_report.py`, and `psgscoring.ml_classifier` uses the candidate
+flag `rule1b` as the trained LightGBM feature `is_rule1b` — dropping it
+would silently deprive the model of an input. `tests/test_rule1a_arousal_naming.py`
+pins all of it.
+
+Note this rename does not by itself make the arousal limb fire; that is a
+separate plumbing defect (issue #16).
+
 # v0.12.2 — 2026-07-27 — docs: absolute DISCLAIMER link (fix dead link on PyPI)
 
 **Docs-only — no code change** (golden regression byte-identical).
