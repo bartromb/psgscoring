@@ -16,6 +16,36 @@
   nothing switches until phase 4 justifies it. The rolling baseline stays in
   place for signal quality and the existing visualisations either way.
 
+  Wired into the hypopnea threshold assessment: with `"pre_event"` both
+  sides of the ratio come from the breath segmentation (candidate mean
+  amplitude vs pre-event baseline), so they measure the same quantity. The
+  envelope used by the rolling path is a different scale and is deliberately
+  not mixed in. When the baseline is unavailable the event falls back to the
+  rolling validation rather than being silently dropped.
+
+  `PSGSCORING_BASELINE_MODE` overrides the profile, so phase 4 can measure
+  both settings without mutating profiles (same pattern as
+  `PSGSCORING_AROUSAL_DERIVATION`).
+
+  First measurement on PSG-IPA SN1 (reference scorer median AHI 5.96):
+
+  | mode | AHI | events | hypopneas | rejected | local_reduction rejects |
+  |---|---|---|---|---|---|
+  | rolling | 8.1 | 47 | 32 | 74 | **56** |
+  | pre_event | 11.6 | 67 | 52 | 54 | **1** |
+
+  The predicted by-catch is confirmed and it is large: Fix 6
+  (`local_reduction`) drops from 56 rejections to 1, i.e. it becomes almost
+  entirely redundant once the baseline is measured before the event instead
+  of around it. Fix 1 and Fix 6 are not removed here — phase 4 measures what
+  they still contribute first.
+
+  AHI rises on this recording, away from the scorer median. That is not by
+  itself a verdict: the decision measure for this work is event-level F1
+  against human scorers and the percentile within the inter-scorer
+  distribution, not AHI bias, precisely because a better bias can come from
+  errors that cancel. Phase 4 settles it.
+
   Why it matters: `compute_dynamic_baseline()` uses a *centred* 5-minute
   window, so it includes the recovery hyperpnoea that follows an event. That
   inflates the baseline and shrinks the measured reduction. Fix 1 and Fix 6

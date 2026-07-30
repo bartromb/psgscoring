@@ -31,6 +31,7 @@ from .constants import (
 from .utils import build_sleep_mask, is_nrem, is_rem, safe_r
 from .signal import (
     bandpass_flow, compute_dynamic_baseline, compute_mmsd,
+    compute_pre_event_baseline,
     compute_stage_baseline, detect_position_changes, preprocess_effort,
     preprocess_flow, reset_baseline_at_position_changes,
 )
@@ -571,6 +572,15 @@ def detect_respiratory_events(
             flow_filt=_flow_filt_snap,
             breaths=breaths,
             signal_quality=signal_quality,  # v0.3.001 BUG2 gate,
+            # v0.12.3+: profielgestuurde baseline. Default "rolling" = huidig
+            # gedrag; HYPOPNEA_THRESHOLD is 1 - flow_reduction_threshold, dus
+            # de vereiste daling volgt uit hetzelfde profielgetal.
+            # Env-override zodat fase 4 beide standen kan meten zonder het
+            # profiel te muteren; zelfde patroon als
+            # PSGSCORING_AROUSAL_DERIVATION. Leeg = profielwaarde.
+            baseline_mode=(os.environ.get("PSGSCORING_BASELINE_MODE")
+                           or sp.get("BASELINE_MODE", "rolling")).strip().lower(),
+            flow_reduction_threshold=1.0 - float(sp.get("HYPOPNEA_THRESHOLD", 0.70)),
             local_bl_cv_threshold=sp.get("LOCAL_BL_CV_THRESHOLD", 0.30),
             local_bl_strict_reduction=sp.get("LOCAL_BL_STRICT_RED", 30.0),
             # v0.5.0: profile-aware floors previously hard-coded
@@ -1151,6 +1161,11 @@ def _detect_hypopneas(
     flow_filt: np.ndarray | None = None,
     breaths: list | None = None,
     signal_quality: dict | None = None,
+    baseline_mode: str = "rolling",             # v0.12.3+: "rolling" | "pre_event"
+    flow_reduction_threshold: float = 0.30,     # AASM: >=30% daling
+    pre_event_window_s: float = 120.0,
+    pre_event_stability_cv: float = 0.25,
+    pre_event_n_largest: int = 3,
     local_bl_cv_threshold: float = 0.30,        # v0.4.2: profile-aware
     local_bl_strict_reduction: float = 30.0,    # v0.4.2: profile-aware
     local_bl_min_reduction_pct: float = 20.0,   # v0.5.0: profile-aware
@@ -1195,10 +1210,45 @@ def _detect_hypopneas(
             flow_mean = float(np.mean(hypop_env[sub_idx[0] : sub_idx[-1] + 1]))
             flow_red  = safe_r((1 - flow_mean / pre_bl) * 100) if pre_bl > 0 else None
 
+            # v0.12.3+: AASM-conforme pre-event baseline, alleen wanneer het
+            # profiel daarom vraagt. Beide kanten van de verhouding komen uit
+            # de ademteug-segmentatie, zodat ze dezelfde grootheid meten.
+            # Levert de baseline None (geen bruikbare ademhaling vóór het
+            # event), dan valt dit event terug op de rolling-validatie
+            # hieronder — bewust, niet stilzwijgend.
+            pe_decided = False
+            if baseline_mode == "pre_event":
+                bl_pe = compute_pre_event_baseline(
+                    onset_s, breaths or [], sf_hy,
+                    window_s=pre_event_window_s,
+                    stability_cv=pre_event_stability_cv,
+                    n_largest=pre_event_n_largest,
+                    hypno=hypno,
+                )
+                cand_amp = _breath_amp_between(breaths, onset_s, onset_s + sub_dur)
+                if bl_pe is not None and cand_amp is not None and bl_pe > 0:
+                    pe_red = (1.0 - cand_amp / bl_pe) * 100.0
+                    pe_decided = True
+                    if pe_red < flow_reduction_threshold * 100.0:
+                        rejected.append({
+                            "type":       "hypopnea",
+                            "onset_s":    safe_r(onset_s),
+                            "duration_s": safe_r(sub_dur),
+                            "stage":      stage,
+                            "desat":      None,
+                            "min_spo2":   None,
+                            "indices":    (sub_idx[0], sub_idx[-1] + 1),
+                            "epoch":      ep_idx,
+                            "reject_reason":
+                                f"pre_event_reduction_{safe_r(pe_red)}pct<"
+                                f"{safe_r(flow_reduction_threshold * 100.0)}pct",
+                        })
+                        continue
+
             # v0.8.22: Lokale basislijn-validatie — vergelijk met directe
             # pre-event ademhaling. Voorkomt false positives door opgeblazen
             # rollende basislijn (post-apnea recovery hyperpnea).
-            local_valid, local_red = _validate_local_reduction(
+            local_valid, local_red = (True, None) if pe_decided else _validate_local_reduction(
                 hypop_env, sub_idx[0], sub_idx[-1] + 1, sf_hy,
                 min_reduction_pct=local_bl_min_reduction_pct,
                 pre_win_s=local_bl_pre_win_s,
@@ -1320,6 +1370,23 @@ def _pre_event_baseline(
 # Deprecatie-alias. Verwijderen pas wanneer YASAFlaskified (pneumo_analysis.py)
 # en externe callers over zijn op de 1A-naam.
 reinstate_rule1b_hypopneas = reinstate_rule1a_arousal_hypopneas
+
+
+def _breath_amp_between(breaths, t0: float, t1: float):
+    """Gemiddelde ademteug-amplitude in [t0, t1). None als er geen zijn.
+
+    Zelfde grootheid als compute_pre_event_baseline teruggeeft (peak-to-trough
+    per ademteug), zodat de verhouding tussen beide betekenis heeft. De
+    envelope uit hypop_env is een andere schaal en mag hier niet doorheen
+    gemengd worden.
+    """
+    if not breaths:
+        return None
+    a = [float(b["amplitude"]) for b in breaths
+         if b.get("onset_s") is not None and t0 <= b["onset_s"] < t1
+         and b.get("amplitude") is not None
+         and np.isfinite(b["amplitude"]) and b["amplitude"] > 0]
+    return float(np.mean(a)) if a else None
 
 
 def _validate_local_reduction(
