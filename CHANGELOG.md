@@ -1,4 +1,27 @@
-# Unreleased — AASM Rule 1A/1B naming corrected (arousal limb)
+# Unreleased — AASM Rule 1A/1B naming corrected + pre-event baseline (flagged off)
+
+## Added
+
+- **`compute_pre_event_baseline()`** in `signal.py` — the AASM-conforming
+  baseline: only breaths in the window *before* the event, breath-amplitude
+  based. Stable breathing (CV below threshold) gives the mean amplitude;
+  otherwise the mean of the N largest, which is the operationalisation the
+  AASM gives when stable breathing cannot be determined. Returns `None`
+  rather than a fabricated number when the window holds no usable breathing
+  (start of recording, after a gap, or entirely in wake) so the caller can
+  fall back deliberately.
+
+- **`baseline_mode` in `PostProcessingRules`** — `"rolling"` (current) or
+  `"pre_event"`. **Every profile keeps `"rolling"`**, including `mesa_shhs`;
+  nothing switches until phase 4 justifies it. The rolling baseline stays in
+  place for signal quality and the existing visualisations either way.
+
+  Why it matters: `compute_dynamic_baseline()` uses a *centred* 5-minute
+  window, so it includes the recovery hyperpnoea that follows an event. That
+  inflates the baseline and shrinks the measured reduction. Fix 1 and Fix 6
+  are patches on precisely that design.
+
+
 
 **Rename with aliases — no behaviour change** (golden regression green;
 PSG-IPA output byte-identical).

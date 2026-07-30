@@ -177,6 +177,84 @@ def compute_dynamic_baseline(
 
 
 
+def compute_pre_event_baseline(
+    onset_s: float,
+    breaths: list,
+    sf: float,
+    window_s: float = 120.0,
+    stability_cv: float = 0.25,
+    n_largest: int = 3,
+    hypno: list | None = None,
+    epoch_len_s: float = 30.0,
+) -> float | None:
+    """AASM-conforme pre-event baseline (v0.12.3+, achter ``baseline_mode``).
+
+    De AASM meet de >=30% daling ten opzichte van de ademhaling **vóór** het
+    event. ``compute_dynamic_baseline`` gebruikt een *gecentreerd* venster van
+    5 minuten en neemt daarmee de recovery-hyperpnea ná het event mee, wat de
+    baseline verhoogt en de gemeten daling verkleint. Fix 1 en Fix 6 zijn
+    patches op precies dat ontwerp.
+
+    Neemt de ademteugen in ``window_s`` seconden vóór ``onset_s``:
+      * stabiele ademhaling (CV < ``stability_cv``) -> gemiddelde amplitude
+        van die ademteugen;
+      * anders -> gemiddelde van de ``n_largest`` grootste amplitudes, de
+        operationalisering die de AASM aangeeft wanneer stabiele ademhaling
+        niet te bepalen is.
+
+    Returns
+    -------
+    float, of ``None`` wanneer het venster geen bruikbare ademhaling bevat.
+    ``None`` is een expliciet signaal aan de aanroeper om terug te vallen op
+    de rolling baseline — beter dan een verzonnen getal, want aan het begin
+    van een opname of na een lange gap is er domweg geen pre-event ademhaling.
+
+    Randgevallen (bewust afgehandeld, niet impliciet):
+      * te weinig ademteugen in het venster -> ``None``
+      * venster volledig in wake -> ``None`` wanneer ``hypno`` meegegeven is;
+        wake-ademhaling is geen geldige referentie voor een slaapevent
+      * amplitudes <= 0 -> genegeerd
+    """
+    if not breaths or onset_s is None:
+        return None
+
+    lo = max(0.0, float(onset_s) - float(window_s))
+    hi = float(onset_s)
+
+    amps, in_sleep = [], 0
+    for b in breaths:
+        b_on = b.get("onset_s")
+        if b_on is None or not (lo <= b_on < hi):
+            continue
+        amp = b.get("amplitude")
+        if amp is None or not np.isfinite(amp) or amp <= 0:
+            continue
+        if hypno is not None:
+            ep = int(b_on // epoch_len_s)
+            if 0 <= ep < len(hypno) and hypno[ep] in ("N1", "N2", "N3", "R"):
+                in_sleep += 1
+            else:
+                continue
+        amps.append(float(amp))
+
+    # Minimaal een handvol ademteugen; onder ~4 is een CV betekenisloos.
+    if len(amps) < 4:
+        return None
+    if hypno is not None and in_sleep == 0:
+        return None
+
+    a = np.asarray(amps, dtype=float)
+    mean = float(a.mean())
+    if mean <= 0:
+        return None
+
+    cv = float(a.std() / mean)
+    if cv < float(stability_cv):
+        return mean
+    k = max(1, min(int(n_largest), a.size))
+    return float(np.sort(a)[-k:].mean())
+
+
 def compute_anchor_baseline(
     flow_env: np.ndarray,
     sf: float,

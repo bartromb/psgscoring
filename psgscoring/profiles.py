@@ -150,6 +150,19 @@ class PostProcessingRules:
     unsure_as_hypopnea: bool = False
     """NSRR-specific: 'Unsure' tag = hypopnea with >50% reduction."""
 
+    baseline_mode: str = "rolling"
+    """v0.12.3+: welke baseline de hypopnee-drempelbeoordeling gebruikt.
+
+    "rolling"   — compute_dynamic_baseline(): gecentreerd venster van 5 min.
+                  Huidig gedrag; default voor ALLE profielen zolang de
+                  validatie geen omschakeling rechtvaardigt.
+    "pre_event" — compute_pre_event_baseline(): AASM-conform, alleen de
+                  ademhaling vóór het event, ademteug-gebaseerd.
+
+    De rolling baseline blijft in beide standen bestaan voor signaalkwaliteit
+    en de bestaande visualisaties; alleen de drempelbeoordeling verandert.
+    """
+
     local_baseline_cv_threshold: float = 0.30
     """v0.4.2: CV threshold below which local-baseline reduction is enforced strictly.
 
