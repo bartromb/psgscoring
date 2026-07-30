@@ -87,7 +87,9 @@ EVENTS_HYP = [
 
 
 def make_raw(events, *, variability, flat_segments=(), spo2_dropouts=(),
-             degrade_all=False, noise=0.005, seed=42):
+             degrade_all=False, noise=0.005, seed=42,
+    eeg=False, desats=True,
+):
     """Build a deterministic synthetic recording.
 
     Returns (raw, hypno, channel_map). All randomness is seeded.
@@ -137,7 +139,7 @@ def make_raw(events, *, variability, flat_segments=(), spo2_dropouts=(),
 
     # SpO2 with desaturations locked to events
     spo2 = np.full(n, 96.0)
-    for t0, t1, kind in events:
+    for t0, t1, kind in (events if desats else []):
         d0, nadir, d1 = int((t1 - 2) * SF), int((t1 + 4) * SF), int((t1 + 10) * SF)
         spo2[d0:nadir] = np.linspace(96.0, 91.0, nadir - d0)
         spo2[nadir:d1] = np.linspace(91.0, 96.0, d1 - nadir)
@@ -145,8 +147,25 @@ def make_raw(events, *, variability, flat_segments=(), spo2_dropouts=(),
     for t0, t1 in spo2_dropouts:
         spo2[int(t0 * SF):int(t1 * SF)] = 0.0
 
-    data = np.vstack([flow, thorax, abdomen, spo2])
-    info = mne.create_info(["FLOW", "THORAX", "ABDOMEN", "SPO2"], SF, ch_types="misc")
+    chans = [flow, thorax, abdomen, spo2]
+    names = ["FLOW", "THORAX", "ABDOMEN", "SPO2"]
+    types = ["misc", "misc", "misc", "misc"]
+    if eeg:
+        # Achtergrondruis met een alfa-burst kort na elk event: dat is wat de
+        # arousal-detectie moet oppikken. Zonder EEG-kanaal slaat pipeline.py
+        # de auto-detectie over (`elif eeg_data is not None`) en blijft dit
+        # codepad ongetest -- precies het gat dat deze case dicht.
+        eeg_sig = rng.normal(0, 20e-6, n)
+        for _t0, t1, _kind in events:
+            a, b = int((t1 + 1) * SF), int((t1 + 4) * SF)
+            b = min(b, n)
+            if b > a:
+                eeg_sig[a:b] += 40e-6 * np.sin(2 * np.pi * 10.0 * t[a:b])
+        chans.append(eeg_sig); names.append("EEG C4-M1"); types.append("eeg")
+        chans.append(rng.normal(0, 5e-6, n)); names.append("EMG chin"); types.append("emg")
+
+    data = np.vstack(chans)
+    info = mne.create_info(names, SF, ch_types=types)
     raw = mne.io.RawArray(data, info, verbose="ERROR")
 
     hypno = ["W"] + ["N2"] * (DUR_S // 30 - 1)       # epoch 0 wake, rest sleep
@@ -176,6 +195,12 @@ CASES = {
                            profile="cms_medicare", arousals=True),
     "poor_quality":   dict(events=EVENTS_APNEA, variability=0.05,
                            degrade_all=True, profile="aasm_v3_rec"),
+    # Hypopnees ZONDER desaturatie plus een EEG met arousals: de enige weg
+    # naar kwalificatie is de AASM Rule 1A arousal-tak, via de INTERNE
+    # arousal-detectie. `cms_arousal` dekt dit niet -- die geeft arousals
+    # extern mee en raakt het auto-detectiepad dus nooit.
+    "arousal_autodetect": dict(events=EVENTS_HYP, variability=0.90,
+                               eeg=True, desats=False, profile="aasm_v3_rec"),
 }
 
 
@@ -222,6 +247,15 @@ def summarize(output: dict) -> dict:
             "n_by_type": dict(sorted(Counter(e["type"] for e in events).items())),
             "n_rejected_hypopneas": len(resp.get("rejected_hypopneas", []) or []),
             "rule1b_reinstated": resp.get("rule1b_reinstated", 0),
+            "rule1a_arousal_reinstated": resp.get("rule1a_arousal_reinstated", 0),
+        },
+        "arousal": {
+            # Beide sleutels: 'events' is wat de Rule 1A-reinstatement leest,
+            # de geneste lijst is waar de detectie ze werkelijk neerzet. Lopen
+            # ze uiteen, dan is de doorgifte stuk (issue #16).
+            "n_flat": len((output.get("arousal", {}) or {}).get("events", []) or []),
+            "n_nested": len((((output.get("arousal", {}) or {})
+                              .get("arousals") or {}).get("events", []) or [])),
         },
         "events": sorted(
             [
