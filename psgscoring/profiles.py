@@ -150,6 +150,19 @@ class PostProcessingRules:
     unsure_as_hypopnea: bool = False
     """NSRR-specific: 'Unsure' tag = hypopnea with >50% reduction."""
 
+    rule1a_arousal_enabled: bool = False
+    """v0.12.3+: laat de AASM Rule 1A arousal-tak daadwerkelijk kwalificeren.
+
+    De tak was door een doorgiftefout dood (issue #16). De doorgifte is nu
+    gerepareerd, maar hem AANZETTEN is een gedragswijziging: op PSG-IPA gaat
+    de bias van +1.77 naar +7.75/u zolang de koppeling niet gekalibreerd is.
+    Default False, zodat paper- en NSRR-reproductie ongemoeid blijven; fase 4
+    bepaalt de kalibratie en pas daarna kan dit aan.
+    """
+
+    rule1a_gap_max_breaths: int = 1
+    """Maximaal aantal ademteugen tussen eventeinde en arousal (gap-check)."""
+
     baseline_mode: str = "rolling"
     """v0.12.3+: welke baseline de hypopnee-drempelbeoordeling gebruikt.
 

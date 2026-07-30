@@ -56,6 +56,25 @@ except Exception:  # noqa: BLE001
 logger = logging.getLogger("psgscoring.pipeline")
 
 
+def _normalise_arousal_block(block: dict) -> dict:
+    """Zorg dat ``output["arousal"]["events"]`` altijd bestaat.
+
+    Twee producenten met een verschillende vorm: de externe tak zet de events
+    plat op ``["events"]``; run_arousal_respiratory_analysis() geeft ze genest
+    terug in ``["arousals"]["events"]`` en zet geen platte sleutel. Alle
+    consumenten lezen de PLATTE sleutel -- de Rule 1A-reinstatement hieronder,
+    en in YASAFlaskified de EDF+-export en de event-API. In het
+    auto-detectiepad kregen die dus stil een lege lijst (issue #16).
+    """
+    if not isinstance(block, dict):
+        return block
+    if not block.get("events"):
+        nested = block.get("arousals")
+        block["events"] = (list(nested.get("events") or [])
+                           if isinstance(nested, dict) else [])
+    return block
+
+
 def _run_step(step_name: str, fn):
     """Run an ancillary analysis, degrading to a ``{success: False, error}`` dict
     on any exception instead of crashing the whole run.
@@ -503,6 +522,9 @@ def run_pneumo_analysis(
         reason = "No EEG channel" if eeg_data is None else "arousal_analysis not loaded"
         output["arousal"] = _empty_arousal(reason)
 
+    # Eén vorm voor alle consumenten, ongeacht welke producent hierboven liep.
+    output["arousal"] = _normalise_arousal_block(output["arousal"])
+
     # ── Step 8: Rule 1B reinstatement ─────────────────────────────────────
     logger.info("[pneumo 8/10] Rule 1B reinstatement...")
     rejected  = resp.get("rejected_hypopneas", [])
@@ -512,7 +534,28 @@ def run_pneumo_analysis(
     # arousal qualifier) — cms_medicare, aasm_v1_rec (DESAT_OR_AROUSAL=False) —
     # must not do this, or their AHI is inflated by arousal-only events.
     allow_arousal = profile.get("DESAT_OR_AROUSAL", True)
-    if rejected and arousals and allow_arousal:
+    limb_enabled  = bool(profile.get("RULE1A_AROUSAL_ENABLED", False))
+
+    # v0.12.3+: expliciete telling. De tak stond jarenlang op nul zonder dat
+    # iets dat meldde; vanaf nu is 'nul' altijd zichtbaar mét reden.
+    ar_stats = {
+        "enabled":              limb_enabled,
+        "n_arousals_available": len(arousals),
+        "n_candidates_tested":  0,
+        "n_arousal_coupled":    0,
+        "n_qualified":          0,
+        "skipped_reason":       None,
+    }
+    if not limb_enabled:
+        ar_stats["skipped_reason"] = "disabled_by_profile"
+    elif not allow_arousal:
+        ar_stats["skipped_reason"] = "profile_scores_desaturation_only"
+    elif not arousals:
+        ar_stats["skipped_reason"] = "no_arousals_detected"
+    elif not rejected:
+        ar_stats["skipped_reason"] = "no_rejected_candidates"
+
+    if rejected and arousals and allow_arousal and limb_enabled:
         reinstated, updated_events = reinstate_rule1a_arousal_hypopneas(
             rejected       = rejected,
             arousal_events = arousals,
@@ -520,6 +563,8 @@ def run_pneumo_analysis(
             hypno          = hypno,
             breaths        = resp.get("_breaths", []),
             arousal_window_s = profile.get("RULE1B_AROUSAL_WINDOW_S"),
+            gap_max_breaths  = int(profile.get("RULE1A_GAP_MAX_BREATHS", 1)),
+            stats            = ar_stats,
         )
         if reinstated:
             logger.info("[pneumo 8] Rule 1B: %d hypopneas reinstated", len(reinstated))
@@ -534,6 +579,7 @@ def run_pneumo_analysis(
     else:
         output["respiratory"].setdefault("rule1a_arousal_reinstated", 0)
         output["respiratory"].setdefault("rule1b_reinstated", 0)
+    output["respiratory"]["rule1a_arousal_stats"] = ar_stats
 
     # ── Step 8a (v0.6.0): LightGBM candidate re-classification ────────────
     ml_path = profile.get("ML_CLASSIFIER_PATH")

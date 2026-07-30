@@ -85,6 +85,8 @@ def _profile_to_legacy_dict(profile) -> dict:
         "STABILITY_FILTER_CV":    pp.stability_filter_cv,
         # v0.4.2: profile-aware local baseline validation
         "BASELINE_MODE":          pp.baseline_mode,
+        "RULE1A_AROUSAL_ENABLED": pp.rule1a_arousal_enabled,
+        "RULE1A_GAP_MAX_BREATHS": pp.rule1a_gap_max_breaths,
         "LOCAL_BL_CV_THRESHOLD":  pp.local_baseline_cv_threshold,
         "LOCAL_BL_STRICT_RED":    pp.local_baseline_strict_reduction,
         # v0.5.0: profile-aware floors previously hard-coded in respiratory.py

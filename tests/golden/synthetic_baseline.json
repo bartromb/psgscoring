@@ -88,7 +88,7 @@
   },
   "arousal_autodetect": {
     "arousal": {
-      "n_flat": 0,
+      "n_flat": 4,
       "n_nested": 4
     },
     "events": [],
@@ -131,7 +131,7 @@
       "n_rejected_hypopneas": 19,
       "oahi_all": 0.0,
       "oahi_conf60": 0.0,
-      "rdi": 0.0,
+      "rdi": 37.9,
       "rule1a_arousal_reinstated": 0,
       "rule1b_reinstated": 0,
       "success": true

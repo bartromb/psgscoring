@@ -1,5 +1,28 @@
 # Unreleased — AASM Rule 1A/1B naming corrected + pre-event baseline (flagged off)
 
+## Fixed
+
+- **The AASM Rule 1A arousal limb was dead, and so was FRI-based RERA
+  detection.** `run_arousal_respiratory_analysis()` returns its events nested
+  at `["arousals"]["events"]`, while step 8 read the flat
+  `output["arousal"]["events"]` — a key the auto-detection path never
+  populated (issue #16). On PSG-IPA SN3: 232 arousals detected, 0 seen.
+  `_normalise_arousal_block()` now guarantees the flat key from either
+  producer.
+
+  This also repairs two consumers outside scoring: YASAFlaskified's EDF+
+  export and event API read the same flat key, so exported EDF+ files
+  contained no arousals and the score editor showed none.
+
+  Repairing the plumbing alone already changes **RDI**, because
+  `_compute_rera_rdi()` uses the same list — FRI-based RERAs could never
+  couple. The golden case shows it: `rdi 0.0 -> 37.9`.
+
+- **`rule1a_arousal_stats`** in the respiratory output: arousals available,
+  candidates tested, coupled, qualified, and an explicit `skipped_reason`.
+  A limb sitting silently at zero is what let this survive; zero now always
+  comes with a reason.
+
 ## Added
 
 - **`compute_pre_event_baseline()`** in `signal.py` — the AASM-conforming
@@ -10,6 +33,23 @@
   rather than a fabricated number when the window holds no usable breathing
   (start of recording, after a gap, or entirely in wake) so the caller can
   fall back deliberately.
+
+- **`rule1a_arousal_enabled` in `PostProcessingRules`** (default **False**)
+  and `rule1a_gap_max_breaths` (default 1, the previous hard-coded value).
+
+  The plumbing is repaired, but *enabling* the limb is a behaviour change,
+  so it stays off. Measured on PSG-IPA with the limb on:
+
+  | rec | AHI off | AHI on | hypopneas | tested | coupled | qualified |
+  |---|---|---|---|---|---|---|
+  | SN1 | 8.1 | 9.3 | 32 -> 39 | 74 | 11 | 7 |
+  | SN3 | 53.8 | 56.0 | 45 -> 58 | 70 | 20 | 13 |
+  | SN5 | 11.4 | 14.8 | 63 -> 87 | 170 | 38 | 24 |
+
+  Coupling is far from universal — 11/74, 20/70, 38/170 — which matches the
+  phase-1 finding that only ~17% of rejected candidates have an arousal
+  inside the 15 s window. Window and gap are now profile-tunable so phase 4
+  can determine them empirically instead of by assumption.
 
 - **`baseline_mode` in `PostProcessingRules`** — `"rolling"` (current) or
   `"pre_event"`. **Every profile keeps `"rolling"`**, including `mesa_shhs`;

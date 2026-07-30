@@ -689,6 +689,8 @@ def reinstate_rule1a_arousal_hypopneas(
     hypno:          list,
     breaths:        list | None = None,
     arousal_window_s: float | None = None,
+    gap_max_breaths: int = 1,
+    stats:          dict | None = None,
 ) -> tuple[list, list]:
     """
     Reinstate hypopnea candidates that are coupled to an arousal
@@ -727,8 +729,10 @@ def reinstate_rule1a_arousal_hypopneas(
     _arousal_win = (RULE1B_AROUSAL_WINDOW_S if arousal_window_s is None
                     else float(arousal_window_s))
 
+    n_tested = n_coupled = 0
     reinstated: list[dict] = []
     for cand in rejected:
+        n_tested += 1
         onset = float(cand["onset_s"])
         dur   = float(cand["duration_s"])
         end   = onset + dur
@@ -740,11 +744,15 @@ def reinstate_rule1a_arousal_hypopneas(
         )
         if matched_arousal is None:
             continue
+        n_coupled += 1
 
-        # Breath-cycle gap check (v0.8.1)
+        # Breath-cycle gap check (v0.8.1). Profielinstelbaar sinds v0.12.3+:
+        # fase 1 liet zien dat op SN3 maar 17% van de kandidaten een arousal
+        # binnen het venster heeft, dus venster en gap zijn de knoppen die
+        # fase 4 empirisch moet bepalen -- niet op gevoel.
         if breath_onsets and matched_arousal > end + 2.0:
             n_in_gap = sum(1 for bo in breath_onsets if end <= bo < matched_arousal)
-            if n_in_gap > 1:
+            if n_in_gap > int(gap_max_breaths):
                 continue
 
         reinstated.append({
@@ -765,6 +773,13 @@ def reinstate_rule1a_arousal_hypopneas(
             "epoch":            cand["epoch"],
             "rule1a_arousal":   True,
             "rule1b":           True,   # deprecated alias
+        })
+
+    if stats is not None:
+        stats.update({
+            "n_candidates_tested": n_tested,
+            "n_arousal_coupled":   n_coupled,
+            "n_qualified":         len(reinstated),
         })
 
     if reinstated:
