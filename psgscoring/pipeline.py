@@ -525,6 +525,46 @@ def run_pneumo_analysis(
     # Eén vorm voor alle consumenten, ongeacht welke producent hierboven liep.
     output["arousal"] = _normalise_arousal_block(output["arousal"])
 
+    # ── Step 7b: ademteug-gebaseerde hypopnee-detector (opt-in) ───────────
+    # Vervangt ALLEEN de hypopneeën; apneus blijven uit de bestaande detector
+    # (die haalt F1 0,83-0,93 op PSG-IPA en doet de effort-subtypering).
+    if str(profile.get("HYPOPNEA_DETECTOR", "envelope")) == "breath_graded":
+        try:
+            from .breath_scoring import score_hypopneas_breathwise
+            _resp = output.get("respiratory", {}) or {}
+            _all = _resp.get("events", []) or []
+            _apneas = [e for e in _all
+                       if "hypopnea" not in str(e.get("type", "")).lower()]
+            _excl = [(float(e["onset_s"]),
+                      float(e["onset_s"]) + float(e.get("duration_s") or 0))
+                     for e in _apneas if e.get("onset_s") is not None]
+            _ar = (output.get("arousal") or {}).get("events") or []
+            _hyps, _bdiag = score_hypopneas_breathwise(
+                breaths=_resp.get("_breaths", []),
+                hypno=hypno,
+                spo2=spo2_data,
+                sf_spo2=sf_spo2 or 1.0,
+                arousals=_ar,
+                exclude_intervals=_excl,
+                flow_reduction_threshold=1.0 - float(profile.get("HYPOPNEA_THRESHOLD", 0.70)),
+                min_duration_s=float(profile.get("HYPOPNEA_MIN_DUR_S", 10.0)),
+                max_duration_s=float(profile.get("HYPOPNEA_MAX_DUR_S", 60.0)),
+                desat_threshold_pct=float(profile.get("DESATURATION_DROP_PCT", 3.0)),
+                strictness=float(profile.get("HYPOPNEA_STRICTNESS", 0.50)),
+            )
+            merged = sorted(_apneas + _hyps, key=lambda e: float(e["onset_s"]))
+            output["respiratory"]["events"] = merged
+            output["respiratory"]["summary"] = _compute_summary(
+                merged, hypno, artifact_epochs)
+            output["respiratory"]["breath_detector"] = _bdiag
+            logger.info("[pneumo 7b] breath-graded hypopneas: %d scored from "
+                        "%d candidates (SpO2 lag %.0fs)",
+                        _bdiag.get("n_scored", 0), _bdiag.get("n_candidates", 0),
+                        _bdiag.get("spo2_lag_s") or -1)
+        except Exception as e:  # noqa: BLE001 — nooit de hele run laten vallen
+            logger.warning("[pneumo] breath-graded detector failed, keeping "
+                           "envelope result: %s", e)
+
     # ── Step 8: Rule 1B reinstatement ─────────────────────────────────────
     logger.info("[pneumo 8/10] Rule 1B reinstatement...")
     rejected  = resp.get("rejected_hypopneas", [])

@@ -150,6 +150,19 @@ class PostProcessingRules:
     unsure_as_hypopnea: bool = False
     """NSRR-specific: 'Unsure' tag = hypopnea with >50% reduction."""
 
+    hypopnea_detector: str = "envelope"
+    """v0.12.3+: welke hypopnee-detector draait.
+
+    "envelope"       — bestaande pijplijn (default, ongewijzigd gedrag)
+    "breath_graded"  — psgscoring.breath_scoring: ademteug als atoom,
+                       patiëntkalibratie in twee passages, gegradeerde
+                       AASM-predicaten en een kans per event.
+    """
+
+    hypopnea_strictness: float = 0.50
+    """Operatiepunt op de kans-as van de gegradeerde detector. Lager =
+    soepeler. Eén as in plaats van drie parametercombinaties."""
+
     rule1a_arousal_enabled: bool = False
     """v0.12.3+: laat de AASM Rule 1A arousal-tak daadwerkelijk kwalificeren.
 
@@ -377,6 +390,49 @@ _aasm_v3_rec = Profile(
         square_root_linearisation=True,
     ),
 )
+
+# ---- AASM v3 Rule 1A, ademteug-gebaseerd en gegradeerd (experimenteel) ----
+# Zelfde regel, andere architectuur: de ademteug is het atoom, de patiënt
+# kalibreert zichzelf in twee passages, en elk AASM-criterium is gegradeerd
+# in plaats van binair. Elk event draagt een kans "welk deel van de scorers
+# zou dit markeren". Zie psgscoring/breath_scoring.py.
+_aasm_v3_breath = Profile(
+    name="aasm_v3_breath",
+    display_name="AASM v3 — Rule 1A, breath-graded (experimental)",
+    family="exploratory",
+    aasm_version="v3 (2023)",
+    aasm_rule="1A (RECOMMENDED), graded",
+    description=(
+        "Same AASM v3 Rule 1A conjunction — >=30% reduction AND >=10 s AND "
+        "(>=3% desaturation OR arousal) — evaluated per breath instead of "
+        "per sample, with a per-patient template (including that patient's "
+        "own SpO2 delay) and graded rather than binary criteria. Each event "
+        "carries p_scored, readable as the fraction of scorers who would "
+        "mark it. Strictness is a single axis on that probability."
+    ),
+    citation="Troester MM, Quan SF, Berry RB, et al. AASM Manual v3. 2023.",
+    hypopnea=HypopneaRules(
+        flow_reduction_threshold=0.30,
+        sensor="nasal_pressure",
+        min_duration_s=10.0,
+        max_duration_s=60.0,
+        desat_threshold=0.03,
+        desat_required=False,
+        arousal_required=False,
+        desat_or_arousal=True,
+        square_root_linearisation=True,
+    ),
+    post_processing=PostProcessingRules(
+        hypopnea_detector="breath_graded",
+        # Operatiepunt gemeten op PSG-IPA (zie CHANGELOG): 0.78 haalt
+        # F1 0.343 -> 0.407 met bias +1.77 -> +0.95 en gelijke
+        # severity-concordantie. LET OP: dit punt is GEKOZEN op dezelfde vijf
+        # opnames waarop het gerapporteerd wordt — het is een fit, geen
+        # onafhankelijke validatie.
+        hypopnea_strictness=0.78,
+    ),
+)
+
 
 # ---- AASM v2 RECOMMENDED (2012-2020) ----
 # Functionally identical to v3 Rule 1A. Kept for explicit labeling
@@ -685,6 +741,7 @@ _aasm_v3_sensitive = Profile(
 PROFILES: Dict[str, Profile] = {
     # Clinical family
     "aasm_v3_rec":       _aasm_v3_rec,
+    "aasm_v3_breath":    _aasm_v3_breath,
     "aasm_v3_strict":    _aasm_v3_strict,
     "aasm_v3_sensitive": _aasm_v3_sensitive,
     "aasm_v2_rec":       _aasm_v2_rec,

@@ -30,8 +30,15 @@ from psgscoring.profiles import (
 class TestRegistry:
     """Test the profile registry is correctly populated."""
 
-    def test_nine_profiles_exist(self):
-        assert len(PROFILES) == 8  # 6 standard + strict/sensitive variants = 8
+    def test_expected_profiles_exist(self):
+        # Naam boven aantal: een telling zegt niet welk profiel verdween.
+        expected = {
+            "aasm_v3_strict", "aasm_v3_rec", "aasm_v3_sensitive",
+            "aasm_v3_breath",          # v0.12.3+: ademteug-gebaseerd, gegradeerd
+        }
+        assert expected <= set(PROFILES), (
+            f"ontbrekende profielen: {sorted(expected - set(PROFILES))}")
+        assert len(PROFILES) == 9, sorted(PROFILES)
 
     def test_all_profiles_valid(self):
         for name, p in PROFILES.items():
