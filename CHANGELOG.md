@@ -1,6 +1,30 @@
-# Unreleased — AASM Rule 1A/1B naming corrected + pre-event baseline (flagged off)
+# Unreleased — breath-graded hypopnea detector becomes the default
 
-## Known issue — blocks enabling any of this by default
+## Changed — the default scoring profile
+
+`run_pneumo_analysis()` now defaults to **`aasm_v3_breath`** instead of
+`aasm_v3_rec`. On PSG-IPA this is better on every aggregate measure
+(median and mean event-F1, percentile within the inter-scorer distribution,
+AHI bias, MAE) with equal severity concordance; see the detector entry under
+*Added* for the full table and the known limitations.
+
+**What does not move with it:**
+
+- The legacy aliases `strict` / `standard` / `sensitive` still resolve to
+  `aasm_v3_strict` / `aasm_v3_rec` / `aasm_v3_sensitive`. They document the
+  historical profiles.
+- `mesa_shhs` is untouched, so NSRR reproduction is unaffected.
+- Paper v31/v37 reproduces by naming `aasm_v3_rec` explicitly, which
+  `validate_psgipa.py` already does.
+- YASAFlaskified passes `scoring_profile="standard"` explicitly, so
+  **deployed behaviour does not change** until that pin is changed
+  deliberately.
+
+Reverting is one line: `scoring_profile: str = "aasm_v3_rec"` in
+`pipeline.py`. `tests/test_profiles.py::TestDefaultProfile` pins both the
+default and the alias stability.
+
+## Known issue — blocks enabling the arousal-limb work by default
 
 **The arousal plumbing repair changes `mesa_shhs`, which is a hard
 requirement violation, and the cause is the ML re-classifier.**
@@ -84,45 +108,60 @@ prerequisite for shipping the plumbing fix, and that is out of scope here.
   this to fix.
 
   **Measured on PSG-IPA (5 recordings, 12 scorers each, legacy matcher).**
-  Strictness swept 0.20–0.92; the table shows the informative range:
 
-  | config | F1 median | F1 **mean** | pct | AHI bias | MAE | severity | hyp |
+  The operating point was chosen with a **rule declared before the sweep**:
+  take the strictness where the AHI bias crosses zero, *not* the strictness
+  that maximises F1 — the latter would be fitting on the outcome measure.
+  That rule lands on 0.50. F1 and percentile are therefore reported as
+  non-fitted outcomes.
+
+  | config | F1 median | F1 mean | pct | AHI bias | MAE | severity | hyp |
   |---|---|---|---|---|---|---|---|
-  | `aasm_v3_rec` (current default) | 0.343 | **0.460** | p6 | +1.77 | 1.84 | 4/5 | 208 |
-  | breath, strictness 0.70 | 0.417 | — | p2 | +3.21 | 3.21 | 3/5 | 249 |
-  | **breath, strictness 0.78** | **0.407** | **0.452** | p6 | **+0.95** | **1.51** | 4/5 | 181 |
-  | breath, strictness 0.85 | 0.385 | 0.457 | **p12** | −1.69 | 2.12 | 3/5 | 104 |
-  | breath, strictness 0.92 | 0.238 | — | p0 | −4.35 | 4.35 | 3/5 | 26 |
+  | `aasm_v3_rec` (previous default) | 0.343 | 0.460 | p6 | +1.77 | 1.84 | 4/5 | 208 |
+  | breath, strictness 0.35 | 0.447 | 0.522 | p17 | +2.73 | 2.73 | 3/5 | 242 |
+  | breath, strictness 0.45 | 0.430 | 0.515 | p17 | +1.13 | 1.13 | 4/5 | 192 |
+  | **breath, strictness 0.50** | **0.434** | **0.511** | **p17** | **+0.17** | **0.29** | 4/5 | 163 |
+  | breath, strictness 0.55 | 0.426 | 0.510 | p14 | −0.89 | 0.89 | **5/5** | 131 |
+  | breath, strictness 0.62 | 0.438 | — | p9 | −1.57 | 1.57 | 5/5 | 110 |
+  | breath, strictness 0.70 | 0.396 | 0.495 | p14 | −2.61 | 2.61 | 4/5 | 79 |
 
-  Per recording at strictness 0.78:
+  Per recording at strictness 0.50, with the human-human distribution for
+  scale (66 pairwise F1s per recording):
 
-  | rec | F1 current | F1 breath | Δ |
-  |---|---|---|---|
-  | SN1 | 0.470 | 0.574 | **+0.104** |
-  | SN2 | 0.317 | 0.122 | **−0.195** |
-  | SN3 | 0.886 | 0.900 | +0.014 |
-  | SN4 | 0.286 | 0.255 | −0.031 |
-  | SN5 | 0.343 | 0.407 | +0.064 |
+  | rec | human median | F1 previous | F1 breath | Δ | pct |
+  |---|---|---|---|---|---|
+  | SN1 | 0.826 | 0.470 | 0.662 | **+0.192** | p0 → p0 |
+  | SN2 | 0.549 | 0.317 | 0.380 | +0.063 | p9 → **p23** |
+  | SN3 | 0.948 | 0.886 | 0.897 | +0.011 | p2 → p5 |
+  | SN4 | 0.553 | 0.286 | 0.184 | **−0.102** | p17 → p17 |
+  | SN5 | 0.556 | 0.343 | 0.434 | +0.091 | p6 → **p18** |
 
-  **This is not yet a default, and the median is why.** The headline
-  "0.343 → 0.407" is a *median* effect: SN2 collapses so hard that it drops
-  out of the middle of the sorted list and pushes a higher value into it.
-  The **mean F1 falls** (0.460 → 0.452). Three recordings improve, two get
-  worse, and the cohort as a whole does not. Three further reasons not to
-  flip the default on this evidence:
+  Better on every aggregate: median F1, mean F1, percentile, bias, MAE;
+  severity concordance equal at 4/5. MAE drops from 1.84 to **0.29** AHI
+  points.
 
-  - The operating point 0.78 was **chosen by sweeping on the same five
-    recordings it is reported on**. That is a fit, not an independent
-    validation. A defensible number needs held-out data (MESA).
-  - The percentile within the inter-scorer distribution — the outcome
-    measure this project settled on precisely because AHI bias can improve
-    through errors that cancel — is **unchanged at p6**. The algorithm is
-    still at the bottom of the human distribution.
-  - n = 5.
+  The detector diagnostics confirm the mechanism rather than just the
+  outcome. The patient-specific SpO₂ lag comes out at 21/12/15/19/17 s —
+  plausible and genuinely per-patient, which is the whole point of shift 2 —
+  and the template duration is 15–21 s, i.e. actual hypopnea durations.
 
-  `aasm_v3_breath` therefore ships as opt-in with `hypopnea_strictness`
-  0.78, so the SN2 regression and a MESA confirmation can be worked on
-  against a fixed, committed reference.
+  **Known limitations.**
+
+  - **SN4 regresses (0.286 → 0.184) and no strictness value fixes it.**
+    Of its 24 events with ≥6/12 scorer consensus, **12 never become a
+    candidate at all**: at those locations there is no breath-level flow
+    reduction of ≥15% sustained over 10 s. Compare SN1, where 33 of 34
+    consensus events do produce a candidate. This is a sensitivity ceiling
+    in candidate formation, not a threshold that can be turned down. Its
+    percentile is unchanged at p17 either way, because SN4's own scorers
+    disagree strongly there (pairwise F1 p10 = 0.087, p25 = 0.462) — but
+    that is context, not an excuse.
+  - **n = 5, and the operating-point rule was applied to the same five
+    recordings the result is reported on.** MESA confirmation on held-out
+    data is still open.
+  - On the recordings where scorers *do* agree, the algorithm remains at or
+    below the bottom of their distribution (SN1 p0 against a human median
+    of 0.826; SN3 p5 against 0.948).
 
 - **`compute_pre_event_baseline()`** in `signal.py` — the AASM-conforming
   baseline: only breaths in the window *before* the event, breath-amplitude

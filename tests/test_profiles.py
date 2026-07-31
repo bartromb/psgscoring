@@ -439,6 +439,49 @@ class TestIntegration:
         assert len(groups["clinical"]) == 3
 
 
+class TestDefaultProfile:
+    """De default bepaalt wat een aanroeper zonder profielkeuze krijgt.
+
+    Die is per v0.13.0 aasm_v3_breath. De legacy-aliassen mogen daar NIET in
+    meebewegen: die documenteren de historische profielen en het paper en de
+    NSRR-reproductie hangen eraan.
+    """
+
+    def test_default_is_the_breath_graded_profile(self):
+        import inspect
+
+        from psgscoring import run_pneumo_analysis
+        default = inspect.signature(
+            run_pneumo_analysis).parameters["scoring_profile"].default
+        assert default == "aasm_v3_breath"
+
+    @pytest.mark.parametrize("alias,expected", [
+        ("strict", "aasm_v3_strict"),
+        ("standard", "aasm_v3_rec"),
+        ("sensitive", "aasm_v3_sensitive"),
+    ])
+    def test_legacy_aliases_do_not_follow_the_default(self, alias, expected):
+        from psgscoring.constants import SCORING_PROFILES
+        assert SCORING_PROFILES[alias]["_PROFILE_NAME"] == expected
+
+    def test_previous_default_remains_reachable_by_name(self):
+        """Paper v31/v37 reproduceert met een expliciet aasm_v3_rec."""
+        p = get_profile("aasm_v3_rec")
+        assert p.post_processing.hypopnea_detector != "breath_graded"
+
+    def test_dataset_profile_untouched(self):
+        """mesa_shhs is een harde reproductie-eis en gebruikt de oude detector."""
+        p = get_profile("mesa_shhs")
+        assert p.family == "dataset"
+        assert p.post_processing.hypopnea_detector != "breath_graded"
+
+    def test_breath_profile_operating_point_is_pinned(self):
+        """0,50 is het gemeten nul-bias punt op PSG-IPA; niet stilzwijgend wijzigen."""
+        p = get_profile("aasm_v3_breath")
+        assert p.post_processing.hypopnea_detector == "breath_graded"
+        assert p.post_processing.hypopnea_strictness == 0.50
+
+
 if __name__ == "__main__":
     import sys
     # Allow running as `python test_profiles.py`

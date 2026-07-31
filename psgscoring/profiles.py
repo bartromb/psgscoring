@@ -398,8 +398,8 @@ _aasm_v3_rec = Profile(
 # zou dit markeren". Zie psgscoring/breath_scoring.py.
 _aasm_v3_breath = Profile(
     name="aasm_v3_breath",
-    display_name="AASM v3 — Rule 1A, breath-graded (experimental)",
-    family="exploratory",
+    display_name="AASM v3 — Rule 1A, breath-graded",
+    family="clinical",
     aasm_version="v3 (2023)",
     aasm_rule="1A (RECOMMENDED), graded",
     description=(
@@ -424,12 +424,14 @@ _aasm_v3_breath = Profile(
     ),
     post_processing=PostProcessingRules(
         hypopnea_detector="breath_graded",
-        # Operatiepunt gemeten op PSG-IPA (zie CHANGELOG): 0.78 haalt
-        # F1 0.343 -> 0.407 met bias +1.77 -> +0.95 en gelijke
-        # severity-concordantie. LET OP: dit punt is GEKOZEN op dezelfde vijf
-        # opnames waarop het gerapporteerd wordt — het is een fit, geen
-        # onafhankelijke validatie.
-        hypopnea_strictness=0.78,
+        # Operatiepunt op PSG-IPA gekozen met een VOORAF vastgelegde regel:
+        # de strictness waarbij de AHI-bias nul wordt, niet de strictness die
+        # de F1 maximaliseert (dat zou fitten op de uitkomstmaat zijn).
+        # Bij 0,50 is de bias +0,17 AHI-punt; F1 en percentiel zijn daarmee
+        # een niet-gefitte uitkomst. Zie CHANGELOG voor de volledige tabel.
+        # Beperking: n = 5, en die vijf opnames zijn ook de opnames waarop de
+        # regel is toegepast. MESA-bevestiging op held-out data staat open.
+        hypopnea_strictness=0.50,
     ),
 )
 

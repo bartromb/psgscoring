@@ -96,7 +96,7 @@ def run_pneumo_analysis(
     hypno: list,
     channel_map: dict | None = None,
     artifact_epochs: list | None = None,
-    scoring_profile: str = "aasm_v3_rec",
+    scoring_profile: str = "aasm_v3_breath",
     arousal_events: list | None = None,
 ) -> dict:
     """
