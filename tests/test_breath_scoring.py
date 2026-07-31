@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from psgscoring.breath_scoring import (
+    _candidate_runs,
     _desat_at,
     _pre_baseline_per_breath,
     _series,
@@ -143,6 +144,118 @@ def test_baseline_window_is_respected():
     amps = np.where(onsets < 300.0, 1.0, 2.0)
     bl = _pre_baseline_per_breath(onsets, amps, window_s=120.0)
     assert bl[-1] == pytest.approx(2.0)
+
+
+def test_exclude_mask_keeps_marked_breaths_out_of_the_window():
+    onsets = np.arange(0.0, 200.0, 4.0)
+    amps = np.ones(onsets.size)
+    amps[10:20] = 5.0                       # zou de baseline optillen
+    excl = np.zeros(onsets.size, bool)
+    excl[10:20] = True
+    assert _pre_baseline_per_breath(onsets, amps)[-1] > 2.0
+    assert _pre_baseline_per_breath(onsets, amps, exclude=excl)[-1] == pytest.approx(1.0)
+
+
+def test_exclude_mask_is_ignored_when_too_little_survives():
+    """Liever een vervuilde baseline dan geen baseline."""
+    onsets = np.arange(0.0, 200.0, 4.0)
+    amps = np.ones(onsets.size)
+    excl = np.ones(onsets.size, bool)       # alles uitgesloten
+    assert np.isfinite(_pre_baseline_per_breath(onsets, amps, exclude=excl)[-1])
+
+
+def test_robust_mode_returns_the_median():
+    onsets = np.arange(0.0, 200.0, 4.0)
+    amps = np.ones(onsets.size)
+    amps[:10] = 9.0                         # uitschieters, mediaan ongevoelig
+    bl = _pre_baseline_per_breath(onsets, amps, robust=True)
+    assert bl[-1] == pytest.approx(1.0)
+
+
+def test_candidate_runs_needs_the_minimum_duration():
+    onsets = np.arange(0.0, 40.0, 4.0)
+    ends = onsets + 4.0
+    red = np.array([0.0, 0.5, 0.5, 0.0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0])
+    assert _candidate_runs(onsets, ends, red, 0.15, 10.0) == [(4, 6)]  # 12 s
+    assert _candidate_runs(onsets, ends, red, 0.15, 8.0) == [(1, 2), (4, 6)]
+
+
+def test_candidate_runs_treats_nan_as_not_below():
+    onsets = np.arange(0.0, 40.0, 4.0)
+    ends = onsets + 4.0
+    red = np.array([0.5, 0.5, np.nan, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0])
+    assert _candidate_runs(onsets, ends, red, 0.15, 10.0) == [(3, 5)]
+
+
+# ─────────────────────────────────────────────────────────────────
+#  3b. Twee passages: de baseline mag de events niet bevatten
+# ─────────────────────────────────────────────────────────────────
+
+def make_cyclic_night(n_cycles=25, event_amp=0.4, recovery_amp=1.7,
+                      n_event=5, n_recovery=3, n_normal=10):
+    """Event -> herstelhyperpneu -> normaal ademen, herhaald.
+
+    Reproduceert waar de eerste implementatie op stukliep: het venster van
+    120 s bevat de events en hun herstelademteugen, waardoor geen enkele
+    baselinedefinitie normaal ademen meet.
+    """
+    breaths, t = [], 0.0
+    normal_idx = []
+    for _ in range(n_cycles):
+        for amp, count in ((event_amp, n_event), (recovery_amp, n_recovery),
+                           (1.0, n_normal)):
+            for _k in range(count):
+                if amp == 1.0:
+                    normal_idx.append(len(breaths))
+                breaths.append({"onset_s": t, "duration_s": BREATH_S,
+                                "amplitude": amp})
+                t += BREATH_S
+    hypno = ["N2"] * int(np.ceil(t / 30.0))
+    return breaths, hypno, normal_idx
+
+
+def test_two_pass_baseline_is_not_inflated_by_recovery_breaths():
+    """Normaal ademen hoort niet als daling gemeten te worden.
+
+    Dit is de regressie die de detector op PSG-IPA SN2 onderuit haalde: de
+    mediane ademteug werd daar als 23,6% gereduceerd geregistreerd omdat het
+    baselinevenster de herstelhyperpneu bevatte.
+    """
+    breaths, hypno, _ = make_cyclic_night()
+    _, diag = score_hypopneas_breathwise(breaths, hypno)
+    assert abs(diag["median_breath_reduction"]) < 0.10, (
+        f"typische ademteug gemeten als {100*diag['median_breath_reduction']:.0f}% "
+        "gereduceerd — de baseline meet niet normaal ademen")
+
+
+def test_two_pass_finds_the_events_and_not_the_normal_breathing():
+    breaths, hypno, _ = make_cyclic_night()
+    _, diag = score_hypopneas_breathwise(breaths, hypno)
+    # 25 events van 5 ademteugen = 20 s elk; het aantal kandidaten hoort daar
+    # bij in de buurt te liggen, niet bij het aantal ademteugen
+    assert 20 <= diag["n_candidates"] <= 30, diag["n_candidates"]
+    assert diag["n_capped"] == 0, "reeksen mogen niet tegen de 60 s-cap lopen"
+
+
+def test_recovery_breaths_are_excluded_from_the_baseline():
+    breaths, hypno, _ = make_cyclic_night()
+    _, diag = score_hypopneas_breathwise(breaths, hypno)
+    # event (5/18) + herstel (3/18) = 44% van de ademteugen
+    assert 0.30 <= diag["frac_breaths_excluded"] <= 0.60, diag["frac_breaths_excluded"]
+
+
+def test_single_pass_baseline_would_have_failed_this():
+    """Waarborgt dat de test hierboven echt iets test.
+
+    Met de baseline over het RUWE venster — dus zonder de events uit te
+    sluiten — wordt normaal ademen wel degelijk als forse daling gemeten.
+    """
+    breaths, _, normal_idx = make_cyclic_night()
+    on, _en, am = _series(breaths)
+    bl = _pre_baseline_per_breath(on, am)          # geen exclude-masker
+    red = 1.0 - am / bl
+    assert np.nanmedian(red[normal_idx]) > 0.25, (
+        "de eenpassage-baseline hoort hier juist wél te ontsporen")
 
 
 # ─────────────────────────────────────────────────────────────────

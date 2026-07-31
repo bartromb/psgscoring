@@ -97,7 +97,8 @@ def _series(breaths):
 
 
 def _pre_baseline_per_breath(onsets, amps, window_s=120.0,
-                             stability_cv=0.25, n_largest=3, min_breaths=4):
+                             stability_cv=0.25, n_largest=3, min_breaths=4,
+                             exclude=None, robust=False):
     """Pre-event baseline vóór ELKE ademteug.
 
     Stabiele ademhaling (CV < ``stability_cv``) -> gemiddelde amplitude;
@@ -106,6 +107,16 @@ def _pre_baseline_per_breath(onsets, amps, window_s=120.0,
     te bepalen is. NaN waar er te weinig voorgeschiedenis is (begin van de
     opname, na een gap) — de aanroeper slaat die ademteugen over in plaats
     van een baseline te verzinnen.
+
+    ``exclude`` is een booleaans masker over de ademteugen: gemarkeerde
+    ademteugen tellen niet mee in het venster. Zo wordt "stabiele
+    ademhaling" ook werkelijk stabiele ademhaling in plaats van "alles wat
+    in de afgelopen twee minuten gebeurde, inclusief de events". Het masker
+    wordt genegeerd wanneer er te weinig ademteugen overblijven.
+
+    ``robust`` geeft de mediaan van het venster. Die is NIET AASM-conform en
+    dient alleen als eerste passage: hij lokaliseert de events zodat de
+    tweede passage ze kan uitsluiten.
     """
     n = onsets.size
     out = np.full(n, np.nan)
@@ -113,8 +124,16 @@ def _pre_baseline_per_breath(onsets, amps, window_s=120.0,
         return out
     lo_idx = np.searchsorted(onsets, onsets - window_s, side="left")
     for i in range(n):
-        seg = amps[lo_idx[i]:i]
+        a = lo_idx[i]
+        seg = amps[a:i]
+        if exclude is not None and seg.size:
+            kept = seg[~exclude[a:i]]
+            if kept.size >= min_breaths:
+                seg = kept
         if seg.size < min_breaths:
+            continue
+        if robust:
+            out[i] = float(np.median(seg))
             continue
         m = float(seg.mean())
         if m <= 0:
@@ -126,6 +145,24 @@ def _pre_baseline_per_breath(onsets, amps, window_s=120.0,
             k = max(1, min(int(n_largest), seg.size))
             out[i] = float(np.sort(seg)[-k:].mean())
     return out
+
+
+def _candidate_runs(onsets, ends, red, floor, min_duration_s):
+    """Aaneengesloten reeksen ademteugen onder de vloer, minstens zo lang."""
+    below = np.nan_to_num(red, nan=-1.0) >= floor
+    runs = []
+    i = 0
+    while i < below.size:
+        if not below[i]:
+            i += 1
+            continue
+        j = i
+        while j + 1 < below.size and below[j + 1]:
+            j += 1
+        if float(ends[j]) - float(onsets[i]) >= min_duration_s:
+            runs.append((i, j))
+        i = j + 1
+    return runs
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -206,6 +243,7 @@ def score_hypopneas_breathwise(
     max_duration_s: float = 60.0,
     desat_threshold_pct: float = 3.0,
     candidate_floor: float = 0.15,
+    recovery_margin: float = 0.25,
     strictness: float = 0.50,
     flow_width: float = 0.08,
     desat_width: float = 0.8,
@@ -227,11 +265,44 @@ def score_hypopneas_breathwise(
     if onsets.size < 10:
         return [], diag
 
+    # ── baseline in twee passages ─────────────────────────────────
+    # Passage A lokaliseert de events met een robuuste mediaan-baseline.
+    # Passage B berekent de AASM-baseline over alléén de ademteugen die niet
+    # bij een event horen — dat is wat "stabiele ademhaling" betekent.
+    #
+    # Zonder die uitsluiting bevat het venster de events zelf, en dan meet
+    # geen enkele baselinedefinitie het juiste: het gemiddelde van de drie
+    # grootste ademteugen wordt de herstelhyperpneu (waarna gewóón ademen al
+    # als forse daling telt), en de mediaan wordt bij ernstige OSA het
+    # eventniveau (waarna niets meer als daling telt).
+    bl_a = _pre_baseline_per_breath(onsets, amps, window_s=baseline_window_s,
+                                    robust=True)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        red_a = 1.0 - amps / bl_a
+    red_a[~np.isfinite(red_a)] = np.nan
+    in_event = np.zeros(onsets.size, dtype=bool)
+    for _i, _j in _candidate_runs(onsets, ends, red_a, candidate_floor,
+                                  min_duration_s):
+        in_event[_i:_j + 1] = True
+    # De herstelhyperpneu is net zomin stabiele ademhaling als het event
+    # zelf. Blijft die in het venster, dan tilt hij de baseline op via de
+    # n_largest-tak en telt gewoon ademen alsnog als daling.
+    in_event |= np.nan_to_num(red_a, nan=0.0) <= -recovery_margin
+
     bl = _pre_baseline_per_breath(onsets, amps, window_s=baseline_window_s,
-                                  stability_cv=stability_cv)
+                                  stability_cv=stability_cv,
+                                  exclude=in_event)
     with np.errstate(invalid="ignore", divide="ignore"):
         red = 1.0 - amps / bl                      # relatieve daling per ademteug
     red[~np.isfinite(red)] = np.nan
+
+    # Invariant, zichtbaar in het audittrail: een TYPISCHE ademteug hoort
+    # niet als gereduceerd te worden gemeten. Loopt dit ver van nul weg, dan
+    # meet de baseline iets anders dan normaal ademen.
+    _fin = np.isfinite(red)
+    diag["median_breath_reduction"] = (
+        round(float(np.median(red[_fin])), 4) if _fin.any() else None)
+    diag["frac_breaths_excluded"] = round(float(in_event.mean()), 4)
 
     def _asleep(t):
         ep = int(t // epoch_len_s)
@@ -240,25 +311,19 @@ def score_hypopneas_breathwise(
     # ── kandidaatreeksen: opeenvolgende ademteugen onder de vloer ──
     # De vloer ligt ONDER de AASM-drempel: marginale kandidaten moeten de
     # gegradeerde beoordeling bereiken in plaats van er binair uit te vallen.
-    below = np.nan_to_num(red, nan=-1.0) >= candidate_floor
     cands = []
-    i = 0
-    while i < below.size:
-        if not below[i]:
-            i += 1
-            continue
-        j = i
-        while j + 1 < below.size and below[j + 1]:
-            j += 1
+    for i, j in _candidate_runs(onsets, ends, red, candidate_floor,
+                                min_duration_s):
         t0, t1 = float(onsets[i]), float(ends[j])
-        if (t1 - t0) >= min_duration_s and _asleep(t0):
-            # te lange reeks: knip op de diepste aaneengesloten kern
-            if (t1 - t0) > max_duration_s:
-                t1 = t0 + max_duration_s
-                j = int(np.searchsorted(ends, t1, side="left"))
-                j = min(max(j, i), below.size - 1)
-            cands.append((i, j, t0, t1))
-        i = j + 1
+        if not _asleep(t0):
+            continue
+        if (t1 - t0) > max_duration_s:
+            t1 = t0 + max_duration_s
+            j = int(np.searchsorted(ends, t1, side="left"))
+            j = min(max(j, i), onsets.size - 1)
+        cands.append((i, j, t0, t1))
+    diag["n_capped"] = sum(1 for _, _, a, b in cands
+                           if (b - a) >= max_duration_s - 1e-6)
 
     if exclude_intervals:
         cands = [c for c in cands
