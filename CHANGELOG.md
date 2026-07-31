@@ -51,6 +51,79 @@ prerequisite for shipping the plumbing fix, and that is out of scope here.
 
 ## Added
 
+- **`breath_scoring.py` — a hypopnea detector with the breath as the atom,
+  behind the new profile `aasm_v3_breath`** (family `exploratory`, used by
+  nothing automatically).
+
+  The existing detector is a signal-processing model: envelope → sliding
+  threshold → candidate → validate → classify, with a dozen corrections on
+  top. Nearly every correction repairs the same gap with what a scorer
+  actually does. This replaces that mismatch rather than patching it
+  further, along five shifts:
+
+  1. **The breath is the atom, not the sample.** The AASM speaks of *peak
+     signal excursions*. Event boundaries land on breath transitions, and a
+     recovery breath breaks the run by itself — so smoothing is gone, and
+     with it the merge/split problem that depresses event-F1.
+  2. **Two-pass patient calibration.** Pass 1 detects only the
+     incontestable events and derives a template — typical depth, typical
+     duration, and the patient's **own SpO₂ lag** via cross-correlation
+     instead of one fixed 30–45 s window for everybody. Pass 2 judges the
+     marginal candidates against that template.
+  3. **Graded AASM predicates.** The rule structure stays literally the
+     Rule 1A conjunction; what changes is that each threshold gets a
+     tolerance instead of being infinitely sharp. A 29% reduction with a 6%
+     desaturation should score; 31% with a doubtful 3.0% should not.
+  4. **Each event carries `p_scored`** — "what fraction of scorers would
+     mark this" — plus a `criteria` dict with each predicate's
+     contribution. The audit trail gets richer, not more opaque.
+  5. **Strictness is one axis** instead of three parameter combinations.
+
+  Scope is hypopneas only. Apneas keep the existing detector (F1 0.83–0.93
+  on PSG-IPA, with effort-based subtyping); there is no deficit there for
+  this to fix.
+
+  **Measured on PSG-IPA (5 recordings, 12 scorers each, legacy matcher).**
+  Strictness swept 0.20–0.92; the table shows the informative range:
+
+  | config | F1 median | F1 **mean** | pct | AHI bias | MAE | severity | hyp |
+  |---|---|---|---|---|---|---|---|
+  | `aasm_v3_rec` (current default) | 0.343 | **0.460** | p6 | +1.77 | 1.84 | 4/5 | 208 |
+  | breath, strictness 0.70 | 0.417 | — | p2 | +3.21 | 3.21 | 3/5 | 249 |
+  | **breath, strictness 0.78** | **0.407** | **0.452** | p6 | **+0.95** | **1.51** | 4/5 | 181 |
+  | breath, strictness 0.85 | 0.385 | 0.457 | **p12** | −1.69 | 2.12 | 3/5 | 104 |
+  | breath, strictness 0.92 | 0.238 | — | p0 | −4.35 | 4.35 | 3/5 | 26 |
+
+  Per recording at strictness 0.78:
+
+  | rec | F1 current | F1 breath | Δ |
+  |---|---|---|---|
+  | SN1 | 0.470 | 0.574 | **+0.104** |
+  | SN2 | 0.317 | 0.122 | **−0.195** |
+  | SN3 | 0.886 | 0.900 | +0.014 |
+  | SN4 | 0.286 | 0.255 | −0.031 |
+  | SN5 | 0.343 | 0.407 | +0.064 |
+
+  **This is not yet a default, and the median is why.** The headline
+  "0.343 → 0.407" is a *median* effect: SN2 collapses so hard that it drops
+  out of the middle of the sorted list and pushes a higher value into it.
+  The **mean F1 falls** (0.460 → 0.452). Three recordings improve, two get
+  worse, and the cohort as a whole does not. Three further reasons not to
+  flip the default on this evidence:
+
+  - The operating point 0.78 was **chosen by sweeping on the same five
+    recordings it is reported on**. That is a fit, not an independent
+    validation. A defensible number needs held-out data (MESA).
+  - The percentile within the inter-scorer distribution — the outcome
+    measure this project settled on precisely because AHI bias can improve
+    through errors that cancel — is **unchanged at p6**. The algorithm is
+    still at the bottom of the human distribution.
+  - n = 5.
+
+  `aasm_v3_breath` therefore ships as opt-in with `hypopnea_strictness`
+  0.78, so the SN2 regression and a MESA confirmation can be worked on
+  against a fixed, committed reference.
+
 - **`compute_pre_event_baseline()`** in `signal.py` — the AASM-conforming
   baseline: only breaths in the window *before* the event, breath-amplitude
   based. Stable breathing (CV below threshold) gives the mean amplitude;
