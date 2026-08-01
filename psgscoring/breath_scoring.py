@@ -319,6 +319,14 @@ def score_hypopneas_breathwise(
     # None = neem de kandidaatwaarde over, dus byte-identiek aan v0.13.0.
     exclusion_floor: float | None = None,
     exclusion_min_duration_s: float | None = None,
+    # ── drie wijzigingen die de SCORING veranderen; default = v0.13.0 ──
+    # Ze staan uit omdat aanzetten het gevalideerde werkpunt (strictness
+    # 0,50, geijkt op PSG-IPA) verlaat. Zie de moduledocstring.
+    candidate_min_duration_s: float | None = None,
+    arousal_latency_grading: bool = False,
+    arousal_latency_floor: float = 0.5,
+    template_use_duration: bool = False,
+    template_dur_width_frac: float = 0.5,
 ):
     """Scoor hypopneeën ademteug-voor-ademteug. Zie de moduledocstring.
 
@@ -388,9 +396,17 @@ def score_hypopneas_breathwise(
     # ── kandidaatreeksen: opeenvolgende ademteugen onder de vloer ──
     # De vloer ligt ONDER de AASM-drempel: marginale kandidaten moeten de
     # gegradeerde beoordeling bereiken in plaats van er binair uit te vallen.
+    # De vloer op de DALING ligt onder de AASM-drempel, zodat marginale
+    # dalingen de gradering halen. Voor de DUUR gold dat niet: die had een
+    # harde grens op min_duration_s, waarna p_dur er nog eens omheen
+    # gradeerde. Een event van 10,5 s haalde de poort en kreeg dan p_dur
+    # ~0,56 - het criterium werd twee keer toegepast, en de tolerantie was
+    # eenzijdig: alleen strafend, nooit toelatend. None = oude grens.
+    _cand_dur = (min_duration_s if candidate_min_duration_s is None
+                 else candidate_min_duration_s)
     cands = []
     for i, j in _candidate_runs(onsets, ends, red, candidate_floor,
-                                min_duration_s):
+                                _cand_dur):
         t0, t1 = float(onsets[i]), float(ends[j])
         if not _asleep(t0):
             continue
@@ -423,8 +439,16 @@ def score_hypopneas_breathwise(
     diag["spo2_lag_s"] = lag             # weinig zekere events zijn
 
     if use_template and sure.sum() >= 3:
+        # Periodiciteit: de mediane tijd tussen opeenvolgende zekere events.
+        # Het ontwerp noemt die expliciet als sjabloonkenmerk; hij werd
+        # nooit berekend. Voorlopig diagnostiek - hij stuurt de score niet,
+        # want zonder validatie is dat weer een ongetoetste as erbij.
+        _sure_starts = np.array([cands[k][2] for k in np.flatnonzero(sure)])
+        _cycle = (float(np.median(np.diff(np.sort(_sure_starts))))
+                  if _sure_starts.size >= 3 else None)
         tmpl = {"depth": float(np.median(depth[sure])),
                 "dur": float(np.median(dur[sure])),
+                "cycle_s": None if _cycle is None else round(_cycle, 1),
                 "n": int(sure.sum())}
     else:
         tmpl = None
@@ -445,7 +469,21 @@ def score_hypopneas_breathwise(
         p_desat = graded(desat, desat_threshold_pct, desat_width) if desat is not None else 0.0
 
         near = [a for a in ar_onsets if t0 <= a <= t1 + arousal_window_s]
-        p_arousal = arousal_weight if near else 0.0
+        if not near:
+            p_arousal = 0.0
+        elif not arousal_latency_grading:
+            p_arousal = arousal_weight
+        else:
+            # Een arousal is als GEBEURTENIS binair - hij trad op of niet.
+            # Wat wel gradueel is, is hoe overtuigend hij bij dit event
+            # hoort: een arousal die tijdens of vlak na het event begint is
+            # sterker gekoppeld dan een die tegen de rand van het
+            # koppelvenster aan ligt. Lineair van 1 op latentie <=0 naar
+            # arousal_latency_floor op de vensterrand.
+            _lat = max(0.0, min(near) - t1)
+            _f = 1.0 - (1.0 - arousal_latency_floor) * (
+                _lat / arousal_window_s if arousal_window_s > 0 else 0.0)
+            p_arousal = arousal_weight * float(np.clip(_f, 0.0, 1.0))
 
         # AASM Rule 1A, letterlijk: daling EN duur EN (desaturatie OF arousal)
         p_confirm = 1.0 - (1.0 - p_desat) * (1.0 - p_arousal)
@@ -454,11 +492,18 @@ def score_hypopneas_breathwise(
         # sjabloon: past dit bij wat deze patiënt de hele nacht doet?
         p_tmpl = 1.0
         if tmpl is not None:
+            _fit = graded(d_red, template_center_frac * tmpl["depth"],
+                          template_width)
+            if template_use_duration:
+                # Het sjabloon sloeg dur op maar gebruikte alleen depth. Een
+                # event dat qua duur bij het nachtpatroon past is even
+                # informatief als een dat qua diepte past; het geometrisch
+                # gemiddelde laat een van beide niet domineren.
+                _wd = max(1e-6, template_dur_width_frac * tmpl["dur"])
+                _fit_d = graded(d_dur, template_center_frac * tmpl["dur"], _wd)
+                _fit = float(np.sqrt(_fit * _fit_d))
             p_tmpl = float(np.clip(
-                template_floor
-                + (1.0 - template_floor) * graded(
-                    d_red, template_center_frac * tmpl["depth"], template_width),
-                0.0, 1.0))
+                template_floor + (1.0 - template_floor) * _fit, 0.0, 1.0))
             p *= p_tmpl
 
         if p >= strictness:

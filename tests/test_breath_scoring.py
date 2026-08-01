@@ -440,6 +440,89 @@ def test_exclusion_and_candidate_thresholds_are_separable():
         "de uitsluitingsvloer moet los van de kandidaatvloer werken")
 
 
+# ─────────────────────────────────────────────────────────────────
+#  5b. De drie scoringswijzigingen — default uit, en ze moeten werken
+# ─────────────────────────────────────────────────────────────────
+
+def test_the_three_scoring_flags_are_off_by_default():
+    """Aanzetten verlaat het gevalideerde werkpunt; uit moet uit zijn."""
+    import inspect
+    sig = inspect.signature(score_hypopneas_breathwise).parameters
+    assert sig["candidate_min_duration_s"].default is None
+    assert sig["arousal_latency_grading"].default is False
+    assert sig["template_use_duration"].default is False
+
+
+def test_duration_tolerance_admits_sub_threshold_runs():
+    """De vloer op de daling laat marginale gevallen toe, de duur niet.
+
+    Met 8 ademteugen van 4 s duurt een event 32 s; met 2 nog maar 8 s. Dat
+    laatste haalde de harde poort van 10 s nooit, ook al zou p_dur het
+    genadeloos maar niet nul beoordelen.
+    """
+    breaths, hypno, windows = make_night(EVENTS_AT, n_breaths_event=2)  # 8 s
+    spo2 = make_spo2(windows, lag_s=20.0)
+    _, d_off = score_hypopneas_breathwise(
+        breaths, hypno, spo2=spo2, sf_spo2=SF_SPO2)
+    _, d_on = score_hypopneas_breathwise(
+        breaths, hypno, spo2=spo2, sf_spo2=SF_SPO2,
+        candidate_min_duration_s=6.0)
+    assert d_off["n_candidates"] == 0
+    assert d_on["n_candidates"] == len(EVENTS_AT)
+
+
+def test_arousal_latency_grading_rewards_tight_coupling():
+    breaths, hypno, windows = make_night(EVENTS_AT)
+    flat = np.full(1800, 96.0)
+
+    def _p(offset):
+        ev, _ = score_hypopneas_breathwise(
+            breaths, hypno, spo2=flat, sf_spo2=SF_SPO2,
+            arousals=[{"onset_s": end + offset} for _, end in windows],
+            arousal_latency_grading=True, strictness=0.05)
+        return np.median([e["criteria"]["arousal"] for e in ev])
+
+    tight, loose = _p(0.0), _p(14.0)
+    assert tight > loose, (tight, loose)
+    assert loose > 0.0, "binnen het venster blijft het meetellen"
+
+
+def test_arousal_stays_binary_when_the_flag_is_off():
+    breaths, hypno, windows = make_night(EVENTS_AT)
+    flat = np.full(1800, 96.0)
+    vals = set()
+    for offset in (0.0, 7.0, 14.0):
+        ev, _ = score_hypopneas_breathwise(
+            breaths, hypno, spo2=flat, sf_spo2=SF_SPO2,
+            arousals=[{"onset_s": end + offset} for _, end in windows],
+            strictness=0.05)
+        vals |= {e["criteria"]["arousal"] for e in ev}
+    assert vals == {0.9}, vals
+
+
+def test_template_reports_the_cycle_length():
+    """Periodiciteit stond in het ontwerp maar werd nooit berekend."""
+    breaths, hypno, _ = make_cyclic_night()
+    _, diag = score_hypopneas_breathwise(breaths, hypno)
+    t = diag["template"]
+    assert t is not None and t["cycle_s"] is not None
+    # cyclus = (5 + 3 + 10) ademteugen x 4 s = 72 s
+    assert t["cycle_s"] == pytest.approx(72.0, abs=8.0), t["cycle_s"]
+
+
+def test_template_duration_flag_changes_the_verdict():
+    breaths, hypno, windows = make_night(EVENTS_AT)
+    spo2 = make_spo2(windows, lag_s=20.0)
+    a, _ = score_hypopneas_breathwise(
+        breaths, hypno, spo2=spo2, sf_spo2=SF_SPO2, strictness=0.05)
+    b, _ = score_hypopneas_breathwise(
+        breaths, hypno, spo2=spo2, sf_spo2=SF_SPO2, strictness=0.05,
+        template_use_duration=True)
+    ta = [e["criteria"]["template"] for e in a]
+    tb = [e["criteria"]["template"] for e in b]
+    assert ta != tb, "de duurcomponent moet het sjabloonoordeel verschuiven"
+
+
 def test_strictness_is_monotone():
     """Verschuiving 5: één as, en hij moet zich als een as gedragen."""
     breaths, hypno, windows = make_night(EVENTS_AT)

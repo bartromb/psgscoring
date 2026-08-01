@@ -56,6 +56,33 @@ except Exception:  # noqa: BLE001
 logger = logging.getLogger("psgscoring.pipeline")
 
 
+def _breath_env_overrides() -> dict:
+    """Env-overrides voor de drie experimentele scoringswijzigingen.
+
+    Ze staan default UIT omdat aanzetten het op PSG-IPA geijkte werkpunt
+    verlaat. Deze haak bestaat om dat te kunnen METEN zonder profielen te
+    muteren; hetzelfde patroon als PSGSCORING_BASELINE_MODE.
+
+      PSGSCORING_BREATH_CAND_MIN_DUR   sec, laat kortere runs de gradering halen
+      PSGSCORING_BREATH_AROUSAL_LATENCY  1 = arousal graderen op latentie
+      PSGSCORING_BREATH_TEMPLATE_DUR     1 = sjabloon gebruikt ook de duur
+    """
+    out: dict = {}
+    v = os.environ.get("PSGSCORING_BREATH_CAND_MIN_DUR")
+    if v:
+        try:
+            out["candidate_min_duration_s"] = float(v)
+        except ValueError:
+            logger.warning("[pneumo 7b] ongeldige CAND_MIN_DUR %r, genegeerd", v)
+    if os.environ.get("PSGSCORING_BREATH_AROUSAL_LATENCY") == "1":
+        out["arousal_latency_grading"] = True
+    if os.environ.get("PSGSCORING_BREATH_TEMPLATE_DUR") == "1":
+        out["template_use_duration"] = True
+    if out:
+        logger.info("[pneumo 7b] experimentele overrides actief: %s", out)
+    return out
+
+
 def _normalise_arousal_block(block: dict) -> dict:
     """Zorg dat ``output["arousal"]["events"]`` altijd bestaat.
 
@@ -551,6 +578,11 @@ def run_pneumo_analysis(
                 max_duration_s=float(profile.get("HYPOPNEA_MAX_DUR_S", 60.0)),
                 desat_threshold_pct=float(profile.get("DESATURATION_DROP_PCT", 3.0)),
                 strictness=float(profile.get("HYPOPNEA_STRICTNESS", 0.50)),
+                # Env-overrides voor de drie scoringswijzigingen, zodat ze
+                # gemeten kunnen worden zonder profielen te muteren —
+                # zelfde patroon als PSGSCORING_BASELINE_MODE. Niet gezet =
+                # gedrag van v0.13.0.
+                **_breath_env_overrides(),
             )
             # Subtypering overerven. De envelope-detector classificeerde
             # dezelfde tijdvensters al met classify_apnea_type() — effort,
