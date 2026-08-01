@@ -552,6 +552,38 @@ def run_pneumo_analysis(
                 desat_threshold_pct=float(profile.get("DESATURATION_DROP_PCT", 3.0)),
                 strictness=float(profile.get("HYPOPNEA_STRICTNESS", 0.50)),
             )
+            # Subtypering overerven. De envelope-detector classificeerde
+            # dezelfde tijdvensters al met classify_apnea_type() — effort,
+            # ECG, flattening — en die events worden hier weggegooid. Dat
+            # label opnieuw berekenen zou de enveloppes moeten reconstrueren
+            # die alleen binnen respiratory.py bestaan; overerven kost niets
+            # en behoudt hypopnea_central / hypopnea_mixed in het rapport.
+            # Waar geen envelope-event overlapt blijft het "hypopnea".
+            _env_sub = [
+                (float(e["onset_s"]),
+                 float(e["onset_s"]) + float(e.get("duration_s") or 0.0),
+                 str(e.get("type", "")))
+                for e in _all
+                if "hypopnea" in str(e.get("type", "")).lower()
+                and str(e.get("type", "")) != "hypopnea"
+                and e.get("onset_s") is not None
+            ]
+            _n_sub = 0
+            for _h in _hyps:
+                _a = float(_h["onset_s"])
+                _b = _a + float(_h["duration_s"])
+                _best, _ov = None, 0.0
+                for _sa, _sb, _lab in _env_sub:
+                    _o = min(_b, _sb) - max(_a, _sa)
+                    if _o > _ov:
+                        _best, _ov = _lab, _o
+                if _best is not None:
+                    _h["type"] = _best
+                    _h["subtype_source"] = "inherited_from_envelope_detector"
+                    _n_sub += 1
+            _bdiag["n_subtyped"] = _n_sub
+            _bdiag["n_envelope_subtyped"] = len(_env_sub)
+
             merged = sorted(_apneas + _hyps, key=lambda e: float(e["onset_s"]))
             output["respiratory"]["events"] = merged
             output["respiratory"]["summary"] = _compute_summary(

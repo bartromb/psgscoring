@@ -290,13 +290,39 @@ def test_spo2_lag_returns_none_without_spo2():
 
 def test_desat_at_measures_the_drop():
     _, _, windows = make_night([600.0])
-    spo2 = make_spo2(windows, lag_s=20.0, drop_pct=5.0)
-    d = _desat_at(spo2, SF_SPO2, windows[0][0], windows[0][1], lag_s=20.0)
+    spo2 = make_spo2(windows, lag_s=20.0, drop_pct=5.0, base=96.0)
+    d, nadir = _desat_at(spo2, SF_SPO2, windows[0][0], windows[0][1], lag_s=20.0)
     assert d == pytest.approx(5.0, abs=1.0)
+    assert nadir == pytest.approx(91.0, abs=1.0), "de nadir zelf hoort erbij"
 
 
 def test_desat_at_returns_none_without_spo2():
-    assert _desat_at(None, SF_SPO2, 0.0, 10.0, 20.0) is None
+    assert _desat_at(None, SF_SPO2, 0.0, 10.0, 20.0) == (None, None)
+
+
+def test_events_report_the_saturation_nadir():
+    """min_spo2 stond hard op None terwijl de waarde hier al berekend is."""
+    breaths, hypno, windows = make_night(EVENTS_AT)
+    spo2 = make_spo2(windows, lag_s=20.0, drop_pct=5.0, base=96.0)
+    events, _ = score_hypopneas_breathwise(
+        breaths, hypno, spo2=spo2, sf_spo2=SF_SPO2, strictness=0.50)
+    assert events
+    for e in events:
+        assert e["min_spo2"] is not None
+        assert 85.0 <= e["min_spo2"] <= 96.0, e["min_spo2"]
+
+
+def test_nadir_is_none_without_saturation():
+    breaths, hypno, windows = make_night(EVENTS_AT)
+    flat = np.full(1800, 96.0)
+    arousals = [{"onset_s": end + 5.0} for _, end in windows]
+    events, _ = score_hypopneas_breathwise(
+        breaths, hypno, spo2=flat, sf_spo2=SF_SPO2,
+        arousals=arousals, strictness=0.50)
+    assert events
+    # vlakke saturatie: er is wel een nadir, maar geen daling
+    assert all(e["desaturation_pct"] == pytest.approx(0.0, abs=0.5)
+               for e in events)
 
 
 # ─────────────────────────────────────────────────────────────────

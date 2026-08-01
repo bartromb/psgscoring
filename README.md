@@ -89,6 +89,12 @@ directly. Five differences from the default detector:
    but each threshold gets a tolerance rather than being infinitely sharp.
 4. **Every event carries `p_scored`** plus a `criteria` dict giving each
    predicate's contribution, so the audit trail says *why*, not just *what*.
+
+   `p_scored` **ranks** events by how well they satisfy the AASM conjunction.
+   It is **not** the probability that a scorer would mark the event: measured
+   against the 12-scorer fractions on PSG-IPA (163 events) the correlation is
+   only r = 0.194 and the level is +0.33 too high. Use it to order events,
+   not as a likelihood.
 5. **One strictness axis** (`hypopnea_strictness`, default 0.50) instead of
    three parameter combinations.
 

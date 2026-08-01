@@ -244,9 +244,12 @@ prerequisite for shipping the plumbing fix, and that is out of scope here.
      Rule 1A conjunction; what changes is that each threshold gets a
      tolerance instead of being infinitely sharp. A 29% reduction with a 6%
      desaturation should score; 31% with a doubtful 3.0% should not.
-  4. **Each event carries `p_scored`** — "what fraction of scorers would
-     mark this" — plus a `criteria` dict with each predicate's
+  4. **Each event carries `p_scored`** — how well it satisfies the
+     conjunction — plus a `criteria` dict with each predicate's
      contribution. The audit trail gets richer, not more opaque.
+     *(v0.13.0 shipped this documented as "what fraction of scorers would
+     mark this". That was an untested claim and it is wrong; see the v0.13.1
+     entry. `p_scored` ranks events, it is not a probability.)*
   5. **Strictness is one axis** instead of three parameter combinations.
 
   Scope is hypopneas only. Apneas keep the existing detector (F1 0.83–0.93

@@ -35,9 +35,30 @@ verschuivingen:
    een twijfelachtige 3,0% niet. Elk event draagt bij hoeveel elk criterium
    bijdroeg, dus het audittrail wordt rijker, niet ondoorzichtiger.
 
-4. **De uitkomst is een kans, geen booleaan.** Er is geen enkele juiste
+4. **De uitkomst is een graad, geen booleaan.** Er is geen enkele juiste
    scoring: op PSG-IPA SN2 splitsten twaalf scorers 8/4. Elk event krijgt
-   ``p_scored``, te lezen als "welk deel van de scorers zou dit markeren".
+   ``p_scored``: hoe goed het aan de AASM-conjunctie voldoet, op een schaal
+   van 0 tot 1.
+
+   **``p_scored`` is GEEN kans dat een scorer dit zou markeren, en mag niet
+   zo gelezen worden.** Gemeten op PSG-IPA (163 gescoorde events, 12 scorers
+   per opname, de scorerfractie per event letterlijk geteld):
+
+   ===========================  ======
+   p_scored mediaan             0,693
+   werkelijke scorerfractie     0,167
+   correlatie r                 0,194
+   systematische afwijking      +0,333
+   ===========================  ======
+
+   De ORDENING klopt zwak — hogere ``p_scored`` gaat samen met een hogere
+   scorerfractie (band 0,50-0,60 -> 0,32; band 0,90+ -> 0,58) — maar het
+   NIVEAU ligt ruim 30 procentpunt te hoog. Gebruik het dus om events
+   onderling te rangschikken, niet als waarschijnlijkheid.
+
+   Kalibratie naar een echte kans is mogelijk: PSG-IPA levert de doelwaarde
+   per event. Dat vraagt een gefitte afbeelding op meer dan vijf opnames en
+   is hier niet gedaan.
 
 5. **Strengheid is één as.** In plaats van drie parametercombinaties is er
    één drempel op die kans. Lager = soepeler.
@@ -205,16 +226,21 @@ def estimate_spo2_lag(event_ends, spo2, sf_spo2, lo=5.0, hi=60.0, step=1.0):
 
 def _desat_at(spo2, sf_spo2, onset_s, end_s, lag_s, tol_s=15.0,
               pre_win_s=60.0):
-    """Desaturatiediepte (%) voor dit event, gezocht rond de patiëntlag."""
+    """``(diepte_pct, nadir)`` voor dit event, gezocht rond de patiëntlag.
+
+    De nadir wordt meegegeven omdat het rapport hem toont; hem weglaten en
+    ``min_spo2`` op None zetten kost informatie die hier al berekend is.
+    Retourneert ``(None, None)`` wanneer er niets te meten valt.
+    """
     if spo2 is None:
-        return None
+        return None, None
     s = np.asarray(spo2, dtype=float)
     a = int(max(0.0, onset_s - pre_win_s) * sf_spo2)
     b = int(onset_s * sf_spo2)
     pre = s[a:b]
     pre = pre[np.isfinite(pre) & (pre > 50)]
     if pre.size == 0:
-        return None
+        return None, None
     baseline = float(np.percentile(pre, 90))
 
     c = int(max(0.0, end_s + lag_s - tol_s) * sf_spo2)
@@ -222,8 +248,9 @@ def _desat_at(spo2, sf_spo2, onset_s, end_s, lag_s, tol_s=15.0,
     post = s[c:min(d, s.size)]
     post = post[np.isfinite(post) & (post > 50)]
     if post.size == 0:
-        return None
-    return float(baseline - float(post.min()))
+        return None, None
+    nadir = float(post.min())
+    return float(baseline - nadir), nadir
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -253,11 +280,28 @@ def score_hypopneas_breathwise(
     arousal_window_s: float = 15.0,
     epoch_len_s: float = 30.0,
     use_template: bool = True,
+    # Waarden die tot v0.13.0 hard in de functie stonden. De defaults zijn
+    # exact die waarden, dus dit is byte-identiek; ze staan hier zodat ze
+    # vindbaar en meetbaar zijn in plaats van verstopt.
+    sure_depth: float = 0.50,
+    default_lag_s: float = 25.0,
+    arousal_weight: float = 0.9,
+    template_floor: float = 0.65,
+    template_center_frac: float = 0.60,
+    template_width: float = 0.15,
+    n_largest: int = 3,
+    min_baseline_breaths: int = 4,
 ):
     """Scoor hypopneeën ademteug-voor-ademteug. Zie de moduledocstring.
 
-    Returns ``(events, diagnostics)``. Elk event draagt ``p_scored`` en een
-    ``criteria``-dict met de bijdrage van elk AASM-predicaat.
+    Returns ``(events, diagnostics)``. Elk event draagt ``p_scored`` — de mate
+    waarin het aan de AASM-conjunctie voldoet — en een ``criteria``-dict met
+    de bijdrage van elk predicaat.
+
+    ``p_scored`` is een RANGSCHIKKING, geen kans dat een scorer het event zou
+    markeren; op PSG-IPA is de correlatie met de werkelijke scorerfractie
+    r = 0,194 bij een systematische afwijking van +0,33. Zie de
+    moduledocstring.
     """
     onsets, ends, amps = _series(breaths)
     diag = {"n_breaths": int(onsets.size), "n_candidates": 0,
@@ -276,6 +320,7 @@ def score_hypopneas_breathwise(
     # als forse daling telt), en de mediaan wordt bij ernstige OSA het
     # eventniveau (waarna niets meer als daling telt).
     bl_a = _pre_baseline_per_breath(onsets, amps, window_s=baseline_window_s,
+                                    min_breaths=min_baseline_breaths,
                                     robust=True)
     with np.errstate(invalid="ignore", divide="ignore"):
         red_a = 1.0 - amps / bl_a
@@ -291,6 +336,8 @@ def score_hypopneas_breathwise(
 
     bl = _pre_baseline_per_breath(onsets, amps, window_s=baseline_window_s,
                                   stability_cv=stability_cv,
+                                  n_largest=n_largest,
+                                  min_breaths=min_baseline_breaths,
                                   exclude=in_event)
     with np.errstate(invalid="ignore", divide="ignore"):
         red = 1.0 - amps / bl                      # relatieve daling per ademteug
@@ -336,13 +383,13 @@ def score_hypopneas_breathwise(
     dur = np.array([t1 - t0 for _, _, t0, t1 in cands])
 
     # ── passage 1: onbetwistbare events -> patiëntsjabloon ────────
-    sure = (depth >= 0.50) & (dur >= min_duration_s)
+    sure = (depth >= sure_depth) & (dur >= min_duration_s)
     lag = None
     if spo2 is not None and sure.sum() >= 3:
         lag = estimate_spo2_lag([cands[k][3] for k in np.flatnonzero(sure)],
                                 spo2, sf_spo2)
     if lag is None:
-        lag = 25.0                       # AASM-achtige middenwaarde als er te
+        lag = default_lag_s              # middenwaarde als er te
     diag["spo2_lag_s"] = lag             # weinig zekere events zijn
 
     if use_template and sure.sum() >= 3:
@@ -363,11 +410,12 @@ def score_hypopneas_breathwise(
         p_flow = graded(d_red, flow_reduction_threshold, flow_width)
         p_dur = graded(d_dur, min_duration_s, dur_width)
 
-        desat = _desat_at(spo2, sf_spo2, t0, t1, lag) if spo2 is not None else None
+        desat, nadir = (_desat_at(spo2, sf_spo2, t0, t1, lag)
+                        if spo2 is not None else (None, None))
         p_desat = graded(desat, desat_threshold_pct, desat_width) if desat is not None else 0.0
 
         near = [a for a in ar_onsets if t0 <= a <= t1 + arousal_window_s]
-        p_arousal = 0.9 if near else 0.0
+        p_arousal = arousal_weight if near else 0.0
 
         # AASM Rule 1A, letterlijk: daling EN duur EN (desaturatie OF arousal)
         p_confirm = 1.0 - (1.0 - p_desat) * (1.0 - p_arousal)
@@ -377,7 +425,10 @@ def score_hypopneas_breathwise(
         p_tmpl = 1.0
         if tmpl is not None:
             p_tmpl = float(np.clip(
-                0.65 + 0.35 * graded(d_red, 0.6 * tmpl["depth"], 0.15), 0.0, 1.0))
+                template_floor
+                + (1.0 - template_floor) * graded(
+                    d_red, template_center_frac * tmpl["depth"], template_width),
+                0.0, 1.0))
             p *= p_tmpl
 
         if p >= strictness:
@@ -389,7 +440,7 @@ def score_hypopneas_breathwise(
                          if int(t0 // epoch_len_s) < len(hypno) else "W",
                 "epoch": int(t0 // epoch_len_s),
                 "desaturation_pct": None if desat is None else round(desat, 2),
-                "min_spo2": None,
+                "min_spo2": None if nadir is None else round(nadir, 1),
                 "flow_reduction": round(100.0 * d_red, 1),
                 "confidence": round(p, 3),
                 "p_scored": round(p, 3),
