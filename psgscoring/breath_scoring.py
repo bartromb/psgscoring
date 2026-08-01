@@ -321,7 +321,22 @@ def score_hypopneas_breathwise(
     exclusion_min_duration_s: float | None = None,
     # ── drie wijzigingen die de SCORING veranderen; default = v0.13.0 ──
     # Ze staan uit omdat aanzetten het gevalideerde werkpunt (strictness
-    # 0,50, geijkt op PSG-IPA) verlaat. Zie de moduledocstring.
+    # 0,50, geijkt op PSG-IPA) verlaat. Gemeten op PSG-IPA (5 opnames):
+    #
+    #   configuratie          F1 med  F1 gem  pct   bias   MAE  sev
+    #   default                0,434   0,512  p17  +0,17  0,29  4/5
+    #   candidate_min_dur 8s   0,434   0,512  p17  +0,17  0,29  4/5
+    #   arousal_latency        0,440   0,521  p17  -0,19  0,42  5/5
+    #   template_use_duration  0,416   0,505  p15  +0,25  0,37  4/5
+    #   alle drie              0,419   0,515  p15  -0,15  0,50  4/5
+    #
+    # candidate_min_duration_s doet in de praktijk NIETS: ademteugen duren
+    # ~4 s, dus runs zijn gekwantiseerd op 8/12/16 s, en een run van 8 s
+    # krijgt p_dur ~0,27 en haalt strictness 0,50 toch niet. De asymmetrie
+    # is echt maar zonder gevolgen. template_use_duration maakt het
+    # slechter. Alleen arousal_latency_grading wint (4 van 5 opnames beter,
+    # geen slechter, severity 5/5) - maar de MAE verslechtert en n = 5, dus
+    # aanzetten vraagt bevestiging op held-out data.
     candidate_min_duration_s: float | None = None,
     arousal_latency_grading: bool = False,
     arousal_latency_floor: float = 0.5,
