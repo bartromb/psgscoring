@@ -292,6 +292,46 @@ class PostProcessingRules:
     Default 0.65 was the bias-near-zero operating point on the q=7
     holdout (paper v34 §S5.6 sweep table)."""
 
+    arousal_limb_wired: bool = False
+    """v0.13.0: mag dit profiel REAGEREN op de gerepareerde arousal-lijst?
+
+    Issue #16: ``run_arousal_respiratory_analysis()`` levert zijn events
+    genest af, terwijl de scoringsstappen de platte sleutel lazen. Die was in
+    het auto-detectiepad nooit gevuld, dus elke arousal-afhankelijke stap
+    draaide op een lege lijst — Rule 1B-reinstatement, FRI-RERA, en de
+    LightGBM-features.
+
+    v0.13.0 repareert de plumbing zelf, zodat consumenten BUITEN de scoring
+    (de EDF+-export en de event-API van YASAFlaskified) eindelijk arousals
+    zien. Maar de scoringsstappen laten reageren verandert bestaande
+    klinische en dataset-uitkomsten ingrijpend — op mesa-sleep-2408 loopt de
+    AHI van 30,4 naar 46,3, en dat breekt de NSRR/paper-v31-reproductie.
+
+    Daarom is dit een profielkeuze met het HUIDIGE gedrag als default.
+    Alleen ``aasm_v3_breath`` staat aan; dat profiel is nieuw, dus daar valt
+    niets te breken. Voor de overige profielen blijft de uitkomst
+    byte-identiek aan v0.12.3 tot elk arousal-afhankelijk onderdeel
+    afzonderlijk opnieuw is gevalideerd — inclusief het hertrainen van de
+    booster, zie ``ml_arousal_features``."""
+
+    ml_arousal_features: bool = False
+    """v0.13.0: feed real arousal values to the LightGBM re-classifier?
+
+    **Default False, deliberately.** The booster's highest-gain features are
+    arousal-based (`n_arousals_per_h`, `n_arousals_within_30s`,
+    `has_arousal_within_5s`), but issue #16 meant the arousal list never
+    reached inference — they were *always zero* in production, while training
+    saw real values. That is a train/serve mismatch predating this release.
+
+    v0.13.0 repairs the plumbing, so real values now reach every consumer.
+    Passing them to this booster changes its predictions substantially
+    (mesa-sleep-2408: AHI 30.4 -> 46.3) on a model that has never seen a
+    non-zero value at inference. Until it is retrained, it gets what it
+    knows — which is also what keeps NSRR/paper-v31 reproduction exact.
+
+    Set True only together with a booster retrained on the repaired
+    features."""
+
     flow_fallback_strategy: str = "none"
     """v0.5.1: Behaviour when the primary nasal-pressure flow channel
     appears low-quality on a recording.
@@ -424,6 +464,10 @@ _aasm_v3_breath = Profile(
     ),
     post_processing=PostProcessingRules(
         hypopnea_detector="breath_graded",
+        # Als enige profiel reageert dit op de gerepareerde arousal-lijst
+        # (issue #16). Dat kan hier veilig, want het profiel is nieuw: er is
+        # geen bestaande uitkomst om te breken. Zie arousal_limb_wired.
+        arousal_limb_wired=True,
         # Operatiepunt, met de herkomst erbij omdat die het cijfer weegt:
         #
         #   0,50 kwam uit een VOORAF vastgelegde regel op PSG-IPA — de

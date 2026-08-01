@@ -442,18 +442,27 @@ class TestIntegration:
 class TestDefaultProfile:
     """De default bepaalt wat een aanroeper zonder profielkeuze krijgt.
 
-    Die is per v0.13.0 aasm_v3_breath. De legacy-aliassen mogen daar NIET in
-    meebewegen: die documenteren de historische profielen en het paper en de
-    NSRR-reproductie hangen eraan.
+    Die blijft aasm_v3_rec. aasm_v3_breath is in v0.13.0 toegevoegd en
+    selecteerbaar, maar NIET de default: de validatie laat een onopgeloste
+    tegenspraak zien tussen PSG-IPA (AHI-afwijking 0,29) en MESA (bias -16,5),
+    en tot die verklaard is hoort de bestaande klinische uitkomst te blijven
+    staan. Zie docs/interim_conclusie_klinisch_gebruik.md.
     """
 
-    def test_default_is_the_breath_graded_profile(self):
+    def test_default_is_unchanged(self):
         import inspect
 
         from psgscoring import run_pneumo_analysis
         default = inspect.signature(
             run_pneumo_analysis).parameters["scoring_profile"].default
-        assert default == "aasm_v3_breath"
+        assert default == "aasm_v3_rec"
+
+    def test_breath_profile_is_selectable_by_name(self):
+        """Niet de default, maar wel bereikbaar — YASAFlaskified toont hem
+        in de profielkeuze omdat die de registry enumereert."""
+        p = get_profile("aasm_v3_breath")
+        assert p.family == "clinical"
+        assert "v3" in p.aasm_version, "anders valt hij uit de v3-groep in de UI"
 
     @pytest.mark.parametrize("alias,expected", [
         ("strict", "aasm_v3_strict"),

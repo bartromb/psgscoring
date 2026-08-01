@@ -1,28 +1,56 @@
-# Unreleased — breath-graded hypopnea detector becomes the default
+# v0.13.0 — 2026-08-01 — breath-graded hypopnea detector (opt-in)
 
-## Changed — the default scoring profile
+## Read this first if you reproduce published numbers
 
-`run_pneumo_analysis()` now defaults to **`aasm_v3_breath`** instead of
-`aasm_v3_rec`. On PSG-IPA this is better on every aggregate measure
-(median and mean event-F1, percentile within the inter-scorer distribution,
-AHI bias, MAE) with equal severity concordance; see the detector entry under
-*Added* for the full table and the known limitations.
+**`mesa_shhs` output changes in this release, and it is the channel-detection
+fix that does it — not the new detector.**
 
-**What does not move with it:**
+| mesa-sleep-2408 | v0.12.2 | v0.13.0 |
+|---|---|---|
+| AHI | 30.4 | **22.0** |
+| events | 291 | 234 |
 
-- The legacy aliases `strict` / `standard` / `sensitive` still resolve to
-  `aasm_v3_strict` / `aasm_v3_rec` / `aasm_v3_sensitive`. They document the
-  historical profiles.
-- `mesa_shhs` is untouched, so NSRR reproduction is unaffected.
-- Paper v31/v37 reproduces by naming `aasm_v3_rec` explicitly, which
-  `validate_psgipa.py` already does.
-- YASAFlaskified passes `scoring_profile="standard"` explicitly, so
-  **deployed behaviour does not change** until that pin is changed
-  deliberately.
+Cause: `Pres`, the NSRR/MESA nasal-pressure channel, was claimed by the
+`pulse` role, leaving `flow_pressure` empty so hypopneas were scored from the
+thermistor. v0.13.0 assigns the sensors correctly (see v0.12.3 below). This
+was verified by attribution: running v0.13.0 code with the *old* channel
+patterns reproduces v0.12.2 exactly — AHI 30.4, RDI 30.4, 291 events.
 
-Reverting is one line: `scoring_profile: str = "aasm_v3_rec"` in
-`pipeline.py`. `tests/test_profiles.py::TestDefaultProfile` pins both the
-default and the alias stability.
+Everything else in this release is byte-identical for existing profiles.
+**To reproduce previously published MESA/NSRR numbers, pin
+`psgscoring==0.12.2`.**
+
+## Added — `aasm_v3_breath`, a breath-graded hypopnea detector
+
+Registered as a **selectable, non-default** profile. `run_pneumo_analysis()`
+still defaults to `aasm_v3_rec`, the legacy aliases still resolve to the
+historical profiles, and YASAFlaskified — which passes
+`scoring_profile="standard"` explicitly — is unaffected until its pin is
+changed deliberately. It appears in that application's profile menu
+automatically, because the menu enumerates this registry.
+
+Why it is not the default despite winning on every aggregate measure:
+PSG-IPA and MESA disagree on the *absolute* AHI level by ~16 points, and
+until that is explained the existing clinical output stays in place. See
+`docs/interim_conclusie_klinisch_gebruik.md`.
+
+## Fixed — the AASM Rule 1A arousal limb reaches its consumers again
+
+Issue #16: `run_arousal_respiratory_analysis()` returns its events nested,
+while every scoring step read a flat key the auto-detection path never
+populated. Repairing it restores arousals to YASAFlaskified's EDF+ export and
+event API.
+
+**Which profiles *act* on the repaired list is a profile choice with existing
+behaviour as the default** (`PostProcessingRules.arousal_limb_wired`, default
+False; only `aasm_v3_breath` opts in). Letting the existing profiles react
+would change Rule 1B reinstatement, FRI-RERA and the LightGBM features at
+once, none of which has been re-validated. Caller-supplied arousals
+(`arousal_events=`) were never affected by issue #16 and are always honoured.
+
+`PostProcessingRules.ml_arousal_features` (default False) covers the related
+train/serve mismatch: the booster's top features are arousal-based but were
+always zero at inference, so it keeps receiving zeros until retrained.
 
 ### Held-out confirmation on MESA/NSRR
 

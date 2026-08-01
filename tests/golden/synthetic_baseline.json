@@ -131,13 +131,92 @@
       "n_rejected_hypopneas": 19,
       "oahi_all": 0.0,
       "oahi_conf60": 0.0,
-      "rdi": 37.9,
+      "rdi": 0.0,
       "rule1a_arousal_reinstated": 0,
       "rule1b_reinstated": 0,
       "success": true
     },
     "spo2": {
       "hypoxic_burden": null,
+      "min_spo2": 96.0,
+      "n_desaturations": 0,
+      "odi_3pct": 0.0,
+      "odi_4pct": 0.0
+    }
+  },
+  "arousal_autodetect_breath": {
+    "arousal": {
+      "n_flat": 4,
+      "n_nested": 4
+    },
+    "events": [
+      {
+        "conf": 0.79,
+        "d": 27.9,
+        "t": 58.0,
+        "type": "hypopnea"
+      },
+      {
+        "conf": 0.83,
+        "d": 15.5,
+        "t": 118.0,
+        "type": "hypopnea"
+      },
+      {
+        "conf": 0.84,
+        "d": 27.9,
+        "t": 362.1,
+        "type": "hypopnea"
+      }
+    ],
+    "profile": "aasm_v3_breath",
+    "quality": {
+      "channels": {
+        "ABDOMEN": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "EEG C4-M1": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "FLOW": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "SPO2": {
+          "clip_pct": 100.0,
+          "flat_pct": 100.0,
+          "grade": "poor"
+        },
+        "THORAX": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        }
+      },
+      "overall_grade": "acceptable"
+    },
+    "resp": {
+      "ahi_excl_noise": 18.9,
+      "ahi_total": 18.9,
+      "n_by_type": {
+        "hypopnea": 3
+      },
+      "n_events": 3,
+      "n_rejected_hypopneas": 19,
+      "oahi_all": 18.9,
+      "oahi_conf60": 18.9,
+      "rdi": 56.8,
+      "rule1a_arousal_reinstated": 0,
+      "rule1b_reinstated": 0,
+      "success": true
+    },
+    "spo2": {
+      "hypoxic_burden": 0.0,
       "min_spo2": 96.0,
       "n_desaturations": 0,
       "odi_3pct": 0.0,

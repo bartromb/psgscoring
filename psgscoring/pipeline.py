@@ -96,7 +96,7 @@ def run_pneumo_analysis(
     hypno: list,
     channel_map: dict | None = None,
     artifact_epochs: list | None = None,
-    scoring_profile: str = "aasm_v3_breath",
+    scoring_profile: str = "aasm_v3_rec",
     arousal_events: list | None = None,
 ) -> dict:
     """
@@ -568,7 +568,25 @@ def run_pneumo_analysis(
     # ── Step 8: Rule 1B reinstatement ─────────────────────────────────────
     logger.info("[pneumo 8/10] Rule 1B reinstatement...")
     rejected  = resp.get("rejected_hypopneas", [])
-    arousals  = output.get("arousal", {}).get("events", [])
+    # Zie PostProcessingRules.arousal_limb_wired. De plumbing is gerepareerd
+    # (issue #16), maar WELK profiel daarop reageert is een profielkeuze met
+    # het bestaande gedrag als default: arousal-afhankelijke stappen -
+    # Rule 1B-reinstatement, FRI-RERA en de LightGBM-features - zouden anders
+    # bestaande klinische en dataset-uitkomsten veranderen zonder dat elk
+    # onderdeel afzonderlijk opnieuw gevalideerd is.
+    #
+    # Step 7b hierboven leest output["arousal"]["events"] rechtstreeks en
+    # heeft zijn arousal-tak dus wel, ongeacht deze vlag.
+    _ar_block = output.get("arousal", {}) or {}
+    if _ar_block.get("source") == "external":
+        # Door de aanroeper meegegeven arousals zijn nooit door issue #16
+        # geraakt en worden altijd gehonoreerd: wie ze expliciet meegeeft,
+        # vraagt erom. Dit is het pad dat cms_arousal in de golden dekt.
+        arousals = list(_ar_block.get("events") or [])
+    elif profile.get("AROUSAL_LIMB_WIRED", False):
+        arousals = list(_ar_block.get("events") or [])
+    else:
+        arousals = []
     # Rule 1B reinstates arousal-coupled hypopneas that lacked a qualifying
     # desaturation. Profiles that score hypopneas on desaturation ONLY (no
     # arousal qualifier) — cms_medicare, aasm_v1_rec (DESAT_OR_AROUSAL=False) —
@@ -645,10 +663,19 @@ def run_pneumo_analysis(
             _therm_type = 0 if "therm" in _therm_name.lower() else 1
             # overall_qual5 not generally available; pass 0 as neutral
             _qual5 = 0
+            # Zie PostProcessingRules.ml_arousal_features: dit model is
+            # getraind terwijl de arousal-features aan de inferentiekant
+            # altijd nul waren (issue #16). v0.13.0 repareert die plumbing,
+            # maar het model heeft nooit een niet-nulwaarde gezien. Tot het
+            # opnieuw getraind is krijgt het wat het kent — dat houdt ook de
+            # NSRR/paper-v31-reproductie exact.
+            _ml_arousals = (arousals
+                            if profile.get("ML_AROUSAL_FEATURES", False)
+                            else [])
             new_acc, new_rej, ml_meta = apply_ml_reclassification(
                 accepted=cur_accepted,
                 rejected=cur_rejected,
-                arousals=arousals,
+                arousals=_ml_arousals,
                 hypno=hypno,
                 sig_dur_s=raw.times[-1],
                 tst_h=sum(1 for s in hypno if s in ("N1","N2","N3","R")) * 30 / 3600.0,

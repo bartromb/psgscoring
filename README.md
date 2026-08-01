@@ -63,6 +63,46 @@ print(f"Robustness: {interval['robustness_grade']}")
 | SpO₂ nadir window | 30 s | 45 s | 45 s |
 | Peak-based detection | No | Yes | Yes |
 
+`list_profiles()` enumerates the full registry (AASM v1/v2/v3, CMS/Medicare,
+Chicago 1999, and the NSRR dataset profile).
+
+### `aasm_v3_breath` — breath-graded hypopnea scoring (v0.13.0, opt-in)
+
+```python
+run_pneumo_analysis(raw, hypnogram, scoring_profile="aasm_v3_breath")
+```
+
+A second hypopnea detector that takes **the breath, not the sample, as the
+unit**. The AASM speaks of *peak signal excursions*; this scores them
+directly. Five differences from the default detector:
+
+1. **Breath-level events.** An event is a run of consecutive breaths below
+   the threshold, so boundaries land on breath transitions and a recovery
+   breath ends the run by itself — no smoothing, and the merge/split
+   problem that depresses event-F1 largely disappears.
+2. **Two-pass patient calibration.** Pass 1 finds the incontestable events;
+   pass 2 measures the baseline from *only* the breathing that is not an
+   event, and derives that patient's **own SpO₂ delay** by cross-correlation
+   instead of assuming a fixed 30–45 s window.
+3. **Graded AASM predicates.** The rule structure stays literally the Rule 1A
+   conjunction — ≥30% reduction AND ≥10 s AND (≥3% desaturation OR arousal) —
+   but each threshold gets a tolerance rather than being infinitely sharp.
+4. **Every event carries `p_scored`** plus a `criteria` dict giving each
+   predicate's contribution, so the audit trail says *why*, not just *what*.
+5. **One strictness axis** (`hypopnea_strictness`, default 0.50) instead of
+   three parameter combinations.
+
+Scope is hypopneas only; apneas keep the existing detector.
+
+**Status — opt-in, not the default.** On PSG-IPA (5 recordings, 12 scorers)
+the median event-F1 rises 0.343 → 0.434, the percentile within the
+inter-scorer distribution p6 → p17, and mean |ΔAHI| against the scorer median
+falls **1.84 → 0.29**. On MESA the paired advantage replicates on two
+disjoint held-out samples of 50 (p = 0.0069 and p = 0.0016). But the two
+datasets disagree on the *absolute* level by ~16 AHI points, and until that
+is explained the existing clinical output stays the default. See
+[`docs/interim_conclusie_klinisch_gebruik.md`](docs/interim_conclusie_klinisch_gebruik.md).
+
 ## Validation
 
 **PSG-IPA** (PhysioNet): 5 recordings, 59 independent scorer sessions. Mean |ΔAHI| = 1.8/h, Pearson r = 0.997, severity concordance 4/5 (standard profile). See the [paper](#paper) for full results.

@@ -199,8 +199,18 @@ CASES = {
     # naar kwalificatie is de AASM Rule 1A arousal-tak, via de INTERNE
     # arousal-detectie. `cms_arousal` dekt dit niet -- die geeft arousals
     # extern mee en raakt het auto-detectiepad dus nooit.
+    #
+    # Twee cases, want v0.13.0 maakt dit pad een PROFIELKEUZE
+    # (PostProcessingRules.arousal_limb_wired):
+    #   - aasm_v3_rec reageert er NIET op, zodat de uitkomst gelijk blijft
+    #     aan v0.12.3. Deze case bewaakt dat die belofte blijft staan.
+    #   - aasm_v3_breath reageert er WEL op. Deze case bewaakt dat de
+    #     reparatie daar daadwerkelijk aankomt.
     "arousal_autodetect": dict(events=EVENTS_HYP, variability=0.90,
                                eeg=True, desats=False, profile="aasm_v3_rec"),
+    "arousal_autodetect_breath": dict(events=EVENTS_HYP, variability=0.90,
+                                      eeg=True, desats=False,
+                                      profile="aasm_v3_breath"),
 }
 
 

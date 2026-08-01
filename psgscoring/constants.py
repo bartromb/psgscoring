@@ -102,6 +102,8 @@ def _profile_to_legacy_dict(profile) -> dict:
         # v0.6.0: LightGBM candidate re-classifier
         "ML_CLASSIFIER_PATH":         pp.ml_classifier_path,
         "ML_THRESHOLD":               pp.ml_threshold,
+        "ML_AROUSAL_FEATURES":        pp.ml_arousal_features,
+        "AROUSAL_LIMB_WIRED":         pp.arousal_limb_wired,
         # v0.9.0: arousal-derivation mode. Multi-derivation (central + occipital +
         # frontal, event-level union + EOG-reject) is the DEFAULT for clinical use;
         # dataset profiles stay 'single' so NSRR/MESA reproduction is byte-identical.
