@@ -16,7 +16,7 @@ run_pneumo_analysis
   ├─ ancillary.analyze_position / heart_rate / snore / detect_cheyne_stokes
   ├─ plm.analyze_plm
   ├─ [arousal_analysis.run_arousal_respiratory_analysis]   <- optional
-  └─ respiratory.reinstate_rule1b_hypopneas
+  └─ respiratory.reinstate_rule1a_arousal_hypopneas
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ from .signal import (
     compute_dynamic_baseline, preprocess_flow,
 )
 from .respiratory import (
-    detect_respiratory_events, reinstate_rule1b_hypopneas, _compute_summary,
+    detect_respiratory_events, reinstate_rule1a_arousal_hypopneas, _compute_summary,
 )
 from .spo2 import analyze_spo2, compute_hypoxic_burden
 from .ancillary import (
@@ -54,6 +54,25 @@ except Exception:  # noqa: BLE001
     _AROUSAL_AVAILABLE = False
 
 logger = logging.getLogger("psgscoring.pipeline")
+
+
+def _normalise_arousal_block(block: dict) -> dict:
+    """Zorg dat ``output["arousal"]["events"]`` altijd bestaat.
+
+    Twee producenten met een verschillende vorm: de externe tak zet de events
+    plat op ``["events"]``; run_arousal_respiratory_analysis() geeft ze genest
+    terug in ``["arousals"]["events"]`` en zet geen platte sleutel. Alle
+    consumenten lezen de PLATTE sleutel -- de Rule 1A-reinstatement hieronder,
+    en in YASAFlaskified de EDF+-export en de event-API. In het
+    auto-detectiepad kregen die dus stil een lege lijst (issue #16).
+    """
+    if not isinstance(block, dict):
+        return block
+    if not block.get("events"):
+        nested = block.get("arousals")
+        block["events"] = (list(nested.get("events") or [])
+                           if isinstance(nested, dict) else [])
+    return block
 
 
 def _run_step(step_name: str, fn):
@@ -503,23 +522,112 @@ def run_pneumo_analysis(
         reason = "No EEG channel" if eeg_data is None else "arousal_analysis not loaded"
         output["arousal"] = _empty_arousal(reason)
 
+    # Eén vorm voor alle consumenten, ongeacht welke producent hierboven liep.
+    output["arousal"] = _normalise_arousal_block(output["arousal"])
+
+    # ── Step 7b: ademteug-gebaseerde hypopnee-detector (opt-in) ───────────
+    # Vervangt ALLEEN de hypopneeën; apneus blijven uit de bestaande detector
+    # (die haalt F1 0,83-0,93 op PSG-IPA en doet de effort-subtypering).
+    if str(profile.get("HYPOPNEA_DETECTOR", "envelope")) == "breath_graded":
+        try:
+            from .breath_scoring import score_hypopneas_breathwise
+            _resp = output.get("respiratory", {}) or {}
+            _all = _resp.get("events", []) or []
+            _apneas = [e for e in _all
+                       if "hypopnea" not in str(e.get("type", "")).lower()]
+            _excl = [(float(e["onset_s"]),
+                      float(e["onset_s"]) + float(e.get("duration_s") or 0))
+                     for e in _apneas if e.get("onset_s") is not None]
+            _ar = (output.get("arousal") or {}).get("events") or []
+            _hyps, _bdiag = score_hypopneas_breathwise(
+                breaths=_resp.get("_breaths", []),
+                hypno=hypno,
+                spo2=spo2_data,
+                sf_spo2=sf_spo2 or 1.0,
+                arousals=_ar,
+                exclude_intervals=_excl,
+                flow_reduction_threshold=1.0 - float(profile.get("HYPOPNEA_THRESHOLD", 0.70)),
+                min_duration_s=float(profile.get("HYPOPNEA_MIN_DUR_S", 10.0)),
+                max_duration_s=float(profile.get("HYPOPNEA_MAX_DUR_S", 60.0)),
+                desat_threshold_pct=float(profile.get("DESATURATION_DROP_PCT", 3.0)),
+                strictness=float(profile.get("HYPOPNEA_STRICTNESS", 0.50)),
+            )
+            merged = sorted(_apneas + _hyps, key=lambda e: float(e["onset_s"]))
+            output["respiratory"]["events"] = merged
+            output["respiratory"]["summary"] = _compute_summary(
+                merged, hypno, artifact_epochs)
+            output["respiratory"]["breath_detector"] = _bdiag
+            logger.info("[pneumo 7b] breath-graded hypopneas: %d scored from "
+                        "%d candidates (SpO2 lag %.0fs)",
+                        _bdiag.get("n_scored", 0), _bdiag.get("n_candidates", 0),
+                        _bdiag.get("spo2_lag_s") or -1)
+        except Exception as e:  # noqa: BLE001 — nooit de hele run laten vallen
+            logger.warning("[pneumo] breath-graded detector failed, keeping "
+                           "envelope result: %s", e)
+
     # ── Step 8: Rule 1B reinstatement ─────────────────────────────────────
     logger.info("[pneumo 8/10] Rule 1B reinstatement...")
     rejected  = resp.get("rejected_hypopneas", [])
-    arousals  = output.get("arousal", {}).get("events", [])
+    # Zie PostProcessingRules.arousal_limb_wired. De plumbing is gerepareerd
+    # (issue #16), maar WELK profiel daarop reageert is een profielkeuze met
+    # het bestaande gedrag als default: arousal-afhankelijke stappen -
+    # Rule 1B-reinstatement, FRI-RERA en de LightGBM-features - zouden anders
+    # bestaande klinische en dataset-uitkomsten veranderen zonder dat elk
+    # onderdeel afzonderlijk opnieuw gevalideerd is.
+    #
+    # Step 7b hierboven leest output["arousal"]["events"] rechtstreeks en
+    # heeft zijn arousal-tak dus wel, ongeacht deze vlag.
+    _ar_block = output.get("arousal", {}) or {}
+    if _ar_block.get("source") == "external":
+        # Door de aanroeper meegegeven arousals zijn nooit door issue #16
+        # geraakt en worden altijd gehonoreerd: wie ze expliciet meegeeft,
+        # vraagt erom. Dit is het pad dat cms_arousal in de golden dekt.
+        arousals = list(_ar_block.get("events") or [])
+    elif profile.get("AROUSAL_LIMB_WIRED", False):
+        arousals = list(_ar_block.get("events") or [])
+    else:
+        arousals = []
     # Rule 1B reinstates arousal-coupled hypopneas that lacked a qualifying
     # desaturation. Profiles that score hypopneas on desaturation ONLY (no
     # arousal qualifier) — cms_medicare, aasm_v1_rec (DESAT_OR_AROUSAL=False) —
     # must not do this, or their AHI is inflated by arousal-only events.
     allow_arousal = profile.get("DESAT_OR_AROUSAL", True)
-    if rejected and arousals and allow_arousal:
-        reinstated, updated_events = reinstate_rule1b_hypopneas(
+    # Env-override zodat fase 4 de 2x2 kan meten zonder profielen te
+    # muteren; zelfde patroon als PSGSCORING_BASELINE_MODE.
+    _limb_env = os.environ.get("PSGSCORING_RULE1A_AROUSAL")
+    limb_enabled  = (_limb_env.strip().lower() in ("1", "true", "yes", "on")
+                     if _limb_env is not None
+                     else bool(profile.get("RULE1A_AROUSAL_ENABLED", False)))
+
+    # v0.12.3+: expliciete telling. De tak stond jarenlang op nul zonder dat
+    # iets dat meldde; vanaf nu is 'nul' altijd zichtbaar mét reden.
+    ar_stats = {
+        "enabled":              limb_enabled,
+        "n_arousals_available": len(arousals),
+        "n_candidates_tested":  0,
+        "n_arousal_coupled":    0,
+        "n_qualified":          0,
+        "skipped_reason":       None,
+    }
+    if not limb_enabled:
+        ar_stats["skipped_reason"] = "disabled_by_profile"
+    elif not allow_arousal:
+        ar_stats["skipped_reason"] = "profile_scores_desaturation_only"
+    elif not arousals:
+        ar_stats["skipped_reason"] = "no_arousals_detected"
+    elif not rejected:
+        ar_stats["skipped_reason"] = "no_rejected_candidates"
+
+    if rejected and arousals and allow_arousal and limb_enabled:
+        reinstated, updated_events = reinstate_rule1a_arousal_hypopneas(
             rejected       = rejected,
             arousal_events = arousals,
             resp_events    = resp.get("events", []),
             hypno          = hypno,
             breaths        = resp.get("_breaths", []),
             arousal_window_s = profile.get("RULE1B_AROUSAL_WINDOW_S"),
+            gap_max_breaths  = int(profile.get("RULE1A_GAP_MAX_BREATHS", 1)),
+            stats            = ar_stats,
         )
         if reinstated:
             logger.info("[pneumo 8] Rule 1B: %d hypopneas reinstated", len(reinstated))
@@ -527,9 +635,14 @@ def run_pneumo_analysis(
             output["respiratory"]["summary"]          = _compute_summary(
                 updated_events, hypno, artifact_epochs
             )
+            # v0.12.3+: 1A is de correcte AASM-regel; de 1B-sleutel blijft
+            # als alias omdat YASAFlaskified hem in twee rapporten leest.
+            output["respiratory"]["rule1a_arousal_reinstated"] = len(reinstated)
             output["respiratory"]["rule1b_reinstated"] = len(reinstated)
     else:
+        output["respiratory"].setdefault("rule1a_arousal_reinstated", 0)
         output["respiratory"].setdefault("rule1b_reinstated", 0)
+    output["respiratory"]["rule1a_arousal_stats"] = ar_stats
 
     # ── Step 8a (v0.6.0): LightGBM candidate re-classification ────────────
     ml_path = profile.get("ML_CLASSIFIER_PATH")
@@ -550,10 +663,19 @@ def run_pneumo_analysis(
             _therm_type = 0 if "therm" in _therm_name.lower() else 1
             # overall_qual5 not generally available; pass 0 as neutral
             _qual5 = 0
+            # Zie PostProcessingRules.ml_arousal_features: dit model is
+            # getraind terwijl de arousal-features aan de inferentiekant
+            # altijd nul waren (issue #16). v0.13.0 repareert die plumbing,
+            # maar het model heeft nooit een niet-nulwaarde gezien. Tot het
+            # opnieuw getraind is krijgt het wat het kent — dat houdt ook de
+            # NSRR/paper-v31-reproductie exact.
+            _ml_arousals = (arousals
+                            if profile.get("ML_AROUSAL_FEATURES", False)
+                            else [])
             new_acc, new_rej, ml_meta = apply_ml_reclassification(
                 accepted=cur_accepted,
                 rejected=cur_rejected,
-                arousals=arousals,
+                arousals=_ml_arousals,
                 hypno=hypno,
                 sig_dur_s=raw.times[-1],
                 tst_h=sum(1 for s in hypno if s in ("N1","N2","N3","R")) * 30 / 3600.0,

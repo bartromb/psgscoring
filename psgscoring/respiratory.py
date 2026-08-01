@@ -10,7 +10,7 @@ detection pipeline.
 Public API
 ----------
 detect_respiratory_events(...)  -> dict
-reinstate_rule1b_hypopneas(...) -> (reinstated, all_events)
+reinstate_rule1a_arousal_hypopneas(...) -> (reinstated, all_events)
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ from .constants import (
 from .utils import build_sleep_mask, is_nrem, is_rem, safe_r
 from .signal import (
     bandpass_flow, compute_dynamic_baseline, compute_mmsd,
+    compute_pre_event_baseline,
     compute_stage_baseline, detect_position_changes, preprocess_effort,
     preprocess_flow, reset_baseline_at_position_changes,
 )
@@ -571,6 +572,15 @@ def detect_respiratory_events(
             flow_filt=_flow_filt_snap,
             breaths=breaths,
             signal_quality=signal_quality,  # v0.3.001 BUG2 gate,
+            # v0.12.3+: profielgestuurde baseline. Default "rolling" = huidig
+            # gedrag; HYPOPNEA_THRESHOLD is 1 - flow_reduction_threshold, dus
+            # de vereiste daling volgt uit hetzelfde profielgetal.
+            # Env-override zodat fase 4 beide standen kan meten zonder het
+            # profiel te muteren; zelfde patroon als
+            # PSGSCORING_AROUSAL_DERIVATION. Leeg = profielwaarde.
+            baseline_mode=(os.environ.get("PSGSCORING_BASELINE_MODE")
+                           or sp.get("BASELINE_MODE", "rolling")).strip().lower(),
+            flow_reduction_threshold=1.0 - float(sp.get("HYPOPNEA_THRESHOLD", 0.70)),
             local_bl_cv_threshold=sp.get("LOCAL_BL_CV_THRESHOLD", 0.30),
             local_bl_strict_reduction=sp.get("LOCAL_BL_STRICT_RED", 30.0),
             # v0.5.0: profile-aware floors previously hard-coded
@@ -662,16 +672,25 @@ def detect_respiratory_events(
 
 
 # ---------------------------------------------------------------------------
-# Rule 1B – arousal-coupled hypopnea reinstatement
+# AASM Rule 1A – arousal-coupled hypopnea qualification
+#
+# Naamgeving gecorrigeerd in v0.12.3+: de AASM plaatst het arousal-criterium
+# in Rule **1A** (">=30% flowreductie EN (>=3% desaturatie OF arousal)").
+# Rule 1B is juist de variant met >=4% desaturatie die arousals uitdrukkelijk
+# UITSLUIT. De code had het omgekeerd. De oude namen blijven als alias
+# bestaan (zie onderaan deze module en in de output), zodat YASAFlaskified
+# en bestaande rapporten niet breken.
 # ---------------------------------------------------------------------------
 
-def reinstate_rule1b_hypopneas(
+def reinstate_rule1a_arousal_hypopneas(
     rejected:       list,
     arousal_events: list,
     resp_events:    list,
     hypno:          list,
     breaths:        list | None = None,
     arousal_window_s: float | None = None,
+    gap_max_breaths: int = 1,
+    stats:          dict | None = None,
 ) -> tuple[list, list]:
     """
     Reinstate hypopnea candidates that are coupled to an arousal
@@ -710,8 +729,10 @@ def reinstate_rule1b_hypopneas(
     _arousal_win = (RULE1B_AROUSAL_WINDOW_S if arousal_window_s is None
                     else float(arousal_window_s))
 
+    n_tested = n_coupled = 0
     reinstated: list[dict] = []
     for cand in rejected:
+        n_tested += 1
         onset = float(cand["onset_s"])
         dur   = float(cand["duration_s"])
         end   = onset + dur
@@ -723,11 +744,15 @@ def reinstate_rule1b_hypopneas(
         )
         if matched_arousal is None:
             continue
+        n_coupled += 1
 
-        # Breath-cycle gap check (v0.8.1)
+        # Breath-cycle gap check (v0.8.1). Profielinstelbaar sinds v0.12.3+:
+        # fase 1 liet zien dat op SN3 maar 17% van de kandidaten een arousal
+        # binnen het venster heeft, dus venster en gap zijn de knoppen die
+        # fase 4 empirisch moet bepalen -- niet op gevoel.
         if breath_onsets and matched_arousal > end + 2.0:
             n_in_gap = sum(1 for bo in breath_onsets if end <= bo < matched_arousal)
-            if n_in_gap > 1:
+            if n_in_gap > int(gap_max_breaths):
                 continue
 
         reinstated.append({
@@ -739,9 +764,22 @@ def reinstate_rule1b_hypopneas(
             "min_spo2":         cand.get("min_spo2"),
             "flow_reduction":   None,
             "confidence":       0.7,
-            "classify_detail":  {"rule": "1B_arousal"},
+            # v0.12.3+: 1A is de correcte AASM-regel. `rule_legacy` en de
+            # vlag `rule1b` blijven staan als deprecatie-alias — die laatste
+            # is bovendien een feature van de getrainde LightGBM-classifier
+            # (ml_classifier.py leest candidate["rule1b"]), dus weghalen zou
+            # het model stil een kenmerk ontnemen.
+            "classify_detail":  {"rule": "1A_arousal", "rule_legacy": "1B_arousal"},
             "epoch":            cand["epoch"],
-            "rule1b":           True,
+            "rule1a_arousal":   True,
+            "rule1b":           True,   # deprecated alias
+        })
+
+    if stats is not None:
+        stats.update({
+            "n_candidates_tested": n_tested,
+            "n_arousal_coupled":   n_coupled,
+            "n_qualified":         len(reinstated),
         })
 
     if reinstated:
@@ -1138,6 +1176,11 @@ def _detect_hypopneas(
     flow_filt: np.ndarray | None = None,
     breaths: list | None = None,
     signal_quality: dict | None = None,
+    baseline_mode: str = "rolling",             # v0.12.3+: "rolling" | "pre_event"
+    flow_reduction_threshold: float = 0.30,     # AASM: >=30% daling
+    pre_event_window_s: float = 120.0,
+    pre_event_stability_cv: float = 0.25,
+    pre_event_n_largest: int = 3,
     local_bl_cv_threshold: float = 0.30,        # v0.4.2: profile-aware
     local_bl_strict_reduction: float = 30.0,    # v0.4.2: profile-aware
     local_bl_min_reduction_pct: float = 20.0,   # v0.5.0: profile-aware
@@ -1182,10 +1225,45 @@ def _detect_hypopneas(
             flow_mean = float(np.mean(hypop_env[sub_idx[0] : sub_idx[-1] + 1]))
             flow_red  = safe_r((1 - flow_mean / pre_bl) * 100) if pre_bl > 0 else None
 
+            # v0.12.3+: AASM-conforme pre-event baseline, alleen wanneer het
+            # profiel daarom vraagt. Beide kanten van de verhouding komen uit
+            # de ademteug-segmentatie, zodat ze dezelfde grootheid meten.
+            # Levert de baseline None (geen bruikbare ademhaling vóór het
+            # event), dan valt dit event terug op de rolling-validatie
+            # hieronder — bewust, niet stilzwijgend.
+            pe_decided = False
+            if baseline_mode == "pre_event":
+                bl_pe = compute_pre_event_baseline(
+                    onset_s, breaths or [], sf_hy,
+                    window_s=pre_event_window_s,
+                    stability_cv=pre_event_stability_cv,
+                    n_largest=pre_event_n_largest,
+                    hypno=hypno,
+                )
+                cand_amp = _breath_amp_between(breaths, onset_s, onset_s + sub_dur)
+                if bl_pe is not None and cand_amp is not None and bl_pe > 0:
+                    pe_red = (1.0 - cand_amp / bl_pe) * 100.0
+                    pe_decided = True
+                    if pe_red < flow_reduction_threshold * 100.0:
+                        rejected.append({
+                            "type":       "hypopnea",
+                            "onset_s":    safe_r(onset_s),
+                            "duration_s": safe_r(sub_dur),
+                            "stage":      stage,
+                            "desat":      None,
+                            "min_spo2":   None,
+                            "indices":    (sub_idx[0], sub_idx[-1] + 1),
+                            "epoch":      ep_idx,
+                            "reject_reason":
+                                f"pre_event_reduction_{safe_r(pe_red)}pct<"
+                                f"{safe_r(flow_reduction_threshold * 100.0)}pct",
+                        })
+                        continue
+
             # v0.8.22: Lokale basislijn-validatie — vergelijk met directe
             # pre-event ademhaling. Voorkomt false positives door opgeblazen
             # rollende basislijn (post-apnea recovery hyperpnea).
-            local_valid, local_red = _validate_local_reduction(
+            local_valid, local_red = (True, None) if pe_decided else _validate_local_reduction(
                 hypop_env, sub_idx[0], sub_idx[-1] + 1, sf_hy,
                 min_reduction_pct=local_bl_min_reduction_pct,
                 pre_win_s=local_bl_pre_win_s,
@@ -1302,6 +1380,28 @@ def _pre_event_baseline(
         val = float(fallback_bl[onset_idx])
         return max(val, 1e-6)
     return float(fallback_bl) if np.ndim(fallback_bl) == 0 else 1.0
+
+
+# Deprecatie-alias. Verwijderen pas wanneer YASAFlaskified (pneumo_analysis.py)
+# en externe callers over zijn op de 1A-naam.
+reinstate_rule1b_hypopneas = reinstate_rule1a_arousal_hypopneas
+
+
+def _breath_amp_between(breaths, t0: float, t1: float):
+    """Gemiddelde ademteug-amplitude in [t0, t1). None als er geen zijn.
+
+    Zelfde grootheid als compute_pre_event_baseline teruggeeft (peak-to-trough
+    per ademteug), zodat de verhouding tussen beide betekenis heeft. De
+    envelope uit hypop_env is een andere schaal en mag hier niet doorheen
+    gemengd worden.
+    """
+    if not breaths:
+        return None
+    a = [float(b["amplitude"]) for b in breaths
+         if b.get("onset_s") is not None and t0 <= b["onset_s"] < t1
+         and b.get("amplitude") is not None
+         and np.isfinite(b["amplitude"]) and b["amplitude"] > 0]
+    return float(np.mean(a)) if a else None
 
 
 def _validate_local_reduction(

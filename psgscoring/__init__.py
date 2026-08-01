@@ -38,7 +38,8 @@ from ._types import (
 
 from .respiratory import (
     detect_respiratory_events,
-    reinstate_rule1b_hypopneas,
+    reinstate_rule1a_arousal_hypopneas,
+    reinstate_rule1b_hypopneas,      # deprecated alias
 )
 from .signal import (
     linearize_nasal_pressure,
@@ -47,6 +48,7 @@ from .signal import (
     preprocess_effort,
     bandpass_flow,
     compute_dynamic_baseline,
+    compute_pre_event_baseline,
     compute_stage_baseline,
     compute_anchor_baseline,
     detect_position_changes,
@@ -90,13 +92,14 @@ from .utils import (
     safe_r,
 )
 
-__version__ = "0.12.2"
+__version__ = "0.13.0"
 __all__ = [
     # Master
     "run_pneumo_analysis",
     # Respiratory
     "detect_respiratory_events",
-    "reinstate_rule1b_hypopneas",
+    "reinstate_rule1a_arousal_hypopneas",
+    "reinstate_rule1b_hypopneas",    # deprecated alias
     # Signal
     "linearize_nasal_pressure",
     "compute_mmsd",
@@ -104,6 +107,7 @@ __all__ = [
     "preprocess_effort",
     "bandpass_flow",
     "compute_dynamic_baseline",
+    "compute_pre_event_baseline",
     "compute_stage_baseline",
     "compute_anchor_baseline",
     "detect_position_changes",

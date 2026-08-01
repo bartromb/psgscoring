@@ -150,6 +150,45 @@ class PostProcessingRules:
     unsure_as_hypopnea: bool = False
     """NSRR-specific: 'Unsure' tag = hypopnea with >50% reduction."""
 
+    hypopnea_detector: str = "envelope"
+    """v0.12.3+: welke hypopnee-detector draait.
+
+    "envelope"       — bestaande pijplijn (default, ongewijzigd gedrag)
+    "breath_graded"  — psgscoring.breath_scoring: ademteug als atoom,
+                       patiëntkalibratie in twee passages, gegradeerde
+                       AASM-predicaten en een kans per event.
+    """
+
+    hypopnea_strictness: float = 0.50
+    """Operatiepunt op de kans-as van de gegradeerde detector. Lager =
+    soepeler. Eén as in plaats van drie parametercombinaties."""
+
+    rule1a_arousal_enabled: bool = False
+    """v0.12.3+: laat de AASM Rule 1A arousal-tak daadwerkelijk kwalificeren.
+
+    De tak was door een doorgiftefout dood (issue #16). De doorgifte is nu
+    gerepareerd, maar hem AANZETTEN is een gedragswijziging: op PSG-IPA gaat
+    de bias van +1.77 naar +7.75/u zolang de koppeling niet gekalibreerd is.
+    Default False, zodat paper- en NSRR-reproductie ongemoeid blijven; fase 4
+    bepaalt de kalibratie en pas daarna kan dit aan.
+    """
+
+    rule1a_gap_max_breaths: int = 1
+    """Maximaal aantal ademteugen tussen eventeinde en arousal (gap-check)."""
+
+    baseline_mode: str = "rolling"
+    """v0.12.3+: welke baseline de hypopnee-drempelbeoordeling gebruikt.
+
+    "rolling"   — compute_dynamic_baseline(): gecentreerd venster van 5 min.
+                  Huidig gedrag; default voor ALLE profielen zolang de
+                  validatie geen omschakeling rechtvaardigt.
+    "pre_event" — compute_pre_event_baseline(): AASM-conform, alleen de
+                  ademhaling vóór het event, ademteug-gebaseerd.
+
+    De rolling baseline blijft in beide standen bestaan voor signaalkwaliteit
+    en de bestaande visualisaties; alleen de drempelbeoordeling verandert.
+    """
+
     local_baseline_cv_threshold: float = 0.30
     """v0.4.2: CV threshold below which local-baseline reduction is enforced strictly.
 
@@ -253,6 +292,46 @@ class PostProcessingRules:
     Default 0.65 was the bias-near-zero operating point on the q=7
     holdout (paper v34 §S5.6 sweep table)."""
 
+    arousal_limb_wired: bool = False
+    """v0.13.0: mag dit profiel REAGEREN op de gerepareerde arousal-lijst?
+
+    Issue #16: ``run_arousal_respiratory_analysis()`` levert zijn events
+    genest af, terwijl de scoringsstappen de platte sleutel lazen. Die was in
+    het auto-detectiepad nooit gevuld, dus elke arousal-afhankelijke stap
+    draaide op een lege lijst — Rule 1B-reinstatement, FRI-RERA, en de
+    LightGBM-features.
+
+    v0.13.0 repareert de plumbing zelf, zodat consumenten BUITEN de scoring
+    (de EDF+-export en de event-API van YASAFlaskified) eindelijk arousals
+    zien. Maar de scoringsstappen laten reageren verandert bestaande
+    klinische en dataset-uitkomsten ingrijpend — op mesa-sleep-2408 loopt de
+    AHI van 30,4 naar 46,3, en dat breekt de NSRR/paper-v31-reproductie.
+
+    Daarom is dit een profielkeuze met het HUIDIGE gedrag als default.
+    Alleen ``aasm_v3_breath`` staat aan; dat profiel is nieuw, dus daar valt
+    niets te breken. Voor de overige profielen blijft de uitkomst
+    byte-identiek aan v0.12.3 tot elk arousal-afhankelijk onderdeel
+    afzonderlijk opnieuw is gevalideerd — inclusief het hertrainen van de
+    booster, zie ``ml_arousal_features``."""
+
+    ml_arousal_features: bool = False
+    """v0.13.0: feed real arousal values to the LightGBM re-classifier?
+
+    **Default False, deliberately.** The booster's highest-gain features are
+    arousal-based (`n_arousals_per_h`, `n_arousals_within_30s`,
+    `has_arousal_within_5s`), but issue #16 meant the arousal list never
+    reached inference — they were *always zero* in production, while training
+    saw real values. That is a train/serve mismatch predating this release.
+
+    v0.13.0 repairs the plumbing, so real values now reach every consumer.
+    Passing them to this booster changes its predictions substantially
+    (mesa-sleep-2408: AHI 30.4 -> 46.3) on a model that has never seen a
+    non-zero value at inference. Until it is retrained, it gets what it
+    knows — which is also what keeps NSRR/paper-v31 reproduction exact.
+
+    Set True only together with a booster retrained on the repaired
+    features."""
+
     flow_fallback_strategy: str = "none"
     """v0.5.1: Behaviour when the primary nasal-pressure flow channel
     appears low-quality on a recording.
@@ -351,6 +430,68 @@ _aasm_v3_rec = Profile(
         square_root_linearisation=True,
     ),
 )
+
+# ---- AASM v3 Rule 1A, ademteug-gebaseerd en gegradeerd (experimenteel) ----
+# Zelfde regel, andere architectuur: de ademteug is het atoom, de patiënt
+# kalibreert zichzelf in twee passages, en elk AASM-criterium is gegradeerd
+# in plaats van binair. Elk event draagt een kans "welk deel van de scorers
+# zou dit markeren". Zie psgscoring/breath_scoring.py.
+_aasm_v3_breath = Profile(
+    name="aasm_v3_breath",
+    display_name="AASM v3 — Rule 1A, breath-graded",
+    family="clinical",
+    aasm_version="v3 (2023)",
+    aasm_rule="1A (RECOMMENDED), graded",
+    description=(
+        "Same AASM v3 Rule 1A conjunction — >=30% reduction AND >=10 s AND "
+        "(>=3% desaturation OR arousal) — evaluated per breath instead of "
+        "per sample, with a per-patient template (including that patient's "
+        "own SpO2 delay) and graded rather than binary criteria. Each event "
+        "carries p_scored, readable as the fraction of scorers who would "
+        "mark it. Strictness is a single axis on that probability."
+    ),
+    citation="Troester MM, Quan SF, Berry RB, et al. AASM Manual v3. 2023.",
+    hypopnea=HypopneaRules(
+        flow_reduction_threshold=0.30,
+        sensor="nasal_pressure",
+        min_duration_s=10.0,
+        max_duration_s=60.0,
+        desat_threshold=0.03,
+        desat_required=False,
+        arousal_required=False,
+        desat_or_arousal=True,
+        square_root_linearisation=True,
+    ),
+    post_processing=PostProcessingRules(
+        hypopnea_detector="breath_graded",
+        # Als enige profiel reageert dit op de gerepareerde arousal-lijst
+        # (issue #16). Dat kan hier veilig, want het profiel is nieuw: er is
+        # geen bestaande uitkomst om te breken. Zie arousal_limb_wired.
+        arousal_limb_wired=True,
+        # Operatiepunt, met de herkomst erbij omdat die het cijfer weegt:
+        #
+        #   0,50 kwam uit een VOORAF vastgelegde regel op PSG-IPA — de
+        #   strictness waarbij de AHI-bias nul wordt, niet die waar de F1
+        #   maximaal is. F1 en percentiel waren daar dus een niet-gefitte
+        #   uitkomst.
+        #
+        #   Er is korte tijd 0,55 geprobeerd, om een Normal->Mild-drift te
+        #   dempen die zichtbaar was tegen MESA's oahi45. Een tweede,
+        #   disjuncte MESA-steekproef (n = 50, overlap 0) liet zien dat die
+        #   drift een artefact was van de REFERENTIE: oahi45 crediteert geen
+        #   hypopnee die alleen door een arousal kwalificeert, terwijl Rule 1A
+        #   dat wel doet. Tegen nsrr_ahi_hp3r_aasm15 — letterlijk de regel die
+        #   dit profiel implementeert — is het probleem juist forse
+        #   ONDERdetectie, en dempt 0,50 die het sterkst: severity 24/50 tegen
+        #   20/50 bij 0,55 en 15/50 bij aasm_v3_rec, en gepaard 36/50 beter
+        #   (p = 0,0016) tegen 31/50 (p = 0,026).
+        #
+        #   0,50 wint daarmee op F1, recall, bias, MAE en severity, op alle
+        #   drie de referenties. Zie CHANGELOG.
+        hypopnea_strictness=0.50,
+    ),
+)
+
 
 # ---- AASM v2 RECOMMENDED (2012-2020) ----
 # Functionally identical to v3 Rule 1A. Kept for explicit labeling
@@ -659,6 +800,7 @@ _aasm_v3_sensitive = Profile(
 PROFILES: Dict[str, Profile] = {
     # Clinical family
     "aasm_v3_rec":       _aasm_v3_rec,
+    "aasm_v3_breath":    _aasm_v3_breath,
     "aasm_v3_strict":    _aasm_v3_strict,
     "aasm_v3_sensitive": _aasm_v3_sensitive,
     "aasm_v2_rec":       _aasm_v2_rec,

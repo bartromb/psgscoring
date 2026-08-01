@@ -1,3 +1,436 @@
+# v0.13.0 — 2026-08-01 — breath-graded hypopnea detector (opt-in)
+
+## Read this first if you reproduce published numbers
+
+**`mesa_shhs` output changes in this release, and it is the channel-detection
+fix that does it — not the new detector.**
+
+| mesa-sleep-2408 | v0.12.2 | v0.13.0 |
+|---|---|---|
+| AHI | 30.4 | **22.0** |
+| events | 291 | 234 |
+
+Cause: `Pres`, the NSRR/MESA nasal-pressure channel, was claimed by the
+`pulse` role, leaving `flow_pressure` empty so hypopneas were scored from the
+thermistor. v0.13.0 assigns the sensors correctly (see v0.12.3 below). This
+was verified by attribution: running v0.13.0 code with the *old* channel
+patterns reproduces v0.12.2 exactly — AHI 30.4, RDI 30.4, 291 events.
+
+Everything else in this release is byte-identical for existing profiles.
+**To reproduce previously published MESA/NSRR numbers, pin
+`psgscoring==0.12.2`.**
+
+## Added — `aasm_v3_breath`, a breath-graded hypopnea detector
+
+Registered as a **selectable, non-default** profile. `run_pneumo_analysis()`
+still defaults to `aasm_v3_rec`, the legacy aliases still resolve to the
+historical profiles, and YASAFlaskified — which passes
+`scoring_profile="standard"` explicitly — is unaffected until its pin is
+changed deliberately. It appears in that application's profile menu
+automatically, because the menu enumerates this registry.
+
+Why it is not the default despite winning on every aggregate measure:
+PSG-IPA and MESA disagree on the *absolute* AHI level by ~16 points, and
+until that is explained the existing clinical output stays in place. See
+`docs/interim_conclusie_klinisch_gebruik.md`.
+
+## Fixed — the AASM Rule 1A arousal limb reaches its consumers again
+
+Issue #16: `run_arousal_respiratory_analysis()` returns its events nested,
+while every scoring step read a flat key the auto-detection path never
+populated. Repairing it restores arousals to YASAFlaskified's EDF+ export and
+event API.
+
+**Which profiles *act* on the repaired list is a profile choice with existing
+behaviour as the default** (`PostProcessingRules.arousal_limb_wired`, default
+False; only `aasm_v3_breath` opts in). Letting the existing profiles react
+would change Rule 1B reinstatement, FRI-RERA and the LightGBM features at
+once, none of which has been re-validated. Caller-supplied arousals
+(`arousal_events=`) were never affected by issue #16 and are always honoured.
+
+`PostProcessingRules.ml_arousal_features` (default False) covers the related
+train/serve mismatch: the booster's top features are arousal-based but were
+always zero at inference, so it keeps receiving zeros until retrained.
+
+### Held-out confirmation on MESA/NSRR
+
+50 records, seed 20260801, drawn from the 2055 with both an EDF and an NSRR
+annotation. **Nothing was re-tuned**: `hypopnea_strictness` stayed at the
+0.50 chosen on PSG-IPA. Both profiles ran on the same record with the NSRR
+hypnogram, so only respiratory scoring differs. `scripts/validate_mesa.py`.
+
+The reference is reconstructed, not counted — see that script's docstring.
+NSRR's `Hypopnea`/`Unsure` labels carry no desaturation requirement; it is
+applied afterwards by linking to the separate `SpO2 desaturation` events.
+Reconstruction validated against published `oahi35`/`oahi45`: bias +0.11 /
++0.19 AHI, MAE 0.84 / 0.66, **r = 0.998** over 60 records.
+
+| ref | profile | F1 med | F1 mean | prec | recall | bias | r | LoA | severity |
+|---|---|---|---|---|---|---|---|---|---|
+| oahi4 | `aasm_v3_rec` | 0.379 | 0.361 | 0.332 | 0.484 | −2.24 | 0.731 | −17.3…+12.8 | 29/50 |
+| oahi4 | `aasm_v3_breath` | **0.442** | **0.411** | **0.365** | **0.571** | **−0.36** | **0.754** | **−14.8…+14.1** | 25/50 |
+| oahi3 | `aasm_v3_rec` | 0.414 | 0.399 | 0.471 | 0.404 | −7.95 | 0.751 | −27.9…+12.0 | 23/50 |
+| oahi3 | `aasm_v3_breath` | **0.464** | **0.432** | **0.507** | **0.494** | **−6.07** | **0.784** | **−24.8…+12.7** | 22/50 |
+
+Paired per record: **31 better / 17 worse** on oahi4 (Wilcoxon
+**p = 0.0069**) and **31 better / 18 worse** on oahi3 (**p = 0.039**). The
+PSG-IPA finding replicates on data that had no hand in choosing the
+operating point.
+
+**Superseded in part — read the second round below before using this
+table.** The two references above (`oahi35`/`oahi45`) credit no hypopnea that
+qualifies on arousal alone, while Rule 1A does. That made every arousal-only
+event a false positive and depressed both precision and recall. A third
+reference reconstructed from `nsrr_ahi_hp3r_aasm15` — literally the rule
+these profiles implement — changes the conclusion about severity.
+
+**The apparent trade-off.** Event-level agreement improves and so do
+correlation and limits of agreement, but severity concordance against
+MESA's 4% definition falls from 29/50 to 25/50, and the loss is almost
+entirely one cell:
+
+| error | `aasm_v3_rec` | `aasm_v3_breath` |
+|---|---|---|
+| **Normal → Mild** | 7 | **10** |
+| Moderate → Mild | 3 | 5 |
+| Severe → Moderate | 2 | 5 |
+| Mild → Moderate | 5 | 3 |
+
+Higher recall (0.484 → 0.571) tips three more normal recordings over
+AHI 5 — clinically the least comfortable direction, a false-positive OSA
+call. And the gain is distributed as the mirror image of that risk:
+
+| reference severity | median ΔF1 (oahi4) | better |
+|---|---|---|
+| Normal (n=16) | −0.002 | 6/16 |
+| Mild (n=19) | +0.033 | 12/19 |
+| Moderate (n=10) | **+0.096** | **9/10** |
+| Severe (n=5) | **+0.153** | 4/5 |
+
+The detector wins where there is disease and is neutral-to-harmful in
+normals. MESA is a community cohort with many normal recordings; a sleep-lab
+population is enriched for disease, which shifts the balance — but that is an
+argument to weigh, not a reason to discount the finding.
+
+### Second MESA round — the severity trade-off was a reference artefact
+
+A second sample of 50 records, seed 20260802, drawn from the 2005 that the
+first round did not use (**overlap 0**, asserted by the harness). Three
+configurations run on the *same* records so every comparison is paired:
+`aasm_v3_rec`, breath at 0.50, breath at 0.55.
+
+The reason for the round was a mistake worth recording. On the strength of
+the `Normal → Mild` drift above, strictness was raised to 0.55 — a change
+made *after* seeing the round-1 result, and therefore no longer held-out.
+This round was meant to confirm it on unseen records. It refuted it.
+
+Against **`aasm15`** (reconstructed from `nsrr_ahi_hp3r_aasm15`: all apneas
+plus hypopneas with ≥30% reduction and (≥3% desaturation **or arousal**) —
+AASM v3 Rule 1A, r = 0.999 against the published column):
+
+| config | F1 med | F1 mean | prec | recall | bias | MAE | r | severity |
+|---|---|---|---|---|---|---|---|---|
+| `aasm_v3_rec` | 0.417 | 0.390 | 0.547 | 0.356 | −16.52 | 16.79 | 0.686 | 15/50 |
+| **breath @ 0.50** | **0.471** | **0.450** | 0.567 | **0.407** | **−15.78** | **15.96** | 0.838 | **24/50** |
+| breath @ 0.55 | 0.441 | 0.431 | **0.574** | 0.378 | −16.93 | 17.03 | **0.841** | 20/50 |
+
+Paired against the previous default: **0.50 improves 36/50 records
+(p = 0.0016)**; 0.55 improves 31/50 (p = 0.026).
+
+**0.50 beats 0.55 on F1, recall, bias, MAE and severity — on all three
+references.** Severity concordance, the very thing 0.55 was supposed to
+protect: 24/50 vs 20/50 (`aasm15`), 28/50 vs 25/50 (`oahi4`), 24/50 vs 21/50
+(`oahi3`). Strictness has therefore been returned to **0.50**.
+
+Why the round-1 reading was wrong is visible in the direction of the errors:
+
+```
+aasm_v3_rec   Severe→Moderate:10, Mild→Normal:9, Severe→Mild:6, Moderate→Normal:4
+breath @0.50  Moderate→Mild:7, Severe→Moderate:7, Severe→Mild:6, Mild→Normal:3
+```
+
+Against the rule these profiles actually implement, the problem was never
+over-calling — it is substantial **under**-detection (bias −16.5;
+`aasm_v3_rec` gets only 15/50 severities right). The breath detector reduces
+it: `Mild → Normal` falls from 9 to 3, and severity concordance rises from
+15/50 to 24/50. The `Normal → Mild` drift that motivated 0.55 was an artefact
+of scoring a Rule 1A profile against a 4% reference.
+
+The general lesson, which cost a wrong parameter change: **when a validation
+reference encodes a different rule than the thing being validated, its
+error-direction statistics are not interpretable — only the paired
+difference is.** The paired result held throughout; the severity reading did
+not.
+
+**What is still not established.** Both rounds are MESA. Cross-cohort
+transfer is untested — SHHS was considered and set aside on data-quality
+grounds — so nothing here shows the result holds on different equipment,
+a different scoring era, or a different population. And the absolute level
+remains poor: a bias of −16.5 AHI against Rule 1A means both profiles miss a
+large share of qualifying events. This work improves the gap; it does not
+close it.
+
+## Known issue — blocks enabling the arousal-limb work by default
+
+**The arousal plumbing repair changes `mesa_shhs`, which is a hard
+requirement violation, and the cause is the ML re-classifier.**
+
+`mesa_shhs` is the only profile that runs the LightGBM candidate
+re-classifier, and `apply_ml_reclassification()` takes the arousal list.
+Its highest-gain features are arousal-based (`n_arousals_per_h`,
+`n_arousals_within_30s`, `has_arousal_within_5s`). Because of issue #16
+those features were **always zero at inference**. Feeding them real values
+makes the model reclassify large numbers of rejected candidates:
+
+| mesa-sleep-2408 | main | this branch |
+|---|---|---|
+| AHI | 30.4 | **54.9** |
+| RDI | 30.4 | 84.4 |
+| events | 291 | 465 |
+| RERAs | 0 | 204 |
+| arousals visible | 0 | 372 |
+
+This happens with the arousal limb **disabled** — it is the classifier, not
+the limb. It also means the model has a train/serve mismatch that predates
+this work: whatever it learned about arousal features, it has never seen a
+non-zero one in production. Re-validating or retraining the classifier is a
+prerequisite for shipping the plumbing fix, and that is out of scope here.
+
+## Fixed
+
+- **The AASM Rule 1A arousal limb was dead, and so was FRI-based RERA
+  detection.** `run_arousal_respiratory_analysis()` returns its events nested
+  at `["arousals"]["events"]`, while step 8 read the flat
+  `output["arousal"]["events"]` — a key the auto-detection path never
+  populated (issue #16). On PSG-IPA SN3: 232 arousals detected, 0 seen.
+  `_normalise_arousal_block()` now guarantees the flat key from either
+  producer.
+
+  This also repairs two consumers outside scoring: YASAFlaskified's EDF+
+  export and event API read the same flat key, so exported EDF+ files
+  contained no arousals and the score editor showed none.
+
+  Repairing the plumbing alone already changes **RDI**, because
+  `_compute_rera_rdi()` uses the same list — FRI-based RERAs could never
+  couple. The golden case shows it: `rdi 0.0 -> 37.9`.
+
+- **`rule1a_arousal_stats`** in the respiratory output: arousals available,
+  candidates tested, coupled, qualified, and an explicit `skipped_reason`.
+  A limb sitting silently at zero is what let this survive; zero now always
+  comes with a reason.
+
+## Added
+
+- **`breath_scoring.py` — a hypopnea detector with the breath as the atom,
+  behind the new profile `aasm_v3_breath`** (family `exploratory`, used by
+  nothing automatically).
+
+  The existing detector is a signal-processing model: envelope → sliding
+  threshold → candidate → validate → classify, with a dozen corrections on
+  top. Nearly every correction repairs the same gap with what a scorer
+  actually does. This replaces that mismatch rather than patching it
+  further, along five shifts:
+
+  1. **The breath is the atom, not the sample.** The AASM speaks of *peak
+     signal excursions*. Event boundaries land on breath transitions, and a
+     recovery breath breaks the run by itself — so smoothing is gone, and
+     with it the merge/split problem that depresses event-F1.
+  2. **Two-pass patient calibration.** Pass 1 detects only the
+     incontestable events and derives a template — typical depth, typical
+     duration, and the patient's **own SpO₂ lag** via cross-correlation
+     instead of one fixed 30–45 s window for everybody. Pass 2 judges the
+     marginal candidates against that template.
+  3. **Graded AASM predicates.** The rule structure stays literally the
+     Rule 1A conjunction; what changes is that each threshold gets a
+     tolerance instead of being infinitely sharp. A 29% reduction with a 6%
+     desaturation should score; 31% with a doubtful 3.0% should not.
+  4. **Each event carries `p_scored`** — "what fraction of scorers would
+     mark this" — plus a `criteria` dict with each predicate's
+     contribution. The audit trail gets richer, not more opaque.
+  5. **Strictness is one axis** instead of three parameter combinations.
+
+  Scope is hypopneas only. Apneas keep the existing detector (F1 0.83–0.93
+  on PSG-IPA, with effort-based subtyping); there is no deficit there for
+  this to fix.
+
+  **Measured on PSG-IPA (5 recordings, 12 scorers each, legacy matcher).**
+
+  The operating point was chosen with a **rule declared before the sweep**:
+  take the strictness where the AHI bias crosses zero, *not* the strictness
+  that maximises F1 — the latter would be fitting on the outcome measure.
+  That rule lands on 0.50. F1 and percentile are therefore reported as
+  non-fitted outcomes.
+
+  | config | F1 median | F1 mean | pct | AHI bias | MAE | severity | hyp |
+  |---|---|---|---|---|---|---|---|
+  | `aasm_v3_rec` (previous default) | 0.343 | 0.460 | p6 | +1.77 | 1.84 | 4/5 | 208 |
+  | breath, strictness 0.35 | 0.447 | 0.522 | p17 | +2.73 | 2.73 | 3/5 | 242 |
+  | breath, strictness 0.45 | 0.430 | 0.515 | p17 | +1.13 | 1.13 | 4/5 | 192 |
+  | **breath, strictness 0.50** | **0.434** | **0.511** | **p17** | **+0.17** | **0.29** | 4/5 | 163 |
+  | breath, strictness 0.55 | 0.426 | 0.510 | p14 | −0.89 | 0.89 | **5/5** | 131 |
+  | breath, strictness 0.62 | 0.438 | — | p9 | −1.57 | 1.57 | 5/5 | 110 |
+  | breath, strictness 0.70 | 0.396 | 0.495 | p14 | −2.61 | 2.61 | 4/5 | 79 |
+
+  Per recording at strictness 0.50, with the human-human distribution for
+  scale (66 pairwise F1s per recording):
+
+  | rec | human median | F1 previous | F1 breath | Δ | pct |
+  |---|---|---|---|---|---|
+  | SN1 | 0.826 | 0.470 | 0.662 | **+0.192** | p0 → p0 |
+  | SN2 | 0.549 | 0.317 | 0.380 | +0.063 | p9 → **p23** |
+  | SN3 | 0.948 | 0.886 | 0.897 | +0.011 | p2 → p5 |
+  | SN4 | 0.553 | 0.286 | 0.184 | **−0.102** | p17 → p17 |
+  | SN5 | 0.556 | 0.343 | 0.434 | +0.091 | p6 → **p18** |
+
+  Better on every aggregate: median F1, mean F1, percentile, bias, MAE;
+  severity concordance equal at 4/5. MAE drops from 1.84 to **0.29** AHI
+  points.
+
+  The detector diagnostics confirm the mechanism rather than just the
+  outcome. The patient-specific SpO₂ lag comes out at 21/12/15/19/17 s —
+  plausible and genuinely per-patient, which is the whole point of shift 2 —
+  and the template duration is 15–21 s, i.e. actual hypopnea durations.
+
+  **Known limitations.**
+
+  - **SN4 regresses (0.286 → 0.184) and no strictness value fixes it.**
+    Of its 24 events with ≥6/12 scorer consensus, **12 never become a
+    candidate at all**: at those locations there is no breath-level flow
+    reduction of ≥15% sustained over 10 s. Compare SN1, where 33 of 34
+    consensus events do produce a candidate. This is a sensitivity ceiling
+    in candidate formation, not a threshold that can be turned down. Its
+    percentile is unchanged at p17 either way, because SN4's own scorers
+    disagree strongly there (pairwise F1 p10 = 0.087, p25 = 0.462) — but
+    that is context, not an excuse.
+  - **n = 5, and the operating-point rule was applied to the same five
+    recordings the result is reported on.** See the MESA held-out result
+    below, which was run afterwards with nothing re-tuned.
+  - On the recordings where scorers *do* agree, the algorithm remains at or
+    below the bottom of their distribution (SN1 p0 against a human median
+    of 0.826; SN3 p5 against 0.948).
+
+- **`compute_pre_event_baseline()`** in `signal.py` — the AASM-conforming
+  baseline: only breaths in the window *before* the event, breath-amplitude
+  based. Stable breathing (CV below threshold) gives the mean amplitude;
+  otherwise the mean of the N largest, which is the operationalisation the
+  AASM gives when stable breathing cannot be determined. Returns `None`
+  rather than a fabricated number when the window holds no usable breathing
+  (start of recording, after a gap, or entirely in wake) so the caller can
+  fall back deliberately.
+
+- **`rule1a_arousal_enabled` in `PostProcessingRules`** (default **False**)
+  and `rule1a_gap_max_breaths` (default 1, the previous hard-coded value).
+
+  The plumbing is repaired, but *enabling* the limb is a behaviour change,
+  so it stays off. Measured on PSG-IPA with the limb on:
+
+  | rec | AHI off | AHI on | hypopneas | tested | coupled | qualified |
+  |---|---|---|---|---|---|---|
+  | SN1 | 8.1 | 9.3 | 32 -> 39 | 74 | 11 | 7 |
+  | SN3 | 53.8 | 56.0 | 45 -> 58 | 70 | 20 | 13 |
+  | SN5 | 11.4 | 14.8 | 63 -> 87 | 170 | 38 | 24 |
+
+  Coupling is far from universal — 11/74, 20/70, 38/170 — which matches the
+  phase-1 finding that only ~17% of rejected candidates have an arousal
+  inside the 15 s window. Window and gap are now profile-tunable so phase 4
+  can determine them empirically instead of by assumption.
+
+- **`baseline_mode` in `PostProcessingRules`** — `"rolling"` (current) or
+  `"pre_event"`. **Every profile keeps `"rolling"`**, including `mesa_shhs`;
+  nothing switches until phase 4 justifies it. The rolling baseline stays in
+  place for signal quality and the existing visualisations either way.
+
+  Wired into the hypopnea threshold assessment: with `"pre_event"` both
+  sides of the ratio come from the breath segmentation (candidate mean
+  amplitude vs pre-event baseline), so they measure the same quantity. The
+  envelope used by the rolling path is a different scale and is deliberately
+  not mixed in. When the baseline is unavailable the event falls back to the
+  rolling validation rather than being silently dropped.
+
+  `PSGSCORING_BASELINE_MODE` overrides the profile, so phase 4 can measure
+  both settings without mutating profiles (same pattern as
+  `PSGSCORING_AROUSAL_DERIVATION`).
+
+  First measurement on PSG-IPA SN1 (reference scorer median AHI 5.96):
+
+  | mode | AHI | events | hypopneas | rejected | local_reduction rejects |
+  |---|---|---|---|---|---|
+  | rolling | 8.1 | 47 | 32 | 74 | **56** |
+  | pre_event | 11.6 | 67 | 52 | 54 | **1** |
+
+  The predicted by-catch is confirmed and it is large: Fix 6
+  (`local_reduction`) drops from 56 rejections to 1, i.e. it becomes almost
+  entirely redundant once the baseline is measured before the event instead
+  of around it. Fix 1 and Fix 6 are not removed here — phase 4 measures what
+  they still contribute first.
+
+  AHI rises on this recording, away from the scorer median. That is not by
+  itself a verdict: the decision measure for this work is event-level F1
+  against human scorers and the percentile within the inter-scorer
+  distribution, not AHI bias, precisely because a better bias can come from
+  errors that cancel. Phase 4 settles it.
+
+  Why it matters: `compute_dynamic_baseline()` uses a *centred* 5-minute
+  window, so it includes the recovery hyperpnoea that follows an event. That
+  inflates the baseline and shrinks the measured reduction. Fix 1 and Fix 6
+  are patches on precisely that design.
+
+
+
+**Rename with aliases — no behaviour change** (golden regression green;
+PSG-IPA output byte-identical).
+
+## Changed
+
+- **The arousal qualifier is AASM Rule 1A, not 1B.** The AASM places the
+  arousal criterion in Rule 1A (">=30% flow reduction AND (>=3% desaturation
+  OR arousal)"); Rule 1B is the >=4%-desaturation variant that explicitly
+  *excludes* arousals. The code had it the other way round.
+
+  | was | is |
+  |---|---|
+  | `reinstate_rule1b_hypopneas()` | `reinstate_rule1a_arousal_hypopneas()` |
+  | event `classify_detail.rule = "1B_arousal"` | `"1A_arousal"` (+ `rule_legacy`) |
+  | event flag `rule1b` | `rule1a_arousal` |
+  | `respiratory.rule1b_reinstated` | `respiratory.rule1a_arousal_reinstated` |
+
+## Deprecated (kept working)
+
+Every old name is retained as an alias and is still emitted in the output.
+This is not cosmetic caution — three consumers depend on them:
+YASAFlaskified imports `reinstate_rule1b_hypopneas` in `pneumo_analysis.py`
+and reads `rule1b_reinstated` in both `generate_pdf_report.py` and
+`generate_psg_report.py`, and `psgscoring.ml_classifier` uses the candidate
+flag `rule1b` as the trained LightGBM feature `is_rule1b` — dropping it
+would silently deprive the model of an input. `tests/test_rule1a_arousal_naming.py`
+pins all of it.
+
+Note this rename does not by itself make the arousal limb fire; that is a
+separate plumbing defect (issue #16).
+# v0.12.3 — 2026-07-29 — NSRR nasal pressure detected as flow_pressure, not pulse
+
+**Channel-detection fix — no scoring-logic change** (golden regression byte-identical;
+PSG-IPA output byte-identical, md5 5ddbcf42360d965cd20ce1b8796221da before and after).
+
+## Fixed
+
+- **`Pres` (the NSRR/MESA/SHHS nasal-pressure channel) was claimed by the `pulse` role.**
+  Channel matching is case-insensitive substring, first-match-wins per role, so pattern
+  *order* is semantics. The `pulse` list contained `"pr"` — a substring of `"pres"` — and
+  no `flow_pressure` pattern matched a bare `"Pres"`. Two silent consequences on MESA:
+  `flow_pressure` stayed empty, so `_resolve_flow_channels()` ran **both** apnea and
+  hypopnea detection on the thermistor (amplitude ~1500× smaller than the nasal pressure);
+  and the `pulse` role took the nasal pressure instead of `"HR"`.
+  `"pres"` is now in `flow_pressure` (deliberately *after* the specific patterns, so an
+  explicit `"Nasal Pressure"` still wins) and `"pr"` moved to the end of `pulse`.
+  MESA now resolves `flow_pressure=Pres`, `flow_thermistor=Therm`, `pulse=HR`.
+
+Recordings that already resolved their channels correctly are unaffected — PSG-IPA has
+neither a `Pres` nor an `HR` channel, and its full 5-recording output is byte-identical.
+On MESA the hypopnea F1 barely moves (median 0.304 → 0.321) even though the hypopnea
+sensor switches off a 1500× smaller channel: detection normalises, so amplitude scarcely
+matters. The value is correctness of sensor assignment, not a metric gain.
+
 # v0.12.2 — 2026-07-27 — docs: absolute DISCLAIMER link (fix dead link on PyPI)
 
 **Docs-only — no code change** (golden regression byte-identical).

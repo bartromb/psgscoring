@@ -51,6 +51,13 @@ CLINICAL_PROFILES = {
     "sensitive": "aasm_v3_sensitive",
 }
 
+# Matcher-presets. LEGACY is de default en levert de gepubliceerde paper
+# v31-cijfers; IMPROVED staat achter --matcher improved. Nooit een baseline
+# uit de ene preset vergelijken met een algoritme-F1 uit de andere.
+LEGACY_MATCHER = {"iou_thresh": 0.20, "type_aware": False, "optimal": False}
+IMPROVED_MATCHER = {"iou_thresh": 0.20, "type_aware": True, "optimal": True}
+MATCHER_PRESETS = {"legacy": LEGACY_MATCHER, "improved": IMPROVED_MATCHER}
+
 STAGE_KEYS = [
     ("stage n3", "N3"), ("stage 3", "N3"), ("stage 4", "N3"),
     ("stage n2", "N2"), ("stage 2", "N2"),
@@ -118,7 +125,19 @@ def grade_from_severities(strict_sev, std_sev, sens_sev):
     return "C"
 
 
-def parse_scorer_file(scorer_edf, signal_duration_s):
+def parse_scorer_file(scorer_edf, signal_duration_s, strict_sleep=False):
+    """Referentie-AHI, TST en hypnogram van één scoorder.
+
+    strict_sleep=False (default) telt ALLE respiratoire annotaties in de
+    teller, terwijl de noemer (TST) wel op slaap gefilterd is. Dat is de
+    conventie waarmee paper v31 gerekend is; de vlag laat hem staan.
+
+    strict_sleep=True sluit events in een wake-epoch uit de teller uit, wat
+    strikter AASM is (respiratoire events worden alleen tijdens slaap
+    gescoord). Op PSG-IPA is het effect klein — 0,5% van de events ligt in
+    W — maar niet nul: SN3 53,98 -> 53,73 en SN5 9,98 -> 9,48. Het is dus
+    een wijziging aan GEPUBLICEERDE waarden, geen gratis correctie.
+    """
     try:
         ann = mne.read_annotations(str(scorer_edf))
     except Exception:
@@ -134,11 +153,10 @@ def parse_scorer_file(scorer_edf, signal_duration_s):
     tst_h = n_sleep_epochs * 30.0 / 3600.0
     if tst_h < 0.1:
         return None, None, None
-    n_events = sum(
-        1 for onset, desc in zip(ann.onset, ann.description)
-        if 0 <= onset < signal_duration_s and is_resp_event(str(desc))
-    )
-    ahi = n_events / tst_h
+
+    # Hypnogram vóór het tellen: strict_sleep heeft het stadium per event nodig.
+    # De volgorde is puur administratief — met strict_sleep=False verandert er
+    # niets aan de uitkomst.
     n_epochs = int(np.ceil(signal_duration_s / 30.0))
     hypno = ["W"] * n_epochs
     for onset, dur, desc in zip(ann.onset, ann.duration, ann.description):
@@ -152,6 +170,17 @@ def parse_scorer_file(scorer_edf, signal_duration_s):
         for i in range(n_eps):
             if 0 <= ep_start + i < n_epochs:
                 hypno[ep_start + i] = st
+
+    n_events = 0
+    for onset, desc in zip(ann.onset, ann.description):
+        if not (0 <= onset < signal_duration_s) or not is_resp_event(str(desc)):
+            continue
+        if strict_sleep:
+            ep = int(float(onset) // 30)
+            if ep >= n_epochs or hypno[ep] not in ("N1", "N2", "N3", "R"):
+                continue
+        n_events += 1
+    ahi = n_events / tst_h
     return ahi, tst_h, hypno
 
 
@@ -164,6 +193,245 @@ def iou(a0, a1, b0, b1):
     inter = max(0.0, min(a1, b1) - max(a0, b0))
     union = max(a1, b1) - min(a0, b0)
     return inter / union if union > 0 else 0.0
+
+
+# Scorer- en algoritmevocabulaire naar één noemer. De scorers annoteren
+# "obstructive apnea" / "central apnea" / "mixed apnea" / "hypopnea"; het
+# algoritme levert dezelfde woorden. Voor type-bewuste matching is de
+# klinisch relevante scheiding apneu-vs-hypopnee, niet het apneusubtype:
+# subtypering (obstructief/centraal/gemengd) is een aparte vraag met een
+# eigen foutbron (effort-signaal), en scorers zijn het daar onderling het
+# minst over eens.
+_TYPE_FAMILY = {
+    "obstructive":   "apnea",
+    "central":       "apnea",
+    "mixed":         "apnea",
+    "apnea_unspec":  "apnea",
+    "apnea":         "apnea",
+    "hypopnea":      "hypopnea",
+}
+
+
+def type_family(t):
+    """Grofste zinvolle klasse: 'apnea' of 'hypopnea' (None als onbekend).
+
+    Let op de samengestelde labels: psgscoring geeft op SN3 ook
+    'hypopnea_central' en 'hypopnea_mixed'. Dat zijn hypopneeën met een
+    morfologie-suffix, geen apneus — zonder de prefixregel vallen ze op None
+    en matcht type-bewuste matching ze met niets, wat de F1 stil zou drukken.
+    """
+    if t is None:
+        return None
+    s = str(t).strip().lower()
+    if s.startswith(("hypopnea", "hypopnoea")):
+        return "hypopnea"
+    return _TYPE_FAMILY.get(s)
+
+
+def _iou_matrix(a_events, b_events):
+    """IoU van elk a-event tegen elk b-event, vectorieel (numpy, geen lussen)."""
+    a = np.asarray([(e[0], e[1]) for e in a_events], dtype=float).reshape(-1, 2)
+    b = np.asarray([(e[0], e[1]) for e in b_events], dtype=float).reshape(-1, 2)
+    a0, a1 = a[:, 0][:, None], a[:, 1][:, None]
+    b0, b1 = b[:, 0][None, :], b[:, 1][None, :]
+    inter = np.maximum(0.0, np.minimum(a1, b1) - np.maximum(a0, b0))
+    union = np.maximum(a1, b1) - np.minimum(a0, b0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        m = np.where(union > 0, inter / union, 0.0)
+    return m
+
+
+def _count_merges_splits(a_events, b_events, type_aware=False):
+    """Segmentatiediagnostiek, buiten de één-op-één-toewijzing om.
+
+    merge: één a-event overlapt (IoU > 0) met >= 2 b-events
+    split: >= 2 a-events overlappen met één b-event
+
+    Dit is diagnostiek, geen scoring: het maakt zichtbaar hoeveel van de
+    FP/FN uit segmentatieverschillen komt in plaats van uit echt gemiste
+    events. Relevant omdat psgscoring een maximale eventduur afdwingt
+    (hypopnee <=60 s, apneu <=90 s) en menselijke scorers dat niet doen.
+    """
+    if not a_events or not b_events:
+        return 0, 0
+    overlap = _iou_matrix(a_events, b_events) > 0.0
+    if type_aware:
+        overlap = overlap & _type_compatible(a_events, b_events)
+    n_merges = int(np.sum(overlap.sum(axis=1) >= 2))
+    n_splits = int(np.sum(overlap.sum(axis=0) >= 2))
+    return n_merges, n_splits
+
+
+def _type_compatible(a_events, b_events):
+    """Booleaanse matrix: mogen a_i en b_j op type gematcht worden?"""
+    fam_a = np.array([type_family(e[2]) for e in a_events], dtype=object)
+    fam_b = np.array([type_family(e[2]) for e in b_events], dtype=object)
+    return fam_a[:, None] == fam_b[None, :]
+
+
+def match_events(a_events, b_events, iou_thresh=0.20, type_aware=False, optimal=False):
+    """Match twee eventlijsten [(onset, offset, type), ...].
+
+    Returns dict met: tp, fp, fn, precision, recall, f1, mean_dt,
+    n_merges, n_splits, matched_pairs.
+
+    De legacy-modus (type_aware=False, optimal=False) reproduceert exact de
+    inline-matching van paper v31: greedy in volgorde van a_events, één-op-één,
+    IoU-drempel 0.20, eventtype genegeerd. Wijzig die tak niet zonder de
+    byte-identieke invariant opnieuw aan te tonen — de gepubliceerde cijfers
+    hangen eraan.
+
+    type_aware  match alleen events van dezelfde familie (apneu vs hypopnee).
+                Zonder deze vlag kan een algoritme-hypopnee matchen met een
+                referentie-apneu, waardoor de F1 een overschatting is.
+    optimal     optimale toewijzing (Hongaars, scipy.linear_sum_assignment)
+                in plaats van greedy. Lost het geval op waarin een vroeg
+                a-event een b-event inpikt dat veel beter bij een later
+                a-event paste — relevant in clusters.
+    """
+    pairs = []
+
+    if not a_events or not b_events:
+        matched_a, matched_b, onset_diffs = set(), set(), []
+    elif optimal:
+        from scipy.optimize import linear_sum_assignment
+
+        m = _iou_matrix(a_events, b_events)
+        if type_aware:
+            m = np.where(_type_compatible(a_events, b_events), m, 0.0)
+        m = np.where(m >= iou_thresh, m, 0.0)
+        rows, cols = linear_sum_assignment(-m)
+        matched_a, matched_b, onset_diffs = set(), set(), []
+        for i, j in zip(rows, cols):
+            # linear_sum_assignment vult ook nul-cellen op; die zijn geen match.
+            if m[i, j] < iou_thresh or m[i, j] <= 0.0:
+                continue
+            matched_a.add(int(i))
+            matched_b.add(int(j))
+            onset_diffs.append(abs(a_events[i][0] - b_events[j][0]))
+            pairs.append((int(i), int(j), float(m[i, j])))
+    else:
+        matched_a, matched_b, onset_diffs = set(), set(), []
+        for i, (a0, a1, atype) in enumerate(a_events):
+            best_j, best_v = -1, 0.0
+            for j, (b0, b1, btype) in enumerate(b_events):
+                if j in matched_b:
+                    continue
+                if type_aware and type_family(atype) != type_family(btype):
+                    continue
+                v = iou(a0, a1, b0, b1)
+                if v >= iou_thresh and v > best_v:
+                    best_v, best_j = v, j
+            if best_j >= 0:
+                matched_a.add(i)
+                matched_b.add(best_j)
+                onset_diffs.append(abs(a_events[i][0] - b_events[best_j][0]))
+                pairs.append((i, best_j, best_v))
+
+    tp = len(matched_a)
+    fp = len(a_events) - tp
+    fn = len(b_events) - len(matched_b)
+    prec = tp / (tp + fp) if (tp + fp) else 0
+    rec_ = tp / (tp + fn) if (tp + fn) else 0
+    f1 = 2 * prec * rec_ / (prec + rec_) if (prec + rec_) else 0
+
+    n_merges, n_splits = _count_merges_splits(a_events, b_events, type_aware=type_aware)
+
+    return {
+        "tp": tp,
+        "fp": fp,
+        "fn": fn,
+        "precision": prec,
+        "recall": rec_,
+        "f1": f1,
+        "mean_dt": float(np.mean(onset_diffs)) if onset_diffs else None,
+        "n_merges": n_merges,
+        "n_splits": n_splits,
+        "matched_pairs": pairs,
+    }
+
+
+def match_events_symmetric(ev_a, ev_b, **match_kw):
+    """Match in beide richtingen en middel.
+
+    F1 = 2·TP / (2·TP + FP + FN) is symmetrisch in A en B, want FP + FN =
+    |A| + |B| − 2·TP. Het verschil tussen de richtingen zit dus volledig in
+    de gevonden TP: greedy loopt over de eerste lijst, dus wie "kandidaat" is
+    bepaalt welk paar als eerste een partner inpikt. Voor een mens-tegen-mens
+    vergelijking is geen van beide scorers de waarheid, dus is één richting
+    kiezen willekeurig. We rapporteren beide plus het gemiddelde.
+
+    Met optimal=True is de toewijzing per constructie richtingsonafhankelijk
+    en wordt f1_ab == f1_ba; `asymmetry` is dan 0.
+    """
+    m_ab = match_events(ev_a, ev_b, **match_kw)
+    m_ba = match_events(ev_b, ev_a, **match_kw)
+    dts = [m["mean_dt"] for m in (m_ab, m_ba) if m["mean_dt"] is not None]
+    return {
+        "f1":        (m_ab["f1"] + m_ba["f1"]) / 2.0,
+        "f1_ab":     m_ab["f1"],
+        "f1_ba":     m_ba["f1"],
+        "asymmetry": abs(m_ab["f1"] - m_ba["f1"]),
+        "tp_ab":     m_ab["tp"],
+        "fp_ab":     m_ab["fp"],
+        "fn_ab":     m_ab["fn"],
+        "precision_ab": m_ab["precision"],
+        "recall_ab":    m_ab["recall"],
+        "mean_dt":   float(np.mean(dts)) if dts else None,
+        "n_a":       len(ev_a),
+        "n_b":       len(ev_b),
+    }
+
+
+def human_baseline(scorer_files, sig_dur_s, **match_kw):
+    """Alle paarsgewijze F1's tussen scorers van één opname.
+
+    Zonder deze referentie is een algoritme-F1 oninterpreteerbaar: 0.29 kan
+    slecht zijn of gewoon de bovengrens van wat op die opname haalbaar is.
+    Bij 12 scorers zijn dit 12·11/2 = 66 paren.
+    """
+    sets = []
+    for f in scorer_files:
+        ev = event_set(f, sig_dur_s)
+        if ev:
+            sets.append((Path(f).name, ev))
+    return pairwise_baseline(sets, **match_kw)
+
+
+def pairwise_baseline(sets, **match_kw):
+    """Paarsgewijze F1's over [(naam, eventlijst), ...] — de kern van
+    human_baseline(), los van het inlezen zodat hij testbaar is."""
+    pairs = []
+    for i in range(len(sets)):
+        for j in range(i + 1, len(sets)):
+            name_a, ev_a = sets[i]
+            name_b, ev_b = sets[j]
+            m = match_events_symmetric(ev_a, ev_b, **match_kw)
+            m["scorer_a"] = name_a
+            m["scorer_b"] = name_b
+            pairs.append(m)
+
+    f1s = sorted(p["f1"] for p in pairs)
+    summary = {"n_scorers": len(sets), "n_pairs": len(pairs)}
+    if f1s:
+        summary.update({
+            "median": float(median(f1s)),
+            "p25":    float(np.percentile(f1s, 25)),
+            "p75":    float(np.percentile(f1s, 75)),
+            "min":    float(f1s[0]),
+            "max":    float(f1s[-1]),
+            "max_asymmetry": float(max(p["asymmetry"] for p in pairs)),
+        })
+    return {"pairs": pairs, "summary": summary}
+
+
+def percentile_of(value, population):
+    """Percentiel van `value` binnen `population` (ties tellen half mee)."""
+    if not population or value is None:
+        return None
+    below = sum(1 for x in population if x < value)
+    equal = sum(1 for x in population if x == value)
+    return 100.0 * (below + 0.5 * equal) / len(population)
 
 
 def event_set(scorer_edf, signal_duration_s):
@@ -182,7 +450,12 @@ def event_set(scorer_edf, signal_duration_s):
     return out
 
 
-def analyse_one(sn_id, data_dir):
+def analyse_one(sn_id, data_dir, matcher=None, strict_sleep=False):
+    """matcher: dict met iou_thresh/type_aware/optimal. None = legacy
+    (paper v31). Dezelfde instellingen gaan naar zowel de algoritme-F1 als
+    de mens-baseline — een baseline uit een andere matcher vergelijken is
+    betekenisloos."""
+    matcher = dict(LEGACY_MATCHER if matcher is None else matcher)
     data_dir = Path(data_dir)
     psg_path = data_dir / "Resp_events" / "PSG" / f"{sn_id}_Respiration.edf"
     if not psg_path.exists():
@@ -198,7 +471,8 @@ def analyse_one(sn_id, data_dir):
         ref_ahis = []
         scorer1_hypno = None
         for i, f in enumerate(scorer_files):
-            ahi, _tst, hypno = parse_scorer_file(f, sig_dur_s)
+            ahi, _tst, hypno = parse_scorer_file(f, sig_dur_s,
+                                                 strict_sleep=strict_sleep)
             if ahi is not None:
                 ref_ahis.append(ahi)
                 if i == 0:
@@ -247,7 +521,9 @@ def analyse_one(sn_id, data_dir):
             "robustness_grade": grade_from_severities(sev_strict, sev_std, sev_sens),
         }
 
-        if sn_id == "SN3" and algo_events_std:
+        # Event-level metriek voor ELKE opname. Stond hiervoor achter een
+        # `sn_id == "SN3"`-gate terwijl het paper SN1-SN5 rapporteert.
+        if algo_events_std:
             algo_events = [
                 (float(e["onset_s"]), float(e["onset_s"]) + float(e["duration_s"]), e["type"])
                 for e in algo_events_std
@@ -256,39 +532,79 @@ def analyse_one(sn_id, data_dir):
                 and float(e["onset_s"]) < sig_dur_s
             ]
             f1_list, dt_list, tp_list, fp_list, fn_list = [], [], [], [], []
+            sym_f1_list, merge_list, split_list = [], [], []
+            fam_f1 = {"apnea": [], "hypopnea": []}
             for f in scorer_files:
                 ref_events = event_set(f, sig_dur_s)
                 if not ref_events:
                     continue
-                matched_a, matched_r, onset_diffs = set(), set(), []
-                for i, (a0, a1, _) in enumerate(algo_events):
-                    best_j, best_v = -1, 0.0
-                    for j, (r0, r1, _) in enumerate(ref_events):
-                        if j in matched_r:
-                            continue
-                        v = iou(a0, a1, r0, r1)
-                        if v >= 0.20 and v > best_v:
-                            best_v, best_j = v, j
-                    if best_j >= 0:
-                        matched_a.add(i)
-                        matched_r.add(best_j)
-                        onset_diffs.append(abs(algo_events[i][0] - ref_events[best_j][0]))
-                tp = len(matched_a)
-                fp = len(algo_events) - tp
-                fn = len(ref_events) - len(matched_r)
-                prec = tp / (tp + fp) if (tp + fp) else 0
-                rec_ = tp / (tp + fn) if (tp + fn) else 0
-                f1 = 2 * prec * rec_ / (prec + rec_) if (prec + rec_) else 0
-                f1_list.append(f1)
-                tp_list.append(tp); fp_list.append(fp); fn_list.append(fn)
-                if onset_diffs:
-                    dt_list.append(float(np.mean(onset_diffs)))
+                m = match_events(algo_events, ref_events, **matcher)
+                f1_list.append(m["f1"])
+                tp_list.append(m["tp"]); fp_list.append(m["fp"]); fn_list.append(m["fn"])
+                merge_list.append(m["n_merges"]); split_list.append(m["n_splits"])
+                if m["mean_dt"] is not None:
+                    dt_list.append(m["mean_dt"])
+                # Zelfde symmetrisering als de mens-paren, zodat het
+                # percentiel hieronder appels met appels vergelijkt. Dit
+                # vervangt ev_f1_median niet — dat blijft paper v31.
+                sym_f1_list.append(
+                    match_events_symmetric(algo_events, ref_events, **matcher)["f1"]
+                )
+                # F1 per eventfamilie — daar zit de klinische informatie.
+                for fam in ("apnea", "hypopnea"):
+                    a_f = [e for e in algo_events if type_family(e[2]) == fam]
+                    r_f = [e for e in ref_events if type_family(e[2]) == fam]
+                    if a_f or r_f:
+                        fam_f1[fam].append(
+                            match_events(a_f, r_f, **matcher)["f1"]
+                        )
             if f1_list:
-                out["sn3_f1_median"]   = round(float(median(f1_list)), 3)
-                out["sn3_dt_median_s"] = round(float(median(dt_list)), 2) if dt_list else None
-                out["sn3_tp_median"]   = int(median(tp_list))
-                out["sn3_fp_median"]   = int(median(fp_list))
-                out["sn3_fn_median"]   = int(median(fn_list))
+                out["ev_f1_median"]   = round(float(median(f1_list)), 3)
+                out["ev_dt_median_s"] = round(float(median(dt_list)), 2) if dt_list else None
+                out["ev_tp_median"]   = int(median(tp_list))
+                out["ev_fp_median"]   = int(median(fp_list))
+                out["ev_fn_median"]   = int(median(fn_list))
+                out["ev_n_scorers"]   = len(f1_list)
+                out["ev_merges_median"] = int(median(merge_list)) if merge_list else 0
+                out["ev_splits_median"] = int(median(split_list)) if split_list else 0
+                for fam in ("apnea", "hypopnea"):
+                    if fam_f1[fam]:
+                        out[f"ev_f1_{fam}"] = round(float(median(fam_f1[fam])), 3)
+                out["matcher_config"] = dict(matcher)
+                # Oude sleutels blijven bestaan voor SN3: validation_report.py
+                # en tests/test_psgipa_reproducibility.py lezen ze, en paper v31
+                # rapporteert ze onder deze naam.
+                if sn_id == "SN3":
+                    out["sn3_f1_median"]   = out["ev_f1_median"]
+                    out["sn3_dt_median_s"] = out["ev_dt_median_s"]
+                    out["sn3_tp_median"]   = out["ev_tp_median"]
+                    out["sn3_fp_median"]   = out["ev_fp_median"]
+                    out["sn3_fn_median"]   = out["ev_fn_median"]
+
+                # ── Mens-tegen-mens baseline ────────────────────────
+                # Zonder deze referentie is de algoritme-F1 hierboven
+                # oninterpreteerbaar. Zelfde matcher-instellingen aan beide
+                # kanten — anders is de vergelijking betekenisloos.
+                hb = human_baseline(scorer_files, sig_dur_s, **matcher)
+                hs = hb["summary"]
+                if hs.get("n_pairs"):
+                    algo_sym = float(median(sym_f1_list)) if sym_f1_list else None
+                    pair_f1s = [p["f1"] for p in hb["pairs"]]
+                    out["human_f1_median"]  = round(hs["median"], 3)
+                    out["human_f1_p25"]     = round(hs["p25"], 3)
+                    out["human_f1_p75"]     = round(hs["p75"], 3)
+                    out["human_f1_min"]     = round(hs["min"], 3)
+                    out["human_f1_max"]     = round(hs["max"], 3)
+                    out["human_f1_n_pairs"] = hs["n_pairs"]
+                    out["human_max_asymmetry"] = round(hs["max_asymmetry"], 4)
+                    out["algo_f1_symmetric_median"] = (
+                        round(algo_sym, 3) if algo_sym is not None else None
+                    )
+                    out["algo_f1_percentile"] = (
+                        round(percentile_of(algo_sym, pair_f1s), 1)
+                        if algo_sym is not None else None
+                    )
+                    out["_human_pairs"] = hb["pairs"]
         return out
     except Exception as e:
         import traceback
@@ -356,6 +672,45 @@ def to_report_json(results, agg):
             "weighted_kappa": agg.get("weighted_kappa"),
         },
     }
+    # Event-level per opname (nieuw). sn3_event_level blijft eronder staan als
+    # alias: validation_report.py en de reproduceerbaarheidstest lezen die.
+    event_level = {
+        r["recording"]: {
+            "f1":   r["ev_f1_median"],
+            "dt_s": r.get("ev_dt_median_s"),
+            "tp":   r.get("ev_tp_median"),
+            "fp":   r.get("ev_fp_median"),
+            "fn":   r.get("ev_fn_median"),
+            "n_scorers": r.get("ev_n_scorers"),
+            "merges": r.get("ev_merges_median"),
+            "splits": r.get("ev_splits_median"),
+            "f1_apnea":    r.get("ev_f1_apnea"),
+            "f1_hypopnea": r.get("ev_f1_hypopnea"),
+        }
+        for r in results
+        if "error" not in r and "ev_f1_median" in r
+    }
+    if event_level:
+        payload["event_level"] = event_level
+
+    human = {
+        r["recording"]: {
+            "f1_median": r["human_f1_median"],
+            "f1_p25":    r["human_f1_p25"],
+            "f1_p75":    r["human_f1_p75"],
+            "f1_min":    r["human_f1_min"],
+            "f1_max":    r["human_f1_max"],
+            "n_pairs":   r["human_f1_n_pairs"],
+            "max_asymmetry":  r.get("human_max_asymmetry"),
+            "algo_f1_symmetric": r.get("algo_f1_symmetric_median"),
+            "algo_percentile":   r.get("algo_f1_percentile"),
+        }
+        for r in results
+        if "error" not in r and "human_f1_median" in r
+    }
+    if human:
+        payload["human_baseline"] = human
+
     if sn3 and "sn3_f1_median" in sn3:
         payload["sn3_event_level"] = {
             "f1":   sn3["sn3_f1_median"],
@@ -381,10 +736,26 @@ def print_summary(results, agg):
               f"{r['algo_strict']:>5.1f}  {r['algo_standard']:>4.1f}  {r['algo_sensitive']:>4.1f}  "
               f"{r['robustness_grade']:>5s}  {r['severity_ref'][:1]}/{r['severity_standard'][:1]}"
               f" {'✓' if r['severity_match_standard'] else '✗'}")
-        if "sn3_f1_median" in r:
-            print(f"        SN3 events: F1={r['sn3_f1_median']:.3f}  "
-                  f"Δt={r['sn3_dt_median_s']:.2f}s  "
-                  f"TP/FP/FN={r['sn3_tp_median']}/{r['sn3_fp_median']}/{r['sn3_fn_median']}")
+        if "ev_f1_median" in r:
+            print(f"        {r['recording']} events: F1={r['ev_f1_median']:.3f}  "
+                  f"Δt={r['ev_dt_median_s']:.2f}s  "
+                  f"TP/FP/FN={r['ev_tp_median']}/{r['ev_fp_median']}/{r['ev_fn_median']}")
+        if "ev_merges_median" in r:
+            fam = []
+            if r.get("ev_f1_apnea") is not None:
+                fam.append(f"apnea={r['ev_f1_apnea']:.3f}")
+            if r.get("ev_f1_hypopnea") is not None:
+                fam.append(f"hypopnea={r['ev_f1_hypopnea']:.3f}")
+            print(f"        {r['recording']} segm:   merges={r['ev_merges_median']}  "
+                  f"splits={r['ev_splits_median']}"
+                  + (f"   F1 per type: {', '.join(fam)}" if fam else ""))
+        if "human_f1_median" in r:
+            pct = r.get("algo_f1_percentile")
+            print(f"        {r['recording']} human:  F1 median={r['human_f1_median']:.3f}  "
+                  f"IQR=[{r['human_f1_p25']:.3f}-{r['human_f1_p75']:.3f}]  "
+                  f"range=[{r['human_f1_min']:.3f}-{r['human_f1_max']:.3f}]  "
+                  f"n={r['human_f1_n_pairs']} pairs  "
+                  f"→ algo {r['algo_f1_symmetric_median']:.3f} at p{pct:.0f}")
     if agg:
         print()
         print("─── Aggregate (standard profile) ─────────────────")
@@ -394,6 +765,76 @@ def print_summary(results, agg):
         print(f"  LoA:        [{agg['loa_low']:+.2f}, {agg['loa_high']:+.2f}] /h")
         print(f"  Pearson r:  {agg['pearson_r']:.3f}")
         print(f"  Weighted κ: {agg['weighted_kappa']:.3f}")
+
+
+def print_matcher_table(results, matcher, preset):
+    """Overzichtstabel die rechtstreeks in het paper kan.
+
+    De matcher-config staat er bewust bovenop: een F1-tabel zonder de
+    instellingen waarmee hij gemaakt is, is niet interpreteerbaar — en een
+    algoritme-F1 uit de ene matcher naast een baseline uit de andere is
+    ronduit misleidend.
+    """
+    rows = [r for r in results if "error" not in r and "ev_f1_median" in r]
+    if not rows:
+        return
+
+    print()
+    print(f"─── Event-level vs human baseline — matcher: {preset} ───")
+    print(f"    {matcher}")
+    print()
+    print(f"{'Rec':<5s} {'n':>3s} {'AlgoF1':>7s} {'HumanF1':>8s} {'Human [min-max]':>17s} "
+          f"{'Pct':>6s} {'Merge':>6s} {'Split':>6s} {'F1apn':>6s} {'F1hyp':>6s}")
+    print("─" * 92)
+
+    def _fmt(v, spec=">6.3f"):
+        return format(v, spec) if isinstance(v, (int, float)) else f"{'—':>6s}"
+
+    for r in rows:
+        rng = f"[{r.get('human_f1_min', float('nan')):.3f}-{r.get('human_f1_max', float('nan')):.3f}]"
+        pct = r.get("algo_f1_percentile")
+        print(f"{r['recording']:<5s} {r.get('ev_n_scorers', 0):>3d} "
+              f"{r['ev_f1_median']:>7.3f} {r.get('human_f1_median', float('nan')):>8.3f} "
+              f"{rng:>17s} "
+              f"{('p' + format(pct, '.0f')) if pct is not None else '—':>6s} "
+              f"{r.get('ev_merges_median', 0):>6d} {r.get('ev_splits_median', 0):>6d} "
+              f"{_fmt(r.get('ev_f1_apnea'))} {_fmt(r.get('ev_f1_hypopnea'))}")
+
+    def _med(key):
+        vals = [r[key] for r in rows if isinstance(r.get(key), (int, float))]
+        return float(median(vals)) if vals else float("nan")
+
+    print("─" * 92)
+    print(f"{'med':<5s} {'':>3s} {_med('ev_f1_median'):>7.3f} {_med('human_f1_median'):>8.3f} "
+          f"{'':>17s} {'p' + format(_med('algo_f1_percentile'), '.0f'):>6s} "
+          f"{_med('ev_merges_median'):>6.0f} {_med('ev_splits_median'):>6.0f} "
+          f"{_med('ev_f1_apnea'):>6.3f} {_med('ev_f1_hypopnea'):>6.3f}")
+
+
+def write_pairs_csv(results, path):
+    """Alle paarsgewijze scorer-resultaten wegschrijven.
+
+    Zo kan de verdeling later geplot of herbekeken worden zonder de hele
+    analyse (~5 min) opnieuw te draaien.
+    """
+    import csv
+
+    fields = [
+        "recording", "scorer_a", "scorer_b", "f1", "f1_ab", "f1_ba", "asymmetry",
+        "tp_ab", "fp_ab", "fn_ab", "precision_ab", "recall_ab", "mean_dt",
+        "n_a", "n_b",
+    ]
+    n = 0
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
+        w.writeheader()
+        for r in results:
+            for p in r.get("_human_pairs", []) or []:
+                w.writerow({"recording": r["recording"], **p})
+                n += 1
+    return n
 
 
 def main():
@@ -411,7 +852,18 @@ def main():
     p.add_argument("--output-json", type=Path,
                    default=Path("/tmp/validation_results.json"),
                    help="Where to write the report JSON")
+    p.add_argument("--out-pairs", type=Path, default=None,
+                   help="Write all pairwise scorer results to this CSV")
+    p.add_argument("--strict-sleep-ahi", action="store_true",
+                   help="Exclude events in a wake epoch from the reference AHI "
+                        "numerator (stricter AASM). Default off: the published "
+                        "paper v31 values count every annotation.")
+    p.add_argument("--matcher", choices=sorted(MATCHER_PRESETS), default="legacy",
+                   help="Event matcher: 'legacy' reproduces paper v31 "
+                        "(greedy, type-blind); 'improved' is type-aware with "
+                        "optimal assignment (default: legacy)")
     args = p.parse_args()
+    matcher = dict(MATCHER_PRESETS[args.matcher])
 
     import psgscoring
     print(f"\npsgscoring v{psgscoring.__version__} — clinical profile sweep "
@@ -419,22 +871,38 @@ def main():
     print(f"Method: paper v31 conventie — stages + events from Resp_events/ "
           f"(single time-axis)\n")
 
+    print(f"Matcher: {args.matcher} — {matcher}")
+    if args.strict_sleep_ahi:
+        print("Reference AHI: STRICT — events in a wake epoch are excluded "
+              "(deviates from the published paper v31 values)")
+    print()
+
     results = []
     if args.workers > 1 and len(args.recordings) > 1:
         with ProcessPoolExecutor(max_workers=args.workers) as ex:
-            futures = {ex.submit(analyse_one, sn, args.data_dir): sn
+            futures = {ex.submit(analyse_one, sn, args.data_dir, matcher,
+                                 args.strict_sleep_ahi): sn
                        for sn in args.recordings}
             for fut in as_completed(futures):
                 results.append(fut.result())
     else:
         for sn in args.recordings:
-            results.append(analyse_one(sn, args.data_dir))
+            results.append(analyse_one(sn, args.data_dir, matcher,
+                                       args.strict_sleep_ahi))
     results.sort(key=lambda r: r["recording"])
 
     agg = aggregate_metrics(results)
     print_summary(results, agg)
+    print_matcher_table(results, matcher, args.matcher)
+
+    if args.out_pairs:
+        n_pairs = write_pairs_csv(results, args.out_pairs)
+        print(f"\nPer-pair CSV written: {args.out_pairs}  ({n_pairs} rows)")
 
     payload = to_report_json(results, agg)
+    payload["matcher_config"] = dict(matcher)
+    payload["matcher_preset"] = args.matcher
+    payload["strict_sleep_ahi"] = bool(args.strict_sleep_ahi)
     args.output_json.parent.mkdir(parents=True, exist_ok=True)
     args.output_json.write_text(json.dumps(payload, indent=2))
     print(f"\nJSON written: {args.output_json}")

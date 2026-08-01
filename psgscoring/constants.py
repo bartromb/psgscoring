@@ -84,6 +84,11 @@ def _profile_to_legacy_dict(profile) -> dict:
         "DESAT_REQUIRED":         h.desat_required,
         "STABILITY_FILTER_CV":    pp.stability_filter_cv,
         # v0.4.2: profile-aware local baseline validation
+        "BASELINE_MODE":          pp.baseline_mode,
+        "HYPOPNEA_DETECTOR":      pp.hypopnea_detector,
+        "HYPOPNEA_STRICTNESS":    pp.hypopnea_strictness,
+        "RULE1A_AROUSAL_ENABLED": pp.rule1a_arousal_enabled,
+        "RULE1A_GAP_MAX_BREATHS": pp.rule1a_gap_max_breaths,
         "LOCAL_BL_CV_THRESHOLD":  pp.local_baseline_cv_threshold,
         "LOCAL_BL_STRICT_RED":    pp.local_baseline_strict_reduction,
         # v0.5.0: profile-aware floors previously hard-coded in respiratory.py
@@ -97,6 +102,8 @@ def _profile_to_legacy_dict(profile) -> dict:
         # v0.6.0: LightGBM candidate re-classifier
         "ML_CLASSIFIER_PATH":         pp.ml_classifier_path,
         "ML_THRESHOLD":               pp.ml_threshold,
+        "ML_AROUSAL_FEATURES":        pp.ml_arousal_features,
+        "AROUSAL_LIMB_WIRED":         pp.arousal_limb_wired,
         # v0.9.0: arousal-derivation mode. Multi-derivation (central + occipital +
         # frontal, event-level union + EOG-reject) is the DEFAULT for clinical use;
         # dataset profiles stay 'single' so NSRR/MESA reproduction is byte-identical.
@@ -146,6 +153,10 @@ CHANNEL_PATTERNS: dict[str, list[str]] = {
         "nasal pressure", "nasalpressure", "ptaf", "pnasale",
         "cannula", "npt", "nasal pres", "pflow", "np ",
         "naf", "nasal flow",
+        # NSRR (MESA/SHHS) noemt de neusdruk simpelweg "Pres". Staat bewust
+        # ACHTER de specifieke patronen, zodat "nasal pressure" wint wanneer
+        # beide aanwezig zijn.
+        "pres",
     ],
     # AASM: oronasal thermistor -> apnea (detects cessation)
     "flow_thermistor": [
@@ -160,7 +171,10 @@ CHANNEL_PATTERNS: dict[str, list[str]] = {
                  "abdominal", "effort abdom", "abd belt", "abdo"],
     "spo2":     ["spo2", "sao2", "saturation", "o2", "oximetry",
                  "puls spo2", "pulse ox"],
-    "pulse":    ["pulse", "pr", "heart rate", "hr", "puls rate"],
+    # "pr" staat ACHTERAAN: het is een substring van "pres" (NSRR-neusdruk) en
+    # zou die anders opeisen vóór "hr" ooit geprobeerd wordt. Matching is
+    # substring-based en per rol first-match-wins, dus volgorde is semantiek.
+    "pulse":    ["pulse", "heart rate", "hr", "puls rate", "pr"],
     "ecg":      ["ecg", "ekg", "cardiac", "einthoven", "ii", "ecg ii"],
     "position": ["position", "positie", "pos", "body pos", "lage",
                  "body position", "bpos"],

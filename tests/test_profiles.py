@@ -30,8 +30,15 @@ from psgscoring.profiles import (
 class TestRegistry:
     """Test the profile registry is correctly populated."""
 
-    def test_nine_profiles_exist(self):
-        assert len(PROFILES) == 8  # 6 standard + strict/sensitive variants = 8
+    def test_expected_profiles_exist(self):
+        # Naam boven aantal: een telling zegt niet welk profiel verdween.
+        expected = {
+            "aasm_v3_strict", "aasm_v3_rec", "aasm_v3_sensitive",
+            "aasm_v3_breath",          # v0.12.3+: ademteug-gebaseerd, gegradeerd
+        }
+        assert expected <= set(PROFILES), (
+            f"ontbrekende profielen: {sorted(expected - set(PROFILES))}")
+        assert len(PROFILES) == 9, sorted(PROFILES)
 
     def test_all_profiles_valid(self):
         for name, p in PROFILES.items():
@@ -430,6 +437,58 @@ class TestIntegration:
         groups = list_profile_groups()
         assert "clinical" in groups
         assert len(groups["clinical"]) == 3
+
+
+class TestDefaultProfile:
+    """De default bepaalt wat een aanroeper zonder profielkeuze krijgt.
+
+    Die blijft aasm_v3_rec. aasm_v3_breath is in v0.13.0 toegevoegd en
+    selecteerbaar, maar NIET de default: de validatie laat een onopgeloste
+    tegenspraak zien tussen PSG-IPA (AHI-afwijking 0,29) en MESA (bias -16,5),
+    en tot die verklaard is hoort de bestaande klinische uitkomst te blijven
+    staan. Zie docs/interim_conclusie_klinisch_gebruik.md.
+    """
+
+    def test_default_is_unchanged(self):
+        import inspect
+
+        from psgscoring import run_pneumo_analysis
+        default = inspect.signature(
+            run_pneumo_analysis).parameters["scoring_profile"].default
+        assert default == "aasm_v3_rec"
+
+    def test_breath_profile_is_selectable_by_name(self):
+        """Niet de default, maar wel bereikbaar — YASAFlaskified toont hem
+        in de profielkeuze omdat die de registry enumereert."""
+        p = get_profile("aasm_v3_breath")
+        assert p.family == "clinical"
+        assert "v3" in p.aasm_version, "anders valt hij uit de v3-groep in de UI"
+
+    @pytest.mark.parametrize("alias,expected", [
+        ("strict", "aasm_v3_strict"),
+        ("standard", "aasm_v3_rec"),
+        ("sensitive", "aasm_v3_sensitive"),
+    ])
+    def test_legacy_aliases_do_not_follow_the_default(self, alias, expected):
+        from psgscoring.constants import SCORING_PROFILES
+        assert SCORING_PROFILES[alias]["_PROFILE_NAME"] == expected
+
+    def test_previous_default_remains_reachable_by_name(self):
+        """Paper v31/v37 reproduceert met een expliciet aasm_v3_rec."""
+        p = get_profile("aasm_v3_rec")
+        assert p.post_processing.hypopnea_detector != "breath_graded"
+
+    def test_dataset_profile_untouched(self):
+        """mesa_shhs is een harde reproductie-eis en gebruikt de oude detector."""
+        p = get_profile("mesa_shhs")
+        assert p.family == "dataset"
+        assert p.post_processing.hypopnea_detector != "breath_graded"
+
+    def test_breath_profile_operating_point_is_pinned(self):
+        """Niet stilzwijgend wijzigen — zie de toelichting in profiles.py."""
+        p = get_profile("aasm_v3_breath")
+        assert p.post_processing.hypopnea_detector == "breath_graded"
+        assert p.post_processing.hypopnea_strictness == 0.50
 
 
 if __name__ == "__main__":
