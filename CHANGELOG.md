@@ -1,3 +1,110 @@
+# v0.13.1 — 2026-08-02 — audit of the breath detector: corrections, no scoring change
+
+Every existing profile is **byte-identical** to v0.13.0, `aasm_v3_breath`
+included; the golden harness confirms it. What changes is what the code
+*claims*, what each event *carries*, and which knobs are *visible*.
+
+## Fixed — `p_scored` was documented as something it is not
+
+v0.13.0 described `p_scored` as "what fraction of scorers would mark this".
+That claim was never tested. It is wrong.
+
+PSG-IPA makes the target directly measurable — 12 scorers per recording, so
+the fraction marking any given event is a countable number. Over the 163
+events the detector scores:
+
+| | |
+|---|---|
+| `p_scored` median | 0.693 |
+| actual scorer fraction | **0.167** |
+| correlation | **r = 0.194** |
+| systematic offset | **+0.333** |
+
+The *ordering* holds weakly — band 0.50–0.60 corresponds to an actual
+fraction of 0.32, band 0.90+ to 0.58 — but the *level* is over 30 points too
+high. An event presented as "★★★ ≥0.85" is marked by 44% of scorers, not 85%.
+
+`p_scored` keeps its name (renaming would break consumers) and is now
+documented as what it is: a ranking by rule conformity, not a probability.
+Calibration to a real probability is achievable — PSG-IPA supplies the target
+per event — but needs a fitted mapping on more than five recordings.
+
+## Fixed — two silent omissions in the event record
+
+- **`min_spo2` was hard-coded to `None`** while `_desat_at()` had already
+  computed the nadir. It is now reported.
+- **`hypopnea_central` / `hypopnea_mixed` disappeared**, because the breath
+  detector does no effort-based subtyping. Step 7b now inherits the label
+  from the overlapping envelope event, which `classify_apnea_type()` had
+  already classified on the same window using effort, ECG and flattening.
+  Recomputing it would require envelopes that exist only inside
+  `respiratory.py`. Coverage is visible as `n_subtyped` /
+  `n_envelope_subtyped`; where nothing overlaps the event stays `hypopnea`.
+
+## Fixed — one real design fault
+
+`candidate_floor` and `min_duration_s` were used in **both** passes: they
+decide which breaths stay out of the baseline *and* which become candidates.
+Raising the floor lowers the baseline (less excluded) and raises the gate —
+two opposing effects in one knob, which showed up as non-monotonic behaviour
+(0.10 gave SN1 +10% but SN4 −14%). Pass A now has its own `exclusion_floor` /
+`exclusion_min_duration_s`, defaulting to the candidate values.
+
+## Changed — "strictness is one calibrated axis" was not true
+
+A sensitivity analysis on PSG-IPA SN1 and SN4 refutes the assumption under
+which the hand-picked constants were left unexamined. **None is inert:**
+
+| parameter | SN1 | SN4 |
+|---|---|---|
+| `flow_width` | +6% … −39% | +27% … **−68%** |
+| `recovery_margin` | −6% … **+42%** | −27% … **+68%** |
+| `dur_width` | +10% … −39% | +14% … −50% |
+| `stability_cv` | +3% … −35% | +23% … −36% |
+| `use_template=False` | +10% | **+36%** |
+
+There are six axes of comparable influence, of which one — `strictness` — is
+calibrated. The module docstring now carries this table instead of the
+promise. Eight values that were hard-coded inside the function are now
+parameters at exactly their previous values: `sure_depth`, `default_lag_s`,
+`arousal_weight`, `template_floor`, `template_center_frac`,
+`template_width`, `n_largest`, `min_baseline_breaths`.
+
+## Added — three scoring changes, all off by default
+
+Each alters which events are scored and therefore leaves the calibrated
+operating point, so each ships disabled. Measured on PSG-IPA:
+
+| configuration | F1 med | F1 mean | pct | bias | MAE | severity |
+|---|---|---|---|---|---|---|
+| default | 0.434 | 0.512 | p17 | +0.17 | **0.29** | 4/5 |
+| `candidate_min_duration_s=8` | 0.434 | 0.512 | p17 | +0.17 | 0.29 | 4/5 |
+| `arousal_latency_grading` | **0.440** | **0.521** | p17 | −0.19 | 0.42 | **5/5** |
+| `template_use_duration` | 0.416 | 0.505 | p15 | +0.25 | 0.37 | 4/5 |
+| all three | 0.419 | 0.515 | p15 | −0.15 | 0.50 | 4/5 |
+
+- `candidate_min_duration_s` changes **nothing** — identical on every measure
+  and every recording. The asymmetry it addresses is real (the flow floor sits
+  below the AASM threshold so marginal reductions reach grading; duration had
+  a hard 10 s gate *and* a graded penalty around 10 s) but breaths last ~4 s,
+  so runs quantise to 8/12/16 s and an 8 s run gets `p_dur ≈ 0.27` and never
+  survives `strictness` 0.50.
+- `template_use_duration` makes it **worse**. The template did use only
+  `depth` of the three things it stored; filling that gap does not help.
+- `arousal_latency_grading` is the only gain: four of five recordings
+  improve, none worsens, severity 4/5 → 5/5. But MAE moves the wrong way and
+  n = 5, so it stays off pending held-out confirmation.
+
+The template now also computes the cluster periodicity the design called for
+(`template["cycle_s"]`), as diagnostics only — letting it steer the score
+would add a seventh unvalidated axis.
+
+`_breath_env_overrides()` allows measuring these without mutating profiles,
+following the `PSGSCORING_BASELINE_MODE` convention:
+`PSGSCORING_BREATH_CAND_MIN_DUR`, `_AROUSAL_LATENCY`, `_TEMPLATE_DUR`.
+
+---
+
 # v0.13.0 — 2026-08-01 — breath-graded hypopnea detector (opt-in)
 
 ## Read this first if you reproduce published numbers
