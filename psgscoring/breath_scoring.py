@@ -61,7 +61,27 @@ verschuivingen:
    is hier niet gedaan.
 
 5. **Strengheid is één as.** In plaats van drie parametercombinaties is er
-   één drempel op die kans. Lager = soepeler.
+   één drempel: ``strictness``. Lager = soepeler.
+
+   **Die belofte is maar deels waargemaakt, en dat hoort hier te staan.**
+   Een gevoeligheidsanalyse op PSG-IPA SN1 en SN4 laat zien dat vijf andere
+   parameters het aantal gescoorde events even sterk verschuiven, over
+   plausibele bereiken:
+
+   ======================  ===============  ===============
+   parameter               SN1              SN4
+   ======================  ===============  ===============
+   ``flow_width``          +6% .. -39%      +27% .. -68%
+   ``recovery_margin``     -6% .. +42%      -27% .. +68%
+   ``dur_width``           +10% .. -39%     +14% .. -50%
+   ``stability_cv``        +3% .. -35%      +23% .. -36%
+   ``use_template=False``  +10%             +36%
+   ======================  ===============  ===============
+
+   Alleen ``strictness`` is gekalibreerd (op PSG-IPA, met een vooraf
+   vastgelegde bias-nul-regel). De rest is gekozen en niet gevalideerd. Er
+   zijn dus zes assen, geen een — en wie aan de andere vijf draait,
+   verlaat het gevalideerde werkpunt zonder dat iets dat signaleert.
 
 AASM-conformiteit blijft behouden: de regelstructuur is letterlijk die van
 Rule 1A, en bij afkapping op de klassieke drempels nadert het gedrag de
@@ -291,6 +311,14 @@ def score_hypopneas_breathwise(
     template_width: float = 0.15,
     n_largest: int = 3,
     min_baseline_breaths: int = 4,
+    # Passage A en B gebruikten tot v0.13.0 DEZELFDE vloer en minimumduur.
+    # Die knop deed daardoor twee tegengestelde dingen tegelijk: hij bepaalt
+    # welke ademteugen uit de baseline blijven EN welke kandidaat worden.
+    # Verhogen maakt de baseline lager (minder uitgesloten) en de drempel
+    # hoger; het netto-effect is niet-monotoon en per opname verschillend.
+    # None = neem de kandidaatwaarde over, dus byte-identiek aan v0.13.0.
+    exclusion_floor: float | None = None,
+    exclusion_min_duration_s: float | None = None,
 ):
     """Scoor hypopneeën ademteug-voor-ademteug. Zie de moduledocstring.
 
@@ -326,8 +354,10 @@ def score_hypopneas_breathwise(
         red_a = 1.0 - amps / bl_a
     red_a[~np.isfinite(red_a)] = np.nan
     in_event = np.zeros(onsets.size, dtype=bool)
-    for _i, _j in _candidate_runs(onsets, ends, red_a, candidate_floor,
-                                  min_duration_s):
+    _ex_floor = candidate_floor if exclusion_floor is None else exclusion_floor
+    _ex_dur = (min_duration_s if exclusion_min_duration_s is None
+               else exclusion_min_duration_s)
+    for _i, _j in _candidate_runs(onsets, ends, red_a, _ex_floor, _ex_dur):
         in_event[_i:_j + 1] = True
     # De herstelhyperpneu is net zomin stabiele ademhaling als het event
     # zelf. Blijft die in het venster, dan tilt hij de baseline op via de

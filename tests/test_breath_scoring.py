@@ -415,6 +415,31 @@ def test_exclude_intervals_are_honoured():
 #  6. Strengheid als één as
 # ─────────────────────────────────────────────────────────────────
 
+def test_exclusion_and_candidate_thresholds_are_separable():
+    """Passage A en B deelden een knop; die deed twee tegengestelde dingen.
+
+    Met gelijke waarden hoort het resultaat identiek te zijn aan de oude
+    situatie, en met verschillende waarden hoort er iets te veranderen —
+    anders is de ontkoppeling schijn.
+    """
+    breaths, hypno, windows = make_night(EVENTS_AT)
+    spo2 = make_spo2(windows, lag_s=20.0)
+    base, _ = score_hypopneas_breathwise(
+        breaths, hypno, spo2=spo2, sf_spo2=SF_SPO2, candidate_floor=0.15)
+    same, _ = score_hypopneas_breathwise(
+        breaths, hypno, spo2=spo2, sf_spo2=SF_SPO2, candidate_floor=0.15,
+        exclusion_floor=0.15, exclusion_min_duration_s=10.0)
+    assert [e["onset_s"] for e in base] == [e["onset_s"] for e in same], (
+        "expliciet gelijkzetten moet byte-identiek zijn aan de default")
+
+    _, d_tight = score_hypopneas_breathwise(
+        breaths, hypno, spo2=spo2, sf_spo2=SF_SPO2, exclusion_floor=0.05)
+    _, d_loose = score_hypopneas_breathwise(
+        breaths, hypno, spo2=spo2, sf_spo2=SF_SPO2, exclusion_floor=0.60)
+    assert d_tight["frac_breaths_excluded"] != d_loose["frac_breaths_excluded"], (
+        "de uitsluitingsvloer moet los van de kandidaatvloer werken")
+
+
 def test_strictness_is_monotone():
     """Verschuiving 5: één as, en hij moet zich als een as gedragen."""
     breaths, hypno, windows = make_night(EVENTS_AT)
