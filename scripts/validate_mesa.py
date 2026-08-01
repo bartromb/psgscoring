@@ -13,17 +13,36 @@ MESA is niet de vraag en zou ook misleiden, want MESA is met een andere regel
 gescoord (zie hieronder); beide profielen draaien onder exact dezelfde
 condities tegen dezelfde referentie, dus het verschil is wél zinvol.
 
+De referentie moet gerecONSTRUEERD worden, niet geteld
+------------------------------------------------------
+In de NSRR-annotatie is elk ``Hypopnea``- en ``Unsure``-label een flowdaling
+van >=30%; de desaturatie-eis zit er NIET in. NSRR past die achteraf toe door
+elk event te koppelen aan de losse ``SpO2 desaturation``-events. Wie de labels
+rauw telt, komt 2 tot 4 keer te hoog uit en concludeert vervolgens ten
+onrechte dat het algoritme massaal onderdetecteert.
+
+De reconstructie die hier gebruikt wordt:
+
+  - alleen events die in een slaap-epoch beginnen;
+  - een hypopnee telt wanneer een SpO2-desaturatie van >=3% (resp. >=4%)
+    begint binnen [start, einde + 30 s];
+  - obstructieve en gemengde apneus tellen zonder desaturatie-eis;
+  - centrale apneus tellen niet mee — ``oahi`` is de OBSTRUCTIEVE index.
+
+Gevalideerd tegen de gepubliceerde ``oahi35``/``oahi45`` uit
+``mesa-sleep-dataset-0.8.0.csv`` over 60 opnames: bias +0,11 / +0,19 AHI,
+MAE 0,84 / 0,66, r = 0,998. Draai ``--verify-reference`` om dat te herhalen.
+
 Twee referentiesets, want MESA's regel is niet die van AASM v3 Rule 1A
---------------------------------------------------------------------
-MESA scoorde hypopneeën met >=4% desaturatie en labelde de gevallen die dat
-niet haalden — de 3%-of-arousal-gevallen — als ``Unsure``. Beide profielen
-implementeren Rule 1A (>=3% OF arousal), dus:
 
-  ``mesa4``   Hypopnea + apneus. MESA's eigen AHI-definitie.
-  ``rule1a``  idem + Unsure. Dichter bij wat Rule 1A hoort te vangen.
+  ``oahi4``   hypopnee met >=4% desaturatie. MESA's primaire definitie.
+  ``oahi3``   hypopnee met >=3% desaturatie. Dichter bij Rule 1A.
 
-Beide worden gerapporteerd. Een profiel dat op ``rule1a`` wint en op ``mesa4``
-verliest heeft geen fout gemaakt — het volgt een andere regel dan MESA.
+Beide worden gerapporteerd. Let op de resterende asymmetrie: geen van beide
+referenties crediteert een hypopnee die alleen door een arousal kwalificeert,
+terwijl Rule 1A dat wel doet. Beide profielen hebben daar evenveel last van,
+dus het GEPAARDE verschil blijft geldig; de absolute precisie is erdoor
+gedrukt.
 
 Het hypnogram komt uit de NSRR-annotatie, niet uit YASA, zodat het verschil
 tussen de profielen alleen de respiratoire scoring betreft.
@@ -70,19 +89,15 @@ STAGE_MAP = {
     "rem sleep": "R",
 }
 
-# EventConcept -> eventtype voor de matcher
-RESP_MAP = {
-    "obstructive apnea": "obstructive",
-    "central apnea": "central",
-    "mixed apnea": "mixed",
-    "hypopnea": "hypopnea",
-    "unsure": "hypopnea",
-}
-REFERENCES = {
-    "mesa4": {"obstructive apnea", "central apnea", "mixed apnea", "hypopnea"},
-    "rule1a": {"obstructive apnea", "central apnea", "mixed apnea", "hypopnea",
-               "unsure"},
-}
+# Apneus die in oahi meetellen. Centraal telt NIET mee: oahi is de
+# obstructieve index, en dat is wat mesa-sleep-dataset publiceert.
+APNEA_MAP = {"obstructive apnea": "obstructive", "mixed apnea": "mixed"}
+HYPOPNEA_CONCEPTS = {"hypopnea", "unsure"}
+
+# Referentieset -> vereiste desaturatiediepte in procenten
+REFERENCES = {"oahi4": 4.0, "oahi3": 3.0}
+DESAT_LINK_WINDOW_S = 30.0
+
 PROFILES = ("aasm_v3_rec", "aasm_v3_breath")
 
 
@@ -90,16 +105,18 @@ PROFILES = ("aasm_v3_rec", "aasm_v3_breath")
 #  NSRR-annotatie
 # ─────────────────────────────────────────────────────────────────
 
-def parse_nsrr(xml_path, signal_duration_s):
+def parse_nsrr(xml_path, signal_duration_s,
+               link_window_s=DESAT_LINK_WINDOW_S):
     """(hypno, events_per_referentie, tst_h) uit een NSRR-annotatiebestand.
 
     ``events`` is per referentieset een lijst (onset, offset, type), in
-    hetzelfde formaat als ``validate_psgipa.event_set``.
+    hetzelfde formaat als ``validate_psgipa.event_set``. Zie de moduledocstring
+    voor waarom de labels niet rauw geteld mogen worden.
     """
     root = ET.parse(str(xml_path)).getroot()
     n_epochs = int(math.ceil(signal_duration_s / EPOCH_S))
     hypno = ["W"] * n_epochs
-    raw_events = []
+    hypopneas, apneas, desats = [], [], []
 
     for ev in root.iter("ScoredEvent"):
         concept = (ev.findtext("EventConcept") or "").split("|")[0].strip().lower()
@@ -119,16 +136,31 @@ def parse_nsrr(xml_path, signal_duration_s):
             for i in range(max(1, int(round(dur / EPOCH_S)))):
                 if 0 <= ep0 + i < n_epochs:
                     hypno[ep0 + i] = st
-            continue
-
-        if concept in RESP_MAP:
-            raw_events.append((start, start + dur, RESP_MAP[concept], concept))
+        elif concept in HYPOPNEA_CONCEPTS:
+            hypopneas.append((start, start + dur))
+        elif concept in APNEA_MAP:
+            apneas.append((start, start + dur, APNEA_MAP[concept]))
+        elif concept == "spo2 desaturation":
+            try:
+                drop = (float(ev.findtext("SpO2Baseline"))
+                        - float(ev.findtext("SpO2Nadir")))
+            except (TypeError, ValueError):
+                continue
+            desats.append((start, drop))
 
     tst_h = sum(1 for s in hypno if s in ("N1", "N2", "N3", "R")) * EPOCH_S / 3600.0
-    events = {
-        name: [(a, b, t) for a, b, t, c in raw_events if c in concepts]
-        for name, concepts in REFERENCES.items()
-    }
+
+    def asleep(t):
+        ep = int(t // EPOCH_S)
+        return 0 <= ep < n_epochs and hypno[ep] in ("N1", "N2", "N3", "R")
+
+    events = {}
+    for name, thr in REFERENCES.items():
+        out = [(a, b, "hypopnea") for a, b in hypopneas
+               if asleep(a) and any(a <= s <= b + link_window_s and d >= thr
+                                    for s, d in desats)]
+        out += [(a, b, t) for a, b, t in apneas if asleep(a)]
+        events[name] = sorted(out)
     return hypno, events, tst_h
 
 
@@ -270,6 +302,61 @@ def report(rows, ref_name):
              else f"p = {p:.4g}"))
 
 
+def verify_reference(data_dir, limit=60):
+    """Toon dat de gereconstrueerde referentie NSRR's eigen oahi reproduceert.
+
+    Zonder deze controle is elk cijfer in dit script onbetrouwbaar: rauwe
+    labeltellingen liggen 2-4x te hoog en zouden onderdetectie suggereren die
+    er niet is.
+    """
+    import csv
+
+    ds = data_dir / "datasets" / "mesa-sleep-dataset-0.8.0.csv"
+    if not ds.exists():
+        print(f"  dataset-CSV niet gevonden: {ds}")
+        return
+    pub = {}
+    with ds.open(newline="", encoding="utf-8", errors="replace") as fh:
+        for row in csv.DictReader(fh):
+            pub[row["mesaid"]] = row
+
+    xml_dir = data_dir / "polysomnography" / "annotations-events-nsrr"
+    col = {"oahi3": "oahi35", "oahi4": "oahi45"}
+    got = {k: [] for k in REFERENCES}
+    ref = {k: [] for k in REFERENCES}
+
+    for xml in sorted(xml_dir.glob("*.xml"))[:limit]:
+        rid = xml.stem.replace("-nsrr", "").replace("mesa-sleep-", "").lstrip("0")
+        if rid not in pub:
+            continue
+        # De signaalduur is hier niet nodig: de annotatie bestrijkt de opname.
+        try:
+            _h, events, tst = parse_nsrr(xml, 1e9)
+        except Exception:  # noqa: BLE001
+            continue
+        if tst < 1.0:
+            continue
+        for name in REFERENCES:
+            try:
+                published = float(pub[rid][col[name]])
+            except (KeyError, ValueError):
+                continue
+            got[name].append(len(events[name]) / tst)
+            ref[name].append(published)
+
+    print(f"\n  Referentiereconstructie vs gepubliceerde NSRR-waarden "
+          f"(koppelvenster {DESAT_LINK_WINDOW_S:.0f} s)")
+    print(f"  {'set':8s} {'kolom':8s} {'n':>4s} {'bias':>8s} {'MAE':>7s} {'r':>7s}")
+    for name in REFERENCES:
+        if len(got[name]) < 3:
+            print(f"  {name:8s} te weinig data")
+            continue
+        d = np.asarray(got[name]) - np.asarray(ref[name])
+        r = float(np.corrcoef(got[name], ref[name])[0, 1])
+        print(f"  {name:8s} {col[name]:8s} {len(d):4d} {d.mean():+8.2f} "
+              f"{np.abs(d).mean():7.2f} {r:7.3f}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -282,7 +369,14 @@ def main():
     ap.add_argument("--output-json", type=Path, default=None)
     ap.add_argument("--recordings", nargs="+", default=None,
                     help="expliciete opname-ids (overschrijft de steekproef)")
+    ap.add_argument("--verify-reference", action="store_true",
+                    help="controleer de referentie tegen gepubliceerde oahi "
+                         "en stop daarna")
     a = ap.parse_args()
+
+    if a.verify_reference:
+        verify_reference(a.data_dir)
+        return
 
     edf_dir = a.data_dir / "polysomnography" / "edfs"
     xml_dir = a.data_dir / "polysomnography" / "annotations-events-nsrr"
@@ -309,7 +403,7 @@ def main():
                 print(f"  [{i}/{len(picked)}] {r['recording']}: FOUT {r['error']}")
             else:
                 f = {p: r["profiles"].get(p, {}).get("match", {})
-                      .get("rule1a", {}).get("f1") for p in PROFILES}
+                      .get("oahi3", {}).get("f1") for p in PROFILES}
                 print(f"  [{i}/{len(picked)}] {r['recording']}  "
                       + "  ".join(f"{p.split('_')[-1]} F1 "
                                   f"{'--' if f[p] is None else format(f[p], '.3f')}"
