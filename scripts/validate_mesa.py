@@ -168,8 +168,41 @@ def parse_nsrr(xml_path, signal_duration_s,
 #  Eén opname
 # ─────────────────────────────────────────────────────────────────
 
+def _configs(strictness_values):
+    """[(label, profielnaam, strictness_of_None), ...].
+
+    De basislijn draait altijd mee, zodat elke vergelijking gepaard is op
+    dezelfde opname in plaats van tussen runs.
+    """
+    cfg = [("aasm_v3_rec", "aasm_v3_rec", None)]
+    if strictness_values:
+        cfg += [(f"breath@{s:.2f}", "aasm_v3_breath", float(s))
+                for s in strictness_values]
+    else:
+        cfg.append(("aasm_v3_breath", "aasm_v3_breath", None))
+    return cfg
+
+
+def _apply_strictness(value):
+    """Zet de strictness van aasm_v3_breath in dit werkproces.
+
+    De legacy-dicts worden uit profiles.py afgeleid bij import, dus die moeten
+    opnieuw gerenderd en doorgegeven worden aan de modules die ze vasthouden.
+    """
+    import importlib
+
+    from psgscoring.profiles import PROFILES as _P
+    _P["aasm_v3_breath"].post_processing.hypopnea_strictness = value
+    import psgscoring.constants as C
+    importlib.reload(C)
+    import psgscoring.pipeline as PL
+    import psgscoring.respiratory as R
+    PL.SCORING_PROFILES = C.SCORING_PROFILES
+    R.SCORING_PROFILES = C.SCORING_PROFILES
+
+
 def analyse_one(args):
-    rec_id, data_dir = args
+    rec_id, data_dir, strictness_values = args
     data_dir = Path(data_dir)
     edf = data_dir / "polysomnography" / "edfs" / f"{rec_id}.edf"
     xml = (data_dir / "polysomnography" / "annotations-events-nsrr"
@@ -194,12 +227,14 @@ def analyse_one(args):
            "ahi_ref": {k: len(v) / tst_h for k, v in refs.items()},
            "profiles": {}}
 
-    for prof in PROFILES:
+    for label, prof, strict in _configs(strictness_values):
         try:
+            if strict is not None:
+                _apply_strictness(strict)
             res = psgscoring.run_pneumo_analysis(
                 raw, hypno=hypno, scoring_profile=prof)
         except Exception as e:  # noqa: BLE001
-            out["profiles"][prof] = {"error": str(e)}
+            out["profiles"][label] = {"error": str(e)}
             continue
         r = res.get("respiratory", {}) or {}
         summ = r.get("summary", {}) or {}
@@ -222,7 +257,7 @@ def analyse_one(args):
         bd = r.get("breath_detector")
         if bd:
             rec["breath_detector"] = bd
-        out["profiles"][prof] = rec
+        out["profiles"][label] = rec
     return out
 
 
@@ -261,45 +296,62 @@ def wilcoxon_signed_rank(deltas):
     return p, n
 
 
-def report(rows, ref_name):
+def report(rows, ref_name, labels):
     ok = [r for r in rows if "error" not in r
           and all(p in r["profiles"] and "error" not in r["profiles"][p]
-                  for p in PROFILES)]
+                  for p in labels)]
     if not ok:
         print(f"  geen bruikbare opnames voor referentie {ref_name}")
         return
 
-    print(f"\n{'═' * 72}")
+    print(f"\n{'═' * 78}")
     print(f"  REFERENTIE: {ref_name}   (n = {len(ok)} opnames)")
-    print(f"{'═' * 72}")
-    print(f"  {'profiel':16s} {'F1 med':>7s} {'F1 gem':>7s} {'prec':>6s} "
-          f"{'rec':>6s} {'bias':>7s} {'MAE':>6s} {'sev':>7s}")
+    print(f"{'═' * 78}")
+    print(f"  {'configuratie':16s} {'F1 med':>7s} {'F1 gem':>7s} {'prec':>6s} "
+          f"{'rec':>6s} {'bias':>7s} {'MAE':>6s} {'r':>6s} {'sev':>7s}")
     stats = {}
-    for prof in PROFILES:
-        f1 = [r["profiles"][prof]["match"][ref_name]["f1"] for r in ok]
-        pr = [r["profiles"][prof]["match"][ref_name]["precision"] for r in ok]
-        rc = [r["profiles"][prof]["match"][ref_name]["recall"] for r in ok]
-        d = [r["profiles"][prof]["ahi"] - r["ahi_ref"][ref_name] for r in ok]
-        sev = sum(1 for r in ok
-                  if severity(r["profiles"][prof]["ahi"])
-                  == severity(r["ahi_ref"][ref_name]))
-        stats[prof] = f1
-        print(f"  {prof:16s} {median(f1):7.3f} {np.mean(f1):7.3f} "
+    for lab in labels:
+        f1 = [r["profiles"][lab]["match"][ref_name]["f1"] for r in ok]
+        pr = [r["profiles"][lab]["match"][ref_name]["precision"] for r in ok]
+        rc = [r["profiles"][lab]["match"][ref_name]["recall"] for r in ok]
+        algo = np.array([r["profiles"][lab]["ahi"] for r in ok])
+        ref = np.array([r["ahi_ref"][ref_name] for r in ok])
+        d = algo - ref
+        sev = sum(1 for x, y in zip(algo, ref) if severity(x) == severity(y))
+        stats[lab] = f1
+        rr = float(np.corrcoef(algo, ref)[0, 1]) if len(ok) > 2 else float("nan")
+        print(f"  {lab:16s} {median(f1):7.3f} {np.mean(f1):7.3f} "
               f"{median(pr):6.3f} {median(rc):6.3f} "
-              f"{np.mean(d):+7.2f} {np.mean(np.abs(d)):6.2f} "
+              f"{d.mean():+7.2f} {np.abs(d).mean():6.2f} {rr:6.3f} "
               f"{sev:3d}/{len(ok):<3d}")
 
-    delta = [b - a for a, b in zip(stats[PROFILES[0]], stats[PROFILES[1]])]
-    better = sum(1 for x in delta if x > 0)
-    worse = sum(1 for x in delta if x < 0)
-    p, n_eff = wilcoxon_signed_rank(delta)
-    print(f"\n  GEPAARD  {PROFILES[1]} - {PROFILES[0]}:")
-    print(f"    mediaan dF1 {median(delta):+.4f}   gemiddeld {np.mean(delta):+.4f}")
-    print(f"    beter {better}/{len(ok)}   slechter {worse}/{len(ok)}   "
-          f"gelijk {len(ok) - better - worse}")
-    print(f"    Wilcoxon (n={n_eff}): "
-          + ("p niet bepaald, te weinig verschillen" if p is None
-             else f"p = {p:.4g}"))
+    # Severity-fouten uitsplitsen: de richting is klinisch niet symmetrisch.
+    print("\n  severity-fouten (referentie -> algoritme):")
+    for lab in labels:
+        wrong = {}
+        for r in ok:
+            rv = severity(r["ahi_ref"][ref_name])
+            av = severity(r["profiles"][lab]["ahi"])
+            if rv != av:
+                wrong[(rv, av)] = wrong.get((rv, av), 0) + 1
+        txt = ", ".join(f"{a}->{b}:{n}" for (a, b), n
+                        in sorted(wrong.items(), key=lambda x: -x[1]))
+        print(f"    {lab:16s} {txt or 'geen'}")
+
+    base = labels[0]
+    for lab in labels[1:]:
+        delta = [b - a for a, b in zip(stats[base], stats[lab])]
+        better = sum(1 for x in delta if x > 0)
+        worse = sum(1 for x in delta if x < 0)
+        p, n_eff = wilcoxon_signed_rank(delta)
+        print(f"\n  GEPAARD  {lab} - {base}:")
+        print(f"    mediaan dF1 {median(delta):+.4f}   "
+              f"gemiddeld {np.mean(delta):+.4f}")
+        print(f"    beter {better}/{len(ok)}   slechter {worse}/{len(ok)}   "
+              f"gelijk {len(ok) - better - worse}")
+        print(f"    Wilcoxon (n={n_eff}): "
+              + ("p niet bepaald, te weinig verschillen" if p is None
+                 else f"p = {p:.4g}"))
 
 
 def verify_reference(data_dir, limit=60):
@@ -372,6 +424,15 @@ def main():
     ap.add_argument("--verify-reference", action="store_true",
                     help="controleer de referentie tegen gepubliceerde oahi "
                          "en stop daarna")
+    ap.add_argument("--strictness", nargs="+", type=float, default=None,
+                    help="draai aasm_v3_breath op deze strictness-waarden, "
+                         "alle op dezelfde opnames zodat de vergelijking "
+                         "gepaard is")
+    ap.add_argument("--exclude-seed", type=int, default=None,
+                    help="sluit de steekproef van dit zaad uit, zodat een "
+                         "tweede ronde disjunct is van de eerste")
+    ap.add_argument("--exclude-n", type=int, default=None,
+                    help="omvang van de uit te sluiten eerdere steekproef")
     a = ap.parse_args()
 
     if a.verify_reference:
@@ -382,35 +443,46 @@ def main():
     xml_dir = a.data_dir / "polysomnography" / "annotations-events-nsrr"
     ids = sorted(p.stem for p in edf_dir.glob("*.edf")
                  if (xml_dir / f"{p.stem}-nsrr.xml").exists())
+
+    excluded = set()
+    if a.exclude_seed is not None and a.exclude_n:
+        excluded = set(random.Random(a.exclude_seed).sample(ids, a.exclude_n))
+
+    pool = [x for x in ids if x not in excluded]
     if a.recordings:
         picked = list(a.recordings)
-    elif a.n and a.n < len(ids):
-        picked = sorted(random.Random(a.seed).sample(ids, a.n))
+    elif a.n and a.n < len(pool):
+        picked = sorted(random.Random(a.seed).sample(pool, a.n))
     else:
-        picked = ids
+        picked = pool
 
-    print(f"MESA held-out validatie — {len(picked)} van {len(ids)} opnames "
+    labels = [c[0] for c in _configs(a.strictness)]
+    print(f"MESA-validatie — {len(picked)} van {len(pool)} beschikbare opnames "
           f"(seed {a.seed})")
-    print(f"profielen: {', '.join(PROFILES)}")
-    print("het werkpunt is op PSG-IPA gekozen en wordt hier NIET aangepast\n")
+    if excluded:
+        print(f"uitgesloten: {len(excluded)} opnames uit de eerdere steekproef "
+              f"(seed {a.exclude_seed}); overlap = "
+              f"{len(set(picked) & excluded)}")
+    print(f"configuraties: {', '.join(labels)}\n")
 
     rows = []
+    jobs = [(x, str(a.data_dir), a.strictness) for x in picked]
     with ProcessPoolExecutor(max_workers=a.workers) as ex:
-        for i, r in enumerate(ex.map(analyse_one,
-                                     [(x, str(a.data_dir)) for x in picked]), 1):
+        for i, r in enumerate(ex.map(analyse_one, jobs), 1):
             rows.append(r)
             if "error" in r:
                 print(f"  [{i}/{len(picked)}] {r['recording']}: FOUT {r['error']}")
             else:
-                f = {p: r["profiles"].get(p, {}).get("match", {})
-                      .get("oahi3", {}).get("f1") for p in PROFILES}
+                parts = []
+                for lab in labels:
+                    v = (r["profiles"].get(lab, {}).get("match", {})
+                         .get("oahi3", {}).get("f1"))
+                    parts.append(f"{lab} {'--' if v is None else format(v, '.3f')}")
                 print(f"  [{i}/{len(picked)}] {r['recording']}  "
-                      + "  ".join(f"{p.split('_')[-1]} F1 "
-                                  f"{'--' if f[p] is None else format(f[p], '.3f')}"
-                                  for p in PROFILES))
+                      + "  ".join(parts))
 
     for ref in REFERENCES:
-        report(rows, ref)
+        report(rows, ref, labels)
 
     n_err = sum(1 for r in rows if "error" in r)
     if n_err:
@@ -418,7 +490,8 @@ def main():
 
     if a.output_json:
         a.output_json.write_text(json.dumps(
-            {"seed": a.seed, "n_requested": len(picked), "profiles": list(PROFILES),
+            {"seed": a.seed, "n_requested": len(picked), "configs": labels,
+             "exclude_seed": a.exclude_seed, "exclude_n": a.exclude_n,
              "results": rows}, indent=2))
         print(f"\n  JSON weggeschreven: {a.output_json}")
 

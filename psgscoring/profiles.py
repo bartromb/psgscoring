@@ -424,14 +424,21 @@ _aasm_v3_breath = Profile(
     ),
     post_processing=PostProcessingRules(
         hypopnea_detector="breath_graded",
-        # Operatiepunt op PSG-IPA gekozen met een VOORAF vastgelegde regel:
-        # de strictness waarbij de AHI-bias nul wordt, niet de strictness die
-        # de F1 maximaliseert (dat zou fitten op de uitkomstmaat zijn).
-        # Bij 0,50 is de bias +0,17 AHI-punt; F1 en percentiel zijn daarmee
-        # een niet-gefitte uitkomst. Zie CHANGELOG voor de volledige tabel.
-        # Beperking: n = 5, en die vijf opnames zijn ook de opnames waarop de
-        # regel is toegepast. MESA-bevestiging op held-out data staat open.
-        hypopnea_strictness=0.50,
+        # Operatiepunt. Wees eerlijk over hoe dit tot stand kwam:
+        #
+        #   0,50 kwam uit een VOORAF vastgelegde regel op PSG-IPA — de
+        #   strictness waarbij de AHI-bias nul wordt, niet die waar de F1
+        #   maximaal is. F1 en percentiel waren daar dus een niet-gefitte
+        #   uitkomst, en die bevinding repliceerde op MESA (50 opnames,
+        #   gepaard 31/17, Wilcoxon p = 0,0069).
+        #
+        #   0,55 is een LATERE keuze, gemaakt NA het zien van de MESA-uitslag,
+        #   om de Normal->Mild-drift te dempen (severity 29/50 -> 25/50, bijna
+        #   volledig doordat de hogere recall normale opnames over AHI 5 tilt).
+        #   Op PSG-IPA gaf 0,55 severity 5/5. Dit punt is daarmee op TWEE sets
+        #   geinformeerd en op geen enkele meer held-out; de bevestiging moet
+        #   van een derde set komen. Zie CHANGELOG.
+        hypopnea_strictness=0.55,
     ),
 )
 

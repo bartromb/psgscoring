@@ -476,10 +476,10 @@ class TestDefaultProfile:
         assert p.post_processing.hypopnea_detector != "breath_graded"
 
     def test_breath_profile_operating_point_is_pinned(self):
-        """0,50 is het gemeten nul-bias punt op PSG-IPA; niet stilzwijgend wijzigen."""
+        """Niet stilzwijgend wijzigen — zie de toelichting in profiles.py."""
         p = get_profile("aasm_v3_breath")
         assert p.post_processing.hypopnea_detector == "breath_graded"
-        assert p.post_processing.hypopnea_strictness == 0.50
+        assert p.post_processing.hypopnea_strictness == 0.55
 
 
 if __name__ == "__main__":
