@@ -49,9 +49,16 @@ Paired per record: **31 better / 17 worse** on oahi4 (Wilcoxon
 PSG-IPA finding replicates on data that had no hand in choosing the
 operating point.
 
-**The trade-off, stated plainly.** Event-level agreement improves and so do
-correlation and limits of agreement, but **severity concordance against
-MESA's 4% definition falls from 29/50 to 25/50**, and the loss is almost
+**Superseded in part — read the second round below before using this
+table.** The two references above (`oahi35`/`oahi45`) credit no hypopnea that
+qualifies on arousal alone, while Rule 1A does. That made every arousal-only
+event a false positive and depressed both precision and recall. A third
+reference reconstructed from `nsrr_ahi_hp3r_aasm15` — literally the rule
+these profiles implement — changes the conclusion about severity.
+
+**The apparent trade-off.** Event-level agreement improves and so do
+correlation and limits of agreement, but severity concordance against
+MESA's 4% definition falls from 29/50 to 25/50, and the loss is almost
 entirely one cell:
 
 | error | `aasm_v3_rec` | `aasm_v3_breath` |
@@ -77,9 +84,63 @@ normals. MESA is a community cohort with many normal recordings; a sleep-lab
 population is enriched for disease, which shifts the balance — but that is an
 argument to weigh, not a reason to discount the finding.
 
-Strictness is the knob for this trade-off (a higher value scores fewer
-events). It has deliberately **not** been re-fitted on MESA: doing so would
-spend the held-out set.
+### Second MESA round — the severity trade-off was a reference artefact
+
+A second sample of 50 records, seed 20260802, drawn from the 2005 that the
+first round did not use (**overlap 0**, asserted by the harness). Three
+configurations run on the *same* records so every comparison is paired:
+`aasm_v3_rec`, breath at 0.50, breath at 0.55.
+
+The reason for the round was a mistake worth recording. On the strength of
+the `Normal → Mild` drift above, strictness was raised to 0.55 — a change
+made *after* seeing the round-1 result, and therefore no longer held-out.
+This round was meant to confirm it on unseen records. It refuted it.
+
+Against **`aasm15`** (reconstructed from `nsrr_ahi_hp3r_aasm15`: all apneas
+plus hypopneas with ≥30% reduction and (≥3% desaturation **or arousal**) —
+AASM v3 Rule 1A, r = 0.999 against the published column):
+
+| config | F1 med | F1 mean | prec | recall | bias | MAE | r | severity |
+|---|---|---|---|---|---|---|---|---|
+| `aasm_v3_rec` | 0.417 | 0.390 | 0.547 | 0.356 | −16.52 | 16.79 | 0.686 | 15/50 |
+| **breath @ 0.50** | **0.471** | **0.450** | 0.567 | **0.407** | **−15.78** | **15.96** | 0.838 | **24/50** |
+| breath @ 0.55 | 0.441 | 0.431 | **0.574** | 0.378 | −16.93 | 17.03 | **0.841** | 20/50 |
+
+Paired against the previous default: **0.50 improves 36/50 records
+(p = 0.0016)**; 0.55 improves 31/50 (p = 0.026).
+
+**0.50 beats 0.55 on F1, recall, bias, MAE and severity — on all three
+references.** Severity concordance, the very thing 0.55 was supposed to
+protect: 24/50 vs 20/50 (`aasm15`), 28/50 vs 25/50 (`oahi4`), 24/50 vs 21/50
+(`oahi3`). Strictness has therefore been returned to **0.50**.
+
+Why the round-1 reading was wrong is visible in the direction of the errors:
+
+```
+aasm_v3_rec   Severe→Moderate:10, Mild→Normal:9, Severe→Mild:6, Moderate→Normal:4
+breath @0.50  Moderate→Mild:7, Severe→Moderate:7, Severe→Mild:6, Mild→Normal:3
+```
+
+Against the rule these profiles actually implement, the problem was never
+over-calling — it is substantial **under**-detection (bias −16.5;
+`aasm_v3_rec` gets only 15/50 severities right). The breath detector reduces
+it: `Mild → Normal` falls from 9 to 3, and severity concordance rises from
+15/50 to 24/50. The `Normal → Mild` drift that motivated 0.55 was an artefact
+of scoring a Rule 1A profile against a 4% reference.
+
+The general lesson, which cost a wrong parameter change: **when a validation
+reference encodes a different rule than the thing being validated, its
+error-direction statistics are not interpretable — only the paired
+difference is.** The paired result held throughout; the severity reading did
+not.
+
+**What is still not established.** Both rounds are MESA. Cross-cohort
+transfer is untested — SHHS was considered and set aside on data-quality
+grounds — so nothing here shows the result holds on different equipment,
+a different scoring era, or a different population. And the absolute level
+remains poor: a bias of −16.5 AHI against Rule 1A means both profiles miss a
+large share of qualifying events. This work improves the gap; it does not
+close it.
 
 ## Known issue — blocks enabling the arousal-limb work by default
 

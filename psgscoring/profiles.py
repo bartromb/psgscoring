@@ -424,21 +424,27 @@ _aasm_v3_breath = Profile(
     ),
     post_processing=PostProcessingRules(
         hypopnea_detector="breath_graded",
-        # Operatiepunt. Wees eerlijk over hoe dit tot stand kwam:
+        # Operatiepunt, met de herkomst erbij omdat die het cijfer weegt:
         #
         #   0,50 kwam uit een VOORAF vastgelegde regel op PSG-IPA — de
         #   strictness waarbij de AHI-bias nul wordt, niet die waar de F1
         #   maximaal is. F1 en percentiel waren daar dus een niet-gefitte
-        #   uitkomst, en die bevinding repliceerde op MESA (50 opnames,
-        #   gepaard 31/17, Wilcoxon p = 0,0069).
+        #   uitkomst.
         #
-        #   0,55 is een LATERE keuze, gemaakt NA het zien van de MESA-uitslag,
-        #   om de Normal->Mild-drift te dempen (severity 29/50 -> 25/50, bijna
-        #   volledig doordat de hogere recall normale opnames over AHI 5 tilt).
-        #   Op PSG-IPA gaf 0,55 severity 5/5. Dit punt is daarmee op TWEE sets
-        #   geinformeerd en op geen enkele meer held-out; de bevestiging moet
-        #   van een derde set komen. Zie CHANGELOG.
-        hypopnea_strictness=0.55,
+        #   Er is korte tijd 0,55 geprobeerd, om een Normal->Mild-drift te
+        #   dempen die zichtbaar was tegen MESA's oahi45. Een tweede,
+        #   disjuncte MESA-steekproef (n = 50, overlap 0) liet zien dat die
+        #   drift een artefact was van de REFERENTIE: oahi45 crediteert geen
+        #   hypopnee die alleen door een arousal kwalificeert, terwijl Rule 1A
+        #   dat wel doet. Tegen nsrr_ahi_hp3r_aasm15 — letterlijk de regel die
+        #   dit profiel implementeert — is het probleem juist forse
+        #   ONDERdetectie, en dempt 0,50 die het sterkst: severity 24/50 tegen
+        #   20/50 bij 0,55 en 15/50 bij aasm_v3_rec, en gepaard 36/50 beter
+        #   (p = 0,0016) tegen 31/50 (p = 0,026).
+        #
+        #   0,50 wint daarmee op F1, recall, bias, MAE en severity, op alle
+        #   drie de referenties. Zie CHANGELOG.
+        hypopnea_strictness=0.50,
     ),
 )
 

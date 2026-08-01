@@ -479,7 +479,7 @@ class TestDefaultProfile:
         """Niet stilzwijgend wijzigen — zie de toelichting in profiles.py."""
         p = get_profile("aasm_v3_breath")
         assert p.post_processing.hypopnea_detector == "breath_graded"
-        assert p.post_processing.hypopnea_strictness == 0.55
+        assert p.post_processing.hypopnea_strictness == 0.50
 
 
 if __name__ == "__main__":
