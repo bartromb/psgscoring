@@ -151,6 +151,10 @@ CHANNEL_PATTERNS: dict[str, list[str]] = {
         "nasal pressure", "nasalpressure", "ptaf", "pnasale",
         "cannula", "npt", "nasal pres", "pflow", "np ",
         "naf", "nasal flow",
+        # NSRR (MESA/SHHS) noemt de neusdruk simpelweg "Pres". Staat bewust
+        # ACHTER de specifieke patronen, zodat "nasal pressure" wint wanneer
+        # beide aanwezig zijn.
+        "pres",
     ],
     # AASM: oronasal thermistor -> apnea (detects cessation)
     "flow_thermistor": [
@@ -165,7 +169,10 @@ CHANNEL_PATTERNS: dict[str, list[str]] = {
                  "abdominal", "effort abdom", "abd belt", "abdo"],
     "spo2":     ["spo2", "sao2", "saturation", "o2", "oximetry",
                  "puls spo2", "pulse ox"],
-    "pulse":    ["pulse", "pr", "heart rate", "hr", "puls rate"],
+    # "pr" staat ACHTERAAN: het is een substring van "pres" (NSRR-neusdruk) en
+    # zou die anders opeisen vóór "hr" ooit geprobeerd wordt. Matching is
+    # substring-based en per rol first-match-wins, dus volgorde is semantiek.
+    "pulse":    ["pulse", "heart rate", "hr", "puls rate", "pr"],
     "ecg":      ["ecg", "ekg", "cardiac", "einthoven", "ii", "ecg ii"],
     "position": ["position", "positie", "pos", "body pos", "lage",
                  "body position", "bpos"],
