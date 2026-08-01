@@ -21,28 +21,28 @@ elk event te koppelen aan de losse ``SpO2 desaturation``-events. Wie de labels
 rauw telt, komt 2 tot 4 keer te hoog uit en concludeert vervolgens ten
 onrechte dat het algoritme massaal onderdetecteert.
 
-De reconstructie die hier gebruikt wordt:
+De reconstructie telt alleen events die in een slaap-epoch beginnen, en
+koppelt elke hypopnee aan een SpO2-desaturatie die begint binnen
+[start, einde + 30 s] — en, voor de arousal-varianten, aan een arousal binnen
+[start, einde + 5 s].
 
-  - alleen events die in een slaap-epoch beginnen;
-  - een hypopnee telt wanneer een SpO2-desaturatie van >=3% (resp. >=4%)
-    begint binnen [start, einde + 30 s];
-  - obstructieve en gemengde apneus tellen zonder desaturatie-eis;
-  - centrale apneus tellen niet mee — ``oahi`` is de OBSTRUCTIEVE index.
+Drie referentiesets, elk geijkt tegen zijn eigen gepubliceerde NSRR-kolom
+(60 opnames; herhaal met ``--verify-reference``):
 
-Gevalideerd tegen de gepubliceerde ``oahi35``/``oahi45`` uit
-``mesa-sleep-dataset-0.8.0.csv`` over 60 opnames: bias +0,11 / +0,19 AHI,
-MAE 0,84 / 0,66, r = 0,998. Draai ``--verify-reference`` om dat te herhalen.
+  ``aasm15``  PRIMAIR. Alle apneus + hypopneeen met >=3% desaturatie OF een
+              arousal. Dat is letterlijk AASM v3 Rule 1A, dus de regel die
+              beide profielen implementeren.
+              vs ``nsrr_ahi_hp3r_aasm15``: bias +0,32, MAE 0,72, r = 0,999
+  ``oahi3``   obstructieve apneus + hypopneeen met >=3% desaturatie, ZONDER
+              arousal-tak. vs ``oahi35``: bias +0,11, MAE 0,84, r = 0,998
+  ``oahi4``   idem met >=4%. MESA's eigen kopcijfer.
+              vs ``oahi45``: bias +0,19, MAE 0,66, r = 0,998
 
-Twee referentiesets, want MESA's regel is niet die van AASM v3 Rule 1A
-
-  ``oahi4``   hypopnee met >=4% desaturatie. MESA's primaire definitie.
-  ``oahi3``   hypopnee met >=3% desaturatie. Dichter bij Rule 1A.
-
-Beide worden gerapporteerd. Let op de resterende asymmetrie: geen van beide
-referenties crediteert een hypopnee die alleen door een arousal kwalificeert,
-terwijl Rule 1A dat wel doet. Beide profielen hebben daar evenveel last van,
-dus het GEPAARDE verschil blijft geldig; de absolute precisie is erdoor
-gedrukt.
+De oahi-varianten staan erbij voor continuiteit met eerdere rondes, maar ze
+crediteren geen hypopnee die alleen door een arousal kwalificeert terwijl
+Rule 1A dat wel doet. Daardoor tellen zulke events als false positive en
+drukken ze zowel precisie als recall van BEIDE profielen. ``aasm15`` heeft
+dat probleem niet en is daarom de maat waarop geconcludeerd wordt.
 
 Het hypnogram komt uit de NSRR-annotatie, niet uit YASA, zodat het verschil
 tussen de profielen alleen de respiratoire scoring betreft.
@@ -89,14 +89,27 @@ STAGE_MAP = {
     "rem sleep": "R",
 }
 
-# Apneus die in oahi meetellen. Centraal telt NIET mee: oahi is de
-# obstructieve index, en dat is wat mesa-sleep-dataset publiceert.
-APNEA_MAP = {"obstructive apnea": "obstructive", "mixed apnea": "mixed"}
+APNEA_MAP = {"obstructive apnea": "obstructive", "mixed apnea": "mixed",
+             "central apnea": "central"}
+OBSTRUCTIVE_SCOPE = {"obstructive", "mixed"}
 HYPOPNEA_CONCEPTS = {"hypopnea", "unsure"}
 
-# Referentieset -> vereiste desaturatiediepte in procenten
-REFERENCES = {"oahi4": 4.0, "oahi3": 3.0}
 DESAT_LINK_WINDOW_S = 30.0
+AROUSAL_LINK_WINDOW_S = 5.0
+
+# Referentiesets, elk met de NSRR-kolom waartegen de reconstructie geijkt is.
+# ``aasm15`` is de primaire: dat is letterlijk de regel die beide profielen
+# implementeren (AASM v3 Rule 1A). De oahi-varianten staan erbij voor
+# continuiteit met de eerste ronde en omdat oahi45 MESA's eigen kopcijfer is.
+REFERENCES = {
+    "aasm15": {"desat": 3.0, "arousal": True, "apneas": "all",
+               "column": "nsrr_ahi_hp3r_aasm15", "source": "harmonized"},
+    "oahi3":  {"desat": 3.0, "arousal": False, "apneas": "obstructive",
+               "column": "oahi35", "source": "dataset"},
+    "oahi4":  {"desat": 4.0, "arousal": False, "apneas": "obstructive",
+               "column": "oahi45", "source": "dataset"},
+}
+PRIMARY_REFERENCE = "aasm15"
 
 PROFILES = ("aasm_v3_rec", "aasm_v3_breath")
 
@@ -116,10 +129,11 @@ def parse_nsrr(xml_path, signal_duration_s,
     root = ET.parse(str(xml_path)).getroot()
     n_epochs = int(math.ceil(signal_duration_s / EPOCH_S))
     hypno = ["W"] * n_epochs
-    hypopneas, apneas, desats = [], [], []
+    hypopneas, apneas, desats, arousals = [], [], [], []
 
     for ev in root.iter("ScoredEvent"):
         concept = (ev.findtext("EventConcept") or "").split("|")[0].strip().lower()
+        ev_type = (ev.findtext("EventType") or "").lower()
         try:
             start = float(ev.findtext("Start") or "nan")
             dur = float(ev.findtext("Duration") or "nan")
@@ -147,19 +161,36 @@ def parse_nsrr(xml_path, signal_duration_s,
             except (TypeError, ValueError):
                 continue
             desats.append((start, drop))
+        elif "arousal" in ev_type or "arousal" in concept:
+            arousals.append(start)
 
     tst_h = sum(1 for s in hypno if s in ("N1", "N2", "N3", "R")) * EPOCH_S / 3600.0
+    arousals.sort()
 
     def asleep(t):
         ep = int(t // EPOCH_S)
         return 0 <= ep < n_epochs and hypno[ep] in ("N1", "N2", "N3", "R")
 
     events = {}
-    for name, thr in REFERENCES.items():
-        out = [(a, b, "hypopnea") for a, b in hypopneas
-               if asleep(a) and any(a <= s <= b + link_window_s and d >= thr
-                                    for s, d in desats)]
-        out += [(a, b, t) for a, b, t in apneas if asleep(a)]
+    for name, spec in REFERENCES.items():
+        thr = spec["desat"]
+        out = []
+        for a, b in hypopneas:
+            if not asleep(a):
+                continue
+            qualifies = any(a <= s <= b + link_window_s and d >= thr
+                            for s, d in desats)
+            if not qualifies and spec["arousal"]:
+                qualifies = any(a <= x <= b + AROUSAL_LINK_WINDOW_S
+                                for x in arousals)
+            if qualifies:
+                out.append((a, b, "hypopnea"))
+        for a, b, t in apneas:
+            if not asleep(a):
+                continue
+            if spec["apneas"] == "obstructive" and t not in OBSTRUCTIVE_SCOPE:
+                continue
+            out.append((a, b, t))
         events[name] = sorted(out)
     return hypno, events, tst_h
 
@@ -254,6 +285,9 @@ def analyse_one(args):
             m = match_events(algo, ref, **LEGACY_MATCHER)
             rec["match"][name] = {k: m[k] for k in
                                   ("f1", "precision", "recall", "tp", "fp", "fn")}
+        # De eventlijst zelf mee opslaan: dan kan een referentiewijziging
+        # offline hermatched worden zonder de pijplijn opnieuw te draaien.
+        rec["events"] = [(round(a, 2), round(b, 2), str(t)) for a, b, t in algo]
         bd = r.get("breath_detector")
         if bd:
             rec["breath_detector"] = bd
@@ -363,24 +397,25 @@ def verify_reference(data_dir, limit=60):
     """
     import csv
 
-    ds = data_dir / "datasets" / "mesa-sleep-dataset-0.8.0.csv"
-    if not ds.exists():
-        print(f"  dataset-CSV niet gevonden: {ds}")
+    sources = {}
+    for tag, fname, idcol in (
+            ("dataset", "mesa-sleep-dataset-0.8.0.csv", "mesaid"),
+            ("harmonized", "mesa-sleep-harmonized-dataset-0.8.0.csv", "nsrrid")):
+        path = data_dir / "datasets" / fname
+        if not path.exists():
+            print(f"  CSV niet gevonden: {path}")
+            continue
+        with path.open(newline="", encoding="utf-8", errors="replace") as fh:
+            sources[tag] = {row[idcol]: row for row in csv.DictReader(fh)}
+    if not sources:
         return
-    pub = {}
-    with ds.open(newline="", encoding="utf-8", errors="replace") as fh:
-        for row in csv.DictReader(fh):
-            pub[row["mesaid"]] = row
 
     xml_dir = data_dir / "polysomnography" / "annotations-events-nsrr"
-    col = {"oahi3": "oahi35", "oahi4": "oahi45"}
     got = {k: [] for k in REFERENCES}
     ref = {k: [] for k in REFERENCES}
 
     for xml in sorted(xml_dir.glob("*.xml"))[:limit]:
         rid = xml.stem.replace("-nsrr", "").replace("mesa-sleep-", "").lstrip("0")
-        if rid not in pub:
-            continue
         # De signaalduur is hier niet nodig: de annotatie bestrijkt de opname.
         try:
             _h, events, tst = parse_nsrr(xml, 1e9)
@@ -388,25 +423,30 @@ def verify_reference(data_dir, limit=60):
             continue
         if tst < 1.0:
             continue
-        for name in REFERENCES:
+        for name, spec in REFERENCES.items():
+            table = sources.get(spec["source"], {})
+            if rid not in table:
+                continue
             try:
-                published = float(pub[rid][col[name]])
+                published = float(table[rid][spec["column"]])
             except (KeyError, ValueError):
                 continue
             got[name].append(len(events[name]) / tst)
             ref[name].append(published)
 
     print(f"\n  Referentiereconstructie vs gepubliceerde NSRR-waarden "
-          f"(koppelvenster {DESAT_LINK_WINDOW_S:.0f} s)")
-    print(f"  {'set':8s} {'kolom':8s} {'n':>4s} {'bias':>8s} {'MAE':>7s} {'r':>7s}")
-    for name in REFERENCES:
+          f"(desat-venster {DESAT_LINK_WINDOW_S:.0f} s, "
+          f"arousal-venster {AROUSAL_LINK_WINDOW_S:.0f} s)")
+    print(f"  {'set':9s} {'kolom':22s} {'n':>4s} {'bias':>8s} {'MAE':>7s} {'r':>7s}")
+    for name, spec in REFERENCES.items():
         if len(got[name]) < 3:
-            print(f"  {name:8s} te weinig data")
+            print(f"  {name:9s} te weinig data")
             continue
         d = np.asarray(got[name]) - np.asarray(ref[name])
         r = float(np.corrcoef(got[name], ref[name])[0, 1])
-        print(f"  {name:8s} {col[name]:8s} {len(d):4d} {d.mean():+8.2f} "
-              f"{np.abs(d).mean():7.2f} {r:7.3f}")
+        mark = "  <- primair" if name == PRIMARY_REFERENCE else ""
+        print(f"  {name:9s} {spec['column']:22s} {len(d):4d} {d.mean():+8.2f} "
+              f"{np.abs(d).mean():7.2f} {r:7.3f}{mark}")
 
 
 def main():
@@ -476,7 +516,7 @@ def main():
                 parts = []
                 for lab in labels:
                     v = (r["profiles"].get(lab, {}).get("match", {})
-                         .get("oahi3", {}).get("f1"))
+                         .get(PRIMARY_REFERENCE, {}).get("f1"))
                     parts.append(f"{lab} {'--' if v is None else format(v, '.3f')}")
                 print(f"  [{i}/{len(picked)}] {r['recording']}  "
                       + "  ".join(parts))
