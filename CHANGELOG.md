@@ -24,6 +24,63 @@ Reverting is one line: `scoring_profile: str = "aasm_v3_rec"` in
 `pipeline.py`. `tests/test_profiles.py::TestDefaultProfile` pins both the
 default and the alias stability.
 
+### Held-out confirmation on MESA/NSRR
+
+50 records, seed 20260801, drawn from the 2055 with both an EDF and an NSRR
+annotation. **Nothing was re-tuned**: `hypopnea_strictness` stayed at the
+0.50 chosen on PSG-IPA. Both profiles ran on the same record with the NSRR
+hypnogram, so only respiratory scoring differs. `scripts/validate_mesa.py`.
+
+The reference is reconstructed, not counted — see that script's docstring.
+NSRR's `Hypopnea`/`Unsure` labels carry no desaturation requirement; it is
+applied afterwards by linking to the separate `SpO2 desaturation` events.
+Reconstruction validated against published `oahi35`/`oahi45`: bias +0.11 /
++0.19 AHI, MAE 0.84 / 0.66, **r = 0.998** over 60 records.
+
+| ref | profile | F1 med | F1 mean | prec | recall | bias | r | LoA | severity |
+|---|---|---|---|---|---|---|---|---|---|
+| oahi4 | `aasm_v3_rec` | 0.379 | 0.361 | 0.332 | 0.484 | −2.24 | 0.731 | −17.3…+12.8 | 29/50 |
+| oahi4 | `aasm_v3_breath` | **0.442** | **0.411** | **0.365** | **0.571** | **−0.36** | **0.754** | **−14.8…+14.1** | 25/50 |
+| oahi3 | `aasm_v3_rec` | 0.414 | 0.399 | 0.471 | 0.404 | −7.95 | 0.751 | −27.9…+12.0 | 23/50 |
+| oahi3 | `aasm_v3_breath` | **0.464** | **0.432** | **0.507** | **0.494** | **−6.07** | **0.784** | **−24.8…+12.7** | 22/50 |
+
+Paired per record: **31 better / 17 worse** on oahi4 (Wilcoxon
+**p = 0.0069**) and **31 better / 18 worse** on oahi3 (**p = 0.039**). The
+PSG-IPA finding replicates on data that had no hand in choosing the
+operating point.
+
+**The trade-off, stated plainly.** Event-level agreement improves and so do
+correlation and limits of agreement, but **severity concordance against
+MESA's 4% definition falls from 29/50 to 25/50**, and the loss is almost
+entirely one cell:
+
+| error | `aasm_v3_rec` | `aasm_v3_breath` |
+|---|---|---|
+| **Normal → Mild** | 7 | **10** |
+| Moderate → Mild | 3 | 5 |
+| Severe → Moderate | 2 | 5 |
+| Mild → Moderate | 5 | 3 |
+
+Higher recall (0.484 → 0.571) tips three more normal recordings over
+AHI 5 — clinically the least comfortable direction, a false-positive OSA
+call. And the gain is distributed as the mirror image of that risk:
+
+| reference severity | median ΔF1 (oahi4) | better |
+|---|---|---|
+| Normal (n=16) | −0.002 | 6/16 |
+| Mild (n=19) | +0.033 | 12/19 |
+| Moderate (n=10) | **+0.096** | **9/10** |
+| Severe (n=5) | **+0.153** | 4/5 |
+
+The detector wins where there is disease and is neutral-to-harmful in
+normals. MESA is a community cohort with many normal recordings; a sleep-lab
+population is enriched for disease, which shifts the balance — but that is an
+argument to weigh, not a reason to discount the finding.
+
+Strictness is the knob for this trade-off (a higher value scores fewer
+events). It has deliberately **not** been re-fitted on MESA: doing so would
+spend the held-out set.
+
 ## Known issue — blocks enabling the arousal-limb work by default
 
 **The arousal plumbing repair changes `mesa_shhs`, which is a hard
@@ -157,8 +214,8 @@ prerequisite for shipping the plumbing fix, and that is out of scope here.
     disagree strongly there (pairwise F1 p10 = 0.087, p25 = 0.462) — but
     that is context, not an excuse.
   - **n = 5, and the operating-point rule was applied to the same five
-    recordings the result is reported on.** MESA confirmation on held-out
-    data is still open.
+    recordings the result is reported on.** See the MESA held-out result
+    below, which was run afterwards with nothing re-tuned.
   - On the recordings where scorers *do* agree, the algorithm remains at or
     below the bottom of their distribution (SN1 p0 against a human median
     of 0.826; SN3 p5 against 0.948).
