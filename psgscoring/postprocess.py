@@ -402,3 +402,93 @@ def postprocess_respiratory_events(
     )
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Twee flowsensoren: apneus samenvoegen zonder dubbel te tellen
+# ---------------------------------------------------------------------------
+# De AASM wijst apneus toe aan de thermistor en hypopneeen aan de nasale druk.
+# Kiezen tussen die twee is echter een valse keuze: elk van beide mist iets.
+# De neusdruk mist mondademhaling, de thermistor is te traag voor korte
+# events. Een apneu die op een van beide zichtbaar is, is een apneu.
+#
+# Wat wel moet: niet dubbel tellen. Twee sensoren zien hetzelfde event met
+# verschoven grenzen - temperatuur volgt trager dan druk - dus ontdubbelen
+# gebeurt op OVERLAP, niet op gelijke tijden. Dezelfde IoU-logica als de
+# validatieharness gebruikt.
+
+def _iou(a0, a1, b0, b1):
+    """Intersection-over-union van twee tijdsintervallen."""
+    inter = max(0.0, min(a1, b1) - max(a0, b0))
+    union = max(a1, b1) - min(a0, b0)
+    return inter / union if union > 0 else 0.0
+
+
+def merge_apnea_events(primary, secondary, iou_thresh=0.20,
+                       keep="longest", secondary_only=True):
+    """Voeg apneus van twee sensoren samen zonder dubbel te tellen.
+
+    ``primary``   events van de AASM-sensor voor apneus (thermistor)
+    ``secondary`` events van de andere sensor (nasale druk)
+    ``keep``      welk event overblijft bij overlap: "primary", "longest"
+                  of "confident" (hoogste confidence)
+    ``secondary_only``
+                  neem ook events op die ALLEEN op de tweede sensor te zien
+                  zijn. Klinisch is dat de vraag of een apneu die alleen de
+                  thermistor ziet een echt event is (mondademhaling) of een
+                  artefact (losgeschoten neusbril). Staat daarom als knop,
+                  niet als aanname.
+
+    Retourneert ``(events, diagnostiek)``.
+    """
+    def _span(e):
+        a = float(e.get("onset_s") or 0.0)
+        return a, a + float(e.get("duration_s") or 0.0)
+
+    def _better(x, y):
+        if keep == "primary":
+            return x
+        if keep == "confident":
+            return x if (x.get("confidence") or 0) >= (y.get("confidence") or 0) else y
+        xa, xb = _span(x); ya, yb = _span(y)
+        return x if (xb - xa) >= (yb - ya) else y
+
+    out = [dict(e) for e in (primary or [])]
+    used = [False] * len(secondary or [])
+    n_merged = 0
+
+    for i, s in enumerate(secondary or []):
+        sa, sb = _span(s)
+        best_j, best_iou = None, 0.0
+        for j, p in enumerate(out):
+            pa, pb = _span(p)
+            v = _iou(sa, sb, pa, pb)
+            if v >= iou_thresh and v > best_iou:
+                best_j, best_iou = j, v
+        if best_j is not None:
+            winner = dict(_better(out[best_j], s))
+            winner["seen_on_both_sensors"] = True
+            out[best_j] = winner
+            used[i] = True
+            n_merged += 1
+
+    n_added = 0
+    if secondary_only:
+        for i, s in enumerate(secondary or []):
+            if not used[i]:
+                e = dict(s)
+                e["secondary_sensor_only"] = True
+                out.append(e)
+                n_added += 1
+
+    out.sort(key=lambda e: float(e.get("onset_s") or 0.0))
+    return out, {
+        "n_primary": len(primary or []),
+        "n_secondary": len(secondary or []),
+        "n_merged": n_merged,
+        "n_secondary_only_added": n_added,
+        "n_total": len(out),
+        "iou_thresh": iou_thresh,
+        "keep": keep,
+        "secondary_only": secondary_only,
+    }

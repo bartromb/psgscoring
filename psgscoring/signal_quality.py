@@ -509,3 +509,95 @@ __all__ = [
     "ChannelStatus",
     "EventClassification",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Flow-sensorpaar: mag de thermistor de apneu-sensor worden?
+# ---------------------------------------------------------------------------
+# De AASM schrijft de oronasale thermistor voor apneus voor, en psgscoring
+# wijst die rol toe zodra het kanaal herkend wordt. Dat ging mis op montages
+# waar de thermistor aanwezig is maar geen bruikbaar ademsignaal draagt: op
+# een echte opname zakte het aantal apneus van 93 naar 0 en verschoof de
+# uitkomst van matig CSAS (bevestigd door menselijke scoring) naar mild SAS.
+#
+# De beslissende eigenschap is niet of de thermistor ademband-energie heeft —
+# ruis kan die ook hebben — maar of hij het met de neusdruk EENS is over
+# wanneer de ademhaling wegvalt. Dat is wat de envelope-correlatie meet.
+#
+# LET OP bij de drempel hieronder. Gemeten op 8 opnames scheidden de klassen
+# elkaar NIET: bekend-slecht liep tot +0,225, bekend-goed begon op +0,226.
+# 0,40 is daarom bewust conservatief gekozen, niet afgeleid: hij ligt boven
+# elk gemeten slecht paar en houdt ook enkele bruikbare paren tegen. Dat is
+# de veilige kant, want een gemiste centrale apneu weegt zwaarder dan een
+# milde overdetectie op de neusdruk. Met meer opnames hoort dit opnieuw
+# bepaald te worden.
+THERMISTOR_AGREEMENT_MIN = 0.40
+THERMISTOR_ENV_SMOOTH_S  = 10.0
+
+
+def _breath_envelope(x: np.ndarray, sf: float,
+                     smooth_s: float = THERMISTOR_ENV_SMOOTH_S) -> np.ndarray:
+    """Gladgestreken ademband-amplitude: 'hoeveel wordt er nu geademd'."""
+    from scipy.signal import butter, filtfilt
+    x = np.asarray(x, dtype=float).squeeze()
+    if x.ndim != 1 or x.size < int(sf * 60):
+        return np.empty(0)
+    x = x - np.median(x)
+    nyq = sf / 2.0
+    hi = min(BREATH_FREQ_HIGH / nyq, 0.99)
+    lo = BREATH_FREQ_LOW / nyq
+    if not (0 < lo < hi < 1):
+        return np.empty(0)
+    b, a = butter(2, [lo, hi], btype="band")
+    y = np.abs(filtfilt(b, a, x))
+    n = max(1, int(smooth_s * sf))
+    return np.convolve(y, np.ones(n) / n, mode="same")
+
+
+def assess_flow_sensor_agreement(
+    pressure: np.ndarray, sf_pressure: float,
+    thermistor: np.ndarray, sf_thermistor: float,
+    min_agreement: float = THERMISTOR_AGREEMENT_MIN,
+) -> dict:
+    """Is de thermistor bruikbaar als apneu-sensor naast deze neusdruk?
+
+    Retourneert ``{"agreement", "usable", "reason"}``. ``usable=False``
+    betekent: val terug op de neusdruk voor apneus, en zeg dat erbij.
+    """
+    out = {"agreement": None, "usable": False, "reason": ""}
+    if pressure is None or thermistor is None:
+        out["reason"] = "een van beide kanalen ontbreekt"
+        return out
+    if abs(sf_pressure - sf_thermistor) > 1e-6:
+        out["reason"] = (f"verschillende samplefrequenties "
+                         f"({sf_pressure:g} vs {sf_thermistor:g} Hz)")
+        return out
+
+    ep = _breath_envelope(pressure, sf_pressure)
+    et = _breath_envelope(thermistor, sf_thermistor)
+    if ep.size == 0 or et.size == 0:
+        out["reason"] = "signaal te kort voor een envelope"
+        return out
+
+    n = min(ep.size, et.size)
+    step = max(1, int(sf_pressure))          # 1 Hz volstaat en is stabieler
+    a, b = ep[:n:step], et[:n:step]
+    if a.size < 30 or float(np.std(a)) == 0 or float(np.std(b)) == 0:
+        out["reason"] = "envelope zonder variatie"
+        return out
+
+    corr = float(np.corrcoef(a, b)[0, 1])
+    if not np.isfinite(corr):
+        out["reason"] = "correlatie niet berekenbaar"
+        return out
+
+    out["agreement"] = round(corr, 3)
+    if corr >= min_agreement:
+        out["usable"] = True
+        out["reason"] = (f"envelope-overeenstemming {corr:.2f} "
+                         f">= {min_agreement:.2f}")
+    else:
+        out["reason"] = (f"envelope-overeenstemming {corr:.2f} "
+                         f"< {min_agreement:.2f}: de thermistor volgt de "
+                         f"ademhaling niet zoals de neusdruk")
+    return out

@@ -1003,6 +1003,36 @@ def _resolve_flow_channels(
     ch, output,
 ):
     """Assign apnea (thermistor) and hypopnea (pressure) channels per AASM."""
+    # De AASM schrijft de thermistor voor apneus voor, maar alleen een
+    # thermistor die de ademhaling volgt is de juiste sensor. Op een montage
+    # waar het kanaal aanwezig is maar geen bruikbaar signaal draagt, zakte
+    # het aantal apneus op een echte opname van 93 naar 0 en verschoof de
+    # uitkomst van matig CSAS — bevestigd door menselijke scoring — naar
+    # mild SAS. De sensorkeuze toetst daarom of beide kanalen het eens zijn
+    # over wanneer de ademhaling wegvalt; zo niet, dan blijft de neusdruk de
+    # apneu-sensor en wordt de reden vastgelegd.
+    _therm_check = None
+    if flow_therm_data is not None and flow_pressure_data is not None:
+        try:
+            from .signal_quality import assess_flow_sensor_agreement
+            _therm_check = assess_flow_sensor_agreement(
+                flow_pressure_data, sf_fp or 0.0, flow_therm_data, sf_ft or 0.0)
+            if not _therm_check["usable"]:
+                logger.warning(
+                    "[pneumo] thermistor niet gebruikt als apneu-sensor: %s",
+                    _therm_check["reason"])
+                flow_therm_data, sf_ft = None, None
+                ch = {**ch, "flow_thermistor_rejected": ch.get("flow_thermistor")}
+                ch.pop("flow_thermistor", None)
+            else:
+                logger.info("[pneumo] thermistor bruikbaar als apneu-sensor: %s",
+                            _therm_check["reason"])
+        except Exception as e:  # noqa: BLE001 — nooit de run laten vallen
+            logger.warning("[pneumo] thermistortoets mislukt, neusdruk "
+                           "aangehouden: %s", e)
+            flow_therm_data, sf_ft = None, None
+            ch = {k: v for k, v in ch.items() if k != "flow_thermistor"}
+
     if flow_pressure_data is not None or flow_therm_data is not None:
         # v0.8.4 FIX: Python 'or' crashes on numpy arrays ("truth value ambiguous").
         # Use explicit None-checks instead.
@@ -1021,6 +1051,11 @@ def _resolve_flow_channels(
             "apnea_sensor":    ch.get("flow_thermistor")  or ch.get("flow_pressure") or ch.get("flow"),
             "hypopnea_sensor": ch.get("flow_pressure") or ch.get("flow_thermistor") or ch.get("flow"),
             "dual_sensor":     flow_pressure_data is not None and flow_therm_data is not None,
+            # Zichtbaar maken waarom de thermistor er niet is: aanwezig maar
+            # afgekeurd is iets anders dan afwezig, en dat verschil hoort in
+            # het rapport te kunnen landen.
+            "thermistor_check":   _therm_check,
+            "thermistor_rejected": ch.get("flow_thermistor_rejected"),
         }
     else:
         apnea_flow = flow_data
@@ -1031,6 +1066,8 @@ def _resolve_flow_channels(
             "apnea_sensor":    ch.get("flow", "-"),
             "hypopnea_sensor": ch.get("flow", "-"),
             "dual_sensor":     False,
+            "thermistor_check":   _therm_check,
+            "thermistor_rejected": ch.get("flow_thermistor_rejected"),
         }
     return apnea_flow, hypop_flow, sf_apnea, sf_hypop
 

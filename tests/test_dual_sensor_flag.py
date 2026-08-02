@@ -29,11 +29,19 @@ def _resolve(pressure, thermistor, generic=None):
     return out["meta"]["flow_channels"], apnea, hypop
 
 
-SIG = np.ones(320)
+# Ademsignaal, geen constante array: sinds de kwaliteitspoort moet een
+# "sensor" ook daadwerkelijk ademhaling dragen om als tweede sensor te
+# tellen. Een vlakke lijn hoort juist afgekeurd te worden.
+_T = np.arange(0, 900, 1 / 32.0)
+_RNG = np.random.default_rng(0)
+SIG = (np.sin(2 * np.pi * 0.25 * _T)
+       * (1.0 + 0.5 * np.sin(2 * np.pi * 0.01 * _T))
+       + 0.05 * _RNG.normal(size=_T.size))
+FLAT = np.ones(_T.size)
 
 
 def test_two_distinct_sensors_is_dual():
-    fc, apnea, hypop = _resolve(SIG, SIG * 2)
+    fc, apnea, hypop = _resolve(SIG, SIG * 0.4)
     assert fc["dual_sensor"] is True
     assert fc["apnea_sensor"] == "THERM"
     assert fc["hypopnea_sensor"] == "PRESS"
@@ -63,8 +71,16 @@ def test_generic_flow_only_is_not_dual():
     assert apnea is hypop
 
 
+def test_a_flat_second_channel_is_not_a_second_sensor():
+    """De kwaliteitspoort: aanwezig is niet hetzelfde als bruikbaar."""
+    fc, apnea, hypop = _resolve(SIG, FLAT)
+    assert fc["dual_sensor"] is False
+    assert fc["apnea_sensor"] == "PRESS"
+    assert apnea is hypop
+
+
 @pytest.mark.parametrize("pressure,thermistor,expected", [
-    (SIG, SIG, True),
+    (SIG, SIG * 0.4, True),
     (SIG, None, False),
     (None, SIG, False),
 ])
