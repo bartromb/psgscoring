@@ -407,21 +407,109 @@ def postprocess_respiratory_events(
 # ---------------------------------------------------------------------------
 # Twee flowsensoren: apneus samenvoegen zonder dubbel te tellen
 # ---------------------------------------------------------------------------
-# De AASM wijst apneus toe aan de thermistor en hypopneeen aan de nasale druk.
-# Kiezen tussen die twee is echter een valse keuze: elk van beide mist iets.
-# De neusdruk mist mondademhaling, de thermistor is te traag voor korte
-# events. Een apneu die op een van beide zichtbaar is, is een apneu.
+# Twee sensoren gebruiken is NIET hetzelfde als hun events optellen. De
+# fysiologie is asymmetrisch:
 #
-# Wat wel moet: niet dubbel tellen. Twee sensoren zien hetzelfde event met
-# verschoven grenzen - temperatuur volgt trager dan druk - dus ontdubbelen
-# gebeurt op OVERLAP, niet op gelijke tijden. Dezelfde IoU-logica als de
-# validatieharness gebruikt.
+#   apneu op de NEUSDRUK terwijl de thermistor nog flow ziet
+#       -> mondademhaling. Er beweegt lucht; dit is geen apneu. Precies
+#          hierom schrijft de AASM de thermistor voor apneus voor.
+#
+#   apneu op de THERMISTOR terwijl de neusdruk nog flow ziet
+#       -> fysiologisch vreemd. De thermistor voelt oraal en nasaal, dus
+#          nasale flow hoort hij te zien. Wijst op thermistorartefact.
+#
+#   beide sensoren zien het
+#       -> apneu, en met hogere zekerheid dan elk kanaal alleen kan geven.
+#
+# Een OF-regel zou dus juist de valse apneus toevoegen waar de AASM tegen
+# beschermt. De tweede sensor hoort te FALSIFIEREN, niet op te tellen.
+#
+# Ontdubbelen gebeurt op OVERLAP, niet op gelijke tijden: temperatuur volgt
+# trager dan druk, dus dezelfde gebeurtenis krijgt verschoven grenzen.
+# Dezelfde IoU-logica als de validatieharness.
 
 def _iou(a0, a1, b0, b1):
     """Intersection-over-union van twee tijdsintervallen."""
     inter = max(0.0, min(a1, b1) - max(a0, b0))
     union = max(a1, b1) - min(a0, b0)
     return inter / union if union > 0 else 0.0
+
+
+def corroborate_apnea_events(thermistor_events, pressure_events,
+                             iou_thresh=0.20,
+                             keep_thermistor_only=False,
+                             keep_pressure_only=False):
+    """Kruiscontroleer apneus van twee flowsensoren.
+
+    ``thermistor_events``  apneus gedetecteerd op de oronasale thermistor
+    ``pressure_events``    apneus gedetecteerd op de nasale druk
+
+    Elk event valt in een van drie vakjes, en het vakje bepaalt het oordeel:
+
+    ``both``            beide sensoren zien het -> apneu, hoogste zekerheid
+    ``thermistor_only`` alleen de thermistor -> verdacht artefact
+    ``pressure_only``   alleen de neusdruk -> vermoedelijk mondademhaling
+
+    Beide "only"-categorieen worden standaard NIET meegeteld: dat is de
+    corroboratieregel. De knoppen bestaan omdat het onderscheid tussen een
+    echt event en een artefact klinisch is en niet uit het signaal alleen
+    volgt; wie ze aanzet moet weten wat hij binnenhaalt.
+
+    Retourneert ``(events, diagnostiek)``. Elk behouden event draagt
+    ``corroboration`` met het vakje waarin het viel.
+    """
+    def _span(e):
+        a = float(e.get("onset_s") or 0.0)
+        return a, a + float(e.get("duration_s") or 0.0)
+
+    therm = list(thermistor_events or [])
+    press = list(pressure_events or [])
+    matched_p = [False] * len(press)
+    out, n_both = [], 0
+
+    for t in therm:
+        ta, tb = _span(t)
+        best_j, best_iou = None, 0.0
+        for j, pr in enumerate(press):
+            if matched_p[j]:
+                continue
+            pa, pb = _span(pr)
+            v = _iou(ta, tb, pa, pb)
+            if v >= iou_thresh and v > best_iou:
+                best_j, best_iou = j, v
+        if best_j is not None:
+            matched_p[best_j] = True
+            e = dict(t)                       # de AASM-sensor bepaalt de grenzen
+            e["corroboration"] = "both"
+            out.append(e)
+            n_both += 1
+        elif keep_thermistor_only:
+            e = dict(t)
+            e["corroboration"] = "thermistor_only"
+            out.append(e)
+
+    n_t_only = sum(1 for t in therm) - n_both
+    n_p_only = sum(1 for m in matched_p if not m)
+
+    if keep_pressure_only:
+        for j, pr in enumerate(press):
+            if not matched_p[j]:
+                e = dict(pr)
+                e["corroboration"] = "pressure_only"
+                out.append(e)
+
+    out.sort(key=lambda e: float(e.get("onset_s") or 0.0))
+    return out, {
+        "n_thermistor": len(therm),
+        "n_pressure": len(press),
+        "n_both": n_both,
+        "n_thermistor_only": n_t_only,
+        "n_pressure_only": n_p_only,
+        "n_kept": len(out),
+        "iou_thresh": iou_thresh,
+        "keep_thermistor_only": keep_thermistor_only,
+        "keep_pressure_only": keep_pressure_only,
+    }
 
 
 def merge_apnea_events(primary, secondary, iou_thresh=0.20,
