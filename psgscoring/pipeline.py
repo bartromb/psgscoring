@@ -298,6 +298,20 @@ def run_pneumo_analysis(
         }
     output["respiratory"] = resp
 
+    # `dual_sensor` betekent: apneus en hypopneeën zijn op VERSCHILLENDE
+    # sensoren gescoord. respiratory.py zette de vlag op True zodra er
+    # überhaupt een hypopnee-kanaal was, zonder te vergelijken — en omdat
+    # _resolve_flow_channels() bij een ontbrekende thermistor terugvalt op
+    # hetzelfde kanaal, stond hij praktisch altijd aan. De enige consument
+    # is de rapportnoot "apneu op thermistor, hypopneu op nasale druk", die
+    # daardoor een methodiek claimde die niet was toegepast.
+    #
+    # meta["flow_channels"]["dual_sensor"] is wél correct berekend (beide
+    # kanalen aanwezig); die is hier de bron van waarheid.
+    _fc = (output.get("meta", {}) or {}).get("flow_channels", {}) or {}
+    if isinstance(resp, dict) and "dual_sensor" in _fc:
+        resp["dual_sensor"] = bool(_fc["dual_sensor"])
+
     # ── Step 1a (v0.2.8): AHI Confidence Interval ─────────────────────────
     # Run all 3 profiles and compute [strict–sensitive] interval + robustness
     logger.info("[pneumo 1a/11] AHI confidence interval (3 profiles)...")

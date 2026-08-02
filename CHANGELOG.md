@@ -1,3 +1,56 @@
+# v0.13.2 — 2026-08-02 — the AASM two-sensor rule now actually fires
+
+The dual-sensor machinery has been in place since v0.8: `_resolve_flow_channels()`
+assigns **apnea to the oronasal thermistor and hypopnea to nasal pressure**, and
+`_setup_hypop_channel()` builds a separate envelope and baseline for the second
+channel. It was simply never fed on some montages.
+
+## Fixed — the Somnomedics thermistor was invisible
+
+Somnomedics/SOMNO names the thermistor `Flow Th.`. None of the
+`flow_thermistor` patterns matched it — `"th."` is too short for `"therm"` —
+so `flow_thermistor` stayed empty and the pipeline silently fell back to
+scoring **apneas on nasal pressure**, with the thermistor sitting unused in
+the EDF. Patterns `"flow th"` and `"thermal"` added.
+
+Nasal pressure is the more sensitive sensor: it drops readily on partial
+obstruction and on mouth breathing. The AASM specifies the thermistor for
+apneas precisely to avoid that over-detection, so the silent fallback biases
+apnea counts upward.
+
+Detection is per-role and independent, so this affects nothing else:
+
+| montage | nasal pressure | thermistor |
+|---|---|---|
+| Somnomedics | `Pressure Flow` | **`Flow Th.`** (was none) |
+| MESA / NSRR | `Pres` | `Therm` (unchanged) |
+| PSG-IPA | — | — (unchanged) |
+
+PSG-IPA has no thermistor, so golden output and paper reproduction are
+byte-identical. A test asserts `"flow th"` cannot claim `Pressure Flow` —
+that would swap the roles.
+
+## Fixed — `dual_sensor` meant "a hypopnea channel exists", not "two sensors"
+
+`respiratory.py` set the flag to `True` as soon as any hypopnea channel was
+present, without comparing it to the apnea channel. Since
+`_resolve_flow_channels()` falls back to the *same* channel when the
+thermistor is missing, the flag was on almost always. Its only consumer is
+YASAFlaskified's report line *"apnea on thermistor, hypopnea on nasal
+pressure (AASM)"* — which therefore asserted a methodology that had not been
+applied, including on single-channel recordings.
+
+`meta["flow_channels"]["dual_sensor"]` was already computed correctly (both
+channels present); the pipeline now makes that the source of truth.
+
+## Note on the fallback
+
+The fallback itself stays: many montages carry a single flow channel, and
+scoring on the available sensor beats refusing to score. What changes is that
+it is no longer silent — consumers can read
+`meta["flow_channels"]` to see which sensor was used for what, and
+`dual_sensor` now answers the question it appears to answer.
+
 # v0.13.1 — 2026-08-02 — audit of the breath detector: corrections, no scoring change
 
 Every existing profile is **byte-identical** to v0.13.0, `aasm_v3_breath`

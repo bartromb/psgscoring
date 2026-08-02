@@ -162,6 +162,12 @@ CHANNEL_PATTERNS: dict[str, list[str]] = {
     "flow_thermistor": [
         "thermistor", "therm", "thermist", "oronasal",
         "oro-nasal", "airflow", "air flow",
+        # Somnomedics/SOMNO noemt de thermistor "Flow Th." — geen van de
+        # patronen hierboven matcht dat ("th." is te kort voor "therm").
+        # Zonder dit blijft flow_thermistor leeg en scoort de pijplijn
+        # apneus op de neusdruk, terwijl de thermistor in de EDF zit.
+        "flow th",
+        "thermal",
     ],
     # Generic fallback
     "flow":     ["flow", "nasal", "resp flow"],

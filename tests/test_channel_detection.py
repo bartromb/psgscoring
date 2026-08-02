@@ -73,3 +73,45 @@ def test_pr_pattern_is_last_in_pulse():
 def test_pulse_channels_still_detected(name):
     ch = detect_channels([name, "Flow"])
     assert ch.get("pulse") == name
+
+
+# ─────────────────────────────────────────────────────────────────
+#  Somnomedics/SOMNO: "Flow Th." als thermistor
+# ─────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("name", ["Flow Th.", "Flow Th", "flow th.", "FLOW TH."])
+def test_somnomedics_thermistor_is_detected(name):
+    """Zonder dit patroon blijft flow_thermistor leeg en scoort de pijplijn
+    apneus op de neusdruk, terwijl de thermistor in de EDF zit."""
+    ch = detect_channels(["Pressure Flow", name, "RIP Thora", "SpO2"])
+    assert ch.get("flow_thermistor") == name
+    assert ch.get("flow_pressure") == "Pressure Flow"
+
+
+def test_somnomedics_montage_resolves_to_two_distinct_sensors():
+    """De hele reden voor de fix: apneu en hypopneu op verschillende kanalen."""
+    ch = detect_channels(["Snore", "Pressure Flow", "Flow Th.", "RIP Thora",
+                          "RIP Abdom", "Sum RIP", "SpO2", "Pulse", "ECG II"])
+    apnea = ch.get("flow_thermistor") or ch.get("flow_pressure") or ch.get("flow")
+    hypop = ch.get("flow_pressure") or ch.get("flow_thermistor") or ch.get("flow")
+    assert apnea == "Flow Th."
+    assert hypop == "Pressure Flow"
+    assert apnea != hypop
+
+
+def test_pressure_flow_is_not_claimed_by_the_thermistor_role():
+    """'flow th' mag 'Pressure Flow' niet opeisen — dat zou de rollen omdraaien."""
+    ch = detect_channels(["Pressure Flow", "SpO2"])
+    assert ch.get("flow_thermistor") is None
+    assert ch.get("flow_pressure") == "Pressure Flow"
+
+
+@pytest.mark.parametrize("montage,pressure,thermistor", [
+    (["Pres", "Flow", "Therm", "Thor", "SpO2"], "Pres", "Therm"),          # MESA
+    (["Resp nasal", "Resp abdomen", "SaO2"], None, None),                  # PSG-IPA
+])
+def test_existing_montages_are_unchanged(montage, pressure, thermistor):
+    """PSG-IPA heeft geen thermistor; als die er ineens wel is, breekt het paper."""
+    ch = detect_channels(montage)
+    assert ch.get("flow_pressure") == pressure
+    assert ch.get("flow_thermistor") == thermistor
