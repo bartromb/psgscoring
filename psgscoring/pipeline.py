@@ -208,7 +208,29 @@ def run_pneumo_analysis(
         flow_pressure_data, sf_fp,
         flow_therm_data, sf_ft,
         ch, output,
+        # Bij additief gebruik hoeft de kwaliteitstoets niet te blokkeren;
+        # zie de toelichting bij _resolve_flow_channels.
+        additive_thermistor=profile.get("DUAL_SENSOR_APNEA", False),
     )
+
+    # Dual-sensor gevraagd maar niet uitvoerbaar: terugvallen op een sensor en
+    # dat vastleggen, zodat het rapport het kan melden in plaats van stil een
+    # ander algoritme te draaien dan de gebruiker koos.
+    if profile.get("DUAL_SENSOR_APNEA", False) and (
+            flow_therm_data is None or flow_pressure_data is None):
+        _only = (ch.get("flow_pressure") or ch.get("flow_thermistor")
+                 or ch.get("flow") or "—")
+        output["meta"]["dual_sensor_fallback"] = {
+            "requested": True, "performed": False, "channel": _only,
+            "reason": "single_flow_channel",
+        }
+        logger.warning("[pneumo] dual-sensor gevraagd maar er is maar een "
+                       "flowkanaal (%s); teruggevallen op een sensor", _only)
+    elif profile.get("DUAL_SENSOR_APNEA", False):
+        output["meta"]["dual_sensor_fallback"] = {
+            "requested": True, "performed": True, "channel": None,
+            "reason": None,
+        }
 
     # ── Other channels ─────────────────────────────────────────────────────
     thorax_data,  _        = get("thorax")
@@ -1065,24 +1087,48 @@ def _resolve_flow_channels(
     flow_data, sf_flow,
     flow_pressure_data, sf_fp,
     flow_therm_data, sf_ft,
-    ch, output,
+    ch, output, additive_thermistor=False,
 ):
-    """Assign apnea (thermistor) and hypopnea (pressure) channels per AASM."""
+    """Assign apnea (thermistor) and hypopnea (pressure) channels per AASM.
+
+    ``additive_thermistor`` — gebruikt het profiel de thermistor NAAST de
+    neusdruk (dual-sensor) in plaats van in plaats ervan?
+    """
     # De AASM schrijft de thermistor voor apneus voor, maar alleen een
     # thermistor die de ademhaling volgt is de juiste sensor. Op een montage
     # waar het kanaal aanwezig is maar geen bruikbaar signaal draagt, zakte
     # het aantal apneus op een echte opname van 93 naar 0 en verschoof de
     # uitkomst van matig CSAS — bevestigd door menselijke scoring — naar
-    # mild SAS. De sensorkeuze toetst daarom of beide kanalen het eens zijn
-    # over wanneer de ademhaling wegvalt; zo niet, dan blijft de neusdruk de
-    # apneu-sensor en wordt de reden vastgelegd.
+    # mild SAS.
+    #
+    # Of die toets BLOKKEERT hangt af van hoe het profiel de thermistor
+    # gebruikt, en dat onderscheid is wezenlijk:
+    #
+    #   VERVANGEND (aasm_v3_rec e.d.) — de thermistor wordt DE apneu-sensor
+    #       en verdringt de neusdruk. Een onbruikbaar kanaal is dan
+    #       destructief: het neemt events weg die er wel zijn. Hier blijft de
+    #       toets blokkeren.
+    #
+    #   ADDITIEF (aasm_v3_dual) — beide sensoren worden gebruikt en er wordt
+    #       niets afgewezen. Een onbruikbaar kanaal draagt dan hooguit nul
+    #       apneus bij, wat op de echte opname ook precies gebeurde.
+    #       Blokkeren voegt hier alleen risico toe, temeer omdat de drempel
+    #       aantoonbaar niets voorspelt: op 25 MESA-opnames is de correlatie
+    #       tussen overeenstemming en dubbele bevestiging r = +0,07, en boven
+    #       en onder de drempel is dat aandeel identiek 0,13. Hier meet en
+    #       rapporteert de toets alleen.
     _therm_check = None
     if flow_therm_data is not None and flow_pressure_data is not None:
         try:
             from .signal_quality import assess_flow_sensor_agreement
             _therm_check = assess_flow_sensor_agreement(
                 flow_pressure_data, sf_fp or 0.0, flow_therm_data, sf_ft or 0.0)
-            if not _therm_check["usable"]:
+            if additive_thermistor and not _therm_check["usable"]:
+                logger.warning(
+                    "[pneumo] lage sensorovereenstemming, thermistor WEL "
+                    "gebruikt (additief, wijst niets af): %s",
+                    _therm_check["reason"])
+            elif not _therm_check["usable"]:
                 logger.warning(
                     "[pneumo] thermistor niet gebruikt als apneu-sensor: %s",
                     _therm_check["reason"])

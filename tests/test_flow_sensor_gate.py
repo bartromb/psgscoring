@@ -152,3 +152,48 @@ def test_no_thermistor_at_all_reports_nothing_rejected():
     fc, _a, _h = _resolve(_breathing(seed=16), None)
     assert fc["thermistor_rejected"] is None
     assert fc["dual_sensor"] is False
+
+
+# ─────────────────────────────────────────────────────────────────
+#  Blokkeren of alleen melden: hangt af van HOE het profiel de
+#  thermistor gebruikt
+# ─────────────────────────────────────────────────────────────────
+
+def _resolve_additive(pressure, thermistor, additive):
+    out = {"meta": {}}
+    ch = {"flow_pressure": "PRESS", "flow_thermistor": "THERM"}
+    apnea, hypop, _a, _h = _resolve_flow_channels(
+        None, SF, pressure, SF, thermistor, SF, ch, out,
+        additive_thermistor=additive)
+    return out["meta"]["flow_channels"], apnea, hypop
+
+
+def test_substitutive_use_still_blocks_a_bad_thermistor():
+    """Vervangend gebruik is destructief: een slecht kanaal neemt events weg."""
+    p = _breathing(seed=30)
+    noise = np.random.default_rng(31).normal(size=T.size)
+    fc, apnea, hypop = _resolve_additive(p, noise, additive=False)
+    assert fc["apnea_sensor"] == "PRESS"
+    assert apnea is hypop
+
+
+def test_additive_use_keeps_a_bad_thermistor():
+    """Additief gebruik wijst niets af, dus een slecht kanaal kan hooguit
+    nul apneus bijdragen. Blokkeren voegt dan alleen risico toe."""
+    p = _breathing(seed=32)
+    noise = np.random.default_rng(33).normal(size=T.size)
+    fc, apnea, hypop = _resolve_additive(p, noise, additive=True)
+    assert fc["apnea_sensor"] == "THERM", (
+        "bij additief gebruik hoort de thermistor gewoon meegenomen te worden")
+    assert fc["thermistor_check"]["usable"] is False, (
+        "de meting hoort wel gerapporteerd te worden")
+    assert apnea is not hypop
+
+
+def test_a_good_thermistor_is_used_either_way():
+    p = _breathing(seed=34)
+    t = _breathing(amp=0.4, phase=0.2, seed=35)
+    for additive in (False, True):
+        fc, _a, _h = _resolve_additive(p, t, additive=additive)
+        assert fc["apnea_sensor"] == "THERM", additive
+        assert fc["dual_sensor"] is True
