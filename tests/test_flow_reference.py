@@ -37,7 +37,7 @@ T = np.arange(N) / SF
 def test_the_default_is_the_apnea_channel_so_nothing_moves():
     """Byte-identiek gedrag voor elk bestaand profiel is een harde eis."""
     for name in PROFILES:
-        if name == "aasm_v3_dual":
+        if name in ("aasm_v3_dual", "aasm_v3_pressure"):
             continue
         assert get_profile(name).post_processing.flow_reference == "apnea", name
 

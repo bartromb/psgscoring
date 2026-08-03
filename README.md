@@ -139,6 +139,37 @@ from 93 to 0 and the conclusion moved from moderate CSAS — human-confirmed —
 to mild SAS. That release was rolled back. `aasm_v3_rec` remains the default
 and is byte-identical.
 
+### `aasm_v3_pressure` — nasal-pressure reference (v0.14.1, opt-in)
+
+```python
+run_pneumo_analysis(raw, hypnogram, scoring_profile="aasm_v3_pressure")
+```
+
+Apnea detection is not the only consumer of a flow signal. The AHI robustness
+sweep, baseline anchoring, the arousal/RERA coupling, Cheyne-Stokes detection
+and the ventilatory burden each take one — and each took the *apnea* channel.
+This profile scores apneas exactly as `aasm_v3_rec` does and points those five
+at the nasal pressure instead.
+
+| profile | apneas | derived analyses |
+|---|---|---|
+| `aasm_v3_rec` | thermistor¹ | thermistor¹ |
+| `aasm_v3_pressure` | thermistor¹ | **nasal pressure** |
+| `aasm_v3_dual` | **both, merged** | nasal pressure |
+
+¹ where it passes the quality check; nasal pressure otherwise.
+
+The AASM assigns *quantitative* flow assessment to nasal pressure and treats
+the oronasal thermistor as qualitative — able to show that flow stopped, not to
+grade how much of it is left. Reading a thermistor for the ventilatory burden
+therefore measures something the sensor does not claim to report: on one
+recording it read 20.4% instead of 42.6%, below the ≤25% reference, for a
+patient spending 94.7% of the night under 90% saturation.
+
+Identical to `aasm_v3_rec` on any montage without a usable thermistor. Set
+`flow_reference` on any profile to get the same behaviour;
+`meta["flow_channels"]["reference_sensor"]` reports which channel was used.
+
 ## Validation
 
 **PSG-IPA** (PhysioNet): 5 recordings, 59 independent scorer sessions. Mean |ΔAHI| = 1.8/h, Pearson r = 0.997, severity concordance 4/5 (standard profile). See the [paper](#paper) for full results.

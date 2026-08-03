@@ -66,6 +66,29 @@ On a synthetic montage whose thermistor carries noise, the ventilatory burden
 reads **0.0% before and 59.9% after**, and the sweep's three arms stop
 diverging between the two profiles.
 
+## New — profile `aasm_v3_pressure`
+
+The reference correction as a selectable algorithm of its own, so it can be
+compared against the others on a real recording instead of only existing inside
+`aasm_v3_dual`.
+
+`aasm_v3_rec` in every respect — apneas single-sensor, on the thermistor where
+the montage has a usable one — except that the five derived analyses read the
+nasal pressure. One variable moved, nothing else.
+
+| profile | apneas | derived analyses |
+|---|---|---|
+| `aasm_v3_rec` | thermistor¹ | thermistor¹ |
+| `aasm_v3_pressure` | thermistor¹ | **nasal pressure** |
+| `aasm_v3_dual` | **both, merged** | nasal pressure |
+
+¹ where it passes the quality check; nasal pressure otherwise.
+
+It is therefore **identical to `aasm_v3_rec` on any montage without a usable
+thermistor** — which is most clinical montages, and all of the Somnomedics
+recordings this was found on. It differs where a thermistor does pass, MESA/NSRR
+among them.
+
 # v0.14.0 — 2026-08-03 — dual-sensor apneas as a profile, after v0.13.2 was rolled back
 
 v0.13.2 made the thermistor the apnea sensor wherever one was detected. On a

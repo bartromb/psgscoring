@@ -800,6 +800,47 @@ _aasm_v3_dual = Profile(
 )
 
 
+# ---- AASM v3 NASAL-PRESSURE REFERENCE (clinical) ----
+# aasm_v3_rec in every respect except which channel the derived analyses read.
+_aasm_v3_pressure = Profile(
+    name="aasm_v3_pressure",
+    display_name="AASM v3 — Rule 1A, nasal-pressure reference",
+    family="clinical",
+    aasm_version="v3 (2023)",
+    aasm_rule="1A (RECOMMENDED)",
+    description=(
+        "AASM v3 Rule 1A, scored exactly as aasm_v3_rec — apneas on the "
+        "oronasal thermistor where the montage has a usable one, hypopneas on "
+        "nasal pressure. What differs is the FIVE analyses that take a flow "
+        "signal without detecting apneas: the AHI robustness sweep, baseline "
+        "anchoring, the arousal/RERA coupling, Cheyne-Stokes detection and the "
+        "ventilatory burden. They read the nasal pressure here instead of the "
+        "apnea channel. The AASM assigns quantitative flow assessment to nasal "
+        "pressure and treats the thermistor as qualitative — able to show that "
+        "flow stopped, not to grade how much of it is left. Identical to "
+        "aasm_v3_rec on any montage without a usable thermistor."
+    ),
+    citation="Troester MM, Quan SF, Berry RB, et al. AASM Manual v3. 2023.",
+    hypopnea=HypopneaRules(
+        flow_reduction_threshold=0.30,
+        sensor="nasal_pressure",
+        min_duration_s=10.0,
+        max_duration_s=60.0,
+        desat_threshold=0.03,
+        desat_required=False,
+        arousal_required=False,
+        desat_or_arousal=True,
+        square_root_linearisation=True,
+    ),
+    post_processing=PostProcessingRules(
+        # Apneudetectie ongewijzigd t.o.v. aasm_v3_rec — enkelsensor.
+        dual_sensor_apnea=False,
+        # De enige variabele die dit profiel verzet. Zie flow_reference.
+        flow_reference="hypopnea",
+    ),
+)
+
+
 _aasm_v3_strict = Profile(
     name="aasm_v3_strict",
     display_name="AASM v3 — Strict (conservative)",
@@ -902,6 +943,7 @@ PROFILES: Dict[str, Profile] = {
     # Clinical family
     "aasm_v3_rec":       _aasm_v3_rec,
     "aasm_v3_breath":    _aasm_v3_breath,
+    "aasm_v3_pressure":  _aasm_v3_pressure,
     "aasm_v3_dual":      _aasm_v3_dual,
     "aasm_v3_strict":    _aasm_v3_strict,
     "aasm_v3_sensitive": _aasm_v3_sensitive,
