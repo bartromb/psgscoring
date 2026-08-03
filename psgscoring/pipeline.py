@@ -296,6 +296,71 @@ def run_pneumo_analysis(
             "error":   "No flow channel found",
             "events":  [], "summary": {},
         }
+    # ── Tweede sensorpas: apneus op het ANDERE flowkanaal ────────────────
+    # Kiezen tussen thermistor en neusdruk is een valse keuze. De neusdruk
+    # mist mondademhaling, de thermistor is te traag voor korte events. Dit
+    # profiel detecteert apneus op beide en ontdubbelt op overlap, zodat
+    # dezelfde gebeurtenis niet twee keer in de AHI belandt.
+    #
+    # Falsifieren gebeurt NIET tenzij DUAL_SENSOR_CORROBORATION aan staat:
+    # een event dat maar een sensor ziet blijft staan. Bij twijfel wint
+    # goedkeuren, want een gemiste centrale apneu weegt zwaarder.
+    #
+    # Hypopneeen komen ongewijzigd uit de eerste pas: die horen per AASM op
+    # de neusdruk en hebben sinds de basislijnfix hun eigen basislijn.
+    _second = None
+    if (profile.get("DUAL_SENSOR_APNEA", False)
+            and resp.get("success")
+            and flow_therm_data is not None and flow_pressure_data is not None):
+        _alt = (flow_pressure_data if apnea_flow is flow_therm_data
+                else flow_therm_data)
+        _alt_sf = (sf_fp if apnea_flow is flow_therm_data else sf_ft) or sf_apnea
+        try:
+            logger.info("[pneumo] tweede sensorpas voor apneus...")
+            _second = detect_respiratory_events(
+                flow_data=_alt, hypop_flow=hypop_flow, sf_hypop=sf_hypop,
+                thorax_data=thorax_data, abdomen_data=abdomen_data,
+                spo2_data=spo2_data, sf_flow=_alt_sf,
+                sf_spo2=sf_spo2 or sf_flow or 1.0, hypno=hypno,
+                artifact_epochs=artifact_epochs, pos_data=pos_data,
+                sf_pos=sf_pos, scoring_profile=profile,
+                ecg_data=ecg_data_resp, sf_ecg=sf_ecg_resp,
+                signal_quality=output.get("signal_quality"),
+            )
+        except Exception as e:  # noqa: BLE001 — nooit de hele run laten vallen
+            logger.warning("[pneumo] tweede sensorpas mislukt: %s", e)
+            _second = None
+
+    if _second is not None and _second.get("success"):
+        from .postprocess import corroborate_apnea_events
+
+        def _is_apnea(e):
+            t = str(e.get("type", ""))
+            return "hypopnea" not in t and (
+                t in ("obstructive", "central", "mixed", "uncertain", "apnea")
+                or "apnea" in t)
+
+        _prim_ap = [e for e in resp.get("events", []) if _is_apnea(e)]
+        _sec_ap = [e for e in _second.get("events", []) if _is_apnea(e)]
+        _rest = [e for e in resp.get("events", []) if not _is_apnea(e)]
+        _therm_first = apnea_flow is flow_therm_data
+        _apneas, _cd = corroborate_apnea_events(
+            _prim_ap if _therm_first else _sec_ap,
+            _sec_ap if _therm_first else _prim_ap,
+            corroboration_licensed=profile.get(
+                "DUAL_SENSOR_CORROBORATION", False),
+        )
+        merged = sorted(_apneas + _rest,
+                        key=lambda e: float(e.get("onset_s") or 0.0))
+        output["respiratory"] = resp
+        resp["events"] = merged
+        resp["summary"] = _compute_summary(merged, hypno, artifact_epochs)
+        resp["dual_sensor_apnea"] = _cd
+        logger.info("[pneumo] dual-sensor apneus: %d beide, %d alleen "
+                    "thermistor, %d alleen druk -> %d behouden",
+                    _cd["n_both"], _cd["n_thermistor_only"],
+                    _cd["n_pressure_only"], _cd["n_kept"])
+
     output["respiratory"] = resp
 
     # `dual_sensor` betekent: apneus en hypopneeën zijn op VERSCHILLENDE

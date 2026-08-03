@@ -292,6 +292,32 @@ class PostProcessingRules:
     Default 0.65 was the bias-near-zero operating point on the q=7
     holdout (paper v34 §S5.6 sweep table)."""
 
+    dual_sensor_apnea: bool = False
+    """v0.14.0: gebruik BEIDE flowsensoren voor apneus in plaats van te kiezen.
+
+    Kiezen is een valse keuze - de neusdruk mist mondademhaling, de thermistor
+    is te traag voor korte events. Apneus worden daarom op beide kanalen
+    gedetecteerd en ontdubbeld op overlap, zodat dezelfde gebeurtenis niet
+    twee keer in de AHI belandt.
+
+    Wat NIET gebeurt is falsifieren: een event dat maar een sensor ziet wordt
+    behouden, niet afgewezen. Zie ``dual_sensor_corroboration``."""
+
+    dual_sensor_corroboration: bool = False
+    """v0.14.0: mag de tweede sensor events AFWIJZEN?
+
+    **Default False, en dat is een klinische keuze.** Overdetectie tegenhouden
+    mag alleen bij een betrouwbaar signaal; bij twijfel wint goedkeuren. Een
+    onbetrouwbare tweede sensor die events wegneemt is hoe een echte opname 83
+    centrale apneus verloor en van matig CSAS naar mild SAS schoof.
+
+    Op MESA (25 opnames, 1785 apneu-detecties) wordt slechts 19% door beide
+    sensoren bevestigd; falsifieren zou 81% weggooien op een detector die
+    tegenover de NSRR-referentie al onderdetecteert. En de envelope-
+    overeenstemming voorspelt de bevestiging niet (r = +0,07), dus er is geen
+    maat die de licentie zou kunnen verlenen. Aanzetten vraagt bewijs dat er
+    nu niet is."""
+
     arousal_limb_wired: bool = False
     """v0.13.0: mag dit profiel REAGEREN op de gerepareerde arousal-lijst?
 
@@ -699,6 +725,45 @@ _chicago_1999 = Profile(
 
 # ---- AASM v3 STRICT (exploratory) ----
 # Conservative variant of v3_rec. Rejects borderline candidates.
+_aasm_v3_dual = Profile(
+    name="aasm_v3_dual",
+    display_name="AASM v3 — Rule 1A, dual-sensor apneas",
+    family="clinical",
+    aasm_version="v3 (2023)",
+    aasm_rule="1A (RECOMMENDED), dual-sensor",
+    description=(
+        "AASM v3 Rule 1A with apneas detected on BOTH flow sensors instead "
+        "of choosing one. The nasal pressure misses mouth breathing; the "
+        "thermistor is too slow for short events. Apneas seen on either "
+        "sensor are kept, de-duplicated on overlap so the same event does "
+        "not enter the AHI twice. Crucially the second sensor never REMOVES "
+        "an event: when in doubt, the apnea stands. Hypopneas stay on the "
+        "nasal pressure with their own baseline, per AASM."
+    ),
+    citation="Troester MM, Quan SF, Berry RB, et al. AASM Manual v3. 2023.",
+    hypopnea=HypopneaRules(
+        flow_reduction_threshold=0.30,
+        sensor="nasal_pressure",
+        min_duration_s=10.0,
+        max_duration_s=60.0,
+        desat_threshold=0.03,
+        desat_required=False,
+        arousal_required=False,
+        desat_or_arousal=True,
+        square_root_linearisation=True,
+    ),
+    post_processing=PostProcessingRules(
+        # Beide sensoren gebruiken, niet kiezen. Zie dual_sensor_apnea.
+        dual_sensor_apnea=True,
+        # Falsifieren staat UIT en dat is de kern van dit profiel. Op MESA
+        # bevestigt maar 19% van 1785 apneu-detecties op beide sensoren;
+        # afwijzen zou 81% weggooien op een detector die al onderdetecteert.
+        # Bij twijfel wint goedkeuren.
+        dual_sensor_corroboration=False,
+    ),
+)
+
+
 _aasm_v3_strict = Profile(
     name="aasm_v3_strict",
     display_name="AASM v3 — Strict (conservative)",
@@ -801,6 +866,7 @@ PROFILES: Dict[str, Profile] = {
     # Clinical family
     "aasm_v3_rec":       _aasm_v3_rec,
     "aasm_v3_breath":    _aasm_v3_breath,
+    "aasm_v3_dual":      _aasm_v3_dual,
     "aasm_v3_strict":    _aasm_v3_strict,
     "aasm_v3_sensitive": _aasm_v3_sensitive,
     "aasm_v2_rec":       _aasm_v2_rec,
