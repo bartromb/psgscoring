@@ -109,6 +109,36 @@ datasets disagree on the *absolute* level by ~16 AHI points, and until that
 is explained the existing clinical output stays the default. See
 [`docs/interim_conclusie_klinisch_gebruik.md`](docs/interim_conclusie_klinisch_gebruik.md).
 
+### `aasm_v3_dual` — apneas on both flow sensors (v0.14.0, opt-in)
+
+```python
+run_pneumo_analysis(raw, hypnogram, scoring_profile="aasm_v3_dual")
+```
+
+The AASM assigns apneas to the oronasal thermistor and hypopneas to nasal
+pressure. Choosing one sensor means inheriting its blind spot: nasal pressure
+misses mouth breathing, the thermistor is too slow for short events. This
+profile detects apneas on **both** and merges them, so neither channel can
+veto the other.
+
+Each merged apnea carries `corroboration` — `both`, `thermistor_only` or
+`pressure_only`. **Nothing is discarded on that basis.** Across 1785 apnea
+detections on MESA only 19% are seen by both sensors, so requiring
+corroboration would remove four events in five. Discarding can be licensed
+explicitly (`corroborate_apnea_events(..., corroboration_licensed=True)`); no
+profile does so.
+
+`meta["flow_channels"]["thermistor_check"]` reports the envelope correlation
+between the two channels either way. Under this profile it is *informational* —
+the second sensor is additive and can only add events. It gates only the
+substitutive path, where a dead thermistor would delete them.
+
+**Why this exists.** v0.13.2 made the thermistor the apnea sensor outright. On
+a montage where that channel carried no usable breathing signal, apneas went
+from 93 to 0 and the conclusion moved from moderate CSAS — human-confirmed —
+to mild SAS. That release was rolled back. `aasm_v3_rec` remains the default
+and is byte-identical.
+
 ## Validation
 
 **PSG-IPA** (PhysioNet): 5 recordings, 59 independent scorer sessions. Mean |ΔAHI| = 1.8/h, Pearson r = 0.997, severity concordance 4/5 (standard profile). See the [paper](#paper) for full results.

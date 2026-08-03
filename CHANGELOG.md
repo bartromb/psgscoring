@@ -1,3 +1,73 @@
+# v0.14.0 — 2026-08-03 — dual-sensor apneas as a profile, after v0.13.2 was rolled back
+
+v0.13.2 made the thermistor the apnea sensor wherever one was detected. On a
+real recording with human scoring that took apneas from **93 to 0**, AHI from
+26.2 to 8.6, and the conclusion from *moderate CSAS* — confirmed by the human
+scorer — to *mild SAS*. 100 MESA recordings and 5 PSG-IPA recordings did not
+show it; one recording with a human reference did. v0.13.2 was rolled back in
+production the same day.
+
+The lesson is narrow and worth stating plainly: **the AASM-specified sensor is
+only the right sensor if it carries a usable signal.** On that montage the
+thermistor's breathing envelope correlated with nasal pressure at ≈ 0.
+
+## New — profile `aasm_v3_dual`
+
+Apneas are detected on **both** flow sensors and merged, instead of choosing
+one. The nasal pressure misses mouth breathing; the thermistor is too slow for
+short events. Neither channel can veto the other.
+
+**Every existing profile is byte-identical to v0.13.2** — the golden harness
+confirms it — and `aasm_v3_rec` remains the default. This is opt-in.
+
+- `postprocess.corroborate_apnea_events()` merges the two detections into
+  `both` / `thermistor_only` / `pressure_only`; on overlap the thermistor
+  defines the boundaries. Its default is **keep everything**: a detection
+  seen by one sensor only is still an event. Corroboration can be *licensed*
+  to discard single-sensor events, but nothing in this release licenses it.
+- Measured before choosing that default: across 1785 apnea detections on
+  MESA, only **19%** are seen by both sensors. Discarding the rest would
+  remove four out of five events.
+
+## New — `signal_quality.assess_flow_sensor_agreement()`
+
+Envelope correlation between the two flow channels, reported as
+`meta["flow_channels"]["thermistor_check"]`. It answers "does this thermistor
+follow the breathing at all".
+
+It gates the **substitutive** use only — where the thermistor *replaces*
+nasal pressure for apneas, a bad channel deletes events, which is what
+v0.13.2 did. Under `aasm_v3_dual` the second sensor is *additive* and can only
+ever contribute events, so the gate does not block there; it still reports.
+
+Honest limit: `THERMISTOR_AGREEMENT_MIN = 0.40` is **chosen, not derived**.
+On MESA the metric does not predict corroboration (r = +0.07; the both-sensor
+fraction is 0.13 above and below the threshold alike). It separates
+"breathing" from "noise", not "good" from "better".
+
+## Fixed — the apnea channel's baseline leaked into hypopnea scoring
+
+When both roles resolved to the same channel, `respiratory.py` reused the
+precomputed baseline for the hypopnea channel by comparing length and sample
+rate. Any two channels in one EDF match on both, so the apnea channel's
+baseline was reused for a *different* signal. The caller now passes channel
+identity explicitly.
+
+## Also
+
+- `meta["dual_sensor_fallback"]` records that dual scoring was requested but
+  not performed, so a silently single-sensor run is visible downstream.
+- Auto-detected arousals now feed the respiratory rules only where the profile
+  opts in (`arousal_limb_wired`); externally supplied arousals are always
+  honoured, as before.
+
+## Not fixed
+
+Nasal pressure still is not √-linearised. Applying it makes agreement worse
+(bias +1.77 → −3.15, MAE 1.84 → 3.15) because twelve bias corrections are
+calibrated against the un-linearised behaviour. Re-tuning them was attempted
+and failed. This is a known, documented gap, not an oversight.
+
 # v0.13.2 — 2026-08-02 — the AASM two-sensor rule now actually fires
 
 The dual-sensor machinery has been in place since v0.8: `_resolve_flow_channels()`
