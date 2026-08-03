@@ -424,7 +424,18 @@ def detect_respiratory_events(
             return _setup_hypop_channel(
                 hypop_flow, sf_hypop, flow_env, baseline, flow_norm, sf_flow,
                 hypno, artifact_epochs, pos_changes, pos_data, sf_pos, result,
-                precomputed_hypop_baseline=baseline,  # hergebruik apnea-basislijn als sf gelijk
+                precomputed_hypop_baseline=baseline,
+                # Identiteit komt van HIER, want alleen de aanroeper weet of
+                # apneu en hypopnee op hetzelfde kanaal draaien. De oude
+                # heuristiek binnen _setup_hypop_channel keek naar lengte en
+                # samplefrequentie, en die zijn voor twee kanalen uit dezelfde
+                # EDF altijd gelijk.
+                hypop_is_same_channel=(
+                    hypop_flow is flow_data
+                    or (hypop_flow is not None and flow_data is not None
+                        and hypop_flow.shape == flow_data.shape
+                        and np.array_equal(hypop_flow, flow_data))
+                ),
                 baseline_window_s=_BL_WIN_S, baseline_percentile=_BL_PCT,
             )
         hypop_env, hypop_norm, hypop_baseline, sf_hy = _cache(
@@ -856,15 +867,23 @@ def _setup_hypop_channel(
     sf_flow, hypno, artifact_epochs, pos_changes, pos_data, sf_pos, result,
     precomputed_hypop_baseline=None,
     baseline_window_s=300.0, baseline_percentile=95.0,
+    hypop_is_same_channel=None,
 ):
     """Return (hypop_env, hypop_norm, hypop_baseline, sf_hy)."""
     if hypop_flow is not None and sf_hypop is not None:
         # Als hypop zelfde signaal is als flow (zelfde array-object of zelfde sf+lengte):
         # sla herberekening over, gebruik flow_env direct maar met √-normalisatie markering
+        # hypop_is_same_channel komt van de aanroeper, die als enige weet of
+        # apneu en hypopnee daadwerkelijk hetzelfde kanaal gebruiken. De oude
+        # heuristiek (gelijke lengte + samplefrequentie) is geen identiteit:
+        # twee kanalen uit dezelfde EDF voldoen daar altijd aan, waardoor de
+        # hypopnee-envelope de basislijn van de thermistor kreeg.
+        # None = oud gedrag, voor aanroepers die de vlag niet meegeven.
         same_signal = (
             precomputed_hypop_baseline is not None
             and sf_hypop == sf_flow
             and len(hypop_flow) == len(flow_env)
+            and (hypop_is_same_channel is None or hypop_is_same_channel)
         )
         if same_signal:
             # Hergebruik flow_env envelope (al berekend), sla preprocess opnieuw over
@@ -872,9 +891,21 @@ def _setup_hypop_channel(
         else:
             hypop_env = preprocess_flow(hypop_flow, sf_hypop, is_nasal_pressure=True)
 
-        # Als sf gelijk: gebruik voorberekende basislijn volledig (incl. stage-blend).
-        # De basislijn is al berekend + stage-gecorrigeerd in de apnea-channel stap.
-        if precomputed_hypop_baseline is not None and sf_hypop == sf_flow:
+        # Hergebruik de voorberekende basislijn alleen bij HETZELFDE signaal.
+        #
+        # Deze tak toetste eerder alleen op gelijke samplefrequentie. Bij twee
+        # flowkanalen uit dezelfde EDF is die per definitie gelijk, dus kreeg
+        # de hypopnee-envelope — correct uit de neusdruk berekend, mét
+        # wortellinearisatie — de basislijn van de THERMISTOR eroverheen. De
+        # verhouding hypop_env / hypop_bl mengde daarmee twee sensoren met
+        # verschillende amplitudeschaal.
+        #
+        # Zichtbaar op MESA: opnames met NUL apneus in beide armen hielden een
+        # AHI-verschil van 34,0 tegen 5,7 en 2,6 tegen 19,1 - een verschil dat
+        # alleen van de hypopnees kon komen, terwijl die in beide armen op de
+        # neusdruk gescoord werden. Enkelkanaals opnames (PSG-IPA, de golden
+        # cases) raakten dit nooit, want daar is same_signal waar.
+        if same_signal:
             hypop_bl = precomputed_hypop_baseline
         else:
             # Andere sf (bv. 2Hz SpO₂ vs 256Hz flow): apart berekenen.

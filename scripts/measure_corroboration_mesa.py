@@ -54,12 +54,22 @@ def run(args):
         D / "annotations-events-nsrr" / f"{rid}-nsrr.xml", float(raw.times[-1]))
     cm = {k: v for k, v in detect_channels(raw.ch_names).items() if v}
     if sensor == "pressure":
-        cm.pop("flow_thermistor", None)       # dwing apneu op de neusdruk
+        cm.pop("flow_thermistor", None)
+    # Een rol WEGLATEN volstaat niet: channel_map_from_user() begint bij
+    # auto-detectie en legt de gebruikerskaart eroverheen, dus de sleutel komt
+    # terug. De kaart moet daarom hard afgedwongen worden, anders draaien
+    # beide armen op hetzelfde kanaal en meet je nul verschil.
+    import psgscoring.pipeline as PL
+    PL.channel_map_from_user = lambda _user, _names: dict(cm)
     o = psgscoring.run_pneumo_analysis(raw, hypno=hyp, channel_map=cm,
                                        scoring_profile="aasm_v3_rec")
     r = o["respiratory"]
+    # "uncertain" is een apneu die de effort-classifier niet kon subtyperen
+    # (respiratory.py:1541). Op MESA zijn de RIP-banden onbruikbaar, dus daar
+    # belandt vrijwel elke apneu. Hem weglaten telt nul apneus.
     ap = [e for e in r.get("events", [])
-          if str(e.get("type")) in ("obstructive", "central", "mixed")]
+          if str(e.get("type")) in ("obstructive", "central", "mixed",
+                                    "uncertain", "apnea")]
     fc = (o.get("meta", {}) or {}).get("flow_channels", {}) or {}
     return {
         "rid": rid, "sensor": sensor, "apneas": ap,
