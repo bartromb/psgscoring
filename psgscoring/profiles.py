@@ -358,6 +358,35 @@ class PostProcessingRules:
     Set True only together with a booster retrained on the repaired
     features."""
 
+    flow_reference: str = "apnea"
+    """v0.14.1: which flow channel the *non-apnea* analyses read.
+
+    Five consumers besides apnea detection take a flow signal: the AHI-interval
+    robustness sweep, baseline anchoring, the arousal/RERA coupling,
+    Cheyne-Stokes detection and the ventilatory burden. All of them read the
+    apnea channel.
+
+    Under a substitutive profile that is harmless — the apnea channel *is* the
+    recording's flow. Under an additive one it is not: ``aasm_v3_dual`` keeps
+    the thermistor as the nominal apnea channel even when it fails the quality
+    check, because the second detection pass makes a bad channel unable to
+    remove events. The five consumers got no such second pass, so they
+    inherited exactly the substitutive failure the additive design avoids. On
+    one recording the ventilatory burden read 20.4% instead of 42.6% — below
+    the ≤25% reference — on a patient spending 94.7% of the night under 90%
+    saturation.
+
+    Options:
+      ``"apnea"``    — the apnea channel (default; current behaviour).
+      ``"hypopnea"`` — the hypopnea channel, i.e. nasal pressure where the
+                       montage has one, falling back to the single available
+                       channel otherwise.
+
+    ``"hypopnea"`` is also the AASM-correct answer on its own terms: the manual
+    assigns *quantitative* flow assessment to nasal pressure and treats the
+    oronasal thermistor as qualitative, suitable for detecting the absence of
+    flow but not for grading it."""
+
     flow_fallback_strategy: str = "none"
     """v0.5.1: Behaviour when the primary nasal-pressure flow channel
     appears low-quality on a recording.
@@ -760,6 +789,13 @@ _aasm_v3_dual = Profile(
         # afwijzen zou 81% weggooien op een detector die al onderdetecteert.
         # Bij twijfel wint goedkeuren.
         dual_sensor_corroboration=False,
+        # De thermistor blijft hier het nominale apneukanaal, ook wanneer hij
+        # de kwaliteitstoets niet haalt — de tweede detectiepas maakt dat
+        # ongevaarlijk vóór de apneutelling. Maar de sweep, de anker-basislijn,
+        # de arousal-koppeling, CSR en de ventilatory burden kennen die tweede
+        # pas niet en zouden alsnog op een dood kanaal rekenen. Zij lezen de
+        # neusdruk. Zie flow_reference.
+        flow_reference="hypopnea",
     ),
 )
 

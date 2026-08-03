@@ -99,6 +99,9 @@ def _profile_to_legacy_dict(profile) -> dict:
         "BASELINE_WINDOW_S":          pp.baseline_window_s,
         "BASELINE_PERCENTILE":        pp.baseline_percentile,
         "FLOW_FALLBACK_STRATEGY":     pp.flow_fallback_strategy,
+        # v0.14.1: which channel the non-apnea analyses read (sweep, anchoring,
+        # arousal coupling, CSR, ventilatory burden). "apnea" = legacy.
+        "FLOW_REFERENCE":             pp.flow_reference,
         # v0.6.0: LightGBM candidate re-classifier
         "ML_CLASSIFIER_PATH":         pp.ml_classifier_path,
         "ML_THRESHOLD":               pp.ml_threshold,

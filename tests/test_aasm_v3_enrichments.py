@@ -16,38 +16,117 @@ EPOCHS_2H = 240  # 240 × 30 s = 2 h
 
 
 # ── A1: dual AHI (Rule 1A vs 1B/4%) ────────────────────────────────────────
+#
+# Rule 1B comes from the final event list, not from the `strict` arm of the
+# robustness sweep. aasm_v3_strict keeps desat_or_arousal with a 3% threshold,
+# so its AHI is a conservative Rule *1A* number; printing it under a "≥4%
+# desat" heading stated a criterion that had never been applied.
 
-def test_dual_ahi_uses_headline_for_1a_and_strict_for_1b():
-    out = {
-        "ahi_interval": {
-            "standard": {"ahi": 22.0, "severity": "moderate"},
-            "strict":   {"ahi": 14.0, "severity": "mild"},
-        },
-        "respiratory": {"summary": {"ahi_total": 22.0}},
+
+def _ev(etype, desat=None):
+    e = {"type": etype}
+    if desat is not None:
+        e["desaturation_pct"] = desat
+    return e
+
+
+def _out(events, ahi_total=22.0, tst_h=2.0, spo2_ok=True):
+    return {
+        "ahi_interval": {"standard": {"ahi": 22.0, "severity": "moderate"},
+                         "strict":   {"ahi": 14.0, "severity": "mild"}},
+        "spo2": {"success": spo2_ok},
+        "respiratory": {"summary": {"ahi_total": ahi_total, "tst_hours": tst_h},
+                        "events": events},
     }
+
+
+def test_rule_1b_keeps_apneas_and_only_the_hypopneas_reaching_four_percent():
+    events = [_ev("obstructive"), _ev("central"), _ev("mixed"),
+              _ev("hypopnea", 4.5), _ev("hypopnea", 4.0),   # kept
+              _ev("hypopnea", 3.2), _ev("hypopnea", None)]  # dropped (3–4%, arousal-only)
+    out = _out(events)
     _compute_dual_ahi(out, {"DESAT_OR_AROUSAL": True})
     d = out["respiratory"]["summary"]["ahi_dual"]
-    assert d["rule_1a"]["ahi"] == 22.0            # headline (3%/arousal)
-    assert d["rule_1a"]["severity"] == "moderate"
-    assert d["rule_1b_4pct"]["ahi"] == 14.0       # strict 4% pass
-    assert d["rule_1b_4pct"]["severity"] == "mild"
+    assert d["rule_1a"]["ahi"] == 22.0                    # headline (3%-or-arousal)
+    assert d["rule_1b_4pct"]["ahi"] == 2.5                # (3 apneas + 2 hyp) / 2 h
 
 
-def test_dual_ahi_falls_back_to_standard_pass_for_desat_only_profile():
-    out = {
-        "ahi_interval": {
-            "standard": {"ahi": 22.0, "severity": "moderate"},
-            "strict":   {"ahi": 14.0, "severity": "mild"},
-        },
-        "respiratory": {"summary": {"ahi_total": 14.0}},  # primary is a 4%/CMS profile
-    }
+def test_rule_1b_never_exceeds_rule_1a():
+    """The rules differ only in the hypopnea qualifier, so 1B ⊆ 1A."""
+    events = [_ev("obstructive")] * 4 + [_ev("hypopnea", 6.0)] * 4
+    out = _out(events, ahi_total=4.0)                     # 8 events / 2 h
+    _compute_dual_ahi(out, {"DESAT_OR_AROUSAL": True})
+    d = out["respiratory"]["summary"]["ahi_dual"]
+    assert d["rule_1b_4pct"]["ahi"] <= d["rule_1a"]["ahi"]
+
+
+def test_rule_1b_is_never_below_the_apnea_index():
+    """Apneas count under both rules — the failure the strict arm produced.
+
+    A dead thermistor collapsed the sweep's strict arm to 10.3/h on a night
+    with 78 apneas, i.e. below the apnea index alone. Deriving 1B from the
+    event list makes that arithmetically impossible.
+    """
+    events = [_ev("central")] * 20 + [_ev("hypopnea", 3.0)] * 30
+    out = _out(events, ahi_total=25.0)
+    _compute_dual_ahi(out, {"DESAT_OR_AROUSAL": True})
+    d = out["respiratory"]["summary"]["ahi_dual"]
+    assert d["rule_1b_4pct"]["ahi"] == 10.0               # 20 apneas / 2 h, no hypopneas
+    assert d["rule_1b_4pct"]["ahi"] >= 20 / 2.0
+
+
+def test_uncertain_apneas_are_excluded_exactly_as_ahi_total_excludes_them():
+    """Counting them on one side only would let 1B exceed 1A."""
+    events = [_ev("central"), _ev("uncertain"), _ev("uncertain")]
+    out = _out(events)
+    _compute_dual_ahi(out, {"DESAT_OR_AROUSAL": True})
+    assert out["respiratory"]["summary"]["ahi_dual"]["rule_1b_4pct"]["ahi"] == 0.5
+
+
+def test_severity_is_derived_from_the_1b_number_itself():
+    events = [_ev("central")] * 12                        # 6/h → mild
+    out = _out(events)
+    _compute_dual_ahi(out, {"DESAT_OR_AROUSAL": True})
+    d = out["respiratory"]["summary"]["ahi_dual"]
+    assert d["rule_1b_4pct"]["ahi"] == 6.0
+    assert d["rule_1b_4pct"]["severity"] == "mild"        # not the strict arm's label
+
+
+def test_no_spo2_reports_nothing_rather_than_apneas_only():
+    """Every desaturation is None then, and "apneas only" looks like a result."""
+    events = [_ev("central")] * 10 + [_ev("hypopnea", None)] * 10
+    out = _out(events, spo2_ok=False)
+    _compute_dual_ahi(out, {"DESAT_OR_AROUSAL": True})
+    assert "ahi_dual" not in out["respiratory"]["summary"]
+
+
+def test_a_four_percent_profile_reports_its_own_headline_as_rule_1b():
+    """For CMS/AASM-v1 the headline already IS Rule 1B; 1A comes from the sweep."""
+    out = _out([_ev("obstructive")], ahi_total=14.0)
     _compute_dual_ahi(out, {"DESAT_OR_AROUSAL": False})
     d = out["respiratory"]["summary"]["ahi_dual"]
-    assert d["rule_1a"]["ahi"] == 22.0            # taken from the standard(1A) pass
+    assert d["rule_1b_4pct"]["ahi"] == 14.0               # headline, not the strict arm
+    assert d["rule_1a"]["ahi"] == 22.0                    # standard (1A) arm
 
 
-def test_dual_ahi_absent_on_interval_error():
-    out = {"ahi_interval": {"error": "boom"}, "respiratory": {"summary": {"ahi_total": 5}}}
+def test_dual_ahi_absent_on_interval_error_for_a_four_percent_profile():
+    out = {"ahi_interval": {"error": "boom"},
+           "respiratory": {"summary": {"ahi_total": 5, "tst_hours": 2.0}, "events": []}}
+    _compute_dual_ahi(out, {"DESAT_OR_AROUSAL": False})
+    assert "ahi_dual" not in out["respiratory"]["summary"]
+
+
+def test_dual_ahi_survives_a_missing_sweep_for_a_three_percent_profile():
+    """The 1A path no longer needs the sweep at all."""
+    out = {"spo2": {"success": True},
+           "respiratory": {"summary": {"ahi_total": 10.0, "tst_hours": 2.0},
+                           "events": [_ev("central")] * 8}}
+    _compute_dual_ahi(out, {"DESAT_OR_AROUSAL": True})
+    assert out["respiratory"]["summary"]["ahi_dual"]["rule_1b_4pct"]["ahi"] == 4.0
+
+
+def test_missing_tst_reports_nothing():
+    out = _out([_ev("central")], tst_h=None)
     _compute_dual_ahi(out, {"DESAT_OR_AROUSAL": True})
     assert "ahi_dual" not in out["respiratory"]["summary"]
 

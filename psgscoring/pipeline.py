@@ -232,6 +232,29 @@ def run_pneumo_analysis(
             "reason": None,
         }
 
+    # ── Flow-referentiekanaal (v0.14.1) ────────────────────────────────────
+    # Apneudetectie is niet de enige afnemer van een flowsignaal: de
+    # AHI-intervalsweep, de anker-basislijn, de arousal/RERA-koppeling, de
+    # Cheyne-Stokes-detectie en de ventilatory burden lezen er ook een. Die
+    # lazen allemaal het apneukanaal. Onder een additief profiel is dat de
+    # thermistor — bewust ook wanneer die de kwaliteitstoets niet haalt, want
+    # de tweede detectiepas maakt hem ongevaarlijk vóór de apneutelling. Die
+    # vijf kennen geen tweede pas en erfden zo precies het vervangende falen
+    # dat de additieve opzet vermijdt.
+    #
+    # Default "apnea" = ongewijzigd gedrag; golden blijft byte-identiek.
+    _flow_ref = str(profile.get("FLOW_REFERENCE", "apnea") or "apnea").lower()
+    if _flow_ref == "hypopnea":
+        ref_flow, sf_ref = hypop_flow, sf_hypop
+    else:
+        ref_flow, sf_ref = apnea_flow, sf_apnea
+    if ref_flow is None:                       # montage zonder bruikbaar kanaal
+        ref_flow, sf_ref = apnea_flow, sf_apnea
+    output["meta"]["flow_channels"]["reference_sensor"] = (
+        output["meta"]["flow_channels"].get("hypopnea_sensor")
+        if ref_flow is hypop_flow and _flow_ref == "hypopnea"
+        else output["meta"]["flow_channels"].get("apnea_sensor"))
+
     # ── Other channels ─────────────────────────────────────────────────────
     thorax_data,  _        = get("thorax")
     abdomen_data, _        = get("abdomen")
@@ -411,20 +434,29 @@ def run_pneumo_analysis(
         # 'aasm_v3_rec' never equalled 'standard', so the primary was needlessly
         # re-scored as a 4th full pass.
         _primary_name = (profile or {}).get("_PROFILE_NAME")
+        # De gedeelde voorbewerkingscache geldt alleen bij hetzelfde signaal.
+        # Zodra de sweep een ánder kanaal leest dan de primaire pas, zouden de
+        # envelope en de dynamische basislijn van het apneukanaal komen terwijl
+        # de events op het referentiekanaal gescoord worden. Verse cache dan.
+        _sweep_precomp = _precomp if ref_flow is apnea_flow else {}
         for _pname in _all_profiles:
             _alt_profile = SCORING_PROFILES.get(_pname, {})
             if _alt_profile.get("_PROFILE_NAME") == _primary_name:
                 # Reuse primary result (identical profile)
                 _profile_results[_pname] = resp.get("summary", {})
             else:
+                # v0.14.1: het referentiekanaal, niet het apneukanaal. Dit is
+                # een enkelsensor-herscoring; op een montage met een dode
+                # thermistor stortte de strict-arm in en dat getal belandde als
+                # "Rule 1B" in het rapport.
                 _alt_resp = detect_respiratory_events(
-                    flow_data    = apnea_flow,
+                    flow_data    = ref_flow,
                     hypop_flow   = hypop_flow,
                     sf_hypop     = sf_hypop,
                     thorax_data  = thorax_data,
                     abdomen_data = abdomen_data,
                     spo2_data    = spo2_data,
-                    sf_flow      = sf_apnea,
+                    sf_flow      = sf_ref,
                     sf_spo2      = sf_spo2 or sf_flow or 1.0,
                     hypno        = hypno,
                     artifact_epochs = artifact_epochs,
@@ -434,7 +466,7 @@ def run_pneumo_analysis(
                     ecg_data     = ecg_data_resp,
                     sf_ecg       = sf_ecg_resp,
                     signal_quality = output.get("signal_quality"),  # v0.3.001 BUG2
-                    _precomputed = _precomp,
+                    _precomputed = _sweep_precomp,
                 )
                 _profile_results[_pname] = _alt_resp.get("summary", {})
 
@@ -510,12 +542,12 @@ def run_pneumo_analysis(
 
 
     # ── Step 1c (v0.8.11): Baseline Anchoring ─────────────────────────────
-    if apnea_flow is not None:
+    if ref_flow is not None:
         try:
             from .signal import compute_anchor_baseline  # not in the top-level import
-            _anchor_env = preprocess_flow(apnea_flow, sf_apnea, is_nasal_pressure=False)
+            _anchor_env = preprocess_flow(ref_flow, sf_ref, is_nasal_pressure=False)
             anchor_info = compute_anchor_baseline(
-                _anchor_env, sf_apnea, hypno,
+                _anchor_env, sf_ref, hypno,
                 events=resp.get("events", []),
                 artifact_epochs=artifact_epochs,
             )
@@ -603,7 +635,7 @@ def run_pneumo_analysis(
         output["arousal"] = ext
     elif eeg_data is not None and _AROUSAL_AVAILABLE:
         logger.info("[pneumo 7/9] Arousal detection & respiratory coupling...")
-        flow_env_norm = _compute_flow_norm(apnea_flow, sf_apnea)
+        flow_env_norm = _compute_flow_norm(ref_flow, sf_ref)
         # v0.9.0: arousal-afleidingsmodus. Clinical profielen defaulten naar 'multi'
         # (centraal + occipitaal + frontaal, event-level union + EOG-reject); dataset-
         # profielen (mesa_shhs) blijven 'single' voor NSRR-reproductie. Env
@@ -630,9 +662,9 @@ def run_pneumo_analysis(
             output["arousal"] = run_arousal_respiratory_analysis(
                 eeg_data    = eeg_data,
                 sf_eeg      = sf_eeg,
-                flow_data   = apnea_flow,
+                flow_data   = ref_flow,
                 flow_norm   = flow_env_norm,
-                sf_flow     = sf_apnea,
+                sf_flow     = sf_ref,
                 resp_events = resp.get("events", []),
                 hypno       = hypno,
                 emg_data    = emg_data,
@@ -866,9 +898,9 @@ def run_pneumo_analysis(
 
     # ── Step 9: Cheyne-Stokes ──────────────────────────────────────────────
     logger.info("[pneumo 9/10] Cheyne-Stokes detection...")
-    if apnea_flow is not None:
+    if ref_flow is not None:
         try:
-            flow_env_csr = preprocess_flow(apnea_flow, sf_apnea)
+            flow_env_csr = preprocess_flow(ref_flow, sf_ref)
             output["cheyne_stokes"] = detect_cheyne_stokes(
                 flow_env_csr, sf_apnea, hypno
             )
@@ -917,12 +949,12 @@ def run_pneumo_analysis(
     # VB = % of sleep with airflow < 50% of the eupneic baseline (proportion of
     # "small breaths"); bounded 0–100%, normative ≈ ≤25%. Replaces the earlier
     # %·min/h area integral.
-    if apnea_flow is not None and output["respiratory"].get("success"):
+    if ref_flow is not None and output["respiratory"].get("success"):
         try:
-            _vb_fn = _compute_flow_norm(apnea_flow, sf_apnea)
+            _vb_fn = _compute_flow_norm(ref_flow, sf_ref)
             output["respiratory"]["summary"]["ventilatory_burden"] = (
                 compute_ventilatory_burden(
-                    _vb_fn, sf_apnea,
+                    _vb_fn, sf_ref,
                     output["respiratory"].get("_breaths", []), hypno))
         except Exception as e:  # noqa: BLE001 — VB failure must not abort scoring
             logger.warning("[pneumo] ventilatory burden failed: %s", e)
@@ -1469,29 +1501,81 @@ def _hypopnea_criterion_str(profile: dict) -> str | None:
         return None
 
 
+#: Rule 1B / CMS requires a ≥4% desaturation, in percentage points — the same
+#: unit as the per-event ``desaturation_pct`` field (cf. DESATURATION_DROP_PCT).
+RULE_1B_DESAT_PCT = 4.0
+
+
+def _rule_1b_ahi(events: list, tst_h: float) -> float | None:
+    """AHI under AASM v3 Rule 1B: every apnea, plus hypopneas reaching ≥4% desat.
+
+    Filtering the Rule 1A event list is *exact* here, not an approximation. The
+    two rules share the flow-reduction (≥30%) and duration (≥10 s) criteria and
+    differ only in the qualifier, and a ≥4% desaturation is by definition also a
+    ≥3% one — so every Rule 1B hypopnea is already present in the Rule 1A list.
+    What Rule 1B drops is exactly the hypopneas that qualified on arousal alone
+    or on a 3–4% desaturation.
+
+    The apnea set matches ``ahi_total``: type in (obstructive, central, mixed),
+    with "uncertain" excluded there and therefore here too. Counting it on one
+    side only would let Rule 1B exceed Rule 1A, which the rules cannot do.
+    """
+    if not tst_h or tst_h <= 0:
+        return None
+    n_apnea = n_hyp = 0
+    for e in events:
+        t = str(e.get("type", ""))
+        if "hypopnea" in t:
+            if (e.get("desaturation_pct") or 0.0) >= RULE_1B_DESAT_PCT:
+                n_hyp += 1
+        elif t in ("obstructive", "central", "mixed"):
+            n_apnea += 1
+    return (n_apnea + n_hyp) / tst_h
+
+
 def _compute_dual_ahi(output: dict, profile: dict) -> None:
     """A1: expose AASM v3 hypopnea Rule 1A (≥3% desat OR arousal) and Rule 1B
-    (≥4% desat) AHI side by side.
+    (≥4% desat) AHI side by side. Output-additive.
 
-    Reuses the 3-profile confidence pass from step 1a: ``standard`` = aasm_v3_rec
-    (Rule 1A), ``strict`` = aasm_v3_strict (Rule 1B / CMS, 4%). When the active
-    profile itself scores on 3%/arousal (the clinical default), Rule 1A is taken
-    from the fully post-processed headline AHI so the two match. Output-additive.
+    Rule 1B is derived from the final, fully post-processed event list (see
+    ``_rule_1b_ahi``). Rule 1A is the headline AHI when the active profile
+    already scores on 3%-or-arousal; for a 4%/CMS profile the roles swap — its
+    headline *is* Rule 1B — and Rule 1A comes from the ``standard`` arm of the
+    robustness sweep.
+
+    Until v0.14.1 Rule 1B was read from the sweep's ``strict`` arm instead.
+    That is wrong twice over. ``aasm_v3_strict`` is a *conservative variant of
+    Rule 1A* — it keeps ``desat_or_arousal`` with ``desat_threshold = 0.03``
+    and differs in the stability filter, breath-level detection and nadir
+    window — so no ≥4% criterion was ever applied to the number printed under a
+    "≥4% desat" heading. And because the sweep re-scores on the apnea channel,
+    a montage whose thermistor carries no usable signal collapsed that arm: one
+    real recording read "Rule 1B 10.3/h — Mild CSAS" beside "Rule 1A 33.9/h —
+    Severe CSAS" for the same night, from 78 apneas that both rules count.
     """
     try:
-        iv = output.get("ahi_interval", {}) or {}
-        if "error" in iv:
-            return
         summ = output.get("respiratory", {}).get("summary", {})
         if not summ:
             return
-        strict = iv.get("strict", {}) or {}
-        standard = iv.get("standard", {}) or {}
+        resp = output.get("respiratory", {}) or {}
+        events = resp.get("events", []) or []
+        tst_h = summ.get("tst_hours")
+
         if profile.get("DESAT_OR_AROUSAL", True):
             ahi_1a = summ.get("ahi_total")
+            # Without a successful SpO2 analysis every desaturation is None, so
+            # Rule 1B would silently degrade to "apneas only" — a number that
+            # looks like a result. Report nothing rather than that.
+            if not (output.get("spo2") or {}).get("success"):
+                return
+            ahi_1b = _rule_1b_ahi(events, tst_h)
         else:
-            ahi_1a = standard.get("ahi")
-        ahi_1b = strict.get("ahi")
+            # The active profile already requires ≥4%: its headline is Rule 1B.
+            ahi_1b = summ.get("ahi_total")
+            iv = output.get("ahi_interval", {}) or {}
+            if "error" in iv:
+                return
+            ahi_1a = (iv.get("standard", {}) or {}).get("ahi")
         if ahi_1a is None or ahi_1b is None:
             return
         summ["ahi_dual"] = {
@@ -1503,7 +1587,7 @@ def _compute_dual_ahi(output: dict, profile: dict) -> None:
             },
             "rule_1b_4pct": {
                 "ahi": round(float(ahi_1b), 1),
-                "severity": strict.get("severity") or _ahi_severity(float(ahi_1b)),
+                "severity": _ahi_severity(float(ahi_1b)),
                 "criterion": "≥30% flow + ≥4% desat",
                 "label": "AASM v3 Rule 1B / CMS (4%)",
             },

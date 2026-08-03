@@ -1,3 +1,71 @@
+# v0.14.1 — 2026-08-03 — two report figures that were reading the wrong thing
+
+Both found by comparing two reports on one real recording — `aasm_v3_rec` on
+v0.13.1 against `aasm_v3_dual` on v0.14.0. The headline was stable across both
+runs (severe CSAS, mild OSA, same automated conclusion); these are the numbers
+underneath it. Every existing profile stays **byte-identical**; the golden
+harness confirms it.
+
+## Fixed — "Rule 1B / CMS (≥4% desat)" was not a 4% figure
+
+`_compute_dual_ahi` read the **`strict` arm of the robustness sweep**. But
+`aasm_v3_strict` is a *conservative variant of Rule 1A*: it keeps
+`desat_or_arousal` with `desat_threshold = 0.03` and differs in the stability
+filter (CV 0.45 → 0.30), breath-level detection and nadir window. No ≥4%
+criterion was ever applied to the number printed under a "≥4% desat" heading —
+in **any** release since the field was added in v0.11.0.
+
+Rule 1B now comes from the final event list: every apnea, plus the hypopneas
+whose linked desaturation reaches 4%. Filtering the Rule 1A list is *exact*
+rather than approximate — the two rules share the flow-reduction and duration
+criteria, and a 4% desaturation is by definition also a 3% one, so every Rule
+1B hypopnea is already in the Rule 1A list. What drops out is precisely the
+hypopneas that qualified on arousal alone or on a 3–4% desaturation.
+
+Consequences:
+
+- The apnea set matches `ahi_total` (`uncertain` excluded on both sides), so
+  **Rule 1B can no longer fall below the apnea index** — it did, reading
+  10.3/h on a night with 78 apneas, beside Rule 1A at 33.9/h.
+- With no successful SpO₂ analysis the row is **omitted** rather than
+  degrading to "apneas only", which looks like a result.
+- For a profile that already requires ≥4% (`cms_medicare`, `aasm_v1_rec`) its
+  own headline *is* Rule 1B; Rule 1A still comes from the sweep's `standard`
+  arm.
+
+## Fixed — five analyses read the apnea channel when they wanted flow
+
+Apnea detection is not the only consumer of a flow signal. The AHI-interval
+sweep, baseline anchoring, the arousal/RERA coupling, Cheyne-Stokes detection
+and the ventilatory burden all took one — and all took the **apnea** channel.
+
+Under a substitutive profile that is harmless: the apnea channel *is* the
+recording's flow. Under `aasm_v3_dual` it is not. That profile deliberately
+keeps the thermistor as the nominal apnea channel even when it fails the
+quality check, because the second detection pass makes a bad channel unable to
+*remove* events. These five got no second pass, so they inherited exactly the
+substitutive failure the additive design exists to avoid.
+
+New profile field **`flow_reference`**:
+
+- `"apnea"` — the apnea channel. **Default; current behaviour.**
+- `"hypopnea"` — the hypopnea channel: nasal pressure where the montage has
+  one, the single available channel otherwise. Set on `aasm_v3_dual`.
+
+`"hypopnea"` is also the AASM-correct answer on its own terms — the manual
+assigns quantitative flow assessment to nasal pressure and treats the oronasal
+thermistor as qualitative, able to show the absence of flow but not to grade
+it. `meta["flow_channels"]["reference_sensor"]` reports which channel was used.
+
+Also fixed alongside it: the shared preprocessing cache (envelope, dynamic
+baseline) is built by the primary pass on the apnea channel and was handed to
+the sweep unconditionally. Once the sweep reads a different channel that cache
+is stale — the sweep gets a fresh one, and only then.
+
+On a synthetic montage whose thermistor carries noise, the ventilatory burden
+reads **0.0% before and 59.9% after**, and the sweep's three arms stop
+diverging between the two profiles.
+
 # v0.14.0 — 2026-08-03 — dual-sensor apneas as a profile, after v0.13.2 was rolled back
 
 v0.13.2 made the thermistor the apnea sensor wherever one was detected. On a
