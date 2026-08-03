@@ -557,13 +557,20 @@ def _breath_envelope(x: np.ndarray, sf: float,
 def assess_flow_sensor_agreement(
     pressure: np.ndarray, sf_pressure: float,
     thermistor: np.ndarray, sf_thermistor: float,
-    min_agreement: float = THERMISTOR_AGREEMENT_MIN,
+    min_agreement: float | None = None,
 ) -> dict:
     """Is de thermistor bruikbaar als apneu-sensor naast deze neusdruk?
 
     Retourneert ``{"agreement", "usable", "reason"}``. ``usable=False``
     betekent: val terug op de neusdruk voor apneus, en zeg dat erbij.
     """
+    # De drempel wordt HIER opgezocht, niet als default-argument: een default
+    # wordt bij functiedefinitie geevalueerd, waardoor de constante achteraf
+    # overschrijven geen effect heeft. Dat maakte een meting stil ongeldig —
+    # de poort bleef aan terwijl hij uit leek te staan, en beide armen van de
+    # vergelijking draaiden op hetzelfde kanaal.
+    if min_agreement is None:
+        min_agreement = THERMISTOR_AGREEMENT_MIN
     out = {"agreement": None, "usable": False, "reason": ""}
     if pressure is None or thermistor is None:
         out["reason"] = "een van beide kanalen ontbreekt"

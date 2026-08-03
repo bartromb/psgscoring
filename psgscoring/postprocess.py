@@ -436,9 +436,10 @@ def _iou(a0, a1, b0, b1):
 
 
 def corroborate_apnea_events(thermistor_events, pressure_events,
+                             corroboration_licensed=False,
                              iou_thresh=0.20,
-                             keep_thermistor_only=False,
-                             keep_pressure_only=False):
+                             keep_thermistor_only=None,
+                             keep_pressure_only=None):
     """Kruiscontroleer apneus van twee flowsensoren.
 
     ``thermistor_events``  apneus gedetecteerd op de oronasale thermistor
@@ -450,14 +451,29 @@ def corroborate_apnea_events(thermistor_events, pressure_events,
     ``thermistor_only`` alleen de thermistor -> verdacht artefact
     ``pressure_only``   alleen de neusdruk -> vermoedelijk mondademhaling
 
-    Beide "only"-categorieen worden standaard NIET meegeteld: dat is de
-    corroboratieregel. De knoppen bestaan omdat het onderscheid tussen een
-    echt event en een artefact klinisch is en niet uit het signaal alleen
-    volgt; wie ze aanzet moet weten wat hij binnenhaalt.
+    **De richting van de twijfel is niet symmetrisch, en de default volgt de
+    veilige kant.** Falsifieren met een sensor die je niet vertrouwt is hoe
+    een echte opname 83 centrale apneus verloor. Daarom:
+
+    ``corroboration_licensed=False`` (default)
+        Er wordt NIETS afgewezen. Beide lijsten worden samengevoegd en alleen
+        ontdubbeld. Bij twijfel over de tweede sensor blijft een apneu dus
+        gewoon een apneu.
+
+    ``corroboration_licensed=True``
+        Alleen te geven wanneer de signaalkwaliteitstoets de tweede sensor
+        betrouwbaar acht. Dan pas mogen de "only"-categorieen wegvallen.
+
+    ``keep_thermistor_only`` / ``keep_pressure_only`` overschrijven dat per
+    categorie; None betekent "volg de licentie".
 
     Retourneert ``(events, diagnostiek)``. Elk behouden event draagt
     ``corroboration`` met het vakje waarin het viel.
     """
+    if keep_thermistor_only is None:
+        keep_thermistor_only = not corroboration_licensed
+    if keep_pressure_only is None:
+        keep_pressure_only = not corroboration_licensed
     def _span(e):
         a = float(e.get("onset_s") or 0.0)
         return a, a + float(e.get("duration_s") or 0.0)
@@ -507,6 +523,7 @@ def corroborate_apnea_events(thermistor_events, pressure_events,
         "n_pressure_only": n_p_only,
         "n_kept": len(out),
         "iou_thresh": iou_thresh,
+        "corroboration_licensed": corroboration_licensed,
         "keep_thermistor_only": keep_thermistor_only,
         "keep_pressure_only": keep_pressure_only,
     }

@@ -129,6 +129,25 @@ def test_a_rejected_thermistor_is_reported_not_silently_dropped():
     assert fc["thermistor_check"]["agreement"] is not None
 
 
+def test_the_threshold_is_read_at_call_time():
+    """Als default-argument zou de constante niet te overschrijven zijn.
+
+    Dat maakte een meting stil ongeldig: de poort bleef aan terwijl hij uit
+    leek te staan, en beide armen van de vergelijking draaiden op hetzelfde
+    kanaal.
+    """
+    import psgscoring.signal_quality as SQ
+    p = _breathing(seed=20)
+    noise = np.random.default_rng(21).normal(size=T.size)
+    assert SQ.assess_flow_sensor_agreement(p, SF, noise, SF)["usable"] is False
+    old = SQ.THERMISTOR_AGREEMENT_MIN
+    try:
+        SQ.THERMISTOR_AGREEMENT_MIN = -1.0
+        assert SQ.assess_flow_sensor_agreement(p, SF, noise, SF)["usable"] is True
+    finally:
+        SQ.THERMISTOR_AGREEMENT_MIN = old
+
+
 def test_no_thermistor_at_all_reports_nothing_rejected():
     fc, _a, _h = _resolve(_breathing(seed=16), None)
     assert fc["thermistor_rejected"] is None

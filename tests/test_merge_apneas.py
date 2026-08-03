@@ -135,11 +135,23 @@ def test_merge_diagnostics_account_for_every_event():
 from psgscoring.postprocess import corroborate_apnea_events  # noqa: E402
 
 
-def test_only_corroborated_apneas_are_kept_by_default():
+def test_nothing_is_rejected_without_a_licence():
+    """Bij twijfel over de tweede sensor blijft een apneu een apneu.
+
+    Falsifieren met een sensor die je niet vertrouwt is precies hoe een echte
+    opname 83 centrale apneus verloor. De veilige kant is daarom de default.
+    """
+    out, d = corroborate_apnea_events([ev(100), ev(300)], [ev(102), ev(700)])
+    assert d["corroboration_licensed"] is False
+    assert len(out) == 3, "zonder licentie mag niets wegvallen"
+    assert d["n_both"] == 1
+
+
+def test_only_corroborated_apneas_are_kept_with_a_licence():
     """Een OF-regel zou juist de valse apneus toevoegen; dit is een EN."""
     therm = [ev(100), ev(300)]
     press = [ev(102), ev(700)]
-    out, d = corroborate_apnea_events(therm, press)
+    out, d = corroborate_apnea_events(therm, press, corroboration_licensed=True)
     assert d["n_both"] == 1
     assert d["n_thermistor_only"] == 1
     assert d["n_pressure_only"] == 1
@@ -153,14 +165,16 @@ def test_pressure_only_is_treated_as_mouth_breathing():
     Dit is precies de overdetectie waar de AASM de thermistor voor
     voorschrijft, en die een naieve unie zou binnenhalen.
     """
-    out, d = corroborate_apnea_events([], [ev(100), ev(200)])
+    out, d = corroborate_apnea_events([], [ev(100), ev(200)],
+                                      corroboration_licensed=True)
     assert d["n_pressure_only"] == 2
     assert out == []
 
 
 def test_thermistor_only_is_treated_as_suspect_artefact():
     """De thermistor voelt oraal en nasaal; nasale flow hoort hij te zien."""
-    out, d = corroborate_apnea_events([ev(100)], [])
+    out, d = corroborate_apnea_events([ev(100)], [],
+                                      corroboration_licensed=True)
     assert d["n_thermistor_only"] == 1
     assert out == []
 
@@ -180,7 +194,8 @@ def test_shifted_boundaries_still_corroborate():
 
 def test_each_pressure_event_corroborates_at_most_one_thermistor_event():
     """Anders zou een lange druk-apneu twee thermistor-events legitimeren."""
-    out, d = corroborate_apnea_events([ev(100, 20), ev(104, 20)], [ev(102, 20)])
+    out, d = corroborate_apnea_events([ev(100, 20), ev(104, 20)], [ev(102, 20)],
+                                      corroboration_licensed=True)
     assert d["n_both"] == 1
     assert d["n_thermistor_only"] == 1
     assert len(out) == 1
@@ -194,7 +209,7 @@ def test_each_pressure_event_corroborates_at_most_one_thermistor_event():
 ])
 def test_the_knobs_control_what_comes_in(kt, kp, expected):
     out, _ = corroborate_apnea_events(
-        [ev(100), ev(300)], [ev(102), ev(700)],
+        [ev(100), ev(300)], [ev(102), ev(700)], corroboration_licensed=True,
         keep_thermistor_only=kt, keep_pressure_only=kp)
     assert len(out) == expected
 
@@ -212,3 +227,13 @@ def test_inputs_are_not_mutated_by_corroboration():
     before = dict(t[0])
     corroborate_apnea_events(t, [ev(101)])
     assert t[0] == before
+
+
+def test_an_unreliable_second_sensor_cannot_remove_apneas():
+    """De klinische regel: overdetectie tegenhouden mag alleen bij een
+    betrouwbaar signaal. Bij twijfel wint goedkeuren."""
+    press = [ev(100), ev(300), ev(500)]        # wat de neusdruk ziet
+    therm = []                                  # thermistor levert niets
+    out, d = corroborate_apnea_events(therm, press)   # geen licentie
+    assert len(out) == 3, "een stille tweede sensor mag niets wegnemen"
+    assert d["n_pressure_only"] == 3
