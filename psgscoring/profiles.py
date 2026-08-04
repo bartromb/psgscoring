@@ -387,6 +387,38 @@ class PostProcessingRules:
     oronasal thermistor as qualitative, suitable for detecting the absence of
     flow but not for grading it."""
 
+    summary_after_reclassification: bool = False
+    """v0.14.2: recompute the event summary AFTER step 11 (issue #18).
+
+    The last ``_compute_summary()`` runs at step 9; step 11 then reclassifies
+    events (CSR-driven obstructive→central, mixed decomposition) and replaces
+    the event list. Everything derived from the summary — ``n_obstructive``,
+    ``n_central``, ``n_mixed``, the type indices and ``oahi`` — therefore
+    describes the state *before* that reclassification, while the event list,
+    the confidence table and every per-event figure describe the state after.
+
+    Visible in the report as a mismatch between the ``n`` column and the
+    confidence breakdown, exactly equal to ``n_csr_reclassified``. It is not
+    cosmetic: ``oahi`` moved 32.2 → 28.6 on one real recording, i.e. across
+    the severe/moderate boundary. ``ahi_total`` is unaffected — the
+    reclassification relabels events, it does not add or drop any.
+
+    **On** for every profile a clinician can select — the whole clinical family
+    plus the two v3 arms in the exploratory family, which sit in the same
+    dropdown. **Off** for the reproduction profiles (``mesa_shhs``,
+    ``chicago_1999``), which must stay byte-identical to the published numbers.
+
+    The dataclass default stays ``False`` on purpose: forgetting to switch it on
+    for a new clinical profile leaves the old behaviour, which is visible and
+    harmless, whereas forgetting to pin a new dataset profile would silently
+    break NSRR reproduction. The safe failure mode is the default.
+
+    Note that the robustness sweep calls ``detect_respiratory_events`` directly
+    rather than the pipeline, so the strict/sensitive arms of
+    ``profile_comparison`` never read this flag; only a run where such a profile
+    is the primary one is affected.
+    """
+
     flow_fallback_strategy: str = "none"
     """v0.5.1: Behaviour when the primary nasal-pressure flow channel
     appears low-quality on a recording.
@@ -484,6 +516,7 @@ _aasm_v3_rec = Profile(
         desat_or_arousal=True,
         square_root_linearisation=True,
     ),
+    post_processing=PostProcessingRules(summary_after_reclassification=True),
 )
 
 # ---- AASM v3 Rule 1A, ademteug-gebaseerd en gegradeerd (experimenteel) ----
@@ -519,6 +552,7 @@ _aasm_v3_breath = Profile(
     ),
     post_processing=PostProcessingRules(
         hypopnea_detector="breath_graded",
+        summary_after_reclassification=True,
         # Als enige profiel reageert dit op de gerepareerde arousal-lijst
         # (issue #16). Dat kan hier veilig, want het profiel is nieuw: er is
         # geen bestaande uitkomst om te breken. Zie arousal_limb_wired.
@@ -576,6 +610,7 @@ _aasm_v2_rec = Profile(
         desat_or_arousal=True,
         square_root_linearisation=True,
     ),
+    post_processing=PostProcessingRules(summary_after_reclassification=True),
 )
 
 # ---- AASM v1 RECOMMENDED (2007) ----
@@ -604,6 +639,7 @@ _aasm_v1_rec = Profile(
         desat_or_arousal=False,
         square_root_linearisation=True,
     ),
+    post_processing=PostProcessingRules(summary_after_reclassification=True),
 )
 
 # ---- CMS / Medicare (AASM v3 1B OPTIONAL) ----
@@ -635,6 +671,7 @@ _cms_medicare = Profile(
         desat_or_arousal=False,
         square_root_linearisation=True,
     ),
+    post_processing=PostProcessingRules(summary_after_reclassification=True),
 )
 
 # ---- MESA / NSRR convention ----
@@ -784,6 +821,7 @@ _aasm_v3_dual = Profile(
     post_processing=PostProcessingRules(
         # Beide sensoren gebruiken, niet kiezen. Zie dual_sensor_apnea.
         dual_sensor_apnea=True,
+        summary_after_reclassification=True,
         # Falsifieren staat UIT en dat is de kern van dit profiel. Op MESA
         # bevestigt maar 19% van 1785 apneu-detecties op beide sensoren;
         # afwijzen zou 81% weggooien op een detector die al onderdetecteert.
@@ -835,6 +873,7 @@ _aasm_v3_pressure = Profile(
     post_processing=PostProcessingRules(
         # Apneudetectie ongewijzigd t.o.v. aasm_v3_rec — enkelsensor.
         dual_sensor_apnea=False,
+        summary_after_reclassification=True,
         # De enige variabele die dit profiel verzet. Zie flow_reference.
         flow_reference="hypopnea",
     ),
@@ -874,6 +913,7 @@ _aasm_v3_strict = Profile(
     post_processing=PostProcessingRules(
         stability_filter_enabled=True,
         stability_filter_cv=0.30,
+        summary_after_reclassification=True,
         csr_reclassification=True,
         local_baseline_validation=True,
         flow_smoothing_s=0.0,
@@ -922,6 +962,7 @@ _aasm_v3_sensitive = Profile(
     post_processing=PostProcessingRules(
         stability_filter_enabled=True,
         stability_filter_cv=0.50,
+        summary_after_reclassification=True,
         csr_reclassification=True,
         local_baseline_validation=True,
         flow_smoothing_s=5.0,

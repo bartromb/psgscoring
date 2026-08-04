@@ -102,6 +102,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         # v0.14.1: which channel the non-apnea analyses read (sweep, anchoring,
         # arousal coupling, CSR, ventilatory burden). "apnea" = legacy.
         "FLOW_REFERENCE":             pp.flow_reference,
+        "SUMMARY_AFTER_RECLASSIFICATION": pp.summary_after_reclassification,
         # v0.6.0: LightGBM candidate re-classifier
         "ML_CLASSIFIER_PATH":         pp.ml_classifier_path,
         "ML_THRESHOLD":               pp.ml_threshold,
@@ -191,15 +192,22 @@ CHANNEL_PATTERNS: dict[str, list[str]] = {
                  "body position", "bpos"],
     "snore":    ["snore", "snoring", "ronfle", "ronchus", "micro",
                  "snurk", "snore mic", "microphone"],
+    # "plml"/"plmr" zonder scheidingsteken: SOMNOmedics exporteert de
+    # beenkanalen als "PLMl"/"PLMr", en substring-matching op "plml" vindt
+    # geen enkel patroon met een spatie of streepje. Auto-detectie leverde
+    # daardoor niets op en de PLM-analyse hing aan een handmatige keuze in de
+    # UI. Bewust GEEN kaal "plm": dat matcht beide kanalen, en detect_channels
+    # neemt per rol de eerste treffer in EDF-volgorde — dan wijst één kanaal
+    # zichzelf aan als linker- én rechterbeen.
     "leg_l":    ["leg l", "lleg", "emg leg l", "tibial l", "left leg",
                  "plo", "pla", "plg l", "lat l", "lats l",
                  "bein l", "bein li", "jambe g", "tib ant l",
-                 "emg tib l", "emg tibant l", "plm l", "plm-l",
+                 "emg tib l", "emg tibant l", "plm l", "plm-l", "plml",
                  "emg la", "ta l", "ta li"],
     "leg_r":    ["leg r", "rleg", "emg leg r", "tibial r", "right leg",
                  "pro", "pra", "plg r", "lat r", "lats r",
                  "bein r", "bein re", "jambe d", "tib ant r",
-                 "emg tib r", "emg tibant r", "plm r", "plm-r",
+                 "emg tib r", "emg tibant r", "plm r", "plm-r", "plmr",
                  "emg ra", "ta r", "ta re"],
     "eeg":      ["eeg", "c3", "c4", "f3", "f4", "o1", "o2"],
 }

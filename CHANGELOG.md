@@ -1,3 +1,97 @@
+# v0.14.2 — 2026-08-04 — the summary now describes the events the report shows
+
+One intended output change, in `oahi` and the apnea-type counts of the
+**selectable** profiles (issue #18, below). Everything else stays
+**byte-identical**, and no scored event moves anywhere: `ahi_total` and the
+event count are unchanged in every case.
+
+Golden re-blessed, and the whole diff is two lines in one case:
+
+```
+poor_quality  .resp.oahi_all    6.3 -> 0.0
+              .resp.oahi_conf60 6.3 -> 0.0
+```
+
+Both obstructive apneas in that case are CSR-reclassified to central, so the
+obstructive index is genuinely zero once you count the events the report
+displays. The other seven cases are unchanged, `mesa_shhs` and `chicago_1999`
+are pinned, and the PSG-IPA reproducibility suite asserts on AHI, which this
+cannot move — it was not re-run here because the dataset is not configured on
+this machine.
+
+## Changed — `summary_after_reclassification` is ON for selectable profiles (issue #18)
+
+The last `_compute_summary()` runs at step 9; step 11 then reclassifies events
+(CSR-driven obstructive→central, mixed decomposition) and replaces the event
+list. `n_obstructive`, `n_central`, `n_mixed`, the type indices and `oahi`
+therefore describe the state *before* that reclassification, while the event
+list, the confidence table and every per-event figure describe the state after.
+
+In the report this shows up as a gap between the `n` column and the confidence
+breakdown, exactly equal to `n_csr_reclassified`. It is not cosmetic: `oahi`
+moved 32.2 → 28.6 on one real recording, across the severe/moderate boundary.
+`ahi_total` is unaffected — the reclassification relabels events, it neither
+adds nor drops any.
+
+The new flag recomputes the summary after step 11. It is **on for every profile
+a clinician can select** — the clinical family plus the two v3 arms in the
+exploratory family, which sit in the same dropdown — and **off for the
+reproduction profiles** `mesa_shhs` and `chicago_1999`, which must stay
+byte-identical to the published numbers.
+
+The dataclass default stays `False` on purpose: forgetting to switch it on for a
+new clinical profile leaves the old behaviour, which is visible and harmless,
+whereas forgetting to pin a new dataset profile would silently break NSRR
+reproduction. The safe failure mode is the default.
+
+The recompute *merges* rather than replaces, so the RERA/RDI/REM-NREM keys that
+steps 9b/9c add survive — the same trap that was fixed in v0.7.4.
+
+Note that the robustness sweep calls `detect_respiratory_events` directly rather
+than the pipeline, so the strict/sensitive arms of `profile_comparison` never
+read this flag; only a run where such a profile is the primary one is affected.
+
+## Fixed — `PLMl`/`PLMr` were never auto-detected
+
+`leg_l`/`leg_r` carried `"plm l"` and `"plm-l"`, with a separator. Matching is
+substring-based, so `"plml"` matched neither and SOMNOmedics leg channels went
+undetected; the PLM analysis silently depended on a manual channel choice in the
+UI. Added `"plml"`/`"plmr"` — deliberately *not* a bare `"plm"`, which would
+match both channels and, since each role takes the first match in EDF order,
+assign one channel to both legs. `detect_channels()` now also refuses to return
+the same channel for both legs.
+
+## Fixed — the nasal pressure could be used as the heart-rate channel
+
+The `pulse` role's shortest pattern is `"pr"`, a substring of `"Pres"` and
+`"Pressure Flow"`. On a montage without its own pulse channel the role claimed
+the nasal pressure, after which `analyze_heart_rate` treated a flow waveform as
+bpm. `pulse` no longer accepts a channel already taken by a flow role.
+
+## Added — heart-rate plausibility is now explicit
+
+Three recordings reported a minimum heart rate of 20.2 · 32.6 · 20.0 bpm. Two of
+those sit exactly on the lower bound of the `[20, 250]` plausibility filter —
+the signature of an oximeter briefly letting go, not of bradycardia. The
+absolute extremes are as trustworthy as the single worst sample.
+
+`analyze_heart_rate` keeps every existing key and adds `hr_p1`, `hr_p99`,
+`hr_implausible_pct`, `hr_source`, `hr_reliable` and `hr_unreliable_reason`. No
+silent correction: the numbers stay, the verdict is stated, and the report can
+choose what to show. Without a pulse channel the pipeline still falls back to
+the raw ECG — a waveform, not bpm, with no R-peak detection on the way — and
+that path is now marked unreliable rather than reported as a heart rate.
+`hr_data` itself is unchanged, so the arousal analysis reads exactly what it
+read before.
+
+## Fixed — a failed thermistor check dropped the channel without a trace
+
+When `assess_flow_sensor_agreement` raised, the exception path removed the
+thermistor without setting `flow_thermistor_rejected`, so the report said
+"thermistor not in montage" for a channel that was in the EDF and had merely
+failed to be assessed. The rejection and its reason are now recorded, exactly as
+in the normal rejection path. Metadata only.
+
 # v0.14.1 — 2026-08-03 — two report figures that were reading the wrong thing
 
 Both found by comparing two reports on one real recording — `aasm_v3_rec` on

@@ -115,3 +115,67 @@ def test_existing_montages_are_unchanged(montage, pressure, thermistor):
     ch = detect_channels(montage)
     assert ch.get("flow_pressure") == pressure
     assert ch.get("flow_thermistor") == thermistor
+
+
+# ─────────────────────────────────────────────────────────────────
+#  Beenkanalen — PLM
+# ─────────────────────────────────────────────────────────────────
+
+SOMNO_PLM = ["Snore", "Pressure Flow", "Flow Th.", "RIP Thora", "RIP Abdom",
+             "SpO2", "Pulse", "Pos.", "ECG II", "C3:A2", "C4:A1",
+             "EMG1", "EMG2", "EMG3", "PLMl", "PLMr"]
+
+
+def test_somnomedics_leg_channels_are_auto_detected():
+    """"PLMl" bevat geen scheidingsteken, dus "plm l" en "plm-l" matchten niet.
+
+    De PLM-resultaten in de rapporten kwamen daardoor uit de handmatige
+    kanaalkeuze in de UI; zonder die keuze bleef de analyse leeg zonder dat
+    iemand dat zag.
+    """
+    ch = detect_channels(SOMNO_PLM)
+    assert ch.get("leg_l") == "PLMl"
+    assert ch.get("leg_r") == "PLMr"
+
+
+def test_the_two_legs_are_never_the_same_channel():
+    """Eén kanaal dat zichzelf als beide benen aanwijst, verdubbelt de telling."""
+    for montage in (SOMNO_PLM, ["PLMl", "SpO2"], ["EMG Tib L", "SpO2"]):
+        ch = detect_channels(montage)
+        if ch.get("leg_l") and ch.get("leg_r"):
+            assert ch["leg_l"] != ch["leg_r"], montage
+
+
+def test_a_single_leg_channel_does_not_fill_both_roles():
+    ch = detect_channels(["PLMl", "SpO2", "Pres"])
+    assert ch.get("leg_l") == "PLMl"
+    assert ch.get("leg_r") is None
+
+
+def test_the_somnomedics_montage_maps_completely():
+    """Regressie per fabrikantmontage: de hele mapping in één assertie, zodat
+    een patroon dat elders wint hier meteen zichtbaar wordt."""
+    ch = detect_channels(SOMNO_PLM)
+    assert {k: ch.get(k) for k in
+            ("flow_pressure", "flow_thermistor", "thorax", "abdomen",
+             "spo2", "pulse", "position", "snore", "ecg", "leg_l", "leg_r")} == {
+        "flow_pressure":  "Pressure Flow",
+        "flow_thermistor": "Flow Th.",
+        "thorax":         "RIP Thora",
+        "abdomen":        "RIP Abdom",
+        "spo2":           "SpO2",
+        "pulse":          "Pulse",
+        "position":       "Pos.",
+        "snore":          "Snore",
+        "ecg":            "ECG II",
+        "leg_l":          "PLMl",
+        "leg_r":          "PLMr",
+    }
+
+
+def test_without_a_pulse_channel_the_nasal_pressure_is_not_used_as_heart_rate():
+    """"pr" is substring van "Pressure Flow". Zonder pulse-kanaal eist de
+    pulse-rol dan de neusdruk op en rekent analyze_heart_rate op een
+    flowsignaal — met een "minimale hartfrequentie" als resultaat."""
+    ch = detect_channels([c for c in SOMNO_PLM if c != "Pulse"])
+    assert ch.get("pulse") != "Pressure Flow"

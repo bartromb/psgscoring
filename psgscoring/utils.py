@@ -110,13 +110,44 @@ def detect_channels(ch_names: list[str]) -> dict[str, str]:
     ch_lower = {ch.lower(): ch for ch in ch_names}
     found: dict[str, str] = {}
     for ch_type, patterns in CHANNEL_PATTERNS.items():
+        # De pulse-rol mag geen flowkanaal opeisen. Haar kortste patroon is
+        # "pr", substring van "Pres" en "Pressure Flow": op een montage zonder
+        # eigen hartslagkanaal kreeg de pulse-rol de neusdruk, waarna
+        # analyze_heart_rate een flowsignaal als bpm behandelde en er een
+        # "minimale hartfrequentie" uit rolde die op de filterondergrens lag.
+        # De flowrollen staan vóór "pulse" in CHANNEL_PATTERNS, dus ze zijn hier
+        # al ingevuld — die volgorde is semantiek, geen cosmetica.
+        blocked = (
+            {found[r] for r in ("flow_pressure", "flow_thermistor", "flow")
+             if found.get(r)}
+            if ch_type == "pulse" else set()
+        )
         for pat in patterns:
             match = next(
-                (orig for lc, orig in ch_lower.items() if pat in lc), None
+                (orig for lc, orig in ch_lower.items()
+                 if pat in lc and orig not in blocked),
+                None,
             )
             if match:
                 found[ch_type] = match
                 break
+
+    # Eén kanaal kan niet allebei de benen zijn. Matching is substring-based en
+    # per rol first-match-wins, dus een patroon dat op beide rollen past (of een
+    # kanaalnaam die beide patronen bevat) wijst hetzelfde kanaal twee keer toe
+    # en verdubbelt de PLM-telling. Liever één been dan twee keer hetzelfde.
+    if found.get("leg_l") and found.get("leg_l") == found.get("leg_r"):
+        taken = found["leg_l"]
+        alt = next(
+            (orig for lc, orig in ch_lower.items()
+             if orig != taken and any(p in lc for p in CHANNEL_PATTERNS["leg_r"])),
+            None,
+        )
+        if alt:
+            found["leg_r"] = alt
+        else:
+            found.pop("leg_r")
+
     return found
 
 

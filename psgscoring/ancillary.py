@@ -120,28 +120,63 @@ def _modal_position(pos_data: np.ndarray, ep: int, spe: int) -> int:
 # Heart rate
 # ---------------------------------------------------------------------------
 
+HR_IMPLAUSIBLE_LOW  = 20.0
+HR_IMPLAUSIBLE_HIGH = 250.0
+HR_DROPOUT_MAX_FRAC = 0.01
+"""Boven dit aandeel onmogelijke waarden tijdens slaap is het extremum niet meer
+te vertrouwen: het is dan de filtergrens, niet de patiënt."""
+
+
 def analyze_heart_rate(
     hr_data: np.ndarray,
     sf: float,
     hypno: list,
+    source: str = "pulse",
 ) -> dict:
     """
     Basic heart-rate statistics during sleep.
 
     Physiologically implausible values (< 20 or > 250 bpm) are removed.
+
+    ``min_hr``/``max_hr`` zijn absolute extremen en dus zo betrouwbaar als het
+    slechtste sample. Op drie opnames stond er een minimum van 20,2 · 32,6 ·
+    20,0 bpm — twee daarvan liggen exact op de ondergrens van dit filter, en dat
+    is de signatuur van een oximeter die even loslaat, niet van bradycardie.
+    Daarom komen er robuuste percentielen naast te staan plus een expliciet
+    oordeel: liever "niet betrouwbaar" tonen dan een fout getal.
+
+    ``source`` benoemt waar het signaal vandaan komt. Bij ``"ecg"`` gaat er een
+    ruwe ECG-golfvorm door deze functie — geen bpm, en geen RR-detectie
+    onderweg — en zijn de getallen per definitie geen hartfrequentie.
     """
     result: dict = {"success": False, "summary": {}, "error": None}
     try:
-        hr = hr_data.copy().astype(float)
-        hr[(hr < 20) | (hr > 250)] = np.nan
+        raw_hr = hr_data.copy().astype(float)
+        hr = raw_hr.copy()
+        hr[(hr < HR_IMPLAUSIBLE_LOW) | (hr > HR_IMPLAUSIBLE_HIGH)] = np.nan
 
         sleep_mask = build_sleep_mask(hypno, sf, len(hr))
+        n_sleep    = int(np.sum(sleep_mask))
         hr_sleep   = hr[sleep_mask]
         hr_sleep   = hr_sleep[~np.isnan(hr_sleep)]
 
         if len(hr_sleep) == 0:
             result["error"] = "No HR data during sleep"
             return result
+
+        n_implausible = max(0, n_sleep - len(hr_sleep))
+        frac_bad = (n_implausible / n_sleep) if n_sleep else 0.0
+
+        if source != "pulse":
+            reliable, reason = False, (
+                f"afgeleid van kanaalrol '{source}' zonder R-piekdetectie — "
+                "geen hartfrequentie")
+        elif frac_bad > HR_DROPOUT_MAX_FRAC:
+            reliable, reason = False, (
+                f"{frac_bad * 100:.1f}% van de slaap onmogelijke waarden "
+                "(sensoruitval); extremen liggen op de filtergrens")
+        else:
+            reliable, reason = True, ""
 
         result["summary"] = {
             "avg_hr":        safe_r(float(np.mean(hr_sleep))),
@@ -150,6 +185,14 @@ def analyze_heart_rate(
             "std_hr":        safe_r(float(np.std(hr_sleep))),
             "n_tachycardia": int(np.sum(hr_sleep > 100)),
             "n_bradycardia": int(np.sum(hr_sleep < 50)),
+            # Robuuste tegenhangers van min/max: één uitvalsample verschuift
+            # deze niet.
+            "hr_p1":         safe_r(float(np.percentile(hr_sleep, 1))),
+            "hr_p99":        safe_r(float(np.percentile(hr_sleep, 99))),
+            "hr_source":     source,
+            "hr_implausible_pct": safe_r(frac_bad * 100.0),
+            "hr_reliable":   reliable,
+            "hr_unreliable_reason": reason,
         }
         result["success"] = True
     except Exception as e:

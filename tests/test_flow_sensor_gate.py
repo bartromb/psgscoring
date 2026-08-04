@@ -154,6 +154,35 @@ def test_no_thermistor_at_all_reports_nothing_rejected():
     assert fc["dual_sensor"] is False
 
 
+def test_a_failed_check_is_reported_as_rejected_not_as_absent(monkeypatch):
+    """Klapt de toets zelf, dan verdween het kanaal spoorloos.
+
+    De uitzonderingstak gooide de thermistor weg zonder
+    ``flow_thermistor_rejected`` te zetten, waarna het rapport "thermistor
+    niet in montage" toonde terwijl hij in het EDF zat en alleen de toets niet
+    uit te voeren was. Een mislukte meting is geen afwezig kanaal.
+    """
+    import psgscoring.signal_quality as SQ
+
+    def _boom(*a, **kw):
+        raise RuntimeError("envelope kapot")
+
+    monkeypatch.setattr(SQ, "assess_flow_sensor_agreement", _boom)
+    fc, apnea, hypop = _resolve(_breathing(seed=17), _breathing(seed=18))
+
+    # Scoring blijft ongewijzigd: neusdruk voor allebei, run valt niet om.
+    assert fc["apnea_sensor"] == "PRESS"
+    assert fc["hypopnea_sensor"] == "PRESS"
+    assert fc["dual_sensor"] is False
+    assert apnea is hypop
+    # En de reden staat er, in plaats van stilte.
+    assert fc["thermistor_rejected"] == "THERM"
+    assert fc["thermistor_check"]["usable"] is False
+    assert fc["thermistor_check"]["agreement"] is None
+    assert "mislukt" in fc["thermistor_check"]["reason"]
+    assert "envelope kapot" in fc["thermistor_check"]["reason"]
+
+
 # ─────────────────────────────────────────────────────────────────
 #  Blokkeren of alleen melden: hangt af van HOE het profiel de
 #  thermistor gebruikt

@@ -586,9 +586,21 @@ def run_pneumo_analysis(
 
     # ── Step 4: Heart rate ─────────────────────────────────────────────────
     logger.info("[pneumo 4/9] Heart rate...")
-    hr_data, sf_hr = (pulse_data, sf_pulse) if pulse_data is not None else get("ecg")
+    # Zonder pulse-kanaal valt dit terug op het ruwe ECG. Dat is geen bpm: de
+    # golfvorm gaat ongewijzigd door het plausibiliteitsfilter en alles tussen
+    # 20 en 250 in ADC-eenheden overleeft als "hartfrequentie". De rol gaat mee
+    # naar analyze_heart_rate, dat de uitkomst dan als onbetrouwbaar markeert.
+    # hr_data zelf blijft ongewijzigd — de arousal-analyse leest hetzelfde
+    # signaal, en dat mag hier niet verschuiven.
+    if pulse_data is not None:
+        hr_data, sf_hr, _hr_source = pulse_data, sf_pulse, "pulse"
+    else:
+        hr_data, sf_hr = get("ecg")
+        _hr_source = "ecg"
     output["heart_rate"] = (
-        _run_step("heart_rate", lambda: analyze_heart_rate(hr_data, sf_hr, hypno))
+        _run_step("heart_rate",
+                  lambda: analyze_heart_rate(hr_data, sf_hr, hypno,
+                                             source=_hr_source))
         if hr_data is not None
         else {"success": False, "error": "No HR/ECG channel", "summary": {}}
     )
@@ -1000,6 +1012,31 @@ def run_pneumo_analysis(
             }
             logger.info("[pneumo 11/11] Post-processing: CSR-recl=%d, mixed-decomp=%d",
                         pp["n_csr_reclassified"], pp["n_mixed_to_central"])
+
+            # Issue #18: de laatste _compute_summary() staat op stap 9, hierna
+            # wisselen events van type. De n-kolom beschreef daardoor de
+            # toestand VOOR de herklassificatie en de confidence-uitsplitsing
+            # die erna — zichtbaar als een verschil dat exact gelijk is aan
+            # n_csr_reclassified. Alleen de labels bewegen (ahi_total blijft
+            # gelijk), maar oahi schoof op één echte opname 32,2 -> 28,6, over
+            # de grens ernstig/matig heen.
+            #
+            # We MERGEN in plaats van te vervangen: stap 9b/9c hebben RERA,
+            # RDI, REM/NREM-indices en fenotypes aan dezelfde dict toegevoegd,
+            # en een kale vervanging gooide die weg (dezelfde val als in v0.7.4).
+            if profile.get("SUMMARY_AFTER_RECLASSIFICATION"):
+                _old = output["respiratory"].get("summary") or {}
+                _fresh = _compute_summary(
+                    pp["events"], hypno, artifact_epochs,
+                    csr_info=output.get("cheyne_stokes"),
+                )
+                _moved = [k for k in ("n_obstructive", "n_central", "n_mixed",
+                                      "oahi", "ahi_total")
+                          if _old.get(k) != _fresh.get(k)]
+                output["respiratory"]["summary"] = {**_old, **_fresh}
+                logger.info("[pneumo 11/11] summary herberekend na "
+                            "herklassificatie; gewijzigd: %s",
+                            ", ".join(_moved) or "niets")
         except Exception as e:
             logger.warning("Post-processing failed: %s", e)
             output["postprocess"] = {"error": str(e)}
@@ -1174,7 +1211,19 @@ def _resolve_flow_channels(
             logger.warning("[pneumo] thermistortoets mislukt, neusdruk "
                            "aangehouden: %s", e)
             flow_therm_data, sf_ft = None, None
-            ch = {k: v for k, v in ch.items() if k != "flow_thermistor"}
+            # Ook hier de afwijzing vastleggen. Dit pad liet het kanaal
+            # verdwijnen zonder spoor, waarna het rapport "thermistor niet in
+            # montage" toonde terwijl hij in het EDF zat en de toets alleen
+            # niet uit te voeren was. Een mislukte toets is geen afwezig
+            # kanaal, en de reden hoort mee: alleen een leeg veld is erger dan
+            # een fout veld. Uitsluitend metadata — de scoring verandert niet.
+            _therm_check = {
+                "agreement": None,
+                "usable":    False,
+                "reason":    f"thermistortoets mislukt: {e}",
+            }
+            ch = {**ch, "flow_thermistor_rejected": ch.get("flow_thermistor")}
+            ch.pop("flow_thermistor", None)
 
     if flow_pressure_data is not None or flow_therm_data is not None:
         # v0.8.4 FIX: Python 'or' crashes on numpy arrays ("truth value ambiguous").
