@@ -100,6 +100,18 @@ def build_sleep_mask(
 # Channel detection
 # ---------------------------------------------------------------------------
 
+# Rol -> rollen waarvan hij het kanaal niet mag overnemen. Zie de toelichting
+# in detect_channels(); beide gevallen komen van een patroon van twee tekens.
+# Bewust géén algemene regel "een kanaal hoort bij één rol": "flow" en
+# "flow_thermistor" wijzen op een montage met één flowkanaal terecht naar
+# hetzelfde kanaal.
+_ROLE_MAY_NOT_TAKE: dict[str, tuple[str, ...]] = {
+    "pulse": ("flow_pressure", "flow_thermistor", "flow"),
+    "eeg":   ("flow_pressure", "flow_thermistor", "flow", "thorax", "abdomen",
+              "spo2", "pulse", "ecg", "position", "snore", "leg_l", "leg_r"),
+}
+
+
 def detect_channels(ch_names: list[str]) -> dict[str, str]:
     """
     Pattern-match EDF channel names to functional roles.
@@ -110,18 +122,26 @@ def detect_channels(ch_names: list[str]) -> dict[str, str]:
     ch_lower = {ch.lower(): ch for ch in ch_names}
     found: dict[str, str] = {}
     for ch_type, patterns in CHANNEL_PATTERNS.items():
-        # De pulse-rol mag geen flowkanaal opeisen. Haar kortste patroon is
-        # "pr", substring van "Pres" en "Pressure Flow": op een montage zonder
-        # eigen hartslagkanaal kreeg de pulse-rol de neusdruk, waarna
+        # Twee rollen dragen een patroon dat te kort is om alleen te staan, en
+        # allebei zijn ze een kanaal gaan opeisen dat al een andere betekenis
+        # had. De rollen die ze mogen inpikken staan vóór hen in
+        # CHANNEL_PATTERNS en zijn hier dus al ingevuld — die volgorde is
+        # semantiek, geen cosmetica.
+        #
+        # "pulse" draagt "pr", substring van "Pres" en "Pressure Flow": op een
+        # montage zonder eigen hartslagkanaal kreeg de rol de neusdruk, waarna
         # analyze_heart_rate een flowsignaal als bpm behandelde en er een
-        # "minimale hartfrequentie" uit rolde die op de filterondergrens lag.
-        # De flowrollen staan vóór "pulse" in CHANNEL_PATTERNS, dus ze zijn hier
-        # al ingevuld — die volgorde is semantiek, geen cosmetica.
-        blocked = (
-            {found[r] for r in ("flow_pressure", "flow_thermistor", "flow")
-             if found.get(r)}
-            if ch_type == "pulse" else set()
-        )
+        # "minimale hartfrequentie" uitrolde die op de filterondergrens lag.
+        #
+        # "eeg" draagt "o2", substring van "SpO2" en "SaO2": op een montage
+        # zonder EEG-kanaal kreeg de rol de saturatie. _pick_eeg() leest die rol
+        # rechtstreeks, dus de arousal-detectie zou op de SpO2-curve draaien.
+        # Geblokkeerd valt _pick_eeg terug op zijn eigen, striktere lijst
+        # (EEG/C3/C4/F3/F4/CZ, zonder O1/O2) of op niets — allebei beter dan
+        # een saturatiecurve die als EEG wordt gelezen.
+        blocked = {
+            found[r] for r in _ROLE_MAY_NOT_TAKE.get(ch_type, ()) if found.get(r)
+        }
         for pat in patterns:
             match = next(
                 (orig for lc, orig in ch_lower.items()

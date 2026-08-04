@@ -179,3 +179,40 @@ def test_without_a_pulse_channel_the_nasal_pressure_is_not_used_as_heart_rate():
     flowsignaal — met een "minimale hartfrequentie" als resultaat."""
     ch = detect_channels([c for c in SOMNO_PLM if c != "Pulse"])
     assert ch.get("pulse") != "Pressure Flow"
+
+
+def test_the_saturation_channel_is_not_used_as_eeg():
+    """"o2" staat in de eeg-patronen en is substring van "SpO2".
+
+    Op een montage zonder EEG-kanaal eiste de eeg-rol de saturatie op, en
+    _pick_eeg() leest die rol rechtstreeks — de arousal-detectie zou dan op de
+    SpO2-curve draaien.
+    """
+    ch = detect_channels(["Pressure Flow", "SpO2", "Pulse", "Pos."])
+    assert ch.get("eeg") is None
+    assert ch.get("spo2") == "SpO2"
+
+
+def test_a_real_eeg_channel_is_still_detected():
+    for montage, expected in (
+        (["C4:A1", "SpO2"],            "C4:A1"),
+        (["EEG1", "SpO2", "Pres"],     "EEG1"),
+        (["O1-M2", "SaO2"],            "O1-M2"),
+        (["F4-M1", "SpO2", "Pulse"],   "F4-M1"),
+    ):
+        assert detect_channels(montage).get("eeg") == expected, montage
+
+
+def test_an_occipital_channel_still_wins_over_the_saturation():
+    """O2-M1 is een echt EEG-kanaal; SpO2 mag het niet verdringen en
+    andersom mag SpO2 de rol niet krijgen als O2-M1 er is."""
+    ch = detect_channels(["SpO2", "O2-M1", "Pres"])
+    assert ch.get("eeg") == "O2-M1"
+    assert ch.get("spo2") == "SpO2"
+
+
+def test_the_somnomedics_montage_still_maps_completely_with_eeg():
+    ch = detect_channels(SOMNO_PLM)
+    assert ch.get("eeg") in ("C3:A2", "C4:A1")
+    assert ch.get("spo2") == "SpO2"
+    assert ch.get("pulse") == "Pulse"

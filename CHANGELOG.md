@@ -1,3 +1,24 @@
+# v0.14.3 — 2026-08-04 — the saturation channel was being read as EEG
+
+Golden byte-identical; no scored event moves.
+
+## Fixed — `SpO2` could be assigned to the `eeg` role
+
+`"o2"` is one of the `eeg` patterns and a substring of `"SpO2"` and `"SaO2"`.
+On a montage without an EEG channel the role therefore claimed the saturation
+trace, and `_pick_eeg()` reads that role directly — the arousal analysis would
+have run on the SpO2 curve.
+
+Same class of trap as `"pr"` → `"Pres"` in v0.14.2, and fixed the same way: the
+`eeg` role no longer accepts a channel already claimed by another role. Blocked,
+`_pick_eeg()` falls back to its own stricter list (EEG/C3/C4/F3/F4/CZ, without
+O1/O2) or to nothing — both better than a saturation curve read as EEG.
+
+The exclusions are declared in one place (`_ROLE_MAY_NOT_TAKE` in `utils.py`)
+rather than special-cased per role. Deliberately not a general "one channel, one
+role" rule: on a single-flow-channel montage, `flow` and `flow_thermistor`
+correctly point at the same channel.
+
 # v0.14.2 — 2026-08-04 — the summary now describes the events the report shows
 
 One intended output change, in `oahi` and the apnea-type counts of the
