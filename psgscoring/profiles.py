@@ -163,6 +163,87 @@ class PostProcessingRules:
     """Operatiepunt op de kans-as van de gegradeerde detector. Lager =
     soepeler. Eén as in plaats van drie parametercombinaties."""
 
+    hypopnea_arousal_weight: float = 0.90
+    """v0.14.4: gewicht van de arousal-tak in de gegradeerde bevestiging.
+
+    De detector is gegradeerd op elke as behalve deze. ``p_confirm`` is een
+    noisy-OR van desaturatie en arousal, en ``p_arousal`` springt naar deze
+    waarde zodra er een arousal in het koppelvenster ligt. Bij 0,90 is
+    ``p_confirm >= 0,90`` ongeacht de desaturatie — een drempel in een verder
+    continu model, en dus een gratis toegangsbewijs.
+
+    Op PSG-IPA SN1 markeert de detector tien events die GEEN van de twaalf
+    scoorders markeerde; vijf daarvan hebben een desaturatie onder 1,2 %,
+    terwijl het laagste consensus-event op 2,16 % zit. Die vijf kunnen alleen
+    via deze tak gekwalificeerd zijn.
+
+    Lager zetten maakt een arousal een argument in plaats van een bewijs: met
+    0,55 haalt een arousal-only event de drempel van 0,50 alleen nog bij een
+    overtuigende reductie en duur, terwijl een arousal mét gedeeltelijke
+    desaturatie via de noisy-OR ruim boven de drempel blijft.
+
+    Default 0,90 = ongewijzigd gedrag."""
+
+    thermistor_agreement_weighting: bool = False
+    """v0.14.4: gebruik de sensorovereenstemming als GEWICHT in plaats van poort.
+
+    ``assess_flow_sensor_agreement`` rekent een continue envelope-correlatie
+    tussen thermistor en neusdruk uit — op echte opnames 0,32 tot 0,71 — en die
+    wordt gereduceerd tot ``usable`` ja/nee. Boven de drempel telt de sensor
+    volledig mee, eronder helemaal niet. Dat is dezelfde vorm als de arousal-as
+    vóór v0.14.4: een drempel in een verder continu model.
+
+    Met deze vlag aan:
+
+    * de thermistor wordt niet meer weggegooid bij lage overeenstemming maar
+      ADDITIEF gebruikt — hij mag events toevoegen, nooit afwijzen, wat de
+      veilige richting is (falsifiëren met een sensor die je niet vertrouwt is
+      hoe een echte opname 83 centrale apneus verloor);
+    * elk apneu-event krijgt ``sensor_agreement``, en events waarvan de
+      thermistor de enige steun is krijgen hun confidence met die waarde
+      geschaald. Een event uit een sensor met overeenstemming 0,32 komt dan
+      binnen met 32 % van zijn oorspronkelijke zekerheid in plaats van
+      helemaal niet, of volledig.
+
+    ⚠︎ **Niet gevalideerd.** PSG-IPA heeft één flowkanaal en geen thermistor,
+    dus deze as is daar principieel niet te meten — precies waarom
+    ``aasm_v3_rec``, ``aasm_v3_dual`` en ``aasm_v3_pressure`` er tot op de
+    decimaal identiek zijn. Toetsen kan alleen op MESA of op een eigen cohort
+    met twee flowsensoren.
+
+    Default False = ongewijzigd gedrag."""
+
+    hypopnea_desat_width: float = 0.80
+    """v0.14.4: breedte van de zachte stap op de desaturatie-as.
+
+    ``graded(x, 3.0, w)`` is een sigmoïde die op de drempel 0,5 geeft en over
+    ``w`` van ~0,12 naar ~0,88 loopt. Kleiner = dichter bij een harde drempel.
+
+    Let op de meetkunde vóór je hieraan draait: de sigmoïde is GECENTREERD op
+    de drempel, dus een event onder 3 % komt nooit boven p_desat 0,5, hoe breed
+    hij ook staat. Verbreden tilt lage waarden op naar 0,5 en drukt hoge
+    waarden omlaag naar 0,5 — het maakt de as minder beslissend, in beide
+    richtingen. Het verplaatst de drempel niet.
+
+    Op PSG-IPA SN1 liggen de vijf gemiste consensus-events op 2,15-3,15 %
+    desaturatie met een plafond van p = 0,42-0,48 bij oneindige breedte; ze
+    kunnen dus met geen enkele breedte het werkpunt van 0,50 halen.
+
+    Default 0,80 = ongewijzigd gedrag."""
+
+    hypopnea_arousal_latency_grading: bool = False
+    """v0.14.4: gradeer de arousal-koppeling op latentie in plaats van binair.
+
+    Een arousal is als gebeurtenis binair, maar hoe overtuigend hij bij dít
+    event hoort niet: een arousal die tijdens of vlak na het event begint is
+    sterker gekoppeld dan een aan de rand van het venster. De changelog van
+    v0.13.0 meet deze variant als de enige van drie die wint — F1 0,440 tegen
+    0,434 en ernstovereenkomst 5/5 tegen 4/5 — en zette hem desondanks uit,
+    omdat aanzetten het geijkte werkpunt verlaat.
+
+    Default False = ongewijzigd gedrag; de env-override
+    ``PSGSCORING_BREATH_AROUSAL_LATENCY`` blijft werken en wint."""
+
     rule1a_arousal_enabled: bool = False
     """v0.12.3+: laat de AASM Rule 1A arousal-tak daadwerkelijk kwalificeren.
 
@@ -582,6 +663,78 @@ _aasm_v3_breath = Profile(
 )
 
 
+# ---- AASM v3 Rule 1A, volledig probabilistisch (experimenteel) ----
+# aasm_v3_breath in alles behalve de arousal-as. Die was daar de enige
+# ongegradeerde: p_arousal sprong naar 0,90 zodra er een arousal in het
+# koppelvenster lag, waardoor de noisy-OR p_confirm >= 0,90 gaf ongeacht de
+# desaturatie. Een drempel in een verder continu model.
+#
+# Aanleiding is een meting, geen ontwerpvoorkeur. Op PSG-IPA SN1 markeert
+# aasm_v3_breath tien events die GEEN van de twaalf scoorders markeerde; vijf
+# daarvan hebben een desaturatie onder 1,2 %, terwijl het laagste
+# consensus-event op 2,16 % ligt. Desaturatie scheidt die twee groepen met
+# AUC 0,82, de confidence met 0,68 — de as die de fout maakt is dus juist de
+# as die niet meetelt.
+_aasm_v3_prob = Profile(
+    name="aasm_v3_prob",
+    display_name="AASM v3 — Rule 1A, fully probabilistic (experimental)",
+    family="exploratory",
+    aasm_version="v3 (2023)",
+    aasm_rule="1A (RECOMMENDED), graded",
+    description=(
+        "Identical to aasm_v3_breath except on the arousal axis, which was "
+        "the one criterion still evaluated as a threshold: p_arousal jumped "
+        "to its full weight as soon as an arousal fell in the coupling "
+        "window, so the noisy-OR confirmation could never drop below that "
+        "weight however small the desaturation. Here an arousal is an "
+        "argument rather than a proof: it is graded by coupling latency and "
+        "carries a weight that leaves an arousal-only event dependent on a "
+        "convincing reduction and duration, while an arousal WITH partial "
+        "desaturation still clears the operating point comfortably. "
+        "Experimental: the operating point has not been re-derived."
+    ),
+    citation="Troester MM, Quan SF, Berry RB, et al. AASM Manual v3. 2023.",
+    hypopnea=HypopneaRules(
+        flow_reduction_threshold=0.30,
+        sensor="nasal_pressure",
+        min_duration_s=10.0,
+        max_duration_s=60.0,
+        desat_threshold=0.03,
+        desat_required=False,
+        arousal_required=False,
+        desat_or_arousal=True,
+        square_root_linearisation=True,
+    ),
+    post_processing=PostProcessingRules(
+        hypopnea_detector="breath_graded",
+        summary_after_reclassification=True,
+        arousal_limb_wired=True,
+        hypopnea_strictness=0.50,
+        # De twee assen die dit profiel onderscheiden.
+        #
+        # 0,70 komt uit een sweep over 0,90 / 0,70 / 0,55 / 0,40 / 0,00 op
+        # PSG-IPA (n = 5, manueel hypnogram). Het aantal events dat met GEEN
+        # ENKEL menselijk event overlapt daalt monotoon met het gewicht —
+        # 69 / 60 / 47 / 37 / 29 / 26 — wat bevestigt dat een groot deel van
+        # die events inderdaad via deze tak binnenkwam. Maar onder 0,70 gaat
+        # het consensus-events kosten: de recall op clusters die >=6 van de
+        # 12 scoorders deelden blijft 0,50 tot en met 0,70 en zakt daarna
+        # naar 0,47 (0,55) en 0,44 (0,40).
+        #
+        # 0,70 is dus het laagste gewicht dat nog gratis is: F1 0,453 — de
+        # hoogste van alle geteste configuraties, tegen 0,434 voor
+        # aasm_v3_breath — precisie 0,72 -> 0,79, en de AHI blijft op 5/5
+        # opnames binnen de scoorderspreiding.
+        #
+        # 0,55 was mijn eerste keuze, beredeneerd uit de rekensom en niet uit
+        # data. De sweep wees hem af: hogere precisie (0,86) maar ten koste
+        # van consensus-recall en met een bias van -1,47.
+        hypopnea_arousal_weight=0.70,
+        hypopnea_arousal_latency_grading=True,
+    ),
+)
+
+
 # ---- AASM v2 RECOMMENDED (2012-2020) ----
 # Functionally identical to v3 Rule 1A. Kept for explicit labeling
 # of analyses performed during the v2 era.
@@ -838,6 +991,58 @@ _aasm_v3_dual = Profile(
 )
 
 
+# ---- AASM v3 dual-sensor met GEWOGEN fusie (experimenteel) ----
+# aasm_v3_dual, maar de sensorovereenstemming telt als gewicht in plaats van
+# als poort. `assess_flow_sensor_agreement` levert een continue
+# envelope-correlatie — op echte opnames 0,32 tot 0,71 — en die werd
+# gereduceerd tot usable ja/nee. Dat is dezelfde vorm als de arousal-as vóór
+# v0.14.4: een drempel midden in een verder continu model.
+#
+# ⚠︎ NIET GEVALIDEERD. PSG-IPA heeft één flowkanaal en geen thermistor, dus
+# deze as is daar principieel niet te meten — precies waarom aasm_v3_rec,
+# aasm_v3_dual en aasm_v3_pressure er tot op de decimaal identiek zijn.
+# Toetsen kan alleen op MESA of op een eigen cohort met twee flowsensoren.
+_aasm_v3_fusion = Profile(
+    name="aasm_v3_fusion",
+    display_name="AASM v3 — dual-sensor, agreement-weighted (experimental)",
+    family="exploratory",
+    aasm_version="v3 (2023)",
+    aasm_rule="1A (RECOMMENDED), dual-sensor weighted",
+    description=(
+        "aasm_v3_dual with the sensor-agreement score used as a weight "
+        "instead of a gate. The envelope correlation between thermistor and "
+        "nasal pressure is already computed on every dual-sensor montage, "
+        "then thrown away except for a usable yes/no. Here it stays: every "
+        "apnea carries sensor_agreement, and an apnea whose only support is "
+        "the thermistor has its confidence scaled by that value — so a "
+        "detection from a sensor that agrees at 0.32 enters at a third of "
+        "its confidence rather than either fully or not at all. Nothing is "
+        "rejected; the thermistor remains additive. EXPERIMENTAL AND "
+        "UNVALIDATED: this axis cannot be measured on PSG-IPA, which has a "
+        "single flow channel."
+    ),
+    citation="Troester MM, Quan SF, Berry RB, et al. AASM Manual v3. 2023.",
+    hypopnea=HypopneaRules(
+        flow_reduction_threshold=0.30,
+        sensor="nasal_pressure",
+        min_duration_s=10.0,
+        max_duration_s=60.0,
+        desat_threshold=0.03,
+        desat_required=False,
+        arousal_required=False,
+        desat_or_arousal=True,
+        square_root_linearisation=True,
+    ),
+    post_processing=PostProcessingRules(
+        dual_sensor_apnea=True,
+        dual_sensor_corroboration=False,
+        summary_after_reclassification=True,
+        flow_reference="hypopnea",
+        thermistor_agreement_weighting=True,
+    ),
+)
+
+
 # ---- AASM v3 NASAL-PRESSURE REFERENCE (clinical) ----
 # aasm_v3_rec in every respect except which channel the derived analyses read.
 _aasm_v3_pressure = Profile(
@@ -984,8 +1189,10 @@ PROFILES: Dict[str, Profile] = {
     # Clinical family
     "aasm_v3_rec":       _aasm_v3_rec,
     "aasm_v3_breath":    _aasm_v3_breath,
+    "aasm_v3_prob":      _aasm_v3_prob,
     "aasm_v3_pressure":  _aasm_v3_pressure,
     "aasm_v3_dual":      _aasm_v3_dual,
+    "aasm_v3_fusion":    _aasm_v3_fusion,
     "aasm_v3_strict":    _aasm_v3_strict,
     "aasm_v3_sensitive": _aasm_v3_sensitive,
     "aasm_v2_rec":       _aasm_v2_rec,

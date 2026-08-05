@@ -1,3 +1,108 @@
+# v0.14.4 — 2026-08-05 — two thresholds hiding inside graded models
+
+Two new profiles, both **`exploratory`** and both **off unless selected**. Every
+existing profile is byte-identical: golden unchanged, 451 tests green, and tests
+assert that no existing profile moves on any of the new axes.
+
+## Added — `aasm_v3_prob`: the arousal criterion was still a threshold
+
+The breath-graded detector evaluates every AASM criterion on a sliding scale —
+except one. Confirmation is a noisy-OR,
+
+```
+p_confirm = 1 − (1 − p_desat)(1 − p_arousal)
+```
+
+and `p_arousal` **jumped** to `arousal_weight = 0.90` the moment an arousal fell
+in the coupling window. So `p_confirm ≥ 0.90` however small the desaturation: a
+threshold sitting in the middle of an otherwise continuous model, and a free
+pass for any candidate with an arousal nearby.
+
+This was found by measurement, not by inspection. On PSG-IPA SN1
+`aasm_v3_breath` marks ten events that **not one of the twelve scorers** marked;
+five have a desaturation below 1.2 % while the lowest consensus event sits at
+2.16 %. Desaturation separates those two groups with **AUC 0.818**, the event
+confidence with only 0.684 — the axis making the error is the one that does not
+count, and the probability the whole design rests on separates weakly.
+
+`aasm_v3_prob` is `aasm_v3_breath` with `hypopnea_arousal_weight = 0.70` and
+`hypopnea_arousal_latency_grading = True`. An arousal becomes an argument rather
+than a proof: without desaturation a candidate now needs `p_flow · p_dur > 0.71`
+instead of 0.56, while an arousal *with* partial desaturation still clears the
+operating point through the noisy-OR.
+
+Measured on PSG-IPA (n = 5, manual hypnogram, so no staging effect):
+
+| configuration | \|bias\| | F1 med | consensus recall | precision | invented |
+|---|---|---|---|---|---|
+| `aasm_v3_rec` | 1.84 | 0.343 | 0.588 | 0.577 | 97 |
+| `aasm_v3_breath` | **0.29** | 0.434 | 0.500 | 0.722 | 69 |
+| w=0.90 + latency | 0.42 | 0.441 | 0.500 | 0.765 | 60 |
+| **w=0.70 + latency** | 0.89 | **0.453** | 0.500 | 0.788 | 47 |
+| w=0.55 + latency | 1.47 | 0.450 | 0.470 | 0.862 | 37 |
+| w=0.40 + latency | 2.01 | 0.441 | 0.439 | 0.885 | 29 |
+
+*"Invented" = events overlapping no human event from any of the twelve scorers.*
+
+Events nobody marked fall monotonically 69 → 26 as the weight drops, which
+confirms they came in through this branch. Below 0.70 it starts costing
+consensus events, so 0.70 is the lowest weight that is still free. Latency
+grading alone is a gain at no cost, independently confirming the v0.13.0
+measurement.
+
+Note that AHI bias and event agreement do not peak together: `aasm_v3_breath`
+keeps the best bias because its operating point was chosen as the zero-bias
+point. Re-deriving `hypopnea_strictness` at weight 0.70 is the open next step.
+
+## Added — `aasm_v3_fusion`: sensor agreement as a weight, not a gate
+
+`assess_flow_sensor_agreement` computes a continuous envelope correlation
+between thermistor and nasal pressure — 0.32 to 0.71 on real recordings — and
+that number was reduced to `usable` yes/no. Above the line the sensor counts
+fully, below it not at all. The same shape of mistake as the arousal axis, one
+level up.
+
+`aasm_v3_fusion` is `aasm_v3_dual` with `thermistor_agreement_weighting = True`.
+Every apnea carries `sensor_agreement`, and an apnea whose only support is the
+thermistor has its confidence scaled by that value — so a detection from a
+sensor agreeing at 0.32 enters at a third of its confidence instead of either
+fully or not at all. Nothing is rejected; the thermistor stays additive,
+because falsifying with a sensor you do not trust is how one real recording lost
+83 central apneas.
+
+⚠️ **Unvalidated, and not measurable on PSG-IPA.** That montage has a single
+flow channel and no thermistor — which is exactly why `aasm_v3_rec`,
+`aasm_v3_dual` and `aasm_v3_pressure` are identical there to the decimal.
+Testing this axis needs MESA or a cohort with two flow sensors.
+
+## Added — `hypopnea_desat_width`, and the measurement that says not to touch it
+
+Exposed as a profile field for completeness, default 0.80 = unchanged. Widening
+it was the obvious response to the missed events, and it does not work — for a
+reason worth recording.
+
+All five missed consensus events on SN1 **were candidates**; none was invisible.
+They were rejected on probability: p = 0.245–0.464 against a bar of 0.50, with
+desaturations of 2.15–3.15 %. From p = 0.245 at p_desat = 0.257 it follows that
+reduction × duration × template ≈ 0.95 — the detector found the flow reduction
+and duration entirely convincing and dropped the event on a 2.2 % desaturation,
+one that twelve of twelve scorers marked.
+
+But `graded()` is a sigmoid **centred on the threshold**, so a value below 3 %
+can never exceed p_desat 0.5 at any width. The ceiling for those five is
+p = 0.42–0.48. Measured over the cohort, widening loses more than it gains:
+
+| desat width | F1 med | consensus recall | precision |
+|---|---|---|---|
+| 0.4 | **0.456** | 0.500 | **0.818** |
+| 0.8 (default) | 0.453 | 0.500 | 0.788 |
+| 1.2 | 0.438 | 0.455 | 0.803 |
+| 2.4 | 0.392 | 0.394 | 0.800 |
+
+Narrowing beats widening: making that axis *more* decisive improves both F1 and
+precision. The knob the SN1 analysis actually points at is the sigmoid's centre
+— the 3 % threshold itself — and that is a rule change, not a calibration.
+
 # v0.14.3 — 2026-08-04 — the saturation channel was being read as EEG
 
 Golden byte-identical; no scored event moves.

@@ -395,6 +395,31 @@ def run_pneumo_analysis(
             corroboration_licensed=profile.get(
                 "DUAL_SENSOR_CORROBORATION", False),
         )
+        # v0.14.4 (§3.1): de overeenstemming als GEWICHT in plaats van poort.
+        # assess_flow_sensor_agreement levert een continue envelope-correlatie
+        # en die werd gereduceerd tot usable ja/nee — dezelfde vorm als de
+        # arousal-as vóór deze versie: een drempel in een continu model. Hier
+        # blijft het getal staan op elk event, en een apneu waarvan de
+        # thermistor de enige steun is draagt de twijfel over die sensor mee
+        # in zijn confidence in plaats van hem te verzwijgen.
+        if profile.get("THERMISTOR_AGREEMENT_WEIGHTING", False):
+            _agr = ((output.get("meta", {}) or {}).get("flow_channels", {})
+                    or {}).get("thermistor_check") or {}
+            _w = _agr.get("agreement")
+            if isinstance(_w, (int, float)):
+                _w = float(max(0.0, min(1.0, _w)))
+                _n_w = 0
+                for _e in _apneas:
+                    _e["sensor_agreement"] = round(_w, 3)
+                    if _e.get("corroboration") == "thermistor_only":
+                        _c = _e.get("confidence")
+                        if isinstance(_c, (int, float)):
+                            _e["confidence"] = round(float(_c) * _w, 3)
+                            _e["confidence_weighted_by"] = "sensor_agreement"
+                            _n_w += 1
+                logger.info("[pneumo] sensorovereenstemming %.2f als gewicht: "
+                            "%d thermistor-only apneus herwogen", _w, _n_w)
+
         merged = sorted(_apneas + _rest,
                         key=lambda e: float(e.get("onset_s") or 0.0))
         output["respiratory"] = resp
@@ -723,10 +748,20 @@ def run_pneumo_analysis(
                 max_duration_s=float(profile.get("HYPOPNEA_MAX_DUR_S", 60.0)),
                 desat_threshold_pct=float(profile.get("DESATURATION_DROP_PCT", 3.0)),
                 strictness=float(profile.get("HYPOPNEA_STRICTNESS", 0.50)),
+                # v0.14.4: de arousal-tak is nu profielgestuurd. Hij was de
+                # enige as die niet gegradeerd was — p_arousal sprong naar het
+                # gewicht zodra er een arousal in het venster lag, waardoor
+                # p_confirm nooit onder dat gewicht kwam ongeacht de
+                # desaturatie. Zie hypopnea_arousal_weight.
+                arousal_weight=float(profile.get("HYPOPNEA_AROUSAL_WEIGHT", 0.90)),
+                desat_width=float(profile.get("HYPOPNEA_DESAT_WIDTH", 0.80)),
+                arousal_latency_grading=bool(
+                    profile.get("HYPOPNEA_AROUSAL_LATENCY", False)),
                 # Env-overrides voor de drie scoringswijzigingen, zodat ze
                 # gemeten kunnen worden zonder profielen te muteren —
-                # zelfde patroon als PSGSCORING_BASELINE_MODE. Niet gezet =
-                # gedrag van v0.13.0.
+                # zelfde patroon als PSGSCORING_BASELINE_MODE. Ze staan NA de
+                # profielwaarden en winnen dus, zodat bestaande metingen
+                # blijven werken. Niet gezet = gedrag van v0.13.0.
                 **_breath_env_overrides(),
             )
             # Subtypering overerven. De envelope-detector classificeerde
