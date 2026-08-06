@@ -90,6 +90,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "HYPOPNEA_AROUSAL_WEIGHT":  pp.hypopnea_arousal_weight,
         "HYPOPNEA_DESAT_WIDTH":     pp.hypopnea_desat_width,
         "THERMISTOR_AGREEMENT_WEIGHTING": pp.thermistor_agreement_weighting,
+        "THERMISTOR_GATE":          pp.thermistor_gate,
         "HYPOPNEA_AROUSAL_LATENCY": pp.hypopnea_arousal_latency_grading,
         "RULE1A_AROUSAL_ENABLED": pp.rule1a_arousal_enabled,
         "RULE1A_GAP_MAX_BREATHS": pp.rule1a_gap_max_breaths,

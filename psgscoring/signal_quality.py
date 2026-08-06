@@ -534,6 +534,96 @@ __all__ = [
 THERMISTOR_AGREEMENT_MIN = 0.40
 THERMISTOR_ENV_SMOOTH_S  = 10.0
 
+# ── Alternatieve poort: één kanaal, geen vergelijking ──────────────────────
+# De maat hierboven vergelijkt twee sensoren en beantwoordt daarmee een andere
+# vraag dan hij lijkt te stellen. Synthetisch aangetoond op zes signalen die
+# ALLEMAAL op 0,25 Hz ademen: de uitkomst loopt van -0,985 tot +1,000, puur
+# naar gelang hun trage amplitudemodulatie. Of beide sensoren dezelfde
+# ademhaling zien telt niet mee; een thermische en een drukopnemer moduleren
+# hun amplitude nu eenmaal verschillend.
+#
+# Deze maat kijkt naar één kanaal en stelt de vraag die er werkelijk toe doet:
+# draagt DIT signaal ademhaling? Het aandeel van het vermogen dat in de
+# ademband valt. Een losgeraakte of dode sensor haalt dat niet, ongeacht wat
+# de andere sensor doet.
+THERMISTOR_BAND_POWER_MIN = 0.70
+"""Afgeleid, niet gekozen. Gemeten op 9 onderscheiden montages (Somnomedics,
+`Pressure Flow` + `Flow Th.`), mediaan over tien vensters per nacht:
+
+    0,982  0,981  0,977  0,970   |   0,441  0,396  0,318  0,036  0,000
+
+Een gat van 0,53 met niets erin. 0,70 ligt op het midden daarvan — de waarde
+met de grootste marge naar beide klassen — en laat zich lezen als "minstens
+70% van het vermogen van dit kanaal is ademhaling".
+
+Ter vergelijking: de neusdruk haalde op dezelfde opnames 0,566 tot 0,914.
+Deze drempel geldt dus UITSLUITEND voor de thermistor; op de neusdruk
+toegepast zou hij bruikbare kanalen afwijzen.
+
+n = 9. Klein. Hoort met meer opnames opnieuw bepaald te worden, net als
+THERMISTOR_AGREEMENT_MIN — maar anders dan die drempel scheidt deze de
+gemeten klassen wél."""
+
+THERMISTOR_BAND_POWER_WINDOWS = 10
+"""Vensters verspreid over de nacht; de mediaan telt. Eén venster uit het
+midden is niet representatief — op echte opnames scheelde dat een factor twee."""
+
+THERMISTOR_BAND_POWER_WIN_S = 600.0
+
+BAND_POWER_TOTAL_HZ = (0.02, 4.0)
+"""Noemer: van trager dan ademhaling tot boven de hartslag. Niet tot Nyquist,
+anders bepaalt hoogfrequente ruis de breuk in plaats van het signaal."""
+
+
+def respiratory_band_power(x: np.ndarray, sf: float,
+                           n_windows: int = THERMISTOR_BAND_POWER_WINDOWS,
+                           win_s: float = THERMISTOR_BAND_POWER_WIN_S) -> dict:
+    """Welk deel van het vermogen van dit kanaal valt in de ademband?
+
+    Retourneert ``{"fraction", "peak_hz", "n_windows"}``; ``fraction`` is None
+    wanneer er niets te meten valt. Eén kanaal, geen tweede sensor nodig.
+    """
+    from scipy.signal import welch
+
+    out = {"fraction": None, "peak_hz": None, "n_windows": 0}
+    x = np.asarray(x, dtype=float).squeeze()
+    if x.ndim != 1 or sf <= 0 or x.size < int(sf * win_s):
+        return out
+
+    q = max(1, int(sf // 8))              # ~8 Hz volstaat en is veel sneller
+    d, sfd = x[::q], sf / max(1, int(sf // 8))
+    n = int(win_s * sfd)
+    if d.size < n:
+        return out
+
+    starts = np.unique(np.linspace(0, d.size - n, n_windows).astype(int))
+    fracs, peaks = [], []
+    for s in starts:
+        seg = d[s:s + n]
+        # Relatieve toets, niet ``== 0``: filtfilt/welch op een constante geeft
+        # numerieke ruis van orde 1e-15, en een exacte nulvergelijking laat die
+        # door. Zo kreeg een volledig plat kanaal een berekende correlatie over
+        # ruis toebedeeld in plaats van te worden afgewezen.
+        if np.std(seg) <= 1e-9 * max(1.0, float(np.max(np.abs(seg)))):
+            fracs.append(0.0)
+            continue
+        f, p = welch(seg - seg.mean(), fs=sfd, nperseg=min(2048, n))
+        band = (f >= BREATH_FREQ_LOW) & (f <= BREATH_FREQ_HIGH)
+        total = (f >= BAND_POWER_TOTAL_HZ[0]) & (f <= BAND_POWER_TOTAL_HZ[1])
+        tot = float(p[total].sum())
+        if tot <= 0 or not band.any():
+            fracs.append(0.0)
+            continue
+        fracs.append(float(p[band].sum() / tot))
+        peaks.append(float(f[band][int(np.argmax(p[band]))]))
+
+    if not fracs:
+        return out
+    out["fraction"] = round(float(np.median(fracs)), 3)
+    out["peak_hz"] = round(float(np.median(peaks)), 3) if peaks else None
+    out["n_windows"] = len(fracs)
+    return out
+
 
 def _breath_envelope(x: np.ndarray, sf: float,
                      smooth_s: float = THERMISTOR_ENV_SMOOTH_S) -> np.ndarray:
@@ -607,4 +697,54 @@ def assess_flow_sensor_agreement(
         out["reason"] = (f"envelope-overeenstemming {corr:.2f} "
                          f"< {min_agreement:.2f}: de thermistor volgt de "
                          f"ademhaling niet zoals de neusdruk")
+    return out
+
+
+def assess_thermistor_band_power(thermistor: np.ndarray, sf_thermistor: float,
+                                 min_fraction: float | None = None) -> dict:
+    """Draagt DIT kanaal ademhaling? Eén sensor, geen vergelijking.
+
+    Dezelfde vraag als ``assess_flow_sensor_agreement`` — is de thermistor
+    bruikbaar als apneu-sensor — maar zonder de neusdruk als maatstaf te
+    nemen. Dat verschil is niet cosmetisch. De overeenstemmingsmaat keurde op
+    negen montages acht thermistors af, waaronder drie die 98% van hun
+    vermogen in de ademband hebben en hun ademfrequentie tot op 0,002 Hz met
+    de neusdruk delen. Twee fysisch verschillende opnemers hoeven hun
+    amplitude niet gelijk te moduleren; dat ze dat niet doen zegt niets over
+    de vraag of de thermistor werkt.
+
+    Retourneert dezelfde sleutels als ``assess_flow_sensor_agreement``, zodat
+    het rapport en de meta-blokken niet hoeven te weten welke poort er draaide.
+    ``agreement`` blijft None: dit is geen overeenstemmingsmaat, en er een
+    getal in schrijven dat op een andere schaal leeft zou het rapport laten
+    liegen. ``band_power`` draagt de eigenlijke waarde.
+    """
+    if min_fraction is None:
+        min_fraction = THERMISTOR_BAND_POWER_MIN
+    out = {"agreement": None, "band_power": None, "peak_hz": None,
+           "usable": False, "reason": "", "gate": "respiratory_band"}
+    if thermistor is None:
+        out["reason"] = "thermistorkanaal ontbreekt"
+        return out
+    if not sf_thermistor or sf_thermistor <= 0:
+        out["reason"] = "geen bruikbare samplefrequentie"
+        return out
+
+    m = respiratory_band_power(thermistor, sf_thermistor)
+    if m["fraction"] is None:
+        out["reason"] = "signaal te kort voor een spectrum"
+        return out
+
+    out["band_power"] = m["fraction"]
+    out["peak_hz"] = m["peak_hz"]
+    if m["fraction"] >= min_fraction:
+        out["usable"] = True
+        out["reason"] = (f"ademband-vermogen {m['fraction']:.2f} "
+                         f">= {min_fraction:.2f}")
+        if m["peak_hz"]:
+            out["reason"] += f" (piek {m['peak_hz'] * 60:.0f}/min)"
+    else:
+        out["reason"] = (f"ademband-vermogen {m['fraction']:.2f} "
+                         f"< {min_fraction:.2f}: dit kanaal draagt "
+                         f"overwegend geen ademhaling")
     return out

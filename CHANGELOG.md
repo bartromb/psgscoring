@@ -1,4 +1,79 @@
-# Unreleased — the empty square in the profile grid
+# v0.14.5 — 2026-08-06 — a gate that measured the wrong property
+
+Every existing clinical, dataset and legacy profile is byte-identical: golden
+unchanged, 488 tests green, and tests assert that no such profile moves on any
+new axis.
+
+## Added — a per-channel thermistor gate
+
+`assess_flow_sensor_agreement` decides, on every recording, whether apneas are
+scored on the thermistor or on the nasal pressure. It correlates the two
+sensors' **envelopes**. That is not the same question as "does this thermistor
+follow respiration", and the difference is not academic.
+
+Six synthetic signals, all breathing at exactly 0.25 Hz — perfect respiratory
+agreement by construction — differing only in their slow amplitude modulation:
+
+| difference between the channels | agreement |
+|---|---:|
+| identical modulation *(what the existing unit test builds)* | 1.000 pass |
+| thermistor delayed 1 s (thermal lag) | 1.000 pass |
+| modulation shifted 90° | 0.002 **reject** |
+| modulation at a different slow frequency | −0.038 **reject** |
+| no modulation on the thermistor | 0.094 **reject** |
+| modulation in antiphase | −0.985 **reject** |
+
+The measure is decided entirely by amplitude-modulation covariation and is
+blind to whether both sensors see the same breathing. Two physically different
+transducers do not modulate their amplitude alike. The existing test could not
+catch this: it builds both channels from the same `1 + 0.5·sin(2π·0.01·t)`
+term, and that term *is* the envelope, so they correlate 1.000 by construction.
+
+Measured on **9 distinct Somnomedics montages**: the gate rejects 8. Three of
+those have a thermistor carrying **98 % of its power in the respiratory band**
+and sharing its breathing frequency with the nasal pressure to within 0.002 Hz.
+
+`assess_thermistor_band_power` asks the single-channel question instead: what
+fraction of this channel's power falls in the respiratory band, as a median
+over ten windows spread across the night. On the same 9 montages:
+
+```
+0.982  0.981  0.977  0.970   |   0.441  0.396  0.318  0.036  0.000
+```
+
+A gap of 0.53 with nothing in it. `THERMISTOR_BAND_POWER_MIN = 0.70` sits at
+its midpoint — maximum margin to both classes — and reads as "at least 70 % of
+this channel's power is respiration". Contrast the existing threshold, whose
+own comment records that it separates nothing: *"bekend-slecht liep tot +0,225,
+bekend-goed begon op +0,226 … bewust conservatief gekozen, niet afgeleid"*, and
+that on 25 MESA recordings agreement correlates with dual confirmation at
+r = +0.07.
+
+Selected by `PostProcessingRules.thermistor_gate`, **default unchanged**
+(`"envelope_agreement"`). Enabled only on `aasm_v3_breath_dual` and
+`aasm_v3_prob_dual` — both new, both exploratory, so no existing outcome moves.
+Without it those two are identical to their single-sensor parent on 8 of 9
+montages: expensive no-ops.
+
+⚠️ Still unmeasured: whether either gate produces AHIs closer to human scoring.
+n = 9 is small and the threshold should be re-derived on more recordings.
+
+## Fixed — a flat channel was given a fabricated agreement score
+
+The guard tests `float(np.std(a)) == 0` exactly, but `filtfilt` on a constant
+yields numerical noise of order 1e-15, so the standard deviation is not
+precisely zero and the guard lets it through. A correlation is then computed
+over that noise. On a real recording with an all-constant thermistor this
+produced `agreement = 0.026` with the reason *"the thermistor does not follow
+respiration like the nasal pressure"* — a fabricated number and a misleading
+explanation, both reaching `thermistor_check` and the report.
+
+The old path is left untouched (any change there moves the AHI on every
+recording); the new measure uses a relative test and returns a true `0.000`.
+
+---
+
+## Also in this release — the empty square in the profile grid
 
 The profiles varied along two independent axes and the crossing was empty:
 

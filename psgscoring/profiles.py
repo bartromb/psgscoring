@@ -163,6 +163,22 @@ class PostProcessingRules:
     """Operatiepunt op de kans-as van de gegradeerde detector. Lager =
     soepeler. Eén as in plaats van drie parametercombinaties."""
 
+    thermistor_gate: str = "envelope_agreement"
+    """Welke toets beslist of de thermistor de apneu-sensor mag zijn.
+
+    "envelope_agreement"  — bestaande poort (default, ongewijzigd gedrag):
+                            correlatie tussen de envelopes van thermistor en
+                            neusdruk, drempel 0,40.
+    "respiratory_band"    — ademband-vermogen van het thermistorkanaal ALLEEN,
+                            drempel 0,70. Zie assess_thermistor_band_power.
+
+    De default blijft de bestaande poort, en dat is geen conservatisme uit
+    gewoonte: deze keuze verschuift op elke opname of apneus op de thermistor
+    of op de neusdruk gescoord worden, en dus de AHI. Dat raakt mesa_shhs en
+    de gepubliceerde cijfers. Aanzetten hoort per profiel te gebeuren, met een
+    meting erbij.
+    """
+
     hypopnea_arousal_weight: float = 0.90
     """v0.14.4: gewicht van de arousal-tak in de gegradeerde bevestiging.
 
@@ -1091,6 +1107,21 @@ def _with_dual_apneas(parent: Profile, *, name: str, display_name: str,
             # tweede detectiepas dekt dat af vóór de apneutelling, maar de
             # arousal-koppeling kent die pas niet. Zie flow_reference.
             flow_reference="hypopnea",
+            # De per-kanaal poort in plaats van de overeenstemmingsmaat.
+            #
+            # Waarom juist hier, en nergens anders. Deze twee profielen bestaan
+            # om de tweede flowsensor te gebruiken, en de oude poort weigerde
+            # die op 8 van 9 gemeten montages — waaronder drie waar de
+            # thermistor 98% van zijn vermogen in de ademband heeft en zijn
+            # ademfrequentie tot op 0,002 Hz met de neusdruk deelt. Met die
+            # poort ervoor zijn deze profielen op vrijwel elke opname
+            # identiek aan hun enkelsensor-ouder: dure no-ops.
+            #
+            # De klinische profielen houden de bestaande poort. Daar zou deze
+            # keuze de AHI verschuiven op elke opname, en dat raakt mesa_shhs
+            # en de gepubliceerde cijfers. Hier kan dat niet: beide profielen
+            # zijn nieuw, exploratory en standaard uit.
+            thermistor_gate="respiratory_band",
         ),
     )
 

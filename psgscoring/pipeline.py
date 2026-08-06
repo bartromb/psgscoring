@@ -211,6 +211,7 @@ def run_pneumo_analysis(
         # Bij additief gebruik hoeft de kwaliteitstoets niet te blokkeren;
         # zie de toelichting bij _resolve_flow_channels.
         additive_thermistor=profile.get("DUAL_SENSOR_APNEA", False),
+        thermistor_gate=profile.get("THERMISTOR_GATE", "envelope_agreement"),
     )
 
     # Dual-sensor gevraagd maar niet uitvoerbaar: terugvallen op een sensor en
@@ -1192,11 +1193,16 @@ def _resolve_flow_channels(
     flow_pressure_data, sf_fp,
     flow_therm_data, sf_ft,
     ch, output, additive_thermistor=False,
+    thermistor_gate="envelope_agreement",
 ):
     """Assign apnea (thermistor) and hypopnea (pressure) channels per AASM.
 
     ``additive_thermistor`` — gebruikt het profiel de thermistor NAAST de
     neusdruk (dual-sensor) in plaats van in plaats ervan?
+
+    ``thermistor_gate`` — welke toets beslist. "envelope_agreement" is de
+    bestaande poort en de default; "respiratory_band" kijkt naar het
+    thermistorkanaal alleen. Zie PostProcessingRules.thermistor_gate.
     """
     # De AASM schrijft de thermistor voor apneus voor, maar alleen een
     # thermistor die de ademhaling volgt is de juiste sensor. Op een montage
@@ -1224,9 +1230,15 @@ def _resolve_flow_channels(
     _therm_check = None
     if flow_therm_data is not None and flow_pressure_data is not None:
         try:
-            from .signal_quality import assess_flow_sensor_agreement
-            _therm_check = assess_flow_sensor_agreement(
-                flow_pressure_data, sf_fp or 0.0, flow_therm_data, sf_ft or 0.0)
+            if str(thermistor_gate) == "respiratory_band":
+                from .signal_quality import assess_thermistor_band_power
+                _therm_check = assess_thermistor_band_power(
+                    flow_therm_data, sf_ft or 0.0)
+            else:
+                from .signal_quality import assess_flow_sensor_agreement
+                _therm_check = assess_flow_sensor_agreement(
+                    flow_pressure_data, sf_fp or 0.0,
+                    flow_therm_data, sf_ft or 0.0)
             if additive_thermistor and not _therm_check["usable"]:
                 logger.warning(
                     "[pneumo] lage sensorovereenstemming, thermistor WEL "

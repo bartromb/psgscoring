@@ -53,7 +53,8 @@ def test_the_child_differs_from_its_parent_on_exactly_three_fields(parent, child
     a = get_profile(parent).post_processing
     b = get_profile(child).post_processing
     moved = {f for f in vars(a) if getattr(a, f) != getattr(b, f)}
-    assert moved == {"dual_sensor_apnea", "flow_reference"}, moved
+    assert moved == {"dual_sensor_apnea", "flow_reference",
+                     "thermistor_gate"}, moved
     assert b.hypopnea_strictness == a.hypopnea_strictness
     assert b.hypopnea_arousal_weight == a.hypopnea_arousal_weight
     assert b.hypopnea_arousal_latency_grading == a.hypopnea_arousal_latency_grading
