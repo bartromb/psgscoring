@@ -39,10 +39,12 @@ class TestRegistry:
             "aasm_v3_pressure",        # v0.14.1: afgeleide analyses op neusdruk
             "aasm_v3_prob",            # v0.14.4: arousal-as ook gegradeerd
             "aasm_v3_fusion",          # v0.14.4: sensorovereenstemming als gewicht
+            "aasm_v3_breath_dual",     # ademteug-gegradeerd + twee flowsensoren
+            "aasm_v3_prob_dual",       # probabilistisch + twee flowsensoren
         }
         assert expected <= set(PROFILES), (
             f"ontbrekende profielen: {sorted(expected - set(PROFILES))}")
-        assert len(PROFILES) == 13, sorted(PROFILES)
+        assert len(PROFILES) == 15, sorted(PROFILES)
 
     def test_all_profiles_valid(self):
         for name, p in PROFILES.items():

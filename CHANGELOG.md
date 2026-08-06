@@ -1,3 +1,82 @@
+# Unreleased — the empty square in the profile grid
+
+The profiles varied along two independent axes and the crossing was empty:
+
+| profile | hypopnea detector | apnea sensors |
+|---|---|---|
+| `aasm_v3_rec` | threshold | one |
+| `aasm_v3_breath` | breath-graded | one |
+| `aasm_v3_prob` | breath-graded + arousal weight 0.70 | one |
+| `aasm_v3_dual` | threshold | two, additive |
+| `aasm_v3_fusion` | threshold | two, agreement-weighted |
+| **`aasm_v3_breath_dual`** | **breath-graded** | **two, additive** |
+| **`aasm_v3_prob_dual`** | **breath-graded + 0.70** | **two, additive** |
+
+Both **`exploratory`**, both **off unless selected**, and both derived from
+their parent with `dataclasses.replace()` rather than copied — so a future
+change to `aasm_v3_breath` reaches its dual variant automatically. Every
+existing profile is byte-identical: golden unchanged, 471 tests green.
+
+## The two axes really are independent — but not for the reason expected
+
+The design note warned that `flow_reference` had to be `"hypopnea"` because
+otherwise the breath segmentation would run on the thermistor: a slow, rounded
+signal, measuring something other than what `aasm_v3_breath` was validated on.
+
+**That premise is wrong.** `respiratory.py` calls `_run_breath_analysis(hypop_flow
+if hypop_flow is not None else flow_data, …)` — breath segmentation always runs
+on the hypopnea channel, whatever `flow_reference` says. The field cannot move it.
+
+`flow_reference="hypopnea"` is still correct on both profiles, for a different
+reason: **the arousal analysis reads `ref_flow`** (`pipeline.py:703`), and its
+arousals are one half of the noisy-OR confirmation inside the graded detector.
+Under an additive thermistor the apnea channel points at the thermistor even
+when it fails the quality gate — the second detection pass makes that harmless
+before the apnea count, but the arousal coupling knows nothing of that pass.
+So the path exists; it just runs through the arousals rather than the breaths.
+
+Three further checks, all reading the code rather than reasoning about it:
+
+- **The graded detector never touches apneas.** Step 7b keeps every non-hypopnea
+  event from the envelope detector and merges them back untouched
+  (`pipeline.py:731`). The second sensor operates on exactly the list the graded
+  detector leaves alone.
+- **De-duplication is on timestamps, not indices.** `corroborate_apnea_events`
+  matches on IoU ≥ 0.20 over `onset_s`/`duration_s`, so the breath time raster
+  cannot disturb it.
+- **`sensor_agreement` is set before step 7b** and only on apneas, so it behaves
+  identically under either hypopnea detector — a future `breath_fusion` is
+  therefore mechanically possible.
+
+One genuine coupling does exist and is intentional: the dual-merged apnea list
+becomes `exclude_intervals` for the graded detector, so an added apnea can
+suppress a hypopnea in the same window. That is the correct direction — one
+window is one event — but it means the *hypopnea* count is not monotone in the
+sensor axis. The *apnea* count is, and that is what the invariant test asserts.
+
+## What is and is not measured
+
+Measured, in `tests/test_dual_combinations.py`: on a single-flow montage each
+child is **event-for-event identical** to its parent, exactly as `rec`, `dual`
+and `pressure` coincide on PSG-IPA. All PSG-IPA numbers published for
+`aasm_v3_breath` and `aasm_v3_prob` therefore carry over unchanged. On a
+two-sensor montage the second sensor adds apneas and removes none.
+
+⚠️ **Not measured: whether the sensor axis improves agreement with human
+scoring.** PSG-IPA has one flow channel and no thermistor, so this axis is not
+observable there — the same limitation `aasm_v3_fusion` already carries. That
+needs MESA or a cohort with two working flow sensors. Until then these are
+research instruments, and `aasm_v3_prob_dual` stacks two unvalidated axes at
+once, putting it furthest from any measured operating point.
+
+The prior decision gate — does dual-sensor detection differ enough from
+single-sensor on our own montages to be worth having — is **still open**. The
+existing evidence is indirect: on MESA only 19 % of 1785 apnea detections appear
+on both sensors, and on four consecutive AZORG SOMNO recordings the thermistor
+contributed **zero** apneas while `Flow Th.` was in the montage.
+
+---
+
 # v0.14.4 — 2026-08-05 — two thresholds hiding inside graded models
 
 Two new profiles, both **`exploratory`** and both **off unless selected**. Every

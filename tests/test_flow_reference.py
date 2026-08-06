@@ -41,7 +41,8 @@ def test_the_default_is_the_apnea_channel_so_nothing_moves():
         # thermistor beschermt de tweede detectiepas alleen de apneutelling,
         # niet de vijf afgeleide analyses. aasm_v3_fusion is een duale variant
         # en erft die redenering ongewijzigd.
-        if name in ("aasm_v3_dual", "aasm_v3_pressure", "aasm_v3_fusion"):
+        if name in ("aasm_v3_dual", "aasm_v3_pressure", "aasm_v3_fusion",
+                    "aasm_v3_breath_dual", "aasm_v3_prob_dual"):
             continue
         assert get_profile(name).post_processing.flow_reference == "apnea", name
 

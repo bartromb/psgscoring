@@ -37,7 +37,7 @@ License: BSD-3-Clause
 from __future__ import annotations
 
 import warnings
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, replace
 from typing import Any, Dict, List, Optional
 
 __all__ = [
@@ -1043,6 +1043,93 @@ _aasm_v3_fusion = Profile(
 )
 
 
+# ============================================================
+# Het kruisvlak: ademteug-gegradeerde hypopneeën + duale apneus
+# ============================================================
+# De profielen varieerden langs twee onafhankelijke assen — welke
+# hypopneedetector draait, en op hoeveel flowsensoren apneus worden gezocht —
+# en het vakje waar beide aan staan was leeg. Deze twee vullen dat.
+#
+# Afgeleid met `replace()` van hun ouder in plaats van gekopieerd, zodat een
+# latere wijziging aan `_aasm_v3_breath` of `_aasm_v3_prob` automatisch
+# doorwerkt. Twee handmatig gelijkgehouden kopieën lopen vroeg of laat uiteen,
+# en dat zou hier stil gebeuren: het verschil zit in een operatiepunt, niet in
+# een regel die een test vanzelf raakt.
+
+
+def _with_dual_apneas(parent: Profile, *, name: str, display_name: str,
+                      description: str) -> Profile:
+    """Zelfde profiel, maar apneus op beide flowsensoren.
+
+    Elke geneste dataclass wordt via ``replace()`` opnieuw gebouwd. Zonder dat
+    zou het kind het HypopneaRules-object van de ouder delen — twee profielen
+    met één mutabel object ertussen, en een mutatie die niemand verwacht.
+    """
+    return replace(
+        parent,
+        name=name,
+        display_name=display_name,
+        family="exploratory",
+        aasm_rule=f"{parent.aasm_rule}, dual-sensor",
+        description=description,
+        hypopnea=replace(parent.hypopnea),
+        apnea=replace(parent.apnea),
+        spo2=replace(parent.spo2),
+        post_processing=replace(
+            parent.post_processing,
+            # De tweede sensor is additief: hij voegt apneus toe en verwijdert
+            # er nooit een. Zie corroborate_apnea_events.
+            dual_sensor_apnea=True,
+            dual_sensor_corroboration=False,
+            # Niet de ademteugsegmentatie is hier de reden — die draait
+            # ongeacht dit veld op de neusdruk (respiratory.py roept
+            # _run_breath_analysis aan met hypop_flow). De reden is de
+            # arousal-analyse: die leest ref_flow, en haar arousals zijn in de
+            # gegradeerde detector de helft van de noisy-OR-bevestiging. Onder
+            # een additieve thermistor wijst het apneukanaal naar de
+            # thermistor, ook wanneer die de kwaliteitstoets niet haalt — de
+            # tweede detectiepas dekt dat af vóór de apneutelling, maar de
+            # arousal-koppeling kent die pas niet. Zie flow_reference.
+            flow_reference="hypopnea",
+        ),
+    )
+
+
+_aasm_v3_breath_dual = _with_dual_apneas(
+    _aasm_v3_breath,
+    name="aasm_v3_breath_dual",
+    display_name="AASM v3 — breath-graded + dual-sensor apneas (experimental)",
+    description=(
+        "aasm_v3_breath with apneas detected on BOTH flow sensors instead of "
+        "choosing one. The two axes are independent: the breath-graded "
+        "detector replaces only the hypopneas and takes its apneas unchanged "
+        "from the envelope detector, so the second sensor operates on the "
+        "list the graded detector does not touch. On a montage with a single "
+        "flow channel this profile is identical to aasm_v3_breath, exactly as "
+        "aasm_v3_dual is identical to aasm_v3_rec there. EXPERIMENTAL: the "
+        "sensor axis cannot be measured on PSG-IPA, which has one flow "
+        "channel and no thermistor, so this combination has not been "
+        "validated against human scoring."
+    ),
+)
+
+
+_aasm_v3_prob_dual = _with_dual_apneas(
+    _aasm_v3_prob,
+    name="aasm_v3_prob_dual",
+    display_name="AASM v3 — fully probabilistic + dual-sensor apneas (experimental)",
+    description=(
+        "aasm_v3_prob with apneas detected on BOTH flow sensors. Keeps the "
+        "graded arousal axis of its parent — arousal weight 0.70 with latency "
+        "grading — and adds the second flow sensor to the apnea pass. Same "
+        "independence and the same limitation as aasm_v3_breath_dual: "
+        "identical to aasm_v3_prob on a single-flow montage, and unvalidated "
+        "on the sensor axis. Both experimental axes at once, so this is the "
+        "furthest from a measured operating point of any profile here."
+    ),
+)
+
+
 # ---- AASM v3 NASAL-PRESSURE REFERENCE (clinical) ----
 # aasm_v3_rec in every respect except which channel the derived analyses read.
 _aasm_v3_pressure = Profile(
@@ -1193,6 +1280,8 @@ PROFILES: Dict[str, Profile] = {
     "aasm_v3_pressure":  _aasm_v3_pressure,
     "aasm_v3_dual":      _aasm_v3_dual,
     "aasm_v3_fusion":    _aasm_v3_fusion,
+    "aasm_v3_breath_dual": _aasm_v3_breath_dual,
+    "aasm_v3_prob_dual":   _aasm_v3_prob_dual,
     "aasm_v3_strict":    _aasm_v3_strict,
     "aasm_v3_sensitive": _aasm_v3_sensitive,
     "aasm_v2_rec":       _aasm_v2_rec,

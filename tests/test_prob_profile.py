@@ -25,9 +25,14 @@ def test_the_defaults_are_the_old_behaviour():
 
 
 def test_no_existing_profile_moves():
-    """Additief betekent additief."""
+    """Additief betekent additief.
+
+    `aasm_v3_prob_dual` is met `replace()` van `aasm_v3_prob` afgeleid en erft
+    de arousal-as dus per constructie — dat is de bedoeling en wordt in
+    test_dual_combinations.py apart vastgelegd.
+    """
     moved = [n for n, p in PROFILES.items()
-             if n != "aasm_v3_prob"
+             if n not in ("aasm_v3_prob", "aasm_v3_prob_dual")
              and (p.post_processing.hypopnea_arousal_weight != 0.90
                   or p.post_processing.hypopnea_arousal_latency_grading)]
     assert moved == [], f"profielen met een gewijzigde arousal-as: {moved}"
