@@ -1558,11 +1558,21 @@ def _compute_summary(
         EPOCH_LEN_S for i, s in enumerate(hypno)
         if s != "W" and i not in artifact_set
     )
-    total_sleep_h = max(total_sleep_s / 3600, 0.001)
-    rem_h  = max(sum(EPOCH_LEN_S for i, s in enumerate(hypno)
-                     if is_rem(s) and i not in artifact_set) / 3600, 0.001)
-    nrem_h = max(sum(EPOCH_LEN_S for i, s in enumerate(hypno)
-                     if is_nrem(s) and i not in artifact_set) / 3600, 0.001)
+    # GEEN ondergrens op de noemer. Hier stond `max(..., 0.001)` als
+    # bescherming tegen deling door nul, en dat is precies de verkeerde vorm
+    # van bescherming: 0,001 uur is 3,6 seconden, dus de index werd het
+    # AANTAL MAAL DUIZEND. Op een echte opname leverde dat REI 81000,0/u bij
+    # 81 hypopnees, netjes door de ernstclassificatie gehaald tot "Ernstig
+    # SAS - therapie CPAP". Een getal dat niet berekend kan worden hoort geen
+    # getal te zijn; zie idx().
+    #
+    # 0 teruggeven is geen alternatief: "AHI 0,0" leest als "geen events" en
+    # is daarmee geruststellend fout, wat klinisch erger is dan zichtbaar fout.
+    total_sleep_h = total_sleep_s / 3600
+    rem_h  = sum(EPOCH_LEN_S for i, s in enumerate(hypno)
+                 if is_rem(s) and i not in artifact_set) / 3600
+    nrem_h = sum(EPOCH_LEN_S for i, s in enumerate(hypno)
+                 if is_nrem(s) and i not in artifact_set) / 3600
 
     apneas    = [e for e in events if e["type"] in ("obstructive", "central", "mixed")]
     hypopneas = [e for e in events if "hypopnea" in e["type"]]
@@ -1579,8 +1589,16 @@ def _compute_summary(
     apneas_incl  = apneas + uncertain_ap
 
     def idx(n, h):
-        """Bereken index (events/uur) met veilige deling."""
-        return safe_r(n / h) if h > 0 else 0
+        """Index (events/uur), of None als de noemer nul is.
+
+        None betekent "niet te berekenen", en dat is iets anders dan nul.
+        Geen REM-slaap geeft geen REM-AHI van 0 — er is domweg geen REM om
+        events per uur van uit te drukken. De aanroeper hoort dat verschil
+        te tonen, niet weg te ronden.
+        """
+        if not h or h <= 0:
+            return None
+        return safe_r(n / h)
 
     def split_rn(lst):
         """Splits events in REM- en NREM-subgroepen."""
@@ -1648,15 +1666,22 @@ def _compute_summary(
         "primary": _oahi_at(0.60),
         "strict":  _oahi_at(0.70),
     }
-    sweep_width = oahi_sweep_3pt["lenient"] - oahi_sweep_3pt["strict"]
-
-    # Robustness grade A/B/C op basis van sweep width
-    if sweep_width < 5.0:
-        robustness_grade = "A"  # robuust: diagnose stabiel
-    elif sweep_width < 10.0:
-        robustness_grade = "B"  # waarschijnlijk: klinische correlatie aanbevolen
+    # Zonder noemer bestaan deze indices niet, en dan bestaat hun verschil
+    # ook niet. Een breedte van 0 zou hier "volkomen stabiel" betekenen en
+    # dus grade A opleveren op een opname waar niets berekend kon worden —
+    # de omgekeerde wereld.
+    if oahi_sweep_3pt["lenient"] is None or oahi_sweep_3pt["strict"] is None:
+        sweep_width = None
+        robustness_grade = None
     else:
-        robustness_grade = "C"  # onzeker: manuele review aanbevolen
+        sweep_width = oahi_sweep_3pt["lenient"] - oahi_sweep_3pt["strict"]
+        # Robustness grade A/B/C op basis van sweep width
+        if sweep_width < 5.0:
+            robustness_grade = "A"  # robuust: diagnose stabiel
+        elif sweep_width < 10.0:
+            robustness_grade = "B"  # waarschijnlijk: klinische correlatie aanbevolen
+        else:
+            robustness_grade = "C"  # onzeker: manuele review aanbevolen
 
     # Backward-compat: behoud 4-punt dict voor bestaande consumers
     oahi_thresholds = {
@@ -1676,6 +1701,20 @@ def _compute_summary(
         "n_hypopnea_central": len([e for e in hypopneas if e["type"] == "hypopnea_central"]),
         "n_hypopnea_mixed":  len([e for e in hypopneas if e["type"] == "hypopnea_mixed"]),
         "n_ah_total":      len(apneas) + len(hypopneas),
+
+        # Waarop elke index hierboven gedeeld is, en of dat kon. Zonder dit
+        # is een lege AHI niet te onderscheiden van een AHI die toevallig
+        # nul is, en kan het rapport niet uitleggen wat er ontbreekt.
+        "index_denominator_h": safe_r(total_sleep_h, 3),
+        "indices_computable":  total_sleep_h > 0,
+        "index_unavailable_reason": (
+            None if total_sleep_h > 0 else
+            ("geen slaapepochs over na artefactuitsluiting "
+             f"({len(artifact_set)} van {len(hypno)} epochs als artefact)"
+             if hypno and artifact_set else
+             "geen hypnogram" if not hypno else
+             "hypnogram bevat uitsluitend wake")
+        ),
 
         "ahi_total":       ahi,
         "ahi_incl_uncertain": ahi_incl_uncertain,  # scorer-calibrated: also counts unsubtyped ("uncertain") apneas (~0 bias vs scorers)

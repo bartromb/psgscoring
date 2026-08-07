@@ -1,3 +1,45 @@
+# v0.14.6 — 2026-08-07 — an index that could not be computed was reported as a number
+
+## Fixed — a floor on the denominator turned "unknown" into count × 1000
+
+A real report carried the headline **REI 81000.0/h → Severe SAS → CPAP therapy**
+for 81 hypopneas. Every link in the chain was individually defensible:
+
+1. the recording was a **polygraphy** — no EEG — but the analysis form
+   *required* an EEG channel;
+2. so the nasal pressure was entered to get past it;
+3. YASA staged on that flow signal and produced a hypnogram;
+4. the artefact detector looked at the same non-EEG channel and rejected
+   **1078 of 1078 epochs** — entirely correctly;
+5. no sleep time was left as a denominator;
+6. `max(total_sleep_s / 3600, 0.001)` floored it at **3.6 seconds**, so every
+   index became the event count × 1000 — and passed through the severity
+   classifier untouched.
+
+The floor is gone. `idx()` now returns `None` when the denominator is zero, and
+the summary carries `indices_computable`, `index_denominator_h` and
+`index_unavailable_reason`, which names which of the three causes it was: no
+hypnogram, wake only, or everything masked as artefact.
+
+**Returning 0 would not have been better.** "AHI 0.0" alongside 81 scored events
+reads as *no events* — reassuringly wrong, which is clinically worse than
+visibly wrong. An index that cannot be computed must be absent, not zero.
+
+The same reasoning reaches the robustness grade: with no indices there is no
+sweep width, so the grade is `None` rather than a width of 0 — which would have
+produced **grade A ("robust, diagnosis stable")** on a recording where nothing
+could be computed at all.
+
+`ahi_rem` follows: no REM sleep now yields `None`, not 0. There is no REM to
+express events per hour of.
+
+Correct value for that recording, over recording time: **9.0/h — mild.**
+
+Golden unchanged, 499 tests green. The floor was never exercised by any golden
+case, which is exactly why it survived this long.
+
+---
+
 # v0.14.5 — 2026-08-06 — a gate that measured the wrong property
 
 Every existing clinical, dataset and legacy profile is byte-identical: golden
