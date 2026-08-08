@@ -807,6 +807,27 @@ def run_pneumo_analysis(
                         "%d candidates (SpO2 lag %.0fs)",
                         _bdiag.get("n_scored", 0), _bdiag.get("n_candidates", 0),
                         _bdiag.get("spo2_lag_s") or -1)
+
+            # De positieanalyse draaide in stap 6 op de eventlijst van DAT
+            # moment. Deze stap heeft zojuist elke hypopnee vervangen, dus de
+            # AHI-per-positie sloeg nog op de envelope-detector terwijl de
+            # rest van het rapport de gegradeerde events toont. Dat raakt elk
+            # profiel met breath_graded — breath, prob en beide duale — en
+            # daarmee ook de positionele fenotypering verderop, die
+            # `ahi_per_pos` leest.
+            #
+            # Herberekenen in plaats van corrigeren: de positieverdeling zelf
+            # verandert niet, alleen de events erin, en analyze_position is de
+            # enige plek waar die koppeling gelegd wordt.
+            if pos_data is not None and sf_pos:
+                try:
+                    output["position"] = analyze_position(
+                        pos_data, sf_pos, hypno, merged)
+                    logger.info("[pneumo 7b] positieanalyse herrekend op de "
+                                "gegradeerde eventlijst (%d events)", len(merged))
+                except Exception as e:  # noqa: BLE001
+                    logger.warning("[pneumo 7b] positieanalyse niet te "
+                                   "herrekenen, oude waarden blijven: %s", e)
         except Exception as e:  # noqa: BLE001 — nooit de hele run laten vallen
             logger.warning("[pneumo] breath-graded detector failed, keeping "
                            "envelope result: %s", e)

@@ -164,3 +164,48 @@ def test_per_hour_never_produces_the_thousandfold_number():
     for n in (1, 5, 81, 226):
         assert per_hour(n, 0) != n * 1000
         assert per_hour(n, 0) is None
+
+
+# ─────────────────────────────────────────────────────────────
+#  AHI excl. ruis mag niet groter zijn dan de AHI
+# ─────────────────────────────────────────────────────────────
+#
+# `ahi_excl_noise` telde over ALLE events, terwijl `ahi_total` alleen apneus +
+# hypopneeën telt en `uncertain` bewust uitsluit — een apneu die de
+# effort-classifier niet kon subtyperen. Op zo'n opname kwam de GEFILTERDE
+# index hoger uit dan de ongefilterde: "AHI excl. ruis 14,2 naast AHI 12,8".
+# De noemer was nooit het probleem; die is in beide dezelfde total_sleep_h.
+
+def _mixed(n_hyp=10, n_uncertain=5, conf=0.9):
+    ev = [{"type": "hypopnea", "onset_s": 100.0 + i * 60, "duration_s": 20.0,
+           "stage": "N2", "confidence": conf} for i in range(n_hyp)]
+    ev += [{"type": "uncertain", "onset_s": 5000.0 + i * 60, "duration_s": 15.0,
+            "stage": "N2", "confidence": conf} for i in range(n_uncertain)]
+    return ev
+
+
+def test_filtering_out_noise_can_never_raise_the_index():
+    """De kern: een filter dat events wegneemt mag het getal niet verhogen."""
+    s = _compute_summary(_mixed(), ["N2"] * 400)
+    assert s["ahi_excl_noise"] <= s["ahi_total"], (
+        f"excl. ruis {s['ahi_excl_noise']} > AHI {s['ahi_total']}")
+
+
+def test_uncertain_apneas_are_excluded_from_both_or_neither():
+    """`uncertain` telt niet mee in ahi_total, dus ook niet in de
+    ruisgefilterde variant — anders vergelijk je twee populaties."""
+    s = _compute_summary(_mixed(n_hyp=10, n_uncertain=5), ["N2"] * 400)
+    assert s["n_uncertain_apnea"] == 5
+    # 10 hypopneeën, allemaal boven de ruisdrempel -> beide indices gelijk
+    assert s["ahi_excl_noise"] == pytest.approx(s["ahi_total"], abs=0.01)
+
+
+def test_the_filter_still_removes_genuine_noise():
+    """Weghalen wat onder 0,40 zit blijft het doel; alleen de populatie
+    verandert."""
+    ev = _mixed(n_hyp=10, n_uncertain=0, conf=0.9)
+    ev += [{"type": "hypopnea", "onset_s": 9000.0 + i * 60, "duration_s": 20.0,
+            "stage": "N2", "confidence": 0.20} for i in range(4)]
+    s = _compute_summary(ev, ["N2"] * 400)
+    assert s["ahi_excl_noise"] < s["ahi_total"], "de ruisfilter doet niets meer"
+    assert s["n_ah_total"] == 14

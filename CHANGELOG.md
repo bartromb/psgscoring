@@ -1,3 +1,37 @@
+# v0.14.8 — 2026-08-07 — two indices that described a different recording than the report
+
+## Fixed — positional AHI was computed before the events were final
+
+`analyze_position` runs at step 6 on the event list as it stands there. Step 7b
+— the breath-graded detector — then replaces **every hypopnea**. Without a
+recompute the AHI-per-position still described the envelope detector while the
+rest of the report showed the graded events.
+
+This affects every profile with `hypopnea_detector="breath_graded"`:
+`aasm_v3_breath`, `aasm_v3_prob`, `aasm_v3_breath_dual`, `aasm_v3_prob_dual`.
+And through `ahi_per_pos` it reached the positional phenotype, so the verdict
+*"candidate for positional therapy"* rested on the wrong event set.
+
+The position analysis is now recomputed after the merge. Recomputed rather than
+patched: the position distribution itself does not change, only the events
+inside it, and `analyze_position` is the one place that couples the two.
+
+## Fixed — "AHI excluding noise" could exceed the AHI
+
+`ahi_excl_noise` counted over **all** events; `ahi_total` counts apneas +
+hypopneas and deliberately excludes `uncertain` — an apnea the effort
+classifier could not subtype. On a recording with such events the *filtered*
+index came out higher than the unfiltered one: "AHI excl. noise 14.2 beside AHI
+12.8", which looks impossible and makes a reader doubt both.
+
+The denominator was never the problem — both use the same `total_sleep_h`. It
+was the numerator, which now covers the same population, so the difference is
+the noise filter and nothing else.
+
+Golden unchanged, 510 tests green.
+
+---
+
 # v0.14.7 — 2026-08-07 — the same floor was in twelve places
 
 ## Fixed — `max(hours, 0.001)` survived in eleven more modules

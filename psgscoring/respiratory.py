@@ -1788,8 +1788,21 @@ def _compute_summary(
         "n_low_conf_noise": sum(
             1 for e in apneas if (e.get("confidence") or 0) < 0.40
         ),
+        # AHI zonder de events die de classifier als ruis aanmerkt.
+        #
+        # Dit telde over ALLE events, terwijl ahi_total alleen apneus +
+        # hypopneeën telt en `uncertain` bewust uitsluit (een apneu die de
+        # effort-classifier niet kon subtyperen). Op een opname met zulke
+        # events kwam de GEFILTERDE index dus hoger uit dan de ongefilterde —
+        # "AHI excl. ruis 14,2 naast AHI 12,8", wat onmogelijk lijkt en de
+        # lezer laat twijfelen aan allebei.
+        #
+        # De noemer was nooit het probleem: die is dezelfde `total_sleep_h`.
+        # Het was de teller, en die hoort dezelfde populatie te hebben als
+        # ahi_total zodat het verschil uitsluitend de ruisfilter is.
         "ahi_excl_noise": idx(
-            len([e for e in events if (e.get("confidence") or 1) >= 0.40]),
+            len([e for e in (apneas + hypopneas)
+                 if (e.get("confidence") or 1) >= 0.40]),
             total_sleep_h,
         ),
 
