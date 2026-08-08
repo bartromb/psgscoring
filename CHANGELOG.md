@@ -1,3 +1,39 @@
+# v0.15.1 — 2026-08-08 — a stage index needs enough of that stage, and an override should say so
+
+## Added — the REM-AHI now says how much REM it rests on
+
+At 22.5 minutes of REM a single event is already 2.7/h. That number is
+mathematically correct and clinically unusable: it reads as a measurement while
+being the rounding of a handful of events.
+
+This is **not** the same as the denominator bugs fixed earlier this week. There
+the index did not exist and was shown anyway; here it exists but cannot be
+trusted. That difference decides the response: qualify rather than omit, so the
+reader sees the number *and* what it rests on.
+
+New in the respiratory summary: `rem_min`, `nrem_min`, `ahi_rem_reliable` and
+`ahi_rem_caveat`. Purely additive — every existing number is unchanged and
+golden is byte-identical.
+
+The 30-minute threshold is not newly invented: `_compute_phenotypes` already
+required it before the REM-predominant phenotype may be stated. One threshold
+for one question, with a test that fails if the two drift apart.
+
+## Added — active environment overrides are reported
+
+`PSGSCORING_BREATH_CAND_MIN_DUR`, `PSGSCORING_BREATH_AROUSAL_LATENCY` and
+`PSGSCORING_BREATH_TEMPLATE_DUR` override profile values. They exist to measure
+without mutating profiles, but they mean the same profile name can behave
+differently on two machines — and the provenance block, which exists to show
+the *execution* rather than the choice, said nothing about it.
+
+`meta.env_overrides` now carries whatever is active (empty in the normal case),
+and the report prints a provenance row when it is not empty.
+
+621 tests green, golden unchanged.
+
+---
+
 # v0.15.0 — 2026-08-07 — two names and one measure, each promising more than it delivered
 
 ## Changed — `aasm_v3_prob` no longer calls itself "fully probabilistic"

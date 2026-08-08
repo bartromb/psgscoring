@@ -1546,6 +1546,13 @@ def _validate_local_reduction(
 # Summary statistics
 # ---------------------------------------------------------------------------
 
+MIN_STAGE_MIN_FOR_INDEX = 30.0
+"""Minimale hoeveelheid slaap in een stadium voordat de stadium-specifieke AHI
+als betrouwbaar geldt. Dezelfde grens die _compute_phenotypes gebruikt voordat
+het REM-predominant fenotype gesteld mag worden — één drempel voor dezelfde
+vraag, in plaats van twee die uiteen kunnen lopen."""
+
+
 def _compute_summary(
     events: list,
     hypno: list,
@@ -1729,6 +1736,26 @@ def _compute_summary(
         "robustness_grade":   robustness_grade,  # "A" | "B" | "C"
         "ahi_rem":         idx(len([e for e in events if is_rem(e["stage"])]),  rem_h),
         "ahi_nrem":        idx(len([e for e in events if is_nrem(e["stage"])]), nrem_h),
+        # Hoeveel slaap er onder die twee indices ligt, en of dat genoeg is.
+        #
+        # Bij 22,5 minuten REM is één event al 2,7/u. Dat getal is wiskundig
+        # correct en klinisch onbruikbaar: het leest als een meting terwijl het
+        # de afronding van een handvol events is. Dit is niet hetzelfde als
+        # "niet te berekenen" — de index BESTAAT, hij is alleen niet te
+        # vertrouwen — dus hij wordt gekwalificeerd, niet weggelaten.
+        #
+        # 30 minuten is niet verzonnen: het is de ondergrens die
+        # _compute_phenotypes al hanteert voordat het REM-predominant fenotype
+        # überhaupt gesteld mag worden. Eén drempel voor dezelfde vraag.
+        "rem_min":         safe_r(rem_h * 60, 1),
+        "nrem_min":        safe_r(nrem_h * 60, 1),
+        "ahi_rem_reliable": bool(rem_h * 60 >= MIN_STAGE_MIN_FOR_INDEX),
+        "ahi_rem_caveat": (
+            None if rem_h * 60 >= MIN_STAGE_MIN_FOR_INDEX else
+            (f"slechts {rem_h * 60:.0f} min REM "
+             f"(< {MIN_STAGE_MIN_FOR_INDEX:.0f} min) — de REM-AHI berust op te "
+             "weinig slaap om betrouwbaar te zijn")
+        ),
         "obstructive_index": idx(len(obstr),   total_sleep_h),
         "central_index":   idx(len(central),   total_sleep_h),
         "mixed_index":     idx(len(mixed),     total_sleep_h),

@@ -15,12 +15,13 @@ Dependencies: numpy, scipy, psgscoring.constants, psgscoring.utils
 """
 
 from __future__ import annotations
+
 import numpy as np
 from scipy import signal as sp_signal
 from scipy.ndimage import label
 
-from .indices import per_hour
 from .constants import EPOCH_LEN_S
+from .indices import per_hour
 from .utils import safe_r
 
 # AASM thresholds
@@ -321,9 +322,18 @@ def _series_dict(seq: list[dict]) -> dict:
 
 
 def _classify_plmi(plmi: float | None) -> str:
-    """Classificeer PLM-index ernst: normaal (<5), licht (5-25), matig (25-50), ernstig (>50)."""
-    if plmi is None or plmi == 0:
-        return "normal"
+    """Classificeer PLM-index ernst: normaal (<5), licht (5-25), matig (25-50), ernstig (>50).
+
+    ``None`` is "unknown", niet "normal". Een index die niet berekend kon
+    worden — geen slaaptijd, geen beenkanaal — is geen schone uitslag maar een
+    ontbrekende uitslag, en "normaal" leest als het eerste. Dat is dezelfde
+    verwarring die elders "AHI 0,0" naast 81 events opleverde.
+    ``_classify_arousal_index`` deed dit al goed; deze niet.
+    """
+    if plmi is None:
+        return "unknown"
+    if plmi == 0:
+        return "normal"     # nul gemeten bewegingen IS een schone uitslag
     if plmi < 5:
         return "normal"
     if plmi < 15:

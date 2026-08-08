@@ -183,6 +183,11 @@ def run_pneumo_analysis(
             "duration_min":  round(raw.times[-1] / 60, 1),
             "scoring_profile": resolved_name,
             "scoring_label":   profile["label"],
+            # Env-overrides die profielwaarden overrulen. Zonder dit betekent
+            # dezelfde profielnaam op twee machines iets anders, en het
+            # herkomstblok — dat juist bestaat om de UITVOERING te tonen —
+            # zwijgt erover. Leeg is het normale geval.
+            "env_overrides":   _breath_env_overrides(),
             "scoring_input_name": scoring_profile,  # ← what user actually passed (may be legacy)
             # v0.11.0 (A5): explicit hypopnea scoring criterion for the report
             # (AASM v3 VIII.D Note 1 — the criterion used must be stated).
