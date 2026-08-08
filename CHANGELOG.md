@@ -1,3 +1,39 @@
+# v0.14.7 — 2026-08-07 — the same floor was in twelve places
+
+## Fixed — `max(hours, 0.001)` survived in eleven more modules
+
+v0.14.6 removed the denominator floor that turned an uncomputable index into
+the event count × 1000. It removed it from **one** module. The same line was in
+eleven others:
+
+```
+arousal.py   7×   pipeline.py  3×   plm.py  1×   spo2.py  1×
+```
+
+So on the recording that exposed this, the AHI was fixed while the **arousal
+index, PLM index, ODI, RERA index and RDI were all still count × 1000**. The
+report looked repaired because the headline number was.
+
+All twelve now go through `psgscoring/indices.py`:
+
+```python
+def per_hour(n, hours, ndigits=1):
+    if n is None or hours is None: return None
+    if float(hours) <= 0:          return None
+    return round(float(n) / float(hours), ndigits)
+```
+
+The RDI follows: with no RERA index there is no RDI, because AHI + nothing is
+not a number.
+
+A test walks every module in the package and fails on any
+`max(… / 3600, 0.001)` that reappears. One rule in one place beats twelve
+copies that were meant to stay in step and did not.
+
+Golden unchanged, 499 tests green.
+
+---
+
 # v0.14.6 — 2026-08-07 — an index that could not be computed was reported as a number
 
 ## Fixed — a floor on the denominator turned "unknown" into count × 1000

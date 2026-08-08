@@ -19,6 +19,7 @@ import numpy as np
 from scipy import signal as sp_signal
 from scipy.ndimage import label
 
+from .indices import per_hour
 from .constants import EPOCH_LEN_S
 from .utils import safe_r
 
@@ -111,10 +112,10 @@ def analyze_plm(
             EPOCH_LEN_S for i, s in enumerate(hypno)
             if s != "W" and i not in artifact_set
         )
-        total_sleep_h = max(total_sleep_s / 3600, 0.001)
+        total_sleep_h = total_sleep_s / 3600   # zie psgscoring/indices.py
 
-        plmi = safe_r(plm_count / total_sleep_h)
-        lmi  = safe_r(len(sleep_lms) / total_sleep_h)
+        plmi = per_hour(plm_count, total_sleep_h)
+        lmi  = per_hour(len(sleep_lms), total_sleep_h)
 
         result["events"]  = plm_eligible[:200]
         result["series"]  = plm_series

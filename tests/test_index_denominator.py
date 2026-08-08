@@ -124,3 +124,43 @@ def test_artefacts_shrink_the_denominator_without_breaking_it():
                          artifact_epochs=list(range(100)))
     assert s["indices_computable"] is True
     assert s["index_denominator_h"] == pytest.approx(300 * E / 3600, abs=0.001)
+
+
+# ─────────────────────────────────────────────────────────────
+#  Dezelfde ondergrens stond op TWAALF plaatsen
+# ─────────────────────────────────────────────────────────────
+#
+# De eerste reparatie raakte alleen respiratory.py. Daardoor klopte de AHI
+# terwijl de arousal-index, PLM-index, ODI, RERA-index en RDI nog steeds het
+# aantal maal duizend waren op dezelfde opname. Deze test bewaakt dat er geen
+# nieuwe bijkomt.
+
+def test_no_module_floors_a_denominator_at_a_thousandth_of_an_hour():
+    """`max(x / 3600, 0.001)` is 3,6 seconden — geen bescherming maar een
+    verzinsel. Zie psgscoring/indices.py."""
+    import pathlib
+    import re
+    root = pathlib.Path(__file__).resolve().parent.parent / "psgscoring"
+    overtreders = []
+    for f in root.glob("*.py"):
+        if f.name == "indices.py":
+            continue
+        for n, line in enumerate(f.read_text().splitlines(), 1):
+            if re.search(r"max\([^)]*3600[^)]*,\s*0\.001\s*\)", line):
+                overtreders.append(f"{f.name}:{n}")
+    assert overtreders == [], f"ondergrens op de noemer terug: {overtreders}"
+
+
+def test_per_hour_refuses_a_zero_denominator():
+    from psgscoring.indices import per_hour
+    assert per_hour(81, 0) is None
+    assert per_hour(81, None) is None
+    assert per_hour(None, 8.0) is None
+    assert per_hour(81, 8.983) == pytest.approx(9.0, abs=0.05)
+
+
+def test_per_hour_never_produces_the_thousandfold_number():
+    from psgscoring.indices import per_hour
+    for n in (1, 5, 81, 226):
+        assert per_hour(n, 0) != n * 1000
+        assert per_hour(n, 0) is None

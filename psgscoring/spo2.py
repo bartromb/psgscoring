@@ -13,6 +13,7 @@ import traceback
 import numpy as np
 from scipy.ndimage import label, maximum_filter1d
 
+from .indices import per_hour
 from .constants import EPOCH_LEN_S
 from .utils import build_sleep_mask, fmt_time, hypno_to_numeric, is_nrem, is_rem, safe_r
 
@@ -452,7 +453,7 @@ def analyze_spo2(
             return result
 
         total_sleep_s = float(np.sum(sleep_mask)) / sf
-        total_sleep_h = max(total_sleep_s / 3600, 0.001)
+        total_sleep_h = total_sleep_s / 3600   # zie psgscoring/indices.py
         baseline_spo2 = float(np.percentile(spo2_sleep, 90))
 
         def pct_below(thresh: float):
@@ -483,8 +484,8 @@ def analyze_spo2(
         desaturations_4pct = detect_desaturations(spo2_clean, sf, sleep_mask, drop_pct=4.0)
         desaturations = desaturations_3pct  # backward compat
 
-        odi_3pct = safe_r(len(desaturations_3pct) / total_sleep_h)
-        odi_4pct = safe_r(len(desaturations_4pct) / total_sleep_h)
+        odi_3pct = per_hour(len(desaturations_3pct), total_sleep_h, 2)
+        odi_4pct = per_hour(len(desaturations_4pct), total_sleep_h, 2)
 
         # REM / NREM split
         hypno_num = hypno_to_numeric(hypno)

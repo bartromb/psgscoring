@@ -27,6 +27,8 @@ from pathlib import Path
 
 import numpy as np
 from scipy.ndimage import label
+
+from .indices import per_hour
 from scipy.signal import find_peaks  # v0.8.40: consolidated imports
 
 logger = logging.getLogger("psgscoring.arousal")
@@ -296,19 +298,21 @@ def _recompute_arousal_summary(
     """Rebuild the summary fields after LGBM filtering."""
     total_sleep_s = sum(EPOCH_LEN_S for i, s in enumerate(hypno)
                         if _is_sleep(s) and i not in artifact_set)
-    total_sleep_h = max(total_sleep_s / 3600, 0.001)
-    rem_h  = max(sum(EPOCH_LEN_S for i, s in enumerate(hypno)
-                     if _is_rem(s) and i not in artifact_set) / 3600, 0.001)
-    nrem_h = max(sum(EPOCH_LEN_S for i, s in enumerate(hypno)
-                     if _is_nrem(s) and i not in artifact_set) / 3600, 0.001)
+    # Geen ondergrens op de noemer: zie psgscoring/indices.py. Een index
+    # zonder slaaptijd bestaat niet en wordt None, niet aantal x 1000.
+    total_sleep_h = total_sleep_s / 3600
+    rem_h  = sum(EPOCH_LEN_S for i, s in enumerate(hypno)
+                 if _is_rem(s) and i not in artifact_set) / 3600
+    nrem_h = sum(EPOCH_LEN_S for i, s in enumerate(hypno)
+                 if _is_nrem(s) and i not in artifact_set) / 3600
     nrem_ar = [a for a in arousals if _is_nrem(a.get("stage", "W"))]
     rem_ar  = [a for a in arousals if _is_rem(a.get("stage", "W"))]
-    ai = len(arousals) / total_sleep_h
+    ai = per_hour(len(arousals), total_sleep_h, 3)
     return {
         "n_arousals":         len(arousals),
-        "arousal_index":      _safe(ai),
-        "nrem_arousal_index": _safe(len(nrem_ar) / nrem_h),
-        "rem_arousal_index":  _safe(len(rem_ar)  / rem_h),
+        "arousal_index":      ai,
+        "nrem_arousal_index": per_hour(len(nrem_ar), nrem_h, 3),
+        "rem_arousal_index":  per_hour(len(rem_ar), rem_h, 3),
         "avg_duration_s":     _safe(float(np.mean([a["duration_s"]
                                        for a in arousals]))) if arousals else None,
         "severity":           _classify_arousal_index(ai),
@@ -855,11 +859,12 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
         # ── Statistieken ─────────────────────────────────────────
         total_sleep_s = sum(EPOCH_LEN_S for i, s in enumerate(hypno)
                             if _is_sleep(s) and i not in artifact_set)
-        total_sleep_h = max(total_sleep_s / 3600, 0.001)
-        rem_h  = max(sum(EPOCH_LEN_S for i, s in enumerate(hypno)
-                         if _is_rem(s) and i not in artifact_set) / 3600, 0.001)
-        nrem_h = max(sum(EPOCH_LEN_S for i, s in enumerate(hypno)
-                         if _is_nrem(s) and i not in artifact_set) / 3600, 0.001)
+        # Zie psgscoring/indices.py — geen ondergrens op de noemer.
+        total_sleep_h = total_sleep_s / 3600
+        rem_h  = sum(EPOCH_LEN_S for i, s in enumerate(hypno)
+                     if _is_rem(s) and i not in artifact_set) / 3600
+        nrem_h = sum(EPOCH_LEN_S for i, s in enumerate(hypno)
+                     if _is_nrem(s) and i not in artifact_set) / 3600
 
         nrem_ar = [a for a in arousals if _is_nrem(a["stage"])]
         rem_ar  = [a for a in arousals if _is_rem(a["stage"])]
@@ -867,13 +872,13 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
         result["events"]  = arousals
         result["summary"] = {
             "n_arousals":          len(arousals),
-            "arousal_index":       _safe(len(arousals) / total_sleep_h),
-            "nrem_arousal_index":  _safe(len(nrem_ar) / nrem_h),
-            "rem_arousal_index":   _safe(len(rem_ar)  / rem_h),
+            "arousal_index":       per_hour(len(arousals), total_sleep_h, 3),
+            "nrem_arousal_index":  per_hour(len(nrem_ar), nrem_h, 3),
+            "rem_arousal_index":   per_hour(len(rem_ar), rem_h, 3),
             "avg_duration_s":      _safe(float(np.mean([a["duration_s"]
                                           for a in arousals]))) if arousals else None,
             "severity":            _classify_arousal_index(
-                                       len(arousals) / total_sleep_h),
+                                       per_hour(len(arousals), total_sleep_h, 3)),
             # v0.8.11: extra stats
             "n_theta_dominant":    sum(1 for a in arousals if a["dominant_band"] == "theta"),
             "n_alpha_dominant":    sum(1 for a in arousals if a["dominant_band"] == "alpha"),
@@ -1398,14 +1403,14 @@ def detect_reras(
         _art_set = set(artifact_epochs or [])
         total_sleep_s = sum(EPOCH_LEN_S for i, s in enumerate(hypno)
                             if _is_sleep(s) and i not in _art_set)
-        total_sleep_h = max(total_sleep_s / 3600, 0.001)
+        total_sleep_h = total_sleep_s / 3600   # zie psgscoring/indices.py
 
         result["events"]  = confirmed_reras
         result["summary"] = {
             "n_reras":     len(confirmed_reras),
-            "rera_index":  _safe(len(confirmed_reras) / total_sleep_h),
-            "rdi":         _safe((len(resp_events) + len(confirmed_reras))
-                                  / total_sleep_h),  # RDI = AHI + RERA-index
+            "rera_index":  per_hour(len(confirmed_reras), total_sleep_h, 3),
+            "rdi":         per_hour(len(resp_events) + len(confirmed_reras),
+                                    total_sleep_h, 3),  # RDI = AHI + RERA-index
         }
         result["success"] = True
 

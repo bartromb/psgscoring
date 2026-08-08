@@ -35,6 +35,7 @@ from .utils import channel_map_from_user
 from .signal import (
     compute_dynamic_baseline, preprocess_flow,
 )
+from .indices import per_hour
 from .respiratory import (
     detect_respiratory_events, reinstate_rule1a_arousal_hypopneas, _compute_summary,
 )
@@ -1533,11 +1534,17 @@ def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
     art_set = set(artifact_epochs or [])
     n_sleep = sum(1 for i, s in enumerate(hypno)
                   if s in sleep_stages and i not in art_set)
-    tst_h = max(n_sleep * EPOCH_LEN_S / 3600, 0.001)
+    # Geen ondergrens: zie psgscoring/indices.py. Hier werd de RERA-index
+    # en daarmee de RDI het aantal maal duizend op een opname zonder
+    # bruikbare slaaptijd.
+    tst_h = n_sleep * EPOCH_LEN_S / 3600
 
-    ahi = float(resp.get("summary", {}).get("ahi_total", 0) or 0)
-    rera_index = round(rera_count / tst_h, 1)
-    rdi = round(ahi + rera_index, 1)
+    _ahi_raw = resp.get("summary", {}).get("ahi_total")
+    rera_index = per_hour(rera_count, tst_h)
+    # Zonder noemer bestaat de RERA-index niet, en dan bestaat de RDI ook niet:
+    # AHI + niets is geen getal.
+    rdi = (None if rera_index is None or _ahi_raw is None
+           else round(float(_ahi_raw) + rera_index, 1))
 
     # Store in respiratory summary
     resp["summary"]["n_rera"]          = rera_count
@@ -1552,8 +1559,8 @@ def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
     nrem_events = [e for e in events if e.get("stage") in {"N1","N2","N3"}]
     n_rem  = sum(1 for i, s in enumerate(hypno) if s == "R" and i not in art_set)
     n_nrem = sum(1 for i, s in enumerate(hypno) if s in {"N1","N2","N3"} and i not in art_set)
-    rem_h  = max(n_rem * EPOCH_LEN_S / 3600, 0.001)
-    nrem_h = max(n_nrem * EPOCH_LEN_S / 3600, 0.001)
+    rem_h  = n_rem * EPOCH_LEN_S / 3600     # zie psgscoring/indices.py
+    nrem_h = n_nrem * EPOCH_LEN_S / 3600
     resp["summary"]["rem_ahi"]  = round(len(rem_events) / rem_h, 1) if n_rem > 0 else None
     resp["summary"]["nrem_ahi"] = round(len(nrem_events) / nrem_h, 1) if n_nrem > 0 else None
 
