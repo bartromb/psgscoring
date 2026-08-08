@@ -1501,12 +1501,44 @@ def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
     if not resp.get("success"):
         return
 
+    def _span(e):
+        a = float(e.get("onset_s") or 0.0)
+        return a, a + float(e.get("duration_s") or 0.0)
+
+    #: Deel van de kandidaat dat binnen een al gescoord event moet vallen om
+    #: hem als datzelfde event te beschouwen. Afgeleid, niet gekozen: op de
+    #: golden-cases liggen de afgewezen hypopnee-kandidaten die met een event
+    #: overlappen op 0,83-1,00, terwijl flattening-reeksen die een event
+    #: schampen op 0,06-0,22 liggen. Daartussen zit een gat, en "meer dan de
+    #: helft ligt erbinnen" is de leesbare formulering ervan.
+    _SAME_EPISODE_FRACTION = 0.50
+
+    def _overlaps(seg, others):
+        """Is dit interval in hoofdzaak hetzelfde als een al geteld event?
+
+        Hier stond een toets op ONSET-NABIJHEID: `abs(onset_a - onset_b) < 5`.
+        Die mist een kandidaat die zes seconden na een hypopnee begint maar er
+        volledig binnen valt, en telt omgekeerd twee dingen als hetzelfde
+        wanneer ze toevallig vlak na elkaar beginnen zonder elkaar te raken.
+
+        Elke overlap afwijzen is te grof gebleken: een flattening-reeks die
+        voor 6% de rand van een hypopnee raakt is flow-limitatie NAAST dat
+        event, geen duplicaat ervan. Vandaar de fractie.
+        """
+        a0, a1 = seg
+        dur = max(a1 - a0, 1e-9)
+        for b0, b1 in (_span(o) for o in others):
+            if (min(a1, b1) - max(a0, b0)) / dur > _SAME_EPISODE_FRACTION:
+                return True
+        return False
+
     # ── Source 1: FRI-based RERAs (amplitude reduction + arousal) ──────
     rejected  = resp.get("rejected_hypopneas", [])
     events = resp.get("events", [])
-    event_onsets = {round(float(e["onset_s"]), 1) for e in events}
-    fri_events = [r for r in rejected
-                  if round(float(r["onset_s"]), 1) not in event_onsets]
+    # Een afgewezen hypopnee die overlapt met een gescoord event is datzelfde
+    # event; de exacte-onset-vergelijking die hier stond liet een verschoven
+    # duplicaat door.
+    fri_events = [r for r in rejected if not _overlaps(_span(r), events)]
 
     fri_rera_count = 0
     if arousals and fri_events:
@@ -1535,16 +1567,12 @@ def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
                 seq["onset_s"] <= a_onset <= seq_end + 15.0
                 for a_onset, _ in arousal_times
             )
-            # Exclude sequences already counted as respiratory events or FRI
-            overlaps_event = any(
-                abs(float(e["onset_s"]) - seq["onset_s"]) < 5.0
-                for e in events
-            )
-            overlaps_fri = any(
-                abs(float(f["onset_s"]) - seq["onset_s"]) < 5.0
-                for f in fri_events
-            )
-            if has_arousal and not overlaps_event and not overlaps_fri:
+            # Al geteld als respiratoir event of als FRI-RERA? Op
+            # intervaloverlap, niet op onset-nabijheid — zie _overlaps().
+            _seq_span = (seq["onset_s"], seq_end)
+            if (has_arousal
+                    and not _overlaps(_seq_span, events)
+                    and not _overlaps(_seq_span, fri_events)):
                 flat_rera_count += 1
 
     rera_count = fri_rera_count + flat_rera_count

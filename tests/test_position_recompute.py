@@ -133,3 +133,45 @@ def test_the_pipeline_recomputes_position_after_the_graded_step():
     i_merge = src.index('output["respiratory"]["breath_detector"] = _bdiag')
     i_pos = src.index("positieanalyse herrekend")
     assert i_merge < i_pos, "de herberekening staat niet na stap 7b"
+
+
+# ─────────────────────────────────────────────────────────────
+#  RERA-ontdubbeling: intervaloverlap, niet onset-nabijheid
+# ─────────────────────────────────────────────────────────────
+
+def test_the_dedup_rule_is_a_fraction_of_the_candidate_not_a_second_count():
+    """`abs(onset_a - onset_b) < 5` miste een kandidaat die zes seconden later
+    begint maar volledig binnen een event valt, en telde twee dingen als
+    hetzelfde wanneer ze toevallig vlak na elkaar begonnen zonder elkaar te
+    raken."""
+    import pathlib
+    src = (pathlib.Path(__file__).resolve().parent.parent
+           / "psgscoring" / "pipeline.py").read_text()
+    assert "_SAME_EPISODE_FRACTION" in src
+    assert 'abs(float(e["onset_s"]) - seq["onset_s"]) < 5.0' not in src, \
+        "de onset-toets is terug"
+
+
+def test_the_threshold_sits_in_the_measured_gap():
+    """Afgeleid, niet gekozen. Op de golden-cases liggen de afgewezen
+    hypopnee-kandidaten die met een event overlappen op 0,83-1,00, en de
+    flattening-reeksen die een event schampen op 0,06-0,22."""
+    import pathlib
+    import re
+    src = (pathlib.Path(__file__).resolve().parent.parent
+           / "psgscoring" / "pipeline.py").read_text()
+    m = re.search(r"_SAME_EPISODE_FRACTION = ([\d.]+)", src)
+    assert m, "drempel niet gevonden"
+    drempel = float(m.group(1))
+    assert 0.22 < drempel < 0.83, f"{drempel} valt niet in het gemeten gat"
+
+
+def test_a_candidate_mostly_inside_an_event_is_that_event():
+    """0,9 van de kandidaat binnen een event -> duplicaat."""
+    assert (min(120.0, 130.0) - max(100.0, 100.0)) / 20.0 > 0.5
+
+
+def test_a_candidate_that_only_clips_the_edge_stays_its_own_event():
+    """Een flattening-reeks van 30 s die 6 s in een hypopnee steekt is
+    flow-limitatie NAAST dat event, geen duplicaat ervan."""
+    assert (min(130.0, 106.0) - max(100.0, 100.0)) / 30.0 < 0.5

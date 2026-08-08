@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "psgscoring"
-version = "0.14.8"
+version = "0.14.9"
 description = "Open-source Python library for AASM-compliant automated polysomnography scoring"
 readme = "README.md"
 license = "BSD-3-Clause"

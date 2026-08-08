@@ -1,3 +1,37 @@
+# v0.14.9 — 2026-08-07 — RERA de-duplication on interval overlap
+
+## Fixed — the dedup test compared onsets, not intervals
+
+RERA candidates were excluded as duplicates when their onset lay within 5 s of
+an already-scored event. That test misses a candidate starting six seconds later
+but falling entirely inside the event, and conversely calls two things the same
+when they happen to start close together without touching at all.
+
+Replaced by interval overlap — but not by *any* overlap, which measurement
+showed to be too blunt:
+
+| candidate type | overlap with a scored event |
+|---|---|
+| rejected hypopnea candidates | **0.83 – 1.00** |
+| flattening sequences | **0.06 – 0.22** |
+
+The first group are unmistakably the same episode, counted twice. The second are
+long flow-limitation sequences clipping the edge of a hypopnea — flow limitation
+*beside* that event, not a duplicate of it.
+
+The rule is therefore **"more than half the candidate lies inside a scored
+event"**. That threshold sits in the measured gap rather than in a hunch, and a
+test asserts it stays between 0.22 and 0.83.
+
+One golden line moves: `rdi: 56.8 → 37.8` on `arousal_autodetect_breath`, from
+three rejected candidates at 0.83–1.00 overlap that the old exact-onset test let
+through as separate RERAs. Every AHI, every event count and `mesa_shhs` are
+unchanged — the published figures do not move.
+
+510 tests green.
+
+---
+
 # v0.14.8 — 2026-08-07 — two indices that described a different recording than the report
 
 ## Fixed — positional AHI was computed before the events were final
