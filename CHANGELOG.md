@@ -1,3 +1,48 @@
+# v0.15.2 — 2026-08-08 — a rounding regression that a report showed and the tests could not
+
+**Fix — published indices are back to one decimal.**
+
+A clinical report printed `Arousal index (AI) 57.906 /u` next to
+`Respiratoire arousal-index 16.8 /u`, and `ODI 3% 24.05 /u` where the same
+recording read `24.0 /u` in early August.
+
+Cause: v0.14.7 replaced twelve copies of `max(hours, 0.001)` with the shared
+`per_hour()` helper. The helpers it replaced — `_safe()` in `arousal.py` and
+`safe_r()` in `utils.py` — both defaulted to **one** decimal. Nine of the new
+call sites in `arousal.py` were given an explicit `3`, and two in `spo2.py` a
+`2`. The denominator fix was correct; the rounding rode along with it.
+
+An arousal index is not knowable to 0.001/h. Where the boundary of an arousal
+lies is a scorer's judgement with a spread of seconds, so three decimals assert
+a precision the measurement does not have — in a clinical document that is
+misleading, not merely untidy.
+
+Affected: `arousal_index`, `nrem_arousal_index`, `rem_arousal_index` (both the
+detection path and the post-LGBM recompute), the `severity` classification
+input, `rera_index`, `rdi` in the arousal summary, and `odi_3pct` / `odi_4pct`.
+Values change only in the digits after the first decimal.
+
+**Not affected: the AHI family and the paper.** `respiratory.py` and the
+golden-covered indices always used the default. Re-running the golden harness
+after this change reports **0 changed values, 0 removed, 16 added**.
+
+## Why the existing tests did not catch it
+
+The golden digest rounds to one decimal itself (`_r(x, nd=1)` in
+`test_golden_output.py`) before comparing. A change *from* one decimal *to* two
+or three is invisible by construction: the digest discards exactly the
+difference. And the arousal indices were not in the digest at all — only
+`n_flat` and `n_nested` were.
+
+Two guards, because the two failures are different:
+
+- `arousal_index` and `rera_index` added to the golden digest — 16 new fields,
+  no existing value touched. This guards the **value**.
+- `tests/test_index_precision.py` — asserts the published indices carry one
+  decimal, and that no `per_hour()` call site overrides the rounding at all. A
+  deviation is a presentation decision and belongs in review, not as a third
+  argument in a line about denominators. This guards the **presentation**.
+
 # v0.15.1 — 2026-08-08 — a stage index needs enough of that stage, and an override should say so
 
 ## Added — the REM-AHI now says how much REM it rests on

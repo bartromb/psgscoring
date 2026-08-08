@@ -307,12 +307,17 @@ def _recompute_arousal_summary(
                  if _is_nrem(s) and i not in artifact_set) / 3600
     nrem_ar = [a for a in arousals if _is_nrem(a.get("stage", "W"))]
     rem_ar  = [a for a in arousals if _is_rem(a.get("stage", "W"))]
-    ai = per_hour(len(arousals), total_sleep_h, 3)
+    # Eén decimaal. Deze index staat in het rapport, en een arousal-index is
+    # niet tot op 0,001/u te kennen: hij hangt af van waar een scorer de grens
+    # van een arousal legt. In 0.14.7 stond hier per ongeluk 3 (de vervanging
+    # van _safe, dat op 1 afrondde), waardoor het rapport 57,906/u toonde naast
+    # buurwaarden met één decimaal. Niet terugzetten zonder reden.
+    ai = per_hour(len(arousals), total_sleep_h)
     return {
         "n_arousals":         len(arousals),
         "arousal_index":      ai,
-        "nrem_arousal_index": per_hour(len(nrem_ar), nrem_h, 3),
-        "rem_arousal_index":  per_hour(len(rem_ar), rem_h, 3),
+        "nrem_arousal_index": per_hour(len(nrem_ar), nrem_h),
+        "rem_arousal_index":  per_hour(len(rem_ar), rem_h),
         "avg_duration_s":     _safe(float(np.mean([a["duration_s"]
                                        for a in arousals]))) if arousals else None,
         "severity":           _classify_arousal_index(ai),
@@ -872,13 +877,13 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
         result["events"]  = arousals
         result["summary"] = {
             "n_arousals":          len(arousals),
-            "arousal_index":       per_hour(len(arousals), total_sleep_h, 3),
-            "nrem_arousal_index":  per_hour(len(nrem_ar), nrem_h, 3),
-            "rem_arousal_index":   per_hour(len(rem_ar), rem_h, 3),
+            "arousal_index":       per_hour(len(arousals), total_sleep_h),
+            "nrem_arousal_index":  per_hour(len(nrem_ar), nrem_h),
+            "rem_arousal_index":   per_hour(len(rem_ar), rem_h),
             "avg_duration_s":      _safe(float(np.mean([a["duration_s"]
                                           for a in arousals]))) if arousals else None,
             "severity":            _classify_arousal_index(
-                                       per_hour(len(arousals), total_sleep_h, 3)),
+                                       per_hour(len(arousals), total_sleep_h)),
             # v0.8.11: extra stats
             "n_theta_dominant":    sum(1 for a in arousals if a["dominant_band"] == "theta"),
             "n_alpha_dominant":    sum(1 for a in arousals if a["dominant_band"] == "alpha"),
@@ -1408,9 +1413,9 @@ def detect_reras(
         result["events"]  = confirmed_reras
         result["summary"] = {
             "n_reras":     len(confirmed_reras),
-            "rera_index":  per_hour(len(confirmed_reras), total_sleep_h, 3),
+            "rera_index":  per_hour(len(confirmed_reras), total_sleep_h),
             "rdi":         per_hour(len(resp_events) + len(confirmed_reras),
-                                    total_sleep_h, 3),  # RDI = AHI + RERA-index
+                                    total_sleep_h),  # RDI = AHI + RERA-index
         }
         result["success"] = True
 

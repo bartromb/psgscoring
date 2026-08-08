@@ -492,8 +492,13 @@ def analyze_spo2(
         desaturations_4pct = detect_desaturations(spo2_clean, sf, sleep_mask, drop_pct=4.0)
         desaturations = desaturations_3pct  # backward compat
 
-        odi_3pct = per_hour(len(desaturations_3pct), total_sleep_h, 2)
-        odi_4pct = per_hour(len(desaturations_4pct), total_sleep_h, 2)
+        # Eén decimaal, zoals safe_r() hier vóór 0.14.7 deed. Bij de
+        # noemer-reparatie kreeg deze aanroep per ongeluk 2 mee, waarna het
+        # rapport "24.05 /u" toonde in plaats van "24.0 /u". De golden-digest
+        # rondt zelf op 1 af en kon dat dus niet zien; tests/test_index_precision.py
+        # bewaakt het nu rechtstreeks.
+        odi_3pct = per_hour(len(desaturations_3pct), total_sleep_h)
+        odi_4pct = per_hour(len(desaturations_4pct), total_sleep_h)
 
         # REM / NREM split
         hypno_num = hypno_to_numeric(hypno)

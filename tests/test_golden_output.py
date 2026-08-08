@@ -266,6 +266,14 @@ def summarize(output: dict) -> dict:
             "n_flat": len((output.get("arousal", {}) or {}).get("events", []) or []),
             "n_nested": len((((output.get("arousal", {}) or {})
                               .get("arousals") or {}).get("events", []) or [])),
+            # v0.15.2: de arousal-indices stonden hier niet in, terwijl ze wél
+            # in het rapport belanden. Daardoor kon 0.14.7 hun afronding van 1
+            # naar 3 decimalen verzetten zonder dat deze toets iets merkte.
+            "arousal_index": _r((((output.get("arousal", {}) or {})
+                                  .get("summary") or {}).get("arousal_index"))),
+            "rera_index": _r((((output.get("arousal", {}) or {})
+                               .get("reras") or {}).get("summary", {}) or {}
+                             ).get("rera_index")),
         },
         "events": sorted(
             [

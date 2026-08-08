@@ -1,8 +1,10 @@
 {
   "apnea_clean": {
     "arousal": {
+      "arousal_index": null,
       "n_flat": 0,
-      "n_nested": 0
+      "n_nested": 0,
+      "rera_index": null
     },
     "events": [
       {
@@ -88,8 +90,10 @@
   },
   "arousal_autodetect": {
     "arousal": {
+      "arousal_index": 25.3,
       "n_flat": 4,
-      "n_nested": 4
+      "n_nested": 4,
+      "rera_index": 0.0
     },
     "events": [],
     "profile": "aasm_v3_rec",
@@ -146,8 +150,10 @@
   },
   "arousal_autodetect_breath": {
     "arousal": {
+      "arousal_index": 25.3,
       "n_flat": 4,
-      "n_nested": 4
+      "n_nested": 4,
+      "rera_index": 0.0
     },
     "events": [
       {
@@ -225,8 +231,10 @@
   },
   "cms_arousal": {
     "arousal": {
+      "arousal_index": 31.6,
       "n_flat": 5,
-      "n_nested": 0
+      "n_nested": 0,
+      "rera_index": null
     },
     "events": [
       {
@@ -306,8 +314,10 @@
   },
   "flat_dropout": {
     "arousal": {
+      "arousal_index": null,
       "n_flat": 0,
-      "n_nested": 0
+      "n_nested": 0,
+      "rera_index": null
     },
     "events": [
       {
@@ -387,8 +397,10 @@
   },
   "hypopnea_clean": {
     "arousal": {
+      "arousal_index": null,
       "n_flat": 0,
-      "n_nested": 0
+      "n_nested": 0,
+      "rera_index": null
     },
     "events": [
       {
@@ -468,8 +480,10 @@
   },
   "poor_quality": {
     "arousal": {
+      "arousal_index": null,
       "n_flat": 0,
-      "n_nested": 0
+      "n_nested": 0,
+      "rera_index": null
     },
     "events": [
       {
@@ -536,8 +550,10 @@
   },
   "spo2_dropout": {
     "arousal": {
+      "arousal_index": null,
       "n_flat": 0,
-      "n_nested": 0
+      "n_nested": 0,
+      "rera_index": null
     },
     "events": [
       {
