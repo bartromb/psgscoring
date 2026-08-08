@@ -137,3 +137,37 @@ def test_the_desat_width_axis_defaults_to_the_old_behaviour():
     moved = [n for n, p in PROFILES.items()
              if p.post_processing.hypopnea_desat_width != 0.80]
     assert moved == [], f"profielen met een gewijzigde desat-breedte: {moved}"
+
+
+# ─────────────────────────────────────────────────────────────
+#  De naam moet de belofte dekken
+# ─────────────────────────────────────────────────────────────
+#
+# Het profiel heette "fully probabilistic", maar alleen de HYPOPNEE-as is
+# gegradeerd. Apneus komen uit dezelfde regelcascade als in elk ander profiel,
+# en hun confidence klemt vast op het plafond van de regel die hem toekende:
+# gemeten op de golden-cases zijn dat 0,95 voor obstructief en 0,90 voor
+# centraal, op élk event. Binnen een klasse onderscheidt de score dus niets.
+
+def test_the_name_no_longer_promises_a_graded_apnea_axis():
+    from psgscoring.profiles import PROFILES
+    for n in ("aasm_v3_prob", "aasm_v3_prob_dual"):
+        naam = PROFILES[n].display_name.lower()
+        assert "fully probabilistic" not in naam, (
+            f"{n} belooft weer meer dan het waarmaakt: {PROFILES[n].display_name}")
+
+
+def test_the_description_says_which_axis_is_graded():
+    from psgscoring.profiles import PROFILES
+    d = PROFILES["aasm_v3_prob"].description.lower()
+    assert "only the hypopnea axis" in d
+    assert "apnea" in d and "cap" in d
+
+
+def test_the_apnea_path_is_the_same_cascade_as_everywhere_else():
+    """Als dit ooit verandert, hoort de naam mee te veranderen."""
+    from psgscoring.profiles import PROFILES
+    for n in ("aasm_v3_rec", "aasm_v3_breath", "aasm_v3_prob"):
+        pp = PROFILES[n].post_processing
+        assert not hasattr(pp, "apnea_detector"), (
+            "er is een apneu-detectorkeuze bijgekomen — herzie de profielnamen")

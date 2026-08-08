@@ -214,6 +214,7 @@ def compute_hypoxic_burden(
     recovery_margin_pct: float = 1.0,
     max_recovery_s: float = 120.0,
     baseline_method: str = "percentile",
+    local_baseline_only: bool = False,
 ) -> dict:
     """
     Compute the hypoxic burden: total area of SpO2 desaturation
@@ -372,11 +373,18 @@ def compute_hypoxic_burden(
                 else:
                     local_bl = global_bl
                 # Paper v31 behaviour: always use the higher of local and
-                # global baseline. Note (v0.4.4 review): for chronic-
-                # desaturator patients (COPD, OHS) this can artificially
-                # inflate the baseline; future v0.5 will gate the override
-                # on local_bl < ~88% via a profile-configurable threshold.
-                baseline = max(local_bl, global_bl)
+                # global baseline. Het globale plafond voorkomt dat een
+                # clusterend event de lokale basislijn omlaag trekt.
+                #
+                # Maar op een nacht met dalende saturatie meet dat events laat
+                # in de nacht tegen een basislijn van vroeg in de nacht.
+                # Gemeten op een trend van 94% naar 82%: burden 21,6 -> 41,2
+                # zonder dat de events veranderen. Bij een VLAKKE lage
+                # basislijn speelt het niet: 85% en 96% geven allebei 21,6.
+                #
+                # `local_baseline_only` volgt dan de lokale basislijn. Standaard
+                # uit: dit verschuift een gepubliceerde grootheid.
+                baseline = local_bl if local_baseline_only else max(local_bl, global_bl)
 
                 # Integration window: event onset → recovery or max_recovery_s
                 int_start = int(onset_s * sf_spo2)

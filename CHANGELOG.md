@@ -1,3 +1,49 @@
+# v0.15.0 — 2026-08-07 — two names and one measure, each promising more than it delivered
+
+## Changed — `aasm_v3_prob` no longer calls itself "fully probabilistic"
+
+It was not. Only the **hypopnea** axis is graded. Apneas come from the same rule
+cascade as every other profile, and measurement shows their confidence saturates
+at the cap of whichever rule assigned it — on the golden cases, **0.95 for every
+obstructive event and 0.90 for every central one**. Within a class the score
+discriminates nothing.
+
+Renamed to "graded arousal axis", with the limitation spelled out in the
+description. The profile key is unchanged, so no configuration breaks. Grading
+the apnea axis is detector work that has not been done; a test fails if an
+apnea-detector choice ever appears without the names being revisited.
+
+## Added — `hypoxic_burden_local_baseline` (default off)
+
+The report was that hypoxic burden is *underestimated* on sustained hypoxemia.
+Measured, that direction is wrong: a flat baseline of 85 % gives **exactly the
+same** burden as 96 % at equal desaturation depth (21.57 both), which is correct
+— Azarbarzin's measure is by definition the area under the patient's *own*
+baseline.
+
+The real defect is drift. `baseline = max(local, global)` puts the night-wide
+95th percentile under every event, so events late in the night are measured
+against a baseline from early in the night:
+
+| recording | burden |
+|---|---:|
+| flat 96 % | 21.57 |
+| flat 85 % | 21.57 |
+| **drifting 94 % → 82 %** | **41.19** |
+
+Nearly double, with identical events — the COPD and obesity-hypoventilation
+picture. With the flag: **21.76**, back in line with the flat cases, while those
+themselves do not move.
+
+Default off, because this shifts a published quantity on every recording with
+drift. The code had warned about exactly this in a v0.4.4 review, proposing to
+gate the override below ~88 %; this flag is that gate, made explicit rather than
+hidden in a threshold.
+
+Golden unchanged, 524 tests green.
+
+---
+
 # v0.14.9 — 2026-08-07 — RERA de-duplication on interval overlap
 
 ## Fixed — the dedup test compared onsets, not intervals

@@ -163,6 +163,29 @@ class PostProcessingRules:
     """Operatiepunt op de kans-as van de gegradeerde detector. Lager =
     soepeler. Eén as in plaats van drie parametercombinaties."""
 
+    hypoxic_burden_local_baseline: bool = False
+    """Laat de hypoxic burden de LOKALE basislijn volgen in plaats van
+    `max(lokaal, globaal)`.
+
+    De burden meet het oppervlak onder de basislijn vóór het event. Die
+    basislijn is nu het hoogste van het lokale 90e percentiel (120 s vóór het
+    event) en het globale 95e percentiel van de nacht. Dat globale plafond
+    bestaat om te voorkomen dat een clusterend event de lokale basislijn omlaag
+    trekt en de burden onderschat.
+
+    Maar op een nacht waarin de saturatie daalt — COPD, obesitas-hypoventilatie —
+    worden events laat in de nacht gemeten tegen een basislijn van vroeg in de
+    nacht. Gemeten op een synthetische trend van 94% naar 82%: de burden gaat
+    van 21,6 naar 41,2 zonder dat er iets aan de events verandert. Bij een
+    VLAKKE lage basislijn is er geen probleem: 85% en 96% geven allebei 21,6.
+
+    Standaard uit, want dit verschuift een gepubliceerde grootheid op elke
+    opname met drift. De code waarschuwde hier zelf al voor in een
+    v0.4.4-review, met het voorstel de override te poorten op een lage lokale
+    basislijn; deze vlag is die poort, maar dan expliciet in plaats van als
+    drempel op 88%.
+    """
+
     thermistor_gate: str = "envelope_agreement"
     """Welke toets beslist of de thermistor de apneu-sensor mag zijn.
 
@@ -693,7 +716,7 @@ _aasm_v3_breath = Profile(
 # as die niet meetelt.
 _aasm_v3_prob = Profile(
     name="aasm_v3_prob",
-    display_name="AASM v3 — Rule 1A, fully probabilistic (experimental)",
+    display_name="AASM v3 — Rule 1A, graded arousal axis (experimental)",
     family="exploratory",
     aasm_version="v3 (2023)",
     aasm_rule="1A (RECOMMENDED), graded",
@@ -707,7 +730,13 @@ _aasm_v3_prob = Profile(
         "carries a weight that leaves an arousal-only event dependent on a "
         "convincing reduction and duration, while an arousal WITH partial "
         "desaturation still clears the operating point comfortably. "
-        "Experimental: the operating point has not been re-derived."
+        "Experimental: the operating point has not been re-derived. "
+        "NOTE ON THE NAME: this profile was called 'fully probabilistic', "
+        "which overpromised. Only the HYPOPNEA axis is graded. Apneas still "
+        "come from the same rule cascade as every other profile, and their "
+        "confidence saturates at its per-rule cap (0.95 obstructive, 0.90 "
+        "central), so within a class it barely discriminates. Grading the "
+        "apnea axis is detector work that has not been done."
     ),
     citation="Troester MM, Quan SF, Berry RB, et al. AASM Manual v3. 2023.",
     hypopnea=HypopneaRules(
@@ -1148,7 +1177,7 @@ _aasm_v3_breath_dual = _with_dual_apneas(
 _aasm_v3_prob_dual = _with_dual_apneas(
     _aasm_v3_prob,
     name="aasm_v3_prob_dual",
-    display_name="AASM v3 — fully probabilistic + dual-sensor apneas (experimental)",
+    display_name="AASM v3 — graded arousal axis + dual-sensor apneas (experimental)",
     description=(
         "aasm_v3_prob with apneas detected on BOTH flow sensors. Keeps the "
         "graded arousal axis of its parent — arousal weight 0.70 with latency "
