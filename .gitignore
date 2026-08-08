@@ -62,3 +62,13 @@ build/
 *.egg-info/
 __pycache__/
 
+
+# Runartefacten van validatieruns (score_mesa_*.log e.d.) en testcaches
+*.log
+.hypothesis/
+.ruff_cache/
+.mypy_cache/
+
+# Lockfile: psgscoring is een bibliotheek, geen applicatie — consumenten
+# pinnen zelf. Lokaal handig, niet in de repo.
+uv.lock
