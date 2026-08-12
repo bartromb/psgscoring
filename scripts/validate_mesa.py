@@ -245,13 +245,38 @@ def _apply_strictness(value):
     R.SCORING_PROFILES = C.SCORING_PROFILES
 
 
+def _apply_rip_scale_free(aan: bool):
+    """Zet `rip_quality_scale_free` op ALLE profielen in dit werkproces.
+
+    Bedoeld om te meten wat de gerepareerde RIP-poort met de MESA-bias doet:
+    kale `uncertain` valt buiten `ahi_total`, dus een werkende poort verhoogt
+    de index. Zet dit NIET aan voor een reproductie van paper v31/v37 —
+    `mesa_shhs` hoort daarvoor op het absolute gedrag te blijven.
+    """
+    import importlib
+
+    from psgscoring.profiles import PROFILES as _P
+    for _p in _P.values():
+        _p.post_processing.rip_quality_scale_free = bool(aan)
+    import psgscoring.constants as C
+    importlib.reload(C)
+    import psgscoring.pipeline as PL
+    import psgscoring.respiratory as R
+    PL.SCORING_PROFILES = C.SCORING_PROFILES
+    R.SCORING_PROFILES = C.SCORING_PROFILES
+    for _n, _d in C.SCORING_PROFILES.items():
+        assert _d["RIP_QUALITY_SCALE_FREE"] is bool(aan), _n
+
+
 def analyse_one(args):
     # `profiles` moet MEE door de tuple: de worker draait in een eigen proces
     # en kan de argparse-namespace niet zien. Zonder dit rekent hij de
     # standaardset terwijl report() de uitgebreide labels eist — dan valt
     # elke opname af en meldt het harnas 'geen bruikbare opnames'.
-    rec_id, data_dir, strictness_values, profiles = args
+    rec_id, data_dir, strictness_values, profiles, rip_scale_free = args
     data_dir = Path(data_dir)
+    if rip_scale_free:
+        _apply_rip_scale_free(True)
     edf = data_dir / "polysomnography" / "edfs" / f"{rec_id}.edf"
     xml = (data_dir / "polysomnography" / "annotations-events-nsrr"
            / f"{rec_id}-nsrr.xml")
@@ -481,6 +506,9 @@ def main():
     ap.add_argument("--verify-reference", action="store_true",
                     help="controleer de referentie tegen gepubliceerde oahi "
                          "en stop daarna")
+    ap.add_argument("--rip-scale-free", action="store_true",
+                    help="meet met de gerepareerde RIP-poort; NIET voor "
+                         "een reproductie van paper v31/v37")
     ap.add_argument("--profiles", nargs="+", default=None,
                     help="profielen naast de vaste basislijn aasm_v3_rec; "
                          "default aasm_v3_breath")
@@ -526,7 +554,8 @@ def main():
     print(f"configuraties: {', '.join(labels)}\n")
 
     rows = []
-    jobs = [(x, str(a.data_dir), a.strictness, a.profiles) for x in picked]
+    jobs = [(x, str(a.data_dir), a.strictness, a.profiles, a.rip_scale_free)
+            for x in picked]
     with ProcessPoolExecutor(max_workers=a.workers) as ex:
         for i, r in enumerate(ex.map(analyse_one, jobs), 1):
             rows.append(r)
