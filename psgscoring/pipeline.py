@@ -764,6 +764,17 @@ def run_pneumo_analysis(
                 desat_width=float(profile.get("HYPOPNEA_DESAT_WIDTH", 0.80)),
                 arousal_latency_grading=bool(
                     profile.get("HYPOPNEA_AROUSAL_LATENCY", False)),
+                # Het koppelvenster was op DEZE tak niet profielgestuurd: het
+                # profielveld bereikte alleen de Rule 1B-herstelpas (regel ~900),
+                # terwijl `score_hypopneas_breathwise` op zijn eigen default van
+                # 15 s draaide. Dezelfde grootheid stond dus op twee plekken en
+                # kon uiteenlopen zonder dat iets dat merkte.
+                #
+                # Doorbedraden is byte-identiek: het enige profiel met een
+                # afwijkend venster is `mesa_shhs` (5 s), en dat draait de
+                # envelope-detector, niet deze tak.
+                arousal_window_s=float(
+                    profile.get("RULE1B_AROUSAL_WINDOW_S", 15.0)),
                 # Env-overrides voor de drie scoringswijzigingen, zodat ze
                 # gemeten kunnen worden zonder profielen te muteren —
                 # zelfde patroon als PSGSCORING_BASELINE_MODE. Ze staan NA de
