@@ -199,18 +199,31 @@ def parse_nsrr(xml_path, signal_duration_s,
 #  Eén opname
 # ─────────────────────────────────────────────────────────────────
 
-def _configs(strictness_values):
+def _configs(strictness_values, profiles=None):
     """[(label, profielnaam, strictness_of_None), ...].
 
-    De basislijn draait altijd mee, zodat elke vergelijking gepaard is op
-    dezelfde opname in plaats van tussen runs.
+    De basislijn `aasm_v3_rec` draait ALTIJD mee, zodat elke vergelijking
+    gepaard is op dezelfde opname in plaats van tussen runs.
+
+    `profiles` breidt de set uit voorbij de oorspronkelijke breath-vs-rec
+    vraag. Dat is nodig voor de assen die het paper wil scheiden:
+
+      hypopneedetector   regelcascade (`rec`)  ×  ademteug-gegradeerd (`breath`)
+      arousal-as         drempel               ×  gegradeerd (`prob`)
+      flowsensor         mono                  ×  duaal (`*_dual`)
+
+    MESA is de enige cohort waar die derde as te meten valt: de montage draagt
+    `Pres`, `Flow` én `Therm`. PSG-IPA heeft één flowkanaal, en daar zijn de
+    duale profielen aantoonbaar identiek aan hun ouder (gemeten 9 aug 2026).
     """
     cfg = [("aasm_v3_rec", "aasm_v3_rec", None)]
     if strictness_values:
         cfg += [(f"breath@{s:.2f}", "aasm_v3_breath", float(s))
                 for s in strictness_values]
-    else:
-        cfg.append(("aasm_v3_breath", "aasm_v3_breath", None))
+        return cfg
+    for p in (profiles or ["aasm_v3_breath"]):
+        if p != "aasm_v3_rec":
+            cfg.append((p, p, None))
     return cfg
 
 
@@ -233,7 +246,11 @@ def _apply_strictness(value):
 
 
 def analyse_one(args):
-    rec_id, data_dir, strictness_values = args
+    # `profiles` moet MEE door de tuple: de worker draait in een eigen proces
+    # en kan de argparse-namespace niet zien. Zonder dit rekent hij de
+    # standaardset terwijl report() de uitgebreide labels eist — dan valt
+    # elke opname af en meldt het harnas 'geen bruikbare opnames'.
+    rec_id, data_dir, strictness_values, profiles = args
     data_dir = Path(data_dir)
     edf = data_dir / "polysomnography" / "edfs" / f"{rec_id}.edf"
     xml = (data_dir / "polysomnography" / "annotations-events-nsrr"
@@ -258,7 +275,7 @@ def analyse_one(args):
            "ahi_ref": {k: len(v) / tst_h for k, v in refs.items()},
            "profiles": {}}
 
-    for label, prof, strict in _configs(strictness_values):
+    for label, prof, strict in _configs(strictness_values, profiles):
         try:
             if strict is not None:
                 _apply_strictness(strict)
@@ -464,6 +481,9 @@ def main():
     ap.add_argument("--verify-reference", action="store_true",
                     help="controleer de referentie tegen gepubliceerde oahi "
                          "en stop daarna")
+    ap.add_argument("--profiles", nargs="+", default=None,
+                    help="profielen naast de vaste basislijn aasm_v3_rec; "
+                         "default aasm_v3_breath")
     ap.add_argument("--strictness", nargs="+", type=float, default=None,
                     help="draai aasm_v3_breath op deze strictness-waarden, "
                          "alle op dezelfde opnames zodat de vergelijking "
@@ -496,7 +516,7 @@ def main():
     else:
         picked = pool
 
-    labels = [c[0] for c in _configs(a.strictness)]
+    labels = [c[0] for c in _configs(a.strictness, a.profiles)]
     print(f"MESA-validatie — {len(picked)} van {len(pool)} beschikbare opnames "
           f"(seed {a.seed})")
     if excluded:
@@ -506,7 +526,7 @@ def main():
     print(f"configuraties: {', '.join(labels)}\n")
 
     rows = []
-    jobs = [(x, str(a.data_dir), a.strictness) for x in picked]
+    jobs = [(x, str(a.data_dir), a.strictness, a.profiles) for x in picked]
     with ProcessPoolExecutor(max_workers=a.workers) as ex:
         for i, r in enumerate(ex.map(analyse_one, jobs), 1):
             rows.append(r)
