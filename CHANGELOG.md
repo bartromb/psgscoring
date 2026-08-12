@@ -1,3 +1,65 @@
+# v0.16.0 — 2026-08-12 — the square-root linearisation depended on the montage, not on the profile
+
+## The asymmetry
+
+`_setup_hypop_channel` applies the AASM Rule 3 square-root linearisation only
+when the hypopnoea channel is a *different* channel from the apnoea channel:
+
+| cohort | channels | shared channel | linearised |
+|---|---|---|---|
+| PSG-IPA | one flow channel | yes | **no** |
+| MESA | `Pres` + `Therm` | no | **yes** |
+
+Without linearisation a true 50 % flow reduction measures as a 75 % amplitude
+reduction. Reductions are systematically overstated, more candidates clear the
+30 % criterion, and `hypopnea_strictness = 0.50` is calibrated on exactly that
+convention. Applied to a linearised cohort the same operating point is
+therefore too strict. This is the leading candidate for the opposite bias
+directions observed across the two cohorts: **+1.77/h on PSG-IPA against
+−11 to −15/h on MESA**.
+
+## Added — `hypopnea_force_linearisation` (default `False`)
+
+Makes the choice a profile decision instead of a montage property. Default is
+current behaviour: every shipped profile is byte-identical, golden harness
+8/8 unchanged, 686 tests green.
+
+When enabled on a shared channel, the envelope is recomputed with
+`is_nasal_pressure=True` **and the precomputed baseline is discarded**. That
+second half matters: the precomputed baseline lives on the non-linearised
+scale, so reusing it would divide a linearised numerator by a non-linearised
+denominator, and the ratio would no longer measure a flow reduction. The run
+records which branch executed in `hypopnea_linearised`,
+`hypopnea_channel_shared` and `hypopnea_linearisation_forced`.
+
+## Decision rule, declared BEFORE the sweep
+
+Enabling linearisation and re-deriving `hypopnea_strictness` are **one
+experiment, not two**. The v0.14.0 entry did only the first half — linearisation
+on, operating point unchanged — observed bias +1.77 → −3.15 and MAE 1.84 → 3.15,
+and concluded that the twelve corrections are calibrated against non-linearised
+behaviour. That is precisely what a smaller measured reduction produces at
+unchanged strictness; the conclusion does not follow from the measurement.
+
+Therefore, stated here in advance and not after seeing the results:
+
+> **`hypopnea_strictness` will be re-derived as the point where the AHI bias
+> against the PSG-IPA scorer median crosses zero.** Not the F1 maximum — that
+> would be fitting on the outcome measure. The sweep runs 0.30–0.60 in steps of
+> 0.025. If two points bracket zero, the one with the smaller |bias| is taken;
+> if they tie, the lower strictness (more inclusive) is taken, because the
+> measured failure mode on MESA is under-detection.
+
+Measurement plan, in this order: (1) PSG-IPA with the field on at unchanged
+strictness 0.50, as a control that the field does what it claims; (2) the
+PSG-IPA sweep; (3) the MESA hold-out at the new point, against the `aasm15`
+reconstruction only — the `oahi` variants encode a different rule and their
+error directions are not interpretable here.
+
+Results follow in this entry once measured. If the default shifts, Table 1 and
+Figure 1 of the paper must be regenerated in full; that will be stated here
+explicitly.
+
 # v0.15.2 — 2026-08-08 — a rounding regression that a report showed and the tests could not
 
 **Fix — published indices are back to one decimal.**

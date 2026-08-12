@@ -163,6 +163,31 @@ class PostProcessingRules:
     """Operatiepunt op de kans-as van de gegradeerde detector. Lager =
     soepeler. Eén as in plaats van drie parametercombinaties."""
 
+    hypopnea_force_linearisation: bool = False
+    """Pas de wortellinearisatie (AASM Regel 3) ook toe wanneer hypopnee- en
+    apneukanaal HETZELFDE kanaal zijn.
+
+    Zonder dit veld hangt de voorbewerking af van de montage, niet van het
+    profiel. Bij twee flowkanalen wordt de hypopnee-envelope uit de neusdruk
+    berekend mét linearisatie; bij één kanaal hergebruikt de code de
+    apneu-envelope, die zonder linearisatie is berekend. Dezelfde profielnaam
+    draait dan een andere voorbewerking op PSG-IPA (één kanaal) dan op MESA
+    (`Pres` + `Therm`).
+
+    Dat verschil is niet neutraal: zonder linearisatie meet een werkelijke
+    flowreductie van 50 % als 75 % amplitudereductie, dus reducties worden
+    stelselmatig overschat en meer kandidaten halen het 30 %-criterium. Een
+    operatiepunt dat op de ongelineariseerde conventie is gekalibreerd, is op
+    de gelineariseerde te streng — de vermoedelijke oorzaak van de
+    tegengestelde bias-richting op de twee cohorten (+1,77 op PSG-IPA,
+    −11 tot −15 op MESA).
+
+    Default `False` = bestaand gedrag; elk bestaand profiel blijft
+    byte-identiek. Aanzetten is GEEN losse wijziging: het verschuift de
+    amplitudeschaal waarop `hypopnea_strictness` is geijkt, dus linearisatie
+    aanzetten en strictness opnieuw afleiden zijn één experiment. Zie de
+    CHANGELOG bij v0.16.0."""
+
     hypoxic_burden_local_baseline: bool = False
     """Laat de hypoxic burden de LOKALE basislijn volgen in plaats van
     `max(lokaal, globaal)`.

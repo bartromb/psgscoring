@@ -437,6 +437,8 @@ def detect_respiratory_events(
                         and np.array_equal(hypop_flow, flow_data))
                 ),
                 baseline_window_s=_BL_WIN_S, baseline_percentile=_BL_PCT,
+                force_linearisation=bool(
+                    sp.get("HYPOPNEA_FORCE_LINEARISATION", False)),
             )
         hypop_env, hypop_norm, hypop_baseline, sf_hy = _cache(
             f"hypop|{_BL_WIN_S}|{_BL_PCT}", _build_hypop)
@@ -868,6 +870,7 @@ def _setup_hypop_channel(
     precomputed_hypop_baseline=None,
     baseline_window_s=300.0, baseline_percentile=95.0,
     hypop_is_same_channel=None,
+    force_linearisation=False,
 ):
     """Return (hypop_env, hypop_norm, hypop_baseline, sf_hy)."""
     if hypop_flow is not None and sf_hypop is not None:
@@ -885,7 +888,14 @@ def _setup_hypop_channel(
             and len(hypop_flow) == len(flow_env)
             and (hypop_is_same_channel is None or hypop_is_same_channel)
         )
-        if same_signal:
+        # `same_signal` zegt of het OM HETZELFDE KANAAL gaat; `reuse` zegt of we
+        # de reeds berekende apneu-envelope mogen hergebruiken. Die twee vielen
+        # samen tot HYPOPNEA_FORCE_LINEARISATION bestond: met dat veld aan is
+        # het kanaal nog steeds gedeeld, maar de envelope moet opnieuw — mét
+        # wortellinearisatie — en dan is `flow_env` (zonder) niet bruikbaar.
+        reuse = same_signal and not force_linearisation
+
+        if reuse:
             # Hergebruik flow_env envelope (al berekend), sla preprocess opnieuw over
             hypop_env = flow_env
         else:
@@ -908,8 +918,13 @@ def _setup_hypop_channel(
         # cross-cohortvergelijking. Vandaar: uitsluitend metadata, geen
         # gedragswijziging.
         if isinstance(result, dict):
-            result["hypopnea_linearised"] = not same_signal
+            result["hypopnea_linearised"] = not reuse
             result["hypopnea_channel_shared"] = bool(same_signal)
+            # Afzonderlijk veld: "gedeeld kanaal én toch gelineariseerd" is de
+            # nieuwe tak, en een run moet achteraf te herkennen zijn zonder de
+            # twee andere velden te moeten combineren.
+            result["hypopnea_linearisation_forced"] = bool(
+                same_signal and force_linearisation)
 
         # Hergebruik de voorberekende basislijn alleen bij HETZELFDE signaal.
         #
@@ -925,7 +940,12 @@ def _setup_hypop_channel(
         # alleen van de hypopnees kon komen, terwijl die in beide armen op de
         # neusdruk gescoord werden. Enkelkanaals opnames (PSG-IPA, de golden
         # cases) raakten dit nooit, want daar is same_signal waar.
-        if same_signal:
+        # `reuse`, niet `same_signal`: de voorberekende basislijn staat op de
+        # ONGELINEARISEERDE schaal. Met geforceerde linearisatie hoort de
+        # basislijn bij de nieuwe envelope, anders deelt de code een
+        # gelineariseerde teller door een ongelineariseerde noemer en meet de
+        # verhouding iets anders dan een flowreductie.
+        if reuse:
             hypop_bl = precomputed_hypop_baseline
         else:
             # Andere sf (bv. 2Hz SpO₂ vs 256Hz flow): apart berekenen.
