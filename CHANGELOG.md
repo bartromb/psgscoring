@@ -1,3 +1,80 @@
+# v0.17.0 (in voorbereiding) — 2026-08-12 — de RIP-kwaliteitspoort mat de eenhedendeclaratie
+
+## Het defect
+
+`assess_rip_channel` keurde een effortkanaal af op twee ABSOLUTE drempels:
+
+```python
+MAD_FAILED_BELOW    = 0.005
+ENERGY_FAILED_BELOW = 0.001
+```
+
+EDF-eenheden zijn per kanaal vrij. Wie RIP in mV declareert komt na de
+omrekening naar V ~150x onder die drempel binnen met een volstrekt normaal
+signaal; wie `n/a` declareert komt er duizenden malen boven uit. De drempel
+selecteerde dus op hoe het opnamesysteem zijn eenheid opschrijft.
+
+Gemeten, drie cohorten, drie conventies:
+
+| cohort | eenheid | MAD | ademfractie | poort |
+|---|---|---|---|---|
+| MESA (n=52) | mV | 0,00003 – 0,00005 | 0,37 – 0,58 | **unreliable**, 0/52 door |
+| kliniek `89e63920` | mV | 0,0016 / 0,051 | 0,64 / 0,75 | **single-channel** |
+| PSG-IPA `SN1` | n/a | 164 / 233 | 0,83 / 0,91 | bilateral |
+
+MAD spant zeven ordes van grootte; de ademfractie — de werkelijke
+signaalkwaliteit — een factor 2,5. De volgorde komt niet eens overeen.
+
+Gevolg op MESA: 52 van 52 opnames `unreliable`, dus 100 % van de apneus komt
+uit als `uncertain` en de apneu-subtypering was op dat cohort niet te meten.
+Klinisch valt op `89e63920` het thoraxkanaal af met de béste signaalvorm van
+alles wat gemeten is, waarna de opname stil naar `single-channel` degradeert —
+zonder paradoxale fasedetectie, precies de grootheid voor obstructief/centraal.
+
+Dat dit op PSG-IPA nooit opviel, is geen toeval: dat cohort declareert `n/a`.
+Het validatiecohort van de paper is juist het cohort waar de poort niet bijt.
+
+## De reparatie
+
+`rip_shape_metrics()` levert twee schaalvrije grootheden:
+
+- **ademfractie** = vermogen in 0,10–0,50 Hz gedeeld door 0,02–4,0 Hz. Een
+  verhouding van twee vermogens uit hetzelfde signaal, dus onafhankelijk van de
+  eenheid. Witte ruis geeft ongeveer de bandbreedteverhouding (~0,10).
+- **vlakke fractie** = aandeel identieke opeenvolgende monsters. Een
+  losgeraakte band geeft een vlakke lijn, en dat is te zien zonder te weten hoe
+  groot een normale uitslag is.
+
+Achter `rip_quality_scale_free`, default `False` = bestaand gedrag.
+
+## BESLISREGEL — vooraf vastgelegd, vóór de kalibratie
+
+De faaldrempel op de ademfractie wordt gelegd **midden in het gat** tussen een
+aantoonbaar dood kanaal (vlakke lijn en witte ruis, waarvan de verwachte
+ademfractie analytisch ~0,10 is) en de waargenomen echte kanalen.
+
+De drempel wordt NIET afgesteld op een uitkomstmaat — niet op AHI-bias, niet op
+event-F1, niet op overeenstemming met NSRR. Dat zou de poort op de uitkomst
+fitten die hij hoort te bewaken.
+
+Is er geen gat, dan wordt dat gerapporteerd en wordt er geen getal gekozen.
+
+## Waarom dit een vlag is en geen stille reparatie
+
+Kale `uncertain` valt BUITEN `ahi_total` (wel in `ahi_incl_uncertain`). Een
+werkende poort zet op MESA `uncertain`-apneus om in getypeerde apneus, en dus
+stijgt `ahi_total`. Daarmee is dit geen typeringswijziging maar een
+INDEXwijziging, en breekt `mesa_shhs` byte-identiteit — de reproductie van
+paper v31/v37.
+
+`mesa_shhs` en `chicago_1999` blijven daarom gepind op het absolute gedrag.
+
+Bijwerking die apart gemeten hoort: op MESA is de AHI-bias −11 tot −15/u
+(onderdetectie). Als een deel van die onderdetectie apneus zijn die in
+`uncertain` belandden en daar uit `ahi_total` vielen, dan verbetert de poort de
+bias. Dat is een hypothese, geen claim — en ze wordt gemeten NA de kalibratie,
+niet ervoor, zodat ze de drempel niet kan sturen.
+
 # v0.16.0 — 2026-08-12 — the square-root linearisation depended on the montage, not on the profile
 
 ## The asymmetry

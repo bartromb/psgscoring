@@ -295,7 +295,8 @@ def run_pneumo_analysis(
         if thorax_data is not None and abdomen_data is not None:
             sf_rip = raw.info.get("sfreq", 256) if hasattr(raw, "info") else 256
             output["signal_quality"] = compare_rip_pair(
-                thorax_data, abdomen_data, sf_rip
+                thorax_data, abdomen_data, sf_rip,
+                scale_free=bool(profile.get("RIP_QUALITY_SCALE_FREE", False)),
             )
             sq_mode = output["signal_quality"].get("recommended_mode")
             sq_ratio = output["signal_quality"].get("energy_ratio", 1.0)

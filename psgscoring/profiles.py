@@ -196,6 +196,29 @@ class PostProcessingRules:
     aanzetten en strictness opnieuw afleiden zijn één experiment. Zie de
     CHANGELOG bij v0.16.0."""
 
+    rip_quality_scale_free: bool = False
+    """Beoordeel de RIP-effortkanalen op signaalVORM in plaats van op absolute
+    amplitude.
+
+    De oude poort keurt af bij `MAD < 0.005` of `breath_energy < 0.001`. Die
+    drempels zijn absoluut, en EDF-eenheden zijn per kanaal vrij: MESA schrijft
+    RIP in mV en komt na omrekening naar V ~150x te laag binnen met een
+    volstrekt normaal signaal, PSG-IPA schrijft `n/a` en komt er duizenden
+    malen boven uit. De poort selecteerde dus op de eenhedendeclaratie.
+    Gemeten spant MAD zeven ordes van grootte terwijl de ademfractie — de
+    werkelijke kwaliteit — een factor 2,5 spant, in een andere volgorde.
+
+    Aan: `rip_shape_metrics()` beslist op de ademfractie (vermogen 0,10–0,50 Hz
+    gedeeld door 0,02–4,0 Hz) en op de vlakke fractie. Beide zijn verhoudingen
+    binnen hetzelfde signaal en dus eenheidsvrij.
+
+    Default `False` = bestaand gedrag. Dit is UITDRUKKELIJK geen stille
+    reparatie: kale `uncertain` valt buiten `ahi_total`, dus een werkende poort
+    zet op MESA `uncertain`-apneus om in getypeerde apneus en verhoogt daarmee
+    de AHI. Het is dus een indexwijziging, niet alleen een typeringswijziging.
+    `mesa_shhs` en `chicago_1999` blijven daarom gepind op `False`, anders
+    breekt de reproductie van paper v31/v37. Zie CHANGELOG v0.17.0."""
+
     max_events_per_desaturation: int | None = None
     """Hoeveel hypopneus één desaturatie ten hoogste mag bevestigen.
 

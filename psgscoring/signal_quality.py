@@ -71,11 +71,35 @@ class PairQuality(TypedDict):
 #  Thresholds (empirically calibrated)
 # ════════════════════════════════════════════════════════════════════
 
-# Per-channel thresholds
+# Per-channel thresholds — ABSOLUTE, en dus afhankelijk van de eenheid waarin
+# het EDF is opgeschreven. Zie rip_shape_metrics() voor waarom dat een defect
+# is en BREATH_FRACTION_* hieronder voor de schaalvrije tegenhanger.
 MAD_FAILED_BELOW      = 0.005   # Below this: sensor is dead
 MAD_WEAK_BELOW        = 0.020   # Below this: sensor is weak
 ENERGY_FAILED_BELOW   = 0.001   # Breath-band energy (Welch PSD sum)
 ENERGY_WEAK_BELOW     = 0.050
+
+# Per-channel thresholds — SCHAALVRIJ (scale_free=True).
+#
+# Gekalibreerd 12-08-2026 volgens de beslisregel die VOORAF in de CHANGELOG bij
+# v0.17.0 stond: midden in het gat tussen een aantoonbaar dood kanaal en de
+# waargenomen echte kanalen, en NIET afgesteld op een uitkomstmaat.
+#
+#   vlakke lijn                              0,000
+#   witte ruis / kwantisatieruis / 50 Hz     0,102 – 0,103   (= bandbreedte-
+#                                                              verhouding, zoals
+#                                                              analytisch verwacht)
+#   drift zonder ademhaling                  0,174
+#   ---------------------------------------- gat ------------------------------
+#   echte kanalen, n=20 over drie cohorten   0,371 – 0,912
+#
+# Midden in het gat: (0,174 + 0,371) / 2 = 0,2725 -> 0,27.
+BREATH_FRACTION_FAILED_BELOW = 0.27
+# `weak` is alleen een waarschuwing (de modus blijft bilateraal), gelegd net
+# onder het zwakste werkelijk waargenomen kanaal: wie zwakker is dan alles wat
+# in drie cohorten is gezien, verdient een melding maar geen afkeuring.
+BREATH_FRACTION_WEAK_BELOW   = 0.35
+FLAT_FRACTION_FAILED_ABOVE   = 0.50   # halve nacht identieke monsters = dood
 
 # Pair thresholds
 ENERGY_RATIO_WARN     = 10.0    # 10× asymmetry is suspicious
@@ -110,10 +134,51 @@ FALLBACK_BASELINE_PERCENTILE = 75    # Robust to event clusters
 #  Core functions
 # ════════════════════════════════════════════════════════════════════
 
+def rip_shape_metrics(signal: np.ndarray, sf: float) -> tuple[float, float]:
+    """``(breath_fraction, flat_fraction)`` — beide schaalvrij.
+
+    `breath_fraction` is het aandeel van het vermogen in de ademband
+    (0,10–0,50 Hz) binnen 0,02–4,0 Hz. Een verhouding van twee vermogens uit
+    hetzelfde signaal, dus onafhankelijk van de eenheid waarin het EDF is
+    opgeschreven. Witte ruis levert hier ongeveer de bandbreedteverhouding
+    (~0,10); een ademsignaal ligt er ver boven.
+
+    `flat_fraction` is het aandeel opeenvolgende monsters dat identiek is. Een
+    losgeraakte band of een uitgevallen versterker geeft een vlakke lijn, en
+    dat is te zien zonder te weten hoe groot een normale uitslag is.
+
+    Deze twee bestaan omdat de oude poort op ABSOLUTE amplitude oordeelde
+    (`MAD < 0.005`). EDF-eenheden zijn per kanaal vrij: MESA schrijft RIP in
+    mV en komt na omrekening ~150x onder die drempel binnen met een volstrekt
+    normaal signaal, terwijl PSG-IPA `n/a` schrijft en er duizenden malen
+    boven uitkomt. Die drempel mat dus de eenhedendeclaratie, niet de sensor.
+    """
+    s = np.asarray(signal, dtype=float).squeeze()
+    if s.ndim != 1 or s.size < 4:
+        return 0.0, 1.0
+    finite = np.isfinite(s)
+    if not finite.any():
+        return 0.0, 1.0
+    s = s[finite]
+    d = np.diff(s)
+    flat = float(np.mean(d == 0.0)) if d.size else 1.0
+
+    nperseg = int(min(120 * sf, max(s.size // 4, 64)))
+    try:
+        f, psd = welch(s, sf, nperseg=nperseg)
+    except Exception:
+        return 0.0, flat
+    band = psd[(f >= BREATH_FREQ_LOW) & (f <= BREATH_FREQ_HIGH)].sum()
+    total = psd[(f >= BAND_POWER_TOTAL_HZ[0]) & (f <= BAND_POWER_TOTAL_HZ[1])].sum()
+    return (float(band / total) if total > 0 else 0.0), flat
+
+
 def assess_rip_channel(
     signal: np.ndarray,
     sf: float,
     label: str = "",
+    *,
+    scale_free: bool = False,
 ) -> ChannelQuality:
     """
     Assess quality of a single RIP channel.
@@ -126,6 +191,11 @@ def assess_rip_channel(
         Sample rate in Hz
     label : str
         Optional label for logging
+    scale_free : bool
+        Oordeel op `rip_shape_metrics` in plaats van op absolute amplitude.
+        Default False = bestaand gedrag. Zie `PostProcessingRules.
+        rip_quality_scale_free` voor waarom dit een keuze is en geen
+        vanzelfsprekende reparatie.
 
     Returns
     -------
@@ -177,6 +247,33 @@ def assess_rip_channel(
         peak_freq = None
 
     # Classification
+    if scale_free:
+        bf, flat = rip_shape_metrics(signal, sf)
+        if flat > FLAT_FRACTION_FAILED_ABOVE:
+            status = "failed"
+            reason = (f"vlakke lijn: {100 * flat:.0f}% identieke monsters "
+                      f"(>{100 * FLAT_FRACTION_FAILED_ABOVE:.0f}%)")
+        elif bf < BREATH_FRACTION_FAILED_BELOW:
+            status = "failed"
+            reason = (f"ademfractie={bf:.3f} "
+                      f"(<{BREATH_FRACTION_FAILED_BELOW}) — geen ademvorm")
+        elif bf < BREATH_FRACTION_WEAK_BELOW:
+            status = "weak"
+            reason = (f"ademfractie={bf:.3f} "
+                      f"(<{BREATH_FRACTION_WEAK_BELOW}) — zwak maar bruikbaar")
+        else:
+            status = "ok"
+            reason = f"ademfractie={bf:.3f} — normaal"
+        return {
+            "mad": mad,
+            "breath_energy": breath_energy,
+            "breath_fraction": bf,
+            "flat_fraction": flat,
+            "peak_freq": peak_freq,
+            "status": status,
+            "reason": reason,
+        }
+
     if mad < MAD_FAILED_BELOW or breath_energy < ENERGY_FAILED_BELOW:
         status = "failed"
         reason = (f"MAD={mad:.4f} (<{MAD_FAILED_BELOW}), "
@@ -205,6 +302,8 @@ def compare_rip_pair(
     thorax: np.ndarray,
     abdomen: np.ndarray,
     sf: float,
+    *,
+    scale_free: bool = False,
 ) -> PairQuality:
     """
     Compare thorax + abdomen RIP pair to detect channel failure,
@@ -227,8 +326,8 @@ def compare_rip_pair(
         recommended_mode: 'bilateral' | 'single-channel' | 'unreliable'
         working_channel: 'thorax' | 'abdomen' | 'none' (when single-channel)
     """
-    thor_q = assess_rip_channel(thorax, sf, "thorax")
-    abd_q = assess_rip_channel(abdomen, sf, "abdomen")
+    thor_q = assess_rip_channel(thorax, sf, "thorax", scale_free=scale_free)
+    abd_q = assess_rip_channel(abdomen, sf, "abdomen", scale_free=scale_free)
 
     # Energy ratio (max / min)
     thor_e = max(thor_q["breath_energy"], 1e-12)
