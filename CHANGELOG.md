@@ -56,9 +56,54 @@ PSG-IPA sweep; (3) the MESA hold-out at the new point, against the `aasm15`
 reconstruction only — the `oahi` variants encode a different rule and their
 error directions are not interpretable here.
 
-Results follow in this entry once measured. If the default shifts, Table 1 and
-Figure 1 of the paper must be regenerated in full; that will be stated here
-explicitly.
+## Measured — and the plan does not survive first contact
+
+The asymmetry is real and large, but it does **not** act on the profiles the
+paper's headline rests on. PSG-IPA, five recordings, scorer-1 hypnogram,
+`PSGSCORING_AROUSAL_DERIVATION=single`, all four cells measured:
+
+| profile | detector | linearisation off → on | strictness 0.30 → 0.60 |
+|---|---|---|---|
+| `aasm_v3_rec` | rule cascade | **bias +1.77 → −1.43**, MAE 1.84 → 1.43, in-range 3/5 → 5/5, severity 4/5 → 5/5, hypopnoeas 208 → 116 | **no effect at all** (+1.77 both) |
+| `aasm_v3_breath` | breath-graded | **no effect at all** (bias −0.29 both) | (effective by construction) |
+
+Apnoea counts are unchanged throughout (316), as expected: linearisation
+touches only the hypopnoea channel.
+
+**Why the two knobs are disjoint.** `hypopnea_strictness` is read only inside
+`score_hypopneas_breathwise`, i.e. on the graded branch. And that branch never
+sees the envelope: `_run_breath_analysis` receives `hypop_flow` — the *raw*
+signal — and runs its own `bandpass_flow`, computing breath amplitudes
+directly. The linearisation lives in `_setup_hypop_channel`, which builds
+`hypop_env` for the envelope cascade.
+
+So the graded detector is non-linearised on **both** cohorts and therefore
+internally consistent, while the rule cascade is non-linearised on one and
+linearised on the other. The instruction to "enable linearisation and re-derive
+strictness as one experiment" cannot be executed as written: on the profile
+that owns strictness, linearisation has no effect; on the profile where
+linearisation has a large effect, there is no strictness to re-derive.
+
+**Consequence for the cohort asymmetry.** The linearisation asymmetry is *not*
+the explanation for the opposite bias directions of `aasm_v3_breath` /
+`aasm_v3_prob` (+0.17 on PSG-IPA against −13 to −14 on MESA), because those
+profiles never linearise on either cohort. It remains a plausible contributor
+for `aasm_v3_rec` and the other cascade profiles, and it is a genuine defect in
+its own right: the same profile name preprocesses differently depending on the
+montage.
+
+**No default is changed.** Every shipped profile keeps
+`hypopnea_force_linearisation = False`, golden 8/8 unchanged, 686 tests green.
+Table 1 and Figure 1 of the paper therefore stand as published.
+
+## A second confound, found while measuring
+
+`aasm_v3_breath` gives bias **+0.17** under the default multi-derivation arousal
+path and **−0.29** under `PSGSCORING_AROUSAL_DERIVATION=single` — a shift of
+0.46/h from the arousal derivation alone, with nothing else changed. Any
+reported bias must state which derivation produced it. The paper's Table 1 was
+produced under the default (multi); the measurements in this entry under
+`single`, as the work instruction requires for reproduction runs.
 
 # v0.15.2 — 2026-08-08 — a rounding regression that a report showed and the tests could not
 
