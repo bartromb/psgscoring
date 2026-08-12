@@ -59,6 +59,47 @@ fitten die hij hoort te bewaken.
 
 Is er geen gat, dan wordt dat gerapporteerd en wordt er geen getal gekozen.
 
+## Gekalibreerd — het gat is breed
+
+| soort | ademfractie |
+|---|---|
+| vlakke lijn | 0,000 |
+| kwantisatieruis | 0,102 |
+| witte ruis | 0,103 |
+| 50 Hz-net + ruis | 0,102 |
+| drift zonder ademhaling | 0,174 |
+| — **gat** — | |
+| echte kanalen, n=20 over drie cohorten | **0,371 – 0,912** |
+
+Midden in het gat: (0,174 + 0,371) / 2 = 0,2725 → **`BREATH_FRACTION_FAILED_BELOW = 0.27`**.
+
+Het dode uiteinde is niet gefit maar analytisch bekend: witte ruis verdeelt zijn
+vermogen gelijkmatig, dus de ademfractie landt op de bandbreedteverhouding
+(0,50 − 0,10) / (4,0 − 0,02) = 0,101. Gemeten 0,103. Daar staat een aparte test
+op, want juist dat maakt de drempel verdedigbaar zonder naar een uitkomstmaat
+te kijken.
+
+`BREATH_FRACTION_WEAK_BELOW = 0.35` ligt net onder het zwakste werkelijk
+waargenomen kanaal. `weak` is alleen een waarschuwing — de modus blijft
+bilateraal — dus die grens heeft geen gedragsgevolg.
+
+## Wat het doet
+
+`mesa-sleep-1691`, `aasm_v3_rec`:
+
+| | poort uit | poort aan |
+|---|---|---|
+| `recommended_mode` | `unreliable` | `bilateral` |
+| uncertain | 42 | 0 |
+| obstructief | 0 | 42 |
+| `ahi_total` | 32,2 | **35,9** |
+| `ahi_incl_uncertain` | 39,6 | 35,9 |
+
+De twee indices vallen aan de aan-kant samen, zoals hoort wanneer er niets meer
+onbepaald is. De cohortbrede meting staat in
+`docs/rip_gate_effect_mesa_20260812.{json,log}`
+(`scripts/effect_rip_gate_mesa.py`).
+
 ## Waarom dit een vlag is en geen stille reparatie
 
 Kale `uncertain` valt BUITEN `ahi_total` (wel in `ahi_incl_uncertain`). Een
