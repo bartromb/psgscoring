@@ -982,6 +982,37 @@ def run_pneumo_analysis(
             logger.warning("[ml] Re-classification failed: %s", e)
             output["respiratory"]["ml_reclassification"] = {"status": f"exception: {e}"}
 
+    # ── Step 8b: begrens hergebruik van één desaturatie ───────────────────
+    # Na 8a, zodat ook door de ML gepromoveerde kandidaten meetellen. Default
+    # None = geen begrenzing = byte-identiek; zie PostProcessingRules.
+    _desat_limit = profile.get("MAX_EVENTS_PER_DESATURATION")
+    if _desat_limit is not None and output["respiratory"].get("success"):
+        try:
+            from .respiratory import limit_events_per_desaturation
+            _acc, _rej, _dstats = limit_events_per_desaturation(
+                output["respiratory"].get("events", []),
+                output["respiratory"].get("rejected_hypopneas", []),
+                spo2_data, sf_spo2 or sf_flow or 1.0, hypno,
+                max_events=int(_desat_limit),
+                drop_pct=float(profile.get("DESATURATION_DROP_PCT", 3.0)),
+                post_win_s=float(profile.get("POST_EVENT_WINDOW_S", 45.0)),
+            )
+            if _dstats["n_degraded"]:
+                output["respiratory"]["events"] = _acc
+                output["respiratory"]["rejected_hypopneas"] = _rej
+                output["respiratory"]["summary"] = _compute_summary(
+                    _acc, hypno, artifact_epochs
+                )
+                logger.info(
+                    "[pneumo 8b/10] desaturatiehergebruik begrensd op %d: "
+                    "%d events gedegradeerd over %d groepen",
+                    int(_desat_limit), _dstats["n_degraded"],
+                    _dstats["n_groups_over_limit"])
+            output["respiratory"]["desat_reuse_limit"] = _dstats
+        except Exception as e:
+            logger.warning("[pneumo 8b/10] begrenzing overgeslagen: %s", e)
+            output["respiratory"]["desat_reuse_limit"] = {"status": f"exception: {e}"}
+
     # ── Step 9: Cheyne-Stokes ──────────────────────────────────────────────
     logger.info("[pneumo 9/10] Cheyne-Stokes detection...")
     if ref_flow is not None:

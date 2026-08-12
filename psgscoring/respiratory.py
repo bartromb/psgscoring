@@ -40,7 +40,7 @@ from .breath import (
     detect_breath_events, detect_breaths,
 )
 from .classify import classify_apnea_type
-from .spo2 import get_desaturation
+from .spo2 import detect_desaturations, get_desaturation
 
 logger = logging.getLogger("psgscoring.respiratory")
 
@@ -694,6 +694,109 @@ def detect_respiratory_events(
 # bestaan (zie onderaan deze module en in de output), zodat YASAFlaskified
 # en bestaande rapporten niet breken.
 # ---------------------------------------------------------------------------
+
+def limit_events_per_desaturation(
+    events:   list,
+    rejected: list,
+    spo2:     "np.ndarray | None",
+    sf_spo2:  float,
+    hypno:    list,
+    *,
+    max_events: int | None,
+    drop_pct:   float = 3.0,
+    post_win_s: float = 45.0,
+    epoch_len_s: float = 30.0,
+) -> tuple[list, list, dict]:
+    """Begrens hoe vaak één desaturatie een hypopnee mag bevestigen.
+
+    Zie `PostProcessingRules.max_events_per_desaturation` voor het waarom. Kort:
+    elke kandidaat toetst zijn desaturatie-eis in zijn eigen nazoekvenster, dus
+    twee kandidaten kort na elkaar kunnen dezelfde daling opvoeren. Deze pas
+    groepeert de op desaturatie bevestigde hypopneus per werkelijke
+    desaturatie-episode, houdt de `max_events` met de hoogste `p_scored` en
+    degradeert de rest.
+
+    Degraderen, niet verwijderen: de rest gaat naar `rejected` met
+    `reject_reason="desat_reuse_limit"` en behoudt al zijn velden, zodat de
+    ML-promotie en de visuele controle er nog bij kunnen en de ingreep
+    telbaar blijft.
+
+    Alleen de desaturatietak. Een event zonder gemeten desaturatie, of met een
+    ondiepere dan `drop_pct`, is op een arousal bevestigd en blijft ongemoeid.
+
+    Returns
+    -------
+    (events, rejected, stats) — bij `max_events=None` onveranderd doorgegeven.
+    """
+    stats = {"limit": max_events, "n_desaturations": 0,
+             "n_groups_over_limit": 0, "n_degraded": 0}
+    if max_events is None or max_events < 1 or spo2 is None or not events:
+        return events, rejected, stats
+
+    sleep = np.zeros(len(spo2), dtype=bool)
+    for ep, st in enumerate(hypno):
+        if st in ("N1", "N2", "N3", "R"):
+            a = int(ep * epoch_len_s * sf_spo2)
+            b = int((ep + 1) * epoch_len_s * sf_spo2)
+            if a < len(sleep):
+                sleep[a:min(b, len(sleep))] = True
+    if not sleep.any():
+        return events, rejected, stats
+
+    desats = detect_desaturations(np.asarray(spo2, dtype=float), sf_spo2,
+                                  sleep, drop_pct=drop_pct)
+    stats["n_desaturations"] = len(desats)
+    if not desats:
+        return events, rejected, stats
+    d_start = np.array([float(d["onset_s"]) for d in desats])
+    d_end = d_start + np.array([float(d["duration_s"]) for d in desats])
+
+    def _depth(e):
+        v = e.get("desaturation_pct")
+        if v is None:
+            v = e.get("desat")
+        return None if v is None else float(v)
+
+    # Groepeer op de desaturatie die het nazoekvenster van dit event het
+    # sterkst overlapt. Geen overlap = arousal-bevestigd = ongemoeid.
+    groepen: dict[int, list[int]] = {}
+    for k, e in enumerate(events):
+        if "hypopnea" not in str(e.get("type", "")):
+            continue
+        d = _depth(e)
+        if d is None or d < drop_pct:
+            continue
+        t0 = float(e.get("onset_s", 0.0))
+        t1 = t0 + float(e.get("duration_s", 0.0)) + post_win_s
+        ov = np.minimum(d_end, t1) - np.maximum(d_start, t0)
+        if ov.size == 0 or ov.max() <= 0:
+            continue
+        groepen.setdefault(int(ov.argmax()), []).append(k)
+
+    weg: set[int] = set()
+    for _di, idx in groepen.items():
+        if len(idx) <= max_events:
+            continue
+        stats["n_groups_over_limit"] += 1
+        # Hoogste p_scored wint; bij gelijkspel de vroegste, zodat de uitkomst
+        # niet van de sorteerstabiliteit afhangt.
+        idx.sort(key=lambda k: (-float(events[k].get("p_scored")
+                                       or events[k].get("confidence") or 0.0),
+                                float(events[k].get("onset_s", 0.0))))
+        weg.update(idx[max_events:])
+
+    if not weg:
+        return events, rejected, stats
+
+    stats["n_degraded"] = len(weg)
+    gedegradeerd = []
+    for k in sorted(weg):
+        e = dict(events[k])
+        e["reject_reason"] = "desat_reuse_limit"
+        gedegradeerd.append(e)
+    behouden = [e for k, e in enumerate(events) if k not in weg]
+    return behouden, list(rejected) + gedegradeerd, stats
+
 
 def reinstate_rule1a_arousal_hypopneas(
     rejected:       list,

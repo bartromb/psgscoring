@@ -178,15 +178,48 @@ class PostProcessingRules:
     flowreductie van 50 % als 75 % amplitudereductie, dus reducties worden
     stelselmatig overschat en meer kandidaten halen het 30 %-criterium. Een
     operatiepunt dat op de ongelineariseerde conventie is gekalibreerd, is op
-    de gelineariseerde te streng — de vermoedelijke oorzaak van de
-    tegengestelde bias-richting op de twee cohorten (+1,77 op PSG-IPA,
-    −11 tot −15 op MESA).
+    de gelineariseerde te streng.
+
+    GEMETEN (12-08-2026, PSG-IPA, zie CHANGELOG v0.16.0): het effect zit
+    volledig in de regelcascade (`aasm_v3_rec`: bias +1,77 → −1,43, MAE
+    1,84 → 1,43, binnen scoorderrange 3/5 → 5/5, hypopneus 208 → 116) en is op
+    de gegradeerde tak **nul**. `score_hypopneas_breathwise` krijgt het RUWE
+    signaal via `_run_breath_analysis` en filtert zelf, dus het ziet de
+    envelope waarin de linearisatie leeft nooit. Deze asymmetrie verklaart
+    daarom NIET de tegengestelde bias-richting van `aasm_v3_breath`/`_prob` op
+    de twee cohorten — ze blijft een aannemelijke bijdrage voor de
+    cascadeprofielen en is op zichzelf een defect.
 
     Default `False` = bestaand gedrag; elk bestaand profiel blijft
     byte-identiek. Aanzetten is GEEN losse wijziging: het verschuift de
     amplitudeschaal waarop `hypopnea_strictness` is geijkt, dus linearisatie
     aanzetten en strictness opnieuw afleiden zijn één experiment. Zie de
     CHANGELOG bij v0.16.0."""
+
+    max_events_per_desaturation: int | None = None
+    """Hoeveel hypopneus één desaturatie ten hoogste mag bevestigen.
+
+    AASM Regel 1A vraagt per event een eigen desaturatie van ≥ 3 %. De
+    detectoren toetsen dat per kandidaat afzonderlijk: elk event zoekt zelf een
+    daling in zijn eigen nazoekvenster. Twee kandidaten die kort na elkaar
+    liggen kunnen daardoor dezelfde daling als bevestiging opvoeren, en op een
+    nacht met veel opeenvolgende reducties telt één diepe desaturatie meerdere
+    keren mee. Dat is geen detectiefout maar een boekhoudfout, en hij werkt
+    maar één kant op: hij telt te veel.
+
+    Bij overschrijding blijft het event met de hoogste `p_scored` staan; de
+    rest wordt GEDEGRADEERD naar `rejected_hypopneas` met
+    `reject_reason="desat_reuse_limit"`, niet verwijderd. Dat houdt ze
+    beschikbaar voor de ML-promotie en de visuele controle, en het houdt de
+    ingreep omkeerbaar en te tellen.
+
+    Raakt uitsluitend de desaturatietak: events die op een arousal zijn
+    bevestigd (Regel 1A-arousal) worden niet begrensd, want daar bestaat het
+    hergebruikprobleem niet in deze vorm.
+
+    Default `None` = geen begrenzing = bestaand gedrag; elk bestaand profiel
+    blijft byte-identiek. Idee overgenomen uit CAISR-resp (daar hard op 2);
+    herkomst en meting staan in `docs/third_party_comparison.md`."""
 
     hypoxic_burden_local_baseline: bool = False
     """Laat de hypoxic burden de LOKALE basislijn volgen in plaats van
