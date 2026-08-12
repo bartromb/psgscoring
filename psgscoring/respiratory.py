@@ -608,41 +608,12 @@ def detect_respiratory_events(
         # worden hypopneeën afgewezen die normale variatie vertegenwoordigen.
         # Dit lost het over-counting probleem op bij normale patiënten (SN2, SN4).
         if breaths and len(breaths) > 20:
-            breath_amps = np.array([b["amplitude"] for b in breaths])
-            breath_onsets = np.array([b["onset_s"] for b in breaths])
-            n_stable_rejected = 0
-            stable_events = []
-            for ev in events:
-                if ev.get("type") != "hypopnea":
-                    stable_events.append(ev)
-                    continue
-                # Vind ademhalingen in ±120s venster rond het event
-                ev_mid = ev["onset_s"] + ev["duration_s"] / 2
-                win_mask = (breath_onsets >= ev_mid - 120) & (breath_onsets <= ev_mid + 120)
-                local_amps = breath_amps[win_mask]
-                if len(local_amps) >= 10:
-                    local_cv = float(np.std(local_amps) / np.mean(local_amps)) if np.mean(local_amps) > 1e-9 else 1.0
-                    if local_cv < _STABILITY_CV:
-                        # Stabiele ademhaling: dit is waarschijnlijk normale variatie
-                        n_stable_rejected += 1
-                        rejected.append({
-                            # type/stage/epoch are required by downstream
-                            # consumers of rejected candidates: ML promotion
-                            # (mesa_shhs) feeds them straight into _compute_summary
-                            # (reads ["type"]) and Rule 1B reinstatement reads
-                            # ["stage"]/["epoch"]. Omitting them crashes those paths.
-                            "type": ev.get("type", "hypopnea"),
-                            "onset_s": ev["onset_s"],
-                            "duration_s": ev["duration_s"],
-                            "stage": ev.get("stage"),
-                            "epoch": ev.get("epoch"),
-                            "desat": ev.get("desat"),
-                            "min_spo2": ev.get("min_spo2"),
-                            "reject_reason": f"stable_breathing_cv_{local_cv:.2f}<{_STABILITY_CV:.2f}",
-                        })
-                        continue
-                stable_events.append(ev)
-            events = stable_events
+            events, rejected, n_stable_rejected = reject_stable_breathing(
+                events, rejected, breaths,
+                stability_cv=_STABILITY_CV,
+                all_hypopnea_subtypes=bool(
+                    sp.get("STABILITY_FILTER_ALL_HYPOPNEA_SUBTYPES", False)),
+            )
             if n_stable_rejected:
                 logger.info("v0.2.8: %d hypopneeën afgewezen door stabiele-ademhaling filter "
                             "(breath-amplitude CV < %.2f, profile-dependent)",
@@ -694,6 +665,82 @@ def detect_respiratory_events(
 # bestaan (zie onderaan deze module en in de output), zodat YASAFlaskified
 # en bestaande rapporten niet breken.
 # ---------------------------------------------------------------------------
+
+def reject_stable_breathing(
+    events:   list,
+    rejected: list,
+    breaths:  list,
+    *,
+    stability_cv: float,
+    all_hypopnea_subtypes: bool = False,
+    win_s:        float = 120.0,
+    min_breaths:  int = 10,
+) -> tuple[list, list, int]:
+    """Wijs hypopneus af waar de ademamplitude eromheen stabiel is.
+
+    Bij een lage variatiecoëfficiënt van de per-breath amplitudes is een
+    "reductie" waarschijnlijk normale variatie. Ingevoerd in v0.2.8 tegen
+    overtelling bij normale patiënten.
+
+    `all_hypopnea_subtypes` bepaalt WELKE events het filter überhaupt ziet. De
+    oorspronkelijke code vergeleek exact met `"hypopnea"`, waardoor
+    `hypopnea_central`, `hypopnea_mixed` en `hypopnea_uncertain` eraan
+    ontsnapten — en dus ook: of het filter draait hing af van of de
+    effortclassificatie een subtype kon toekennen, en daarmee van de
+    RIP-poort. Zie `PostProcessingRules.stability_filter_all_hypopnea_subtypes`
+    voor de meting op beide cohorten.
+
+    Deze functie staat los omdat ze anders onbereikbaar diep in
+    `detect_respiratory_events` zit: een test moest dan eerst een volledige
+    detectie door de cascade praten, en een fixture die geen events oplevert
+    laat de test leeg slagen in plaats van falen.
+
+    Returns
+    -------
+    (events, rejected, n_afgewezen)
+    """
+    if not breaths or not events:
+        return events, rejected, 0
+    amps = np.array([b["amplitude"] for b in breaths], dtype=float)
+    onsets = np.array([b["onset_s"] for b in breaths], dtype=float)
+
+    def _is_hypopnea(ev):
+        t = str(ev.get("type", ""))
+        return ("hypopnea" in t) if all_hypopnea_subtypes else (t == "hypopnea")
+
+    n_afgewezen = 0
+    behouden = []
+    for ev in events:
+        if not _is_hypopnea(ev):
+            behouden.append(ev)
+            continue
+        ev_mid = ev["onset_s"] + ev["duration_s"] / 2
+        local = amps[(onsets >= ev_mid - win_s) & (onsets <= ev_mid + win_s)]
+        if len(local) >= min_breaths:
+            gem = float(np.mean(local))
+            local_cv = float(np.std(local) / gem) if gem > 1e-9 else 1.0
+            if local_cv < stability_cv:
+                n_afgewezen += 1
+                rejected.append({
+                    # type/stage/epoch are required by downstream consumers of
+                    # rejected candidates: ML promotion (mesa_shhs) feeds them
+                    # straight into _compute_summary (reads ["type"]) and Rule
+                    # 1B reinstatement reads ["stage"]/["epoch"]. Omitting them
+                    # crashes those paths.
+                    "type": ev.get("type", "hypopnea"),
+                    "onset_s": ev["onset_s"],
+                    "duration_s": ev["duration_s"],
+                    "stage": ev.get("stage"),
+                    "epoch": ev.get("epoch"),
+                    "desat": ev.get("desat"),
+                    "min_spo2": ev.get("min_spo2"),
+                    "reject_reason":
+                        f"stable_breathing_cv_{local_cv:.2f}<{stability_cv:.2f}",
+                })
+                continue
+        behouden.append(ev)
+    return behouden, rejected, n_afgewezen
+
 
 def limit_events_per_desaturation(
     events:   list,

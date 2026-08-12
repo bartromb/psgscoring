@@ -94,6 +94,8 @@ def _profile_to_legacy_dict(profile) -> dict:
         "HYPOPNEA_FORCE_LINEARISATION": pp.hypopnea_force_linearisation,
         "MAX_EVENTS_PER_DESATURATION": pp.max_events_per_desaturation,
         "RIP_QUALITY_SCALE_FREE": pp.rip_quality_scale_free,
+        "STABILITY_FILTER_ALL_HYPOPNEA_SUBTYPES":
+            pp.stability_filter_all_hypopnea_subtypes,
         "HYPOXIC_BURDEN_LOCAL_BASELINE": pp.hypoxic_burden_local_baseline,
         "HYPOPNEA_AROUSAL_LATENCY": pp.hypopnea_arousal_latency_grading,
         "RULE1A_AROUSAL_ENABLED": pp.rule1a_arousal_enabled,

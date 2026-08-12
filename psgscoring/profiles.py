@@ -196,6 +196,36 @@ class PostProcessingRules:
     aanzetten en strictness opnieuw afleiden zijn één experiment. Zie de
     CHANGELOG bij v0.16.0."""
 
+    stability_filter_all_hypopnea_subtypes: bool = False
+    """Laat het stabiele-ademhalingsfilter ook op gesubtypeerde hypopneus slaan.
+
+    Het filter vergelijkt het eventtype EXACT met `"hypopnea"`, terwijl
+    hypopneus een subtype dragen: `hypopnea` (obstructief), `hypopnea_central`,
+    `hypopnea_mixed`, `hypopnea_uncertain`. Alles wat niet obstructief is,
+    ontsnapt er dus aan. De rest van de codebase telt hypopneus juist op
+    substring (`"hypopnea" in e["type"]` in `_compute_summary`).
+
+    Hoeveel dat uitmaakt hangt af van het cohort, en daarmee van iets wat niets
+    met de patiënt te maken heeft. Gemeten 12-08-2026 op `aasm_v3_rec`:
+
+    - PSG-IPA: 200 van 208 hypopneus dragen het kale label (96,2 %), het filter
+      wijst er 190 af.
+    - MESA met de RIP-poort dicht: elke hypopnee heet `hypopnea_uncertain`, het
+      filter wijst er NUL af.
+
+    De keten loopt van de eenhedendeclaratie in het EDF via de RIP-poort naar
+    het subtypelabel naar de vraag of dit filter überhaupt draait. Zie
+    `rip_quality_scale_free` en `docs/rip_poort_reparatie_20260812.md`.
+
+    Of de beperking tot obstructieve hypopneus ooit bedoeld was, valt uit de
+    code niet op te maken: de subtypelabels bestonden al toen het filter
+    geschreven werd (v0.2.2 tegen v0.2.8), en het criterium zelf — de
+    variatiecoëfficiënt van de ademamplitude — heeft niets met het subtype te
+    maken. Daarom een vlag en geen stille correctie.
+
+    Default `False` = bestaand gedrag; elk bestaand profiel blijft
+    byte-identiek."""
+
     rip_quality_scale_free: bool = False
     """Beoordeel de RIP-effortkanalen op signaalVORM in plaats van op absolute
     amplitude.
