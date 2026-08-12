@@ -192,3 +192,24 @@ def test_limiet_wordt_werkelijk_gerespecteerd(limiet):
         events, [], _spo2_met_een_desaturatie(), SF, _hypno(),
         max_events=limiet)
     assert len(acc) == limiet
+
+
+def test_stats_onderscheiden_geen_hergebruik_van_niets_gegroepeerd():
+    """Een niet-aangesloten koppeling ziet er anders uit dan een schone nul.
+
+    Zonder n_events_grouped is 'n_degraded == 0' dubbelzinnig: het kan
+    betekenen dat elke desaturatie er precies een bevestigt, of dat er nooit
+    een event aan een desaturatie is toegewezen.
+    """
+    ver_weg = [_ev(900.0, 0.9), _ev(950.0, 0.7)]      # buiten de desaturatie
+    _acc, _rej, st = limit_events_per_desaturation(
+        ver_weg, [], _spo2_met_een_desaturatie(), SF, _hypno(), max_events=1)
+    assert st["n_degraded"] == 0
+    assert st["n_events_grouped"] == 0, "niets gekoppeld"
+
+    dichtbij = [_ev(285.0, 0.9)]                       # op de desaturatie
+    _acc, _rej, st2 = limit_events_per_desaturation(
+        dichtbij, [], _spo2_met_een_desaturatie(), SF, _hypno(), max_events=1)
+    assert st2["n_degraded"] == 0
+    assert st2["n_events_grouped"] == 1, "wel gekoppeld, maar geen hergebruik"
+    assert st2["n_groups"] == 1 and st2["max_group_size"] == 1

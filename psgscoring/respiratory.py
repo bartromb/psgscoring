@@ -728,8 +728,12 @@ def limit_events_per_desaturation(
     -------
     (events, rejected, stats) — bij `max_events=None` onveranderd doorgegeven.
     """
-    stats = {"limit": max_events, "n_desaturations": 0,
-             "n_groups_over_limit": 0, "n_degraded": 0}
+    # `n_events_grouped` en `n_groups` staan hier zodat "geen hergebruik" te
+    # onderscheiden is van "er is nooit iets gegroepeerd". Zonder die twee
+    # ziet een niet-aangesloten koppeling er uit als een schone nulmeting.
+    stats = {"limit": max_events, "n_desaturations": 0, "n_events_grouped": 0,
+             "n_groups": 0, "n_groups_over_limit": 0, "n_degraded": 0,
+             "max_group_size": 0}
     if max_events is None or max_events < 1 or spo2 is None or not events:
         return events, rejected, stats
 
@@ -772,6 +776,10 @@ def limit_events_per_desaturation(
         if ov.size == 0 or ov.max() <= 0:
             continue
         groepen.setdefault(int(ov.argmax()), []).append(k)
+
+    stats["n_groups"] = len(groepen)
+    stats["n_events_grouped"] = sum(len(v) for v in groepen.values())
+    stats["max_group_size"] = max((len(v) for v in groepen.values()), default=0)
 
     weg: set[int] = set()
     for _di, idx in groepen.items():

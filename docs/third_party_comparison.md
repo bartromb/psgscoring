@@ -24,7 +24,7 @@ oximetrie (filosofieverschil, hoort in de discussie).
 | datum | idee | bron | waarde daar | waarde hier | meting | besluit |
 |---|---|---|---|---|---|---|
 | 2026-08-12 | koppelvenster tussen event-einde en arousal verruimen | CAISR-resp | 25 s | veld bestond al (`rule1b_arousal_window_s`, default 15 s); bereikte de gegradeerde tak niet | sweep 15/20/25/30 op PSG-IPA, `aasm_v3_breath`, precisie = mediaan over 12 scoorders | **NIET overgenomen — venster blijft 15 s** (de doorbedrading blijft) |
-| 2026-08-12 | begrenzen hoe vaak één desaturatie mag bevestigen | CAISR-resp | hard op 2 | `max_events_per_desaturation`, default `None` = huidig gedrag | `None`/2/3 op beide cohorten | *nog niet begonnen* |
+| 2026-08-12 | begrenzen hoe vaak één desaturatie mag bevestigen | CAISR-resp | hard op 2 | `max_events_per_desaturation`, default `None` = huidig gedrag | `None`/1/2/3 op PSG-IPA (klaar), MESA (loopt) | **op PSG-IPA een no-op** — waarde nog niet gekozen |
 | — | effortbanden als ventilatiebron | **geen CAISR-idee** — AASM-erkende alternatieve sensor, terug te voeren op de Chicago-criteria; psgscoring heeft al een fallback-pad | n.v.t. | eigen drempels, eigen sweep | alleen op een cohort met bruikbare effortbanden | *nog niet begonnen* |
 
 ---
@@ -87,3 +87,42 @@ De doorbedrading zelf blijft staan: die repareerde een half aangesloten veld en
 is byte-identiek. Alleen de waarde 25 s wordt niet overgenomen. Meting:
 `docs/venster_psgipa_20260812.{json,log}`,
 `scripts/sweep_arousal_window_psgipa.py`.
+
+### Desaturatiehergebruik (rij 2)
+
+`max_events_per_desaturation` groepeert de op desaturatie bevestigde hypopneus
+per werkelijke desaturatie-episode (`detect_desaturations`), houdt er
+`max_events` met de hoogste `p_scored` en degradeert de rest naar
+`rejected_hypopneas` met `reject_reason="desat_reuse_limit"`.
+
+**Degraderen, niet verwijderen** — de kandidaten blijven beschikbaar voor de
+ML-promotie en de visuele controle, en de ingreep blijft telbaar en
+omkeerbaar.
+
+#### PSG-IPA: het probleem bestaat hier niet
+
+`aasm_v3_breath`, 12 augustus 2026, `PSGSCORING_AROUSAL_DERIVATION=single`,
+psgscoring 0.16.0, gemeten bij limiet 1 (de scherpst mogelijke):
+
+| opname | hypopneus | desaturaties | aan een desat gekoppeld | groepen | grootste groep | gedegradeerd |
+|---|---|---|---|---|---|---|
+| SN1 | 16 | 48 | 8 | 8 | 1 | 0 |
+| SN2 | 21 | 80 | 9 | 9 | 1 | 0 |
+| SN3 | 42 | 322 | 28 | 25 | **2** | 3 |
+| SN4 | 18 | 61 | 4 | 4 | 1 | 0 |
+| SN5 | 50 | 135 | 22 | 22 | 1 | 0 |
+| **totaal** | **147** | 646 | **71** | 68 | **2** | **3** |
+
+**Geen enkele groep haalt drie, dus CAISR's harde limiet van 2 degradeert op
+PSG-IPA precies nul events.** Zelfs limiet 1 raakt drie van de 147 hypopneus,
+alle drie op SN3.
+
+Dat dit een échte nul is en geen niet-aangesloten koppeling, is af te lezen aan
+`n_events_grouped`: 71 van de 147 hypopneus (48 %) zijn wel degelijk aan een
+desaturatie toegewezen. De overige 52 % is op een arousal bevestigd en valt
+buiten deze regel — zoals bedoeld. De statistiek draagt daarom `n_groups`,
+`n_events_grouped` en `max_group_size` náást `n_degraded`; zonder die drie is
+"nul gedegradeerd" niet te onderscheiden van "er is nooit iets gegroepeerd".
+
+Meting: `docs/desat_limit_mesa_20260812.{json,log}` (MESA),
+`scripts/sweep_desat_limit_mesa.py`.
