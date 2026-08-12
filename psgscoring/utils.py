@@ -112,6 +112,39 @@ _ROLE_MAY_NOT_TAKE: dict[str, tuple[str, ...]] = {
 }
 
 
+def _channel_patterns() -> dict[str, list[str]]:
+    """CHANNEL_PATTERNS, optioneel uitgebreid met dataset-specifieke namen.
+
+    Aanleiding: de MESA/NSRR-documentatie vermeldt dat het Sleep Reading
+    Center in de eerste maanden vaststelde dat de thermistor onbetrouwbaar
+    was en overstapte op een ThermiSense-unit. De oude configuratie draagt
+    een kanaal ``Therm``, de nieuwe een kanaal ``Aux_AC``. Geen enkel
+    patroon in ``flow_thermistor`` matcht ``Aux_AC``, dus op die opnames
+    blijft de rol leeg en reduceert elk duaal profiel stilzwijgend tot zijn
+    één-sensor-ouder. Een gemeten thermistor-passage van 45% op MESA kan
+    daardoor evengoed een kanaalnaam als een sensoreigenschap zijn.
+
+    ``Aux_AC`` is echter een generieke hulpkanaalnaam: bij een andere
+    fabrikant kan er van alles op staan. De uitbreiding staat daarom UIT
+    tenzij expliciet gevraagd, volgens dezelfde conventie als
+    ``PSGSCORING_BASELINE_MODE``::
+
+        PSGSCORING_NSRR_AUX_AC=1
+
+    Ook aan blijft de bestaande thermistorpoort beslissen of het kanaal als
+    apneu-sensor toelaatbaar is; deze vlag maakt het kanaal alleen
+    zichtbaar. Default uit betekent: elk bestaand profiel is byte-identiek.
+    """
+    import os
+    if os.environ.get("PSGSCORING_NSRR_AUX_AC", "").strip().lower() not in (
+            "1", "true", "yes", "on"):
+        return CHANNEL_PATTERNS
+    patterns = {k: list(v) for k, v in CHANNEL_PATTERNS.items()}
+    # Achteraan: elke specifieke thermistornaam wint hiervan.
+    patterns["flow_thermistor"].append("aux_ac")
+    return patterns
+
+
 def detect_channels(ch_names: list[str]) -> dict[str, str]:
     """
     Pattern-match EDF channel names to functional roles.
@@ -121,7 +154,8 @@ def detect_channels(ch_names: list[str]) -> dict[str, str]:
     """
     ch_lower = {ch.lower(): ch for ch in ch_names}
     found: dict[str, str] = {}
-    for ch_type, patterns in CHANNEL_PATTERNS.items():
+    patterns_by_role = _channel_patterns()
+    for ch_type, patterns in patterns_by_role.items():
         # Twee rollen dragen een patroon dat te kort is om alleen te staan, en
         # allebei zijn ze een kanaal gaan opeisen dat al een andere betekenis
         # had. De rollen die ze mogen inpikken staan vóór hen in

@@ -891,6 +891,26 @@ def _setup_hypop_channel(
         else:
             hypop_env = preprocess_flow(hypop_flow, sf_hypop, is_nasal_pressure=True)
 
+        # De wortellinearisatie (AASM Regel 3) wordt op DEZE tak toegepast en
+        # op de andere niet: bij één flowkanaal is hypop_env identiek aan
+        # flow_env, dat met is_nasal_pressure=False is berekend. Dat is
+        # verdedigbaar — een gedeeld kanaal is niet noodzakelijk een
+        # drukopnemer — maar het betekent dat dezelfde profielnaam op een
+        # één-kanaals montage een ANDERE voorbewerking draait dan op een
+        # twee-kanaals montage.
+        #
+        # Dat verschil is niet neutraal. Zonder linearisatie meet een echte
+        # flowreductie van 50% als 75% amplitudereductie: reducties worden
+        # stelselmatig overschat en meer kandidaten halen het 30%-criterium.
+        # Een operating point dat op een niet-gelineariseerde cohort is
+        # gekalibreerd, is op een gelineariseerde cohort dus te streng.
+        # Zolang dit niet gerapporteerd wordt, is het onzichtbaar in elke
+        # cross-cohortvergelijking. Vandaar: uitsluitend metadata, geen
+        # gedragswijziging.
+        if isinstance(result, dict):
+            result["hypopnea_linearised"] = not same_signal
+            result["hypopnea_channel_shared"] = bool(same_signal)
+
         # Hergebruik de voorberekende basislijn alleen bij HETZELFDE signaal.
         #
         # Deze tak toetste eerder alleen op gelijke samplefrequentie. Bij twee

@@ -1257,14 +1257,29 @@ def _resolve_flow_channels(
     #       en onder de drempel is dat aandeel identiek 0,13. Hier meet en
     #       rapporteert de toets alleen.
     _therm_check = None
+    # Welke poort draaide, en of die BLOKKEERDE, is niet af te leiden uit het
+    # getal alleen. Onder een additief profiel meet dezelfde poort wel en
+    # weigert niet — een lezer die alleen `agreement: 0.31` ziet, concludeert
+    # ten onrechte dat de thermistor geweigerd is. Dit legt de beslissing
+    # vast in plaats van alleen de meting.
+    _gate_meta = {
+        "gate": ("respiratory_band" if str(thermistor_gate) == "respiratory_band"
+                 else "envelope_agreement"),
+        "mode": "informational" if additive_thermistor else "blocking",
+        "threshold": None,
+    }
     if flow_therm_data is not None and flow_pressure_data is not None:
         try:
             if str(thermistor_gate) == "respiratory_band":
-                from .signal_quality import assess_thermistor_band_power
+                from .signal_quality import (assess_thermistor_band_power,
+                                             THERMISTOR_BAND_POWER_MIN)
+                _gate_meta["threshold"] = float(THERMISTOR_BAND_POWER_MIN)
                 _therm_check = assess_thermistor_band_power(
                     flow_therm_data, sf_ft or 0.0)
             else:
-                from .signal_quality import assess_flow_sensor_agreement
+                from .signal_quality import (assess_flow_sensor_agreement,
+                                             THERMISTOR_AGREEMENT_MIN)
+                _gate_meta["threshold"] = float(THERMISTOR_AGREEMENT_MIN)
                 _therm_check = assess_flow_sensor_agreement(
                     flow_pressure_data, sf_fp or 0.0,
                     flow_therm_data, sf_ft or 0.0)
@@ -1324,6 +1339,7 @@ def _resolve_flow_channels(
             # het rapport te kunnen landen.
             "thermistor_check":   _therm_check,
             "thermistor_rejected": ch.get("flow_thermistor_rejected"),
+            "thermistor_gate":    _gate_meta,
         }
     else:
         apnea_flow = flow_data
@@ -1336,6 +1352,7 @@ def _resolve_flow_channels(
             "dual_sensor":     False,
             "thermistor_check":   _therm_check,
             "thermistor_rejected": ch.get("flow_thermistor_rejected"),
+            "thermistor_gate":    _gate_meta,
         }
     return apnea_flow, hypop_flow, sf_apnea, sf_hypop
 
