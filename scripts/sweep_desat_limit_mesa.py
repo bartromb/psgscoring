@@ -31,6 +31,16 @@ if str(REPO) not in sys.path:
 EDF_DIR = Path("/home/bart/MESA/mesa/polysomnography/edfs")
 
 
+def _hypno_uit_nsrr(xml_path, dur_s):
+    """Hergebruikt de staging-parser van het subtyperingsscript."""
+    spec = importlib.util.spec_from_file_location(
+        "sub", REPO / "scripts" / "subtype_agreement_mesa.py")
+    m = importlib.util.module_from_spec(spec)
+    sys.modules["sub"] = m
+    spec.loader.exec_module(m)
+    return m._ref_apneas(xml_path, dur_s)
+
+
 def _register(limiet, profiel):
     from psgscoring.profiles import PROFILES as P
     P[profiel].post_processing.max_events_per_desaturation = limiet
@@ -57,16 +67,32 @@ def een(args):
         # wordt wel berekend. Zo meet je de omvang voor je een waarde kiest.
         _register(999, profiel)
         raw = mne.io.read_raw_edf(str(fn), preload=True, verbose=False)
-        r = psgscoring.run_pneumo_analysis(raw, hypno=None,
+        dur = float(raw.times[-1])
+        # Zonder hypnogram klapt de gegradeerde detector en valt de pipeline
+        # stil terug op de envelope-detector ("breath-graded detector failed").
+        # Dan meet je een ander profiel dan je denkt; de NSRR-staging is
+        # beschikbaar en hoort gebruikt.
+        xml = (fn.parent.parent / "annotations-events-nsrr"
+               / f"{fn.stem}-nsrr.xml")
+        if not xml.exists():
+            return {"recording": fn.stem, "error": "geen NSRR-annotatie"}
+        _ref, hypno = _hypno_uit_nsrr(xml, dur)
+        if not any(s in ("N1", "N2", "N3", "R") for s in hypno):
+            return {"recording": fn.stem, "error": "geen slaap in de staging"}
+        r = psgscoring.run_pneumo_analysis(raw, hypno=hypno,
                                            scoring_profile=profiel)
         resp = r.get("respiratory") or {}
         st = resp.get("desat_reuse_limit") or {}
         ev = resp.get("events") or []
+        det = {str((e.get("classify_detail") or {}).get("detector"))
+               for e in ev if e.get("classify_detail")}
         return {
             "recording": fn.stem,
             "ahi": float((resp.get("summary") or {}).get("ahi_total") or 0.0),
             "n_hypopnea": sum(1 for e in ev
                               if "hypopnea" in str(e.get("type", ""))),
+            # provenance: draaide werkelijk de gegradeerde detector?
+            "detectors": sorted(det),
             "stats": st,
         }
     except Exception as e:
@@ -97,8 +123,21 @@ def main():
             if len(rows) % 5 == 0:
                 print(f"    {len(rows)}/{len(keuze)}", flush=True)
 
+    # Altijd schrijven, ook bij nul bruikbare opnames: juist dan zitten de
+    # foutmeldingen erin en zonder bestand is de oorzaak weg.
+    if a.out:
+        a.out.write_text(json.dumps(rows, indent=2))
+        print(f"\n  geschreven: {a.out}")
+
     ok = [r for r in rows if "error" not in r and r.get("stats")]
     print(f"\n  bruikbaar: {len(ok)} van {len(rows)}")
+    fouten = Counter(r.get("error", "").split(":")[0]
+                     for r in rows if "error" in r)
+    for f_, n in fouten.most_common():
+        print(f"    fout: {f_} — {n}x")
+    detectors = Counter(d for r in ok for d in r.get("detectors") or [])
+    if detectors:
+        print(f"    detectoren: {dict(detectors)}")
     if not ok:
         print("  GEEN bruikbare opnames — rapporteer dat, verzin geen getal.")
         return
@@ -122,10 +161,6 @@ def main():
     n3 = sum(1 for r in ok if r["stats"].get("max_group_size", 0) > 3)
     print(f"\n  opnames waar limiet 2 iets zou doen: {n2} van {len(ok)}")
     print(f"  opnames waar limiet 3 iets zou doen: {n3} van {len(ok)}")
-
-    if a.out:
-        a.out.write_text(json.dumps(rows, indent=2))
-        print(f"\n  geschreven: {a.out}")
 
 
 if __name__ == "__main__":
