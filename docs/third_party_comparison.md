@@ -24,7 +24,7 @@ oximetrie (filosofieverschil, hoort in de discussie).
 | datum | idee | bron | waarde daar | waarde hier | meting | besluit |
 |---|---|---|---|---|---|---|
 | 2026-08-12 | koppelvenster tussen event-einde en arousal verruimen | CAISR-resp | 25 s | veld bestond al (`rule1b_arousal_window_s`, default 15 s); bereikte de gegradeerde tak niet | sweep 15/20/25/30 op PSG-IPA, `aasm_v3_breath`, precisie = mediaan over 12 scoorders | **NIET overgenomen — venster blijft 15 s** (de doorbedrading blijft) |
-| 2026-08-12 | begrenzen hoe vaak één desaturatie mag bevestigen | CAISR-resp | hard op 2 | `max_events_per_desaturation`, default `None` = huidig gedrag | `None`/1/2/3 op PSG-IPA (klaar), MESA (loopt) | **op PSG-IPA een no-op** — waarde nog niet gekozen |
+| 2026-08-12 | begrenzen hoe vaak één desaturatie mag bevestigen | CAISR-resp | hard op 2 | `max_events_per_desaturation`, default `None` = huidig gedrag | `None`/1/2/3 op PSG-IPA n=5, groepsverdeling op MESA n=30 | **NIET aangezet** — no-op op PSG-IPA; op MESA bestaat het hergebruik, maar hij zou wegnemen waar al te weinig geteld wordt |
 | — | effortbanden als ventilatiebron | **geen CAISR-idee** — AASM-erkende alternatieve sensor, terug te voeren op de Chicago-criteria; psgscoring heeft al een fallback-pad | n.v.t. | eigen drempels, eigen sweep | alleen op een cohort met bruikbare effortbanden | *nog niet begonnen* |
 
 ---
@@ -124,5 +124,46 @@ buiten deze regel — zoals bedoeld. De statistiek draagt daarom `n_groups`,
 `n_events_grouped` en `max_group_size` náást `n_degraded`; zonder die drie is
 "nul gedegradeerd" niet te onderscheiden van "er is nooit iets gegroepeerd".
 
-Meting: `docs/desat_limit_mesa_20260812.{json,log}` (MESA),
+#### MESA: hergebruik bestaat wél, maar verandert het besluit niet
+
+`aasm_v3_breath`, n=30 (30 van 30 bruikbaar), staging uit de NSRR-annotatie:
+
+| grootste groep op één desaturatie | opnames |
+|---|---|
+| 1 event | 9 |
+| 2 events | 15 |
+| 3 events | 5 |
+| 4 events | 1 |
+
+2704 hypopneus, 4129 desaturaties, 1523 (56,3 %) aan een desaturatie
+gekoppeld. Een limiet van 2 zou op **6 van de 30** opnames iets doen, een
+limiet van 3 op 1.
+
+Anders dan op PSG-IPA bestaat het hergebruik hier dus. Toch blijft de default
+`None`, en het argument daarvoor hangt niet aan deze cijfers — het stond al
+vast vóór de meting:
+
+> De limiter kan uitsluitend events WEGNEMEN. Op MESA is de AHI-bias −11 tot
+> −15/u, dus daar wordt al te weinig geteld; op PSG-IPA valt de AHI op 5 van
+> de 5 opnames binnen de scoorderrange. Er is op geen van beide cohorten een
+> tekort aan strengheid dat deze knop zou verhelpen.
+
+**Eerlijkheidshalve:** voor blok 2B is, anders dan voor 2A, géén beslisregel
+vooraf vastgelegd. Elke regel die ik nú op deze getallen zou formuleren is
+post-hoc. Daarom rust het besluit op het bovenstaande argument — dat wél vooraf
+stond — en niet op de gemeten verdeling.
+
+**Wat dit besluit kan omgooien:** de gerepareerde RIP-poort verhoogt `ahi_total`
+op MESA met gemiddeld +4,75/u, waardoor de onderdetectie kleiner wordt en het
+argument "er wordt al te weinig geteld" verzwakt. Gaat die poort default aan,
+dan hoort 2B opnieuw gemeten — mét een vooraf vastgelegde beslisregel. Zie
+`docs/rip_poort_reparatie_20260812.md`.
+
+Meting: `docs/desat_limit_mesa_final.{json,log}` (MESA n=30),
 `scripts/sweep_desat_limit_mesa.py`.
+
+*Twee eerdere MESA-runs (`desat_limit_mesa_20260812`, `_20260813`) verloren 16
+respectievelijk 14 opnames aan een `AttributeError`: ik bewerkte `profiles.py`
+terwijl de run ertegen liep, zodat workers van vóór en ná de edit naast elkaar
+draaiden. De overgebleven opnames vormden een steekproef bepaald door timing.
+Ze zijn vervangen, niet gerapporteerd.*
