@@ -578,11 +578,37 @@ def main():
         print(f"\n  {n_err} opnames overgeslagen wegens fouten")
 
     if a.output_json:
+        # Provenance. De run van 2026-08-09 legde de arousal-modus NIET vast,
+        # waardoor achteraf niet te bewijzen viel of hij op de profiel-default
+        # (`multi`) of op `single` draaide. Zonder deze velden is een
+        # herhaling niet met de vorige te vergelijken.
+        import os as _os
+
+        import psgscoring as _ps
+        import psgscoring.constants as _C
+        _prof = _C.SCORING_PROFILES
+        meta = {
+            "psgscoring_version": _ps.__version__,
+            "arousal_derivation_env": _os.environ.get(
+                "PSGSCORING_AROUSAL_DERIVATION") or "(niet gezet — profieldefault)",
+            "arousal_derivation_per_profile": {
+                n: _prof[n].get("AROUSAL_DERIVATION_MODE")
+                for n in labels if n in _prof},
+            "rip_quality_scale_free": {
+                n: _prof[n].get("RIP_QUALITY_SCALE_FREE")
+                for n in labels if n in _prof},
+            "stability_filter_all_hypopnea_subtypes": {
+                n: _prof[n].get("STABILITY_FILTER_ALL_HYPOPNEA_SUBTYPES")
+                for n in labels if n in _prof},
+            "rip_scale_free_flag": bool(a.rip_scale_free),
+        }
         a.output_json.write_text(json.dumps(
             {"seed": a.seed, "n_requested": len(picked), "configs": labels,
              "exclude_seed": a.exclude_seed, "exclude_n": a.exclude_n,
-             "results": rows}, indent=2))
+             "meta": meta, "results": rows}, indent=2))
         print(f"\n  JSON weggeschreven: {a.output_json}")
+        print(f"  provenance: psgscoring {meta['psgscoring_version']}, "
+              f"arousal-env {meta['arousal_derivation_env']}")
 
 
 if __name__ == "__main__":
