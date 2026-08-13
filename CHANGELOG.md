@@ -1,4 +1,4 @@
-# v0.17.0 (in voorbereiding) — 2026-08-12 — de RIP-kwaliteitspoort mat de eenhedendeclaratie
+# v0.17.0 — 2026-08-13 — de RIP-kwaliteitspoort mat de eenhedendeclaratie
 
 ## Het defect
 
@@ -128,6 +128,39 @@ vlak. Op beide profielen verbetert élke index-maat.
 detectieprobleem.** De drempel 0,27 is niet op deze uitkomst gekozen — hij lag
 vast op de signaalvorm voordat deze meting draaide, dus dit is een
 onafhankelijke bevestiging en geen fit. n = 40, één seed.
+
+## Beide vlaggen staan default AAN op 13 van de 15 profielen
+
+Gebruikersbesluit 13-08-2026. `rip_quality_scale_free` en
+`stability_filter_all_hypopnea_subtypes` hebben nu dataclass-default `True`,
+zodat een nieuw profiel de reparatie erft. Expliciet gepind op `False`:
+
+- **`mesa_shhs`** — draagt de reproductie van paper v31/v37.
+- **`chicago_1999`** — reproduceert de historische criteria van 1999.
+
+Alle overige profielen gaan mee, inclusief `aasm_v2_rec`, `aasm_v1_rec` en
+`cms_medicare`: de RIP-poort is infrastructuur, geen scoringsregel. AASM v1/v2
+en de CMS-definitie zeggen niets over hoe je een dode RIP-band herkent.
+
+### De golden was blind voor deze hele klasse fouten
+
+Het omzetten van beide vlaggen op 13 profielen liet **alle zeven bestaande
+golden-cases bit-identiek** (89 toevoegingen, 0 verwijderingen in de baseline).
+Dat is geen geruststelling maar een gat: elke bestaande case heeft
+effortkanalen met MAD ~0,6 en zit dus toevallig in het bereik waar een absolute
+amplitudedrempel werkt — precies zoals PSG-IPA, het cohort waarop dit defect
+nooit opviel.
+
+Nieuwe case `mv_scale_effort` (`effort_scale=1e-5`, dezelfde signaalvorm in
+mV-schaal) sluit dat gat, en laat de bug in zijn zuiverste vorm zien:
+
+| poort | events | `ahi_total` |
+|---|---|---|
+| uit | 5 | **0,0** |
+| aan | 5 | **31,6** |
+
+Vijf apneus gedetecteerd, AHI gerapporteerd als nul — enkel omdat de
+effortkanalen in mV gedeclareerd staan.
 
 ## Waarom dit een vlag is en geen stille reparatie
 

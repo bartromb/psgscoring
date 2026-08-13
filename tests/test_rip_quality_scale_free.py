@@ -30,27 +30,36 @@ def _adem(amplitude=1.0, freq=0.25, ruis=0.1, seed=1):
 
 # ── het veld ─────────────────────────────────────────────────────────
 
-def test_default_is_uit():
-    assert PostProcessingRules().rip_quality_scale_free is False
+GEPIND = ("mesa_shhs", "chicago_1999")
+
+
+def test_default_is_aan():
+    """Sinds 13-08-2026 erft een nieuw profiel de gerepareerde poort."""
+    assert PostProcessingRules().rip_quality_scale_free is True
 
 
 def test_gepinde_profielen_blijven_op_het_oude_gedrag():
-    """mesa_shhs en chicago_1999 dragen de paper-reproductie."""
-    for naam in ("mesa_shhs", "chicago_1999"):
-        if naam in PROFILES:
-            assert PROFILES[naam].post_processing.rip_quality_scale_free is False
+    """mesa_shhs draagt de reproductie van paper v31/v37, chicago_1999 de
+    historische criteria. Beide moeten byte-identiek blijven."""
+    for naam in GEPIND:
+        assert naam in PROFILES, f"{naam} bestaat niet meer — pin opnieuw"
+        assert PROFILES[naam].post_processing.rip_quality_scale_free is False, (
+            f"{naam} mag niet meebewegen met poortreparaties")
 
 
-def test_geen_enkel_geleverd_profiel_zet_het_aan():
-    aan = [n for n, p in PROFILES.items()
-           if p.post_processing.rip_quality_scale_free]
-    assert aan == [], f"profielen zouden byte-identiek blijven: {aan}"
+def test_precies_die_twee_zijn_gepind():
+    """Een derde profiel dat stilletjes uit gaat is net zo fout als een
+    gepind profiel dat aan gaat."""
+    uit = {n for n, p in PROFILES.items()
+           if not p.post_processing.rip_quality_scale_free}
+    assert uit == set(GEPIND), f"onverwachte pinning: {uit}"
 
 
 def test_veld_bereikt_de_legacy_dict():
     import psgscoring.constants as C
     for naam, d in C.SCORING_PROFILES.items():
-        assert d["RIP_QUALITY_SCALE_FREE"] is False, naam
+        verwacht = naam not in GEPIND
+        assert d["RIP_QUALITY_SCALE_FREE"] is verwacht, naam
 
 
 # ── de bug zelf ──────────────────────────────────────────────────────

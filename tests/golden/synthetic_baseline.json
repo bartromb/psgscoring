@@ -478,6 +478,95 @@
       "odi_4pct": 0.0
     }
   },
+  "mv_scale_effort": {
+    "arousal": {
+      "arousal_index": null,
+      "n_flat": 0,
+      "n_nested": 0,
+      "rera_index": null
+    },
+    "events": [
+      {
+        "conf": 0.95,
+        "d": 12.3,
+        "t": 61.6,
+        "type": "obstructive"
+      },
+      {
+        "conf": 0.95,
+        "d": 12.5,
+        "t": 121.6,
+        "type": "obstructive"
+      },
+      {
+        "conf": 0.9,
+        "d": 12.4,
+        "t": 241.7,
+        "type": "central"
+      },
+      {
+        "conf": 0.95,
+        "d": 12.4,
+        "t": 301.6,
+        "type": "obstructive"
+      },
+      {
+        "conf": 0.9,
+        "d": 12.3,
+        "t": 361.7,
+        "type": "central"
+      }
+    ],
+    "profile": "aasm_v3_rec",
+    "quality": {
+      "channels": {
+        "ABDOMEN": {
+          "clip_pct": 0.0,
+          "flat_pct": 100.0,
+          "grade": "poor"
+        },
+        "FLOW": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "SPO2": {
+          "clip_pct": 90.1,
+          "flat_pct": 90.2,
+          "grade": "poor"
+        },
+        "THORAX": {
+          "clip_pct": 0.0,
+          "flat_pct": 100.0,
+          "grade": "poor"
+        }
+      },
+      "overall_grade": "poor"
+    },
+    "resp": {
+      "ahi_excl_noise": 31.6,
+      "ahi_total": 31.6,
+      "n_by_type": {
+        "central": 2,
+        "obstructive": 3
+      },
+      "n_events": 5,
+      "n_rejected_hypopneas": 0,
+      "oahi_all": 18.9,
+      "oahi_conf60": 18.9,
+      "rdi": 31.6,
+      "rule1a_arousal_reinstated": 0,
+      "rule1b_reinstated": 0,
+      "success": true
+    },
+    "spo2": {
+      "hypoxic_burden": 0.2,
+      "min_spo2": 91.0,
+      "n_desaturations": 5,
+      "odi_3pct": 31.6,
+      "odi_4pct": 0.0
+    }
+  },
   "poor_quality": {
     "arousal": {
       "arousal_index": null,

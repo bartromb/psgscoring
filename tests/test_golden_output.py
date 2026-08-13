@@ -88,7 +88,7 @@ EVENTS_HYP = [
 
 def make_raw(events, *, variability, flat_segments=(), spo2_dropouts=(),
              degrade_all=False, noise=0.005, seed=42,
-    eeg=False, desats=True,
+    eeg=False, desats=True, effort_scale=1.0,
 ):
     """Build a deterministic synthetic recording.
 
@@ -125,6 +125,16 @@ def make_raw(events, *, variability, flat_segments=(), spo2_dropouts=(),
     flow = amp_var * flow_amp * np.sin(2 * np.pi * BR * t) + rng.normal(0, noise, n)
     thorax = amp_var * eff_amp * np.sin(2 * np.pi * BR * t + 0.05) + rng.normal(0, noise, n)
     abdomen = 0.9 * amp_var * eff_amp * np.sin(2 * np.pi * BR * t + 0.20) + rng.normal(0, noise, n)
+
+    # `effort_scale` bootst na dat een EDF zijn RIP-kanalen in mV declareert:
+    # MNE rekent dan naar V en de waarden komen ~1e-5x zo klein binnen. De
+    # signaalVORM verandert niet. Zonder zo'n case is de golden blind voor de
+    # hele klasse fouten waarin een absolute amplitudedrempel in feite de
+    # eenhedendeclaratie meet — de bestaande cases hebben MAD ~0,6 en zitten
+    # dus toevallig in het bereik waar zo'n drempel werkt.
+    if effort_scale != 1.0:
+        thorax = thorax * effort_scale
+        abdomen = abdomen * effort_scale
 
     # dead/flat flow segments (signal dropout)
     for t0, t1 in flat_segments:
@@ -195,6 +205,14 @@ CASES = {
                            profile="cms_medicare", arousals=True),
     "poor_quality":   dict(events=EVENTS_APNEA, variability=0.05,
                            degrade_all=True, profile="aasm_v3_rec"),
+    # Effortkanalen in mV-schaal: dezelfde signaalvorm, 1e-5x de amplitude.
+    # Elke ANDERE case heeft MAD ~0,6 en zit dus in het bereik waar een
+    # absolute amplitudedrempel toevallig werkt; daardoor bleef de golden
+    # groen toen bleek dat de RIP-poort in feite de eenhedendeclaratie mat en
+    # op MESA 52 van 52 opnames afkeurde. Deze case is het vangnet daarvoor:
+    # de apneus horen hier getypeerd te worden, niet `uncertain`.
+    "mv_scale_effort": dict(events=EVENTS_APNEA, variability=0.05,
+                            effort_scale=1e-5, profile="aasm_v3_rec"),
     # Hypopnees ZONDER desaturatie plus een EEG met arousals: de enige weg
     # naar kwalificatie is de AASM Rule 1A arousal-tak, via de INTERNE
     # arousal-detectie. `cms_arousal` dekt dit niet -- die geeft arousals

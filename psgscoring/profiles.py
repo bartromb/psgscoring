@@ -196,7 +196,7 @@ class PostProcessingRules:
     aanzetten en strictness opnieuw afleiden zijn één experiment. Zie de
     CHANGELOG bij v0.16.0."""
 
-    stability_filter_all_hypopnea_subtypes: bool = False
+    stability_filter_all_hypopnea_subtypes: bool = True
     """Laat het stabiele-ademhalingsfilter ook op gesubtypeerde hypopneus slaan.
 
     Het filter vergelijkt het eventtype EXACT met `"hypopnea"`, terwijl
@@ -223,10 +223,13 @@ class PostProcessingRules:
     variatiecoëfficiënt van de ademamplitude — heeft niets met het subtype te
     maken. Daarom een vlag en geen stille correctie.
 
-    Default `False` = bestaand gedrag; elk bestaand profiel blijft
-    byte-identiek."""
+    **Default `True` sinds 13-08-2026** (gebruikersbesluit). Het filter dekt nu
+    alle hypopneus, ongeacht subtype, zodat de dekking niet meer afhangt van of
+    de effortclassificatie toevallig lukte. `mesa_shhs` en `chicago_1999`
+    blijven expliciet op `False` voor de reproduceerbaarheid van paper
+    v31/v37 respectievelijk de historische Chicago-criteria."""
 
-    rip_quality_scale_free: bool = False
+    rip_quality_scale_free: bool = True
     """Beoordeel de RIP-effortkanalen op signaalVORM in plaats van op absolute
     amplitude.
 
@@ -242,12 +245,15 @@ class PostProcessingRules:
     gedeeld door 0,02–4,0 Hz) en op de vlakke fractie. Beide zijn verhoudingen
     binnen hetzelfde signaal en dus eenheidsvrij.
 
-    Default `False` = bestaand gedrag. Dit is UITDRUKKELIJK geen stille
-    reparatie: kale `uncertain` valt buiten `ahi_total`, dus een werkende poort
-    zet op MESA `uncertain`-apneus om in getypeerde apneus en verhoogt daarmee
-    de AHI. Het is dus een indexwijziging, niet alleen een typeringswijziging.
-    `mesa_shhs` en `chicago_1999` blijven daarom gepind op `False`, anders
-    breekt de reproductie van paper v31/v37. Zie CHANGELOG v0.17.0."""
+    **Default `True` sinds 13-08-2026** (gebruikersbesluit). Dit is een
+    INDEXwijziging, niet alleen een typeringswijziging: kale `uncertain` valt
+    buiten `ahi_total`, dus een werkende poort verhoogt de AHI. Tegen de
+    NSRR-`aasm15`-referentie (n=40) halveert de bias — `aasm_v3_rec`
+    −9,48 → −5,14, `aasm_v3_breath` −11,93 → −5,33 — bij op `breath`
+    identieke F1, precisie en recall: zelfde events, andere boekhouding.
+
+    `mesa_shhs` en `chicago_1999` blijven expliciet op `False`, anders breekt
+    de reproductie van paper v31/v37. Zie CHANGELOG v0.17.0."""
 
     max_events_per_desaturation: int | None = None
     """Hoeveel hypopneus één desaturatie ten hoogste mag bevestigen.
@@ -1033,6 +1039,13 @@ _mesa_shhs = Profile(
         artefact_flank_exclusion=True,
         mixed_apnea_decomposition=True,
         unsure_as_hypopnea=True,  # ← NSRR-specific
+        # GEPIND op het gedrag van vóór 13-08-2026. Beide vlaggen staan
+        # sindsdien default aan, maar dit profiel reproduceert paper v31/v37
+        # en moet byte-identiek blijven. De poort aanzetten zou hier
+        # `uncertain`-apneus in `ahi_total` trekken en de gepubliceerde
+        # indices verschuiven; zie PostProcessingRules.rip_quality_scale_free.
+        rip_quality_scale_free=False,
+        stability_filter_all_hypopnea_subtypes=False,
         local_baseline_cv_threshold=0.3,
         local_baseline_strict_reduction=25.0,
         # Paper v34 §S5.6 MESA tuning: relax local-baseline validator
@@ -1095,6 +1108,14 @@ _chicago_1999 = Profile(
         arousal_required=False,
         desat_or_arousal=True,
         square_root_linearisation=True,
+    ),
+    post_processing=PostProcessingRules(
+        # GEPIND op het gedrag van vóór 13-08-2026: dit profiel reproduceert
+        # de Chicago-criteria van 1999 en hoort niet mee te bewegen met
+        # reparaties aan de sensorpoorten. Zie
+        # PostProcessingRules.rip_quality_scale_free.
+        rip_quality_scale_free=False,
+        stability_filter_all_hypopnea_subtypes=False,
     ),
 )
 
