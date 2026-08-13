@@ -96,9 +96,38 @@ bilateraal — dus die grens heeft geen gedragsgevolg.
 | `ahi_incl_uncertain` | 39,6 | 35,9 |
 
 De twee indices vallen aan de aan-kant samen, zoals hoort wanneer er niets meer
-onbepaald is. De cohortbrede meting staat in
-`docs/rip_gate_effect_mesa_20260812.{json,log}`
+onbepaald is. Cohortbreed (n=20): alle 20 opnames van `unreliable` naar
+`bilateral` (1x single-channel), 713 `uncertain`-apneus worden 458 obstructief
+/ 247 centraal / 8 gemengd — exact hetzelfde aantal — en `ahi_total` stijgt
+gemiddeld +4,75/u. Zie `docs/rip_gate_effect_mesa_20260812.{json,log}`
 (`scripts/effect_rip_gate_mesa.py`).
+
+## Tegen de NSRR-referentie
+
+`validate_mesa.py --n 40 --seed 20260801`, referentie `aasm15`, twee runs die
+alleen in `--rip-scale-free` verschillen:
+
+| profiel | poort | F1 | precisie | recall | bias | MAE | r | severity |
+|---|---|---|---|---|---|---|---|---|
+| `aasm_v3_rec` | uit | 0,447 | 0,508 | 0,447 | −9,48 | 10,00 | 0,763 | 20/40 |
+| `aasm_v3_rec` | **aan** | 0,442 | 0,557 | 0,396 | **−5,14** | **8,37** | **0,806** | **24/40** |
+| `aasm_v3_breath` | uit | 0,482 | 0,645 | 0,458 | −11,93 | 12,98 | 0,723 | 12/40 |
+| `aasm_v3_breath` | **aan** | 0,482 | 0,645 | 0,458 | **−5,33** | **9,04** | **0,801** | **18/40** |
+
+Op `aasm_v3_breath` zijn F1, precisie en recall tot op drie decimalen identiek
+terwijl de bias halveert. Dat is het mechanisme, niet een toevalligheid: die
+detector labelt hypopneus altijd kaal `"hypopnea"`, dus daar verandert de
+detectie niet en wordt er alleen opgehouden apneus als `uncertain` uit
+`ahi_total` te laten vallen. Zelfde events, andere boekhouding.
+
+Op `aasm_v3_rec` gaat bovendien het stabiele-ademhalingsfilter draaien (zie
+`stability_filter_all_hypopnea_subtypes`): precisie omhoog, recall omlaag, F1
+vlak. Op beide profielen verbetert élke index-maat.
+
+**Ruim de helft van de gerapporteerde MESA-onderdetectie was dus geen
+detectieprobleem.** De drempel 0,27 is niet op deze uitkomst gekozen — hij lag
+vast op de signaalvorm voordat deze meting draaide, dus dit is een
+onafhankelijke bevestiging en geen fit. n = 40, één seed.
 
 ## Waarom dit een vlag is en geen stille reparatie
 
