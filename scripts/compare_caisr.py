@@ -93,18 +93,33 @@ def _n_adjacent_same_type(events) -> int:
 
 
 def _f1(ev_a, ev_b, matcher: dict) -> dict:
+    """Neem de maten die `match_events_symmetric` zelf al berekent.
+
+    Een eerdere versie zocht `m["n_matched"]` met een `m.get("matched", 0)` als
+    terugval en rekende precisie en recall daarna zelf uit. De matcher levert
+    die sleutel niet — hij heet `tp_ab` — dus die terugval gaf STIL nul, en
+    daarmee F1 = 0,000 op elke opname. Dat zag eruit als "de twee systemen zijn
+    het nergens eens" terwijl SN1 in werkelijkheid 25 overeenkomsten had. De
+    fout bleef staan omdat CAISR tot 13-08-2026 nooit gedraaid had.
+
+    Daarom nu: geen eigen herberekening, en een harde KeyError als de matcher
+    van vorm verandert.
+    """
     a, b = _to_triples(ev_a), _to_triples(ev_b)
     if not a and not b:
         return {"f1": None, "precision": None, "recall": None,
                 "n_a": 0, "n_b": 0, "n_matched": 0}
     m = match_events_symmetric(a, b, **matcher)
-    n_match = m["n_matched"] if isinstance(m, dict) and "n_matched" in m else m.get("matched", 0)
-    prec = n_match / len(a) if a else 0.0
-    rec = n_match / len(b) if b else 0.0
-    f1 = (2 * prec * rec / (prec + rec)) if (prec + rec) else 0.0
-    return {"f1": round(f1, 3), "precision": round(prec, 3),
-            "recall": round(rec, 3), "n_a": len(a), "n_b": len(b),
-            "n_matched": n_match}
+    ontbreekt = {"f1", "precision_ab", "recall_ab", "tp_ab"} - set(m)
+    if ontbreekt:
+        raise KeyError(
+            f"match_events_symmetric mist {sorted(ontbreekt)}; de vorm is "
+            f"gewijzigd. Stil doorrekenen zou nullen opleveren die op een "
+            f"meting lijken. Geleverd: {sorted(m)}")
+    return {"f1": round(float(m["f1"]), 3),
+            "precision": round(float(m["precision_ab"]), 3),
+            "recall": round(float(m["recall_ab"]), 3),
+            "n_a": len(a), "n_b": len(b), "n_matched": int(m["tp_ab"])}
 
 
 def main(argv=None) -> int:
