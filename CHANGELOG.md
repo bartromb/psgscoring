@@ -3,6 +3,41 @@
 > original because it underpins the MESA figures in the paper; earlier entries
 > are deliberately left as they are rather than retranslated.
 
+# Unreleased — block 2D measured on the duration distribution: it overlaps an existing splitter
+
+Before any sweep, two things that change what 2D can be.
+
+**psgscoring already splits long events.** `_split_long_region` (v0.8.22) cuts
+a region longer than the profile maximum at its point of highest flow
+amplitude — the best partial recovery — recursively. The maxima are 90 s for
+apnoeas and 60 s for hypopnoeas. So 2D is not a missing capability; it is a
+DIFFERENT ANCHOR for a mechanism that exists. Existing: ventilation recovery.
+2D: the physiological consequence, a desaturation or an arousal.
+
+**The duration distribution has no natural gap.** MESA n=150, 16 839 events on
+`aasm_v3_breath`: median 21.4 s, p99 81.1 s, a smooth decay and then a hard
+ceiling at 90 s — the ceiling is the existing splitter, not physiology. The
+specification allows moving the threshold to a natural gap if the measurement
+shows one. It does not show one, so the threshold stays at CAISR's 60 s and is
+documented as inherited rather than derived.
+
+**What is left to split, by family:**
+
+| family | events | above 60 s |
+|---|---|---|
+| hypopnoea | 9 880 | **0 (0.00 %)** |
+| apnoea | 6 959 | 593 (8.52 %) |
+
+Hypopnoeas are already capped at 60 s by the existing splitter, so at threshold
+60 s block 2D can only touch apnoeas in the 60–90 s band.
+
+**Expectation, recorded before the sweep** (as the specification requires):
+event count rises on CSR nights, AHI rises on that subgroup, and almost nothing
+changes elsewhere. Given the family split above, the effect is bounded from the
+start: at most 593 of 16 839 events (3.5 %) are even candidates, all of them
+apnoeas.
+
+
 # Unreleased — block 3.1 remeasured with the gate open: subtyping is weak, and it is CSR
 
 No code change. MESA n=60 (52 usable), `aasm_v3_rec`, seed 20260801, single
