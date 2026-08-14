@@ -8,6 +8,25 @@ on:
   workflow_dispatch:   # allow manual trigger from UI
 
 jobs:
+  lint:
+    name: Lint (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install mypy
+        # Pinned: unpinned, a new mypy release can turn the gate red without a
+        # line of code changing, and a gate that falls over for external
+        # reasons gets ignored.
+        run: pip install mypy==2.3.0
+      - name: mypy
+        # Scope comes from [tool.mypy] in pyproject.toml -- the modules that
+        # are already clean. See the comment there for the ratchet.
+        run: mypy
+
   test:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest

@@ -23,6 +23,30 @@ Technical details (signal processing chain, classification logic, all twelve bia
 2. **AHI confidence interval** — every study is scored at three stringency levels (strict/standard/sensitive), yielding a per-study robustness grade (A/B/C) rather than a single AHI number
 3. **Clinical auditability** — every event carries a confidence score, classification rule index, and per-correction counters, enabling the reviewing physician to verify individual scoring decisions
 
+## Release policy
+
+Releases are **measurement points, not milestones**. Several may be cut on the
+same day: every behavioural change is validated against the golden harness and
+at least one cohort before it ships, and the version is what makes that
+validation citable. A high version number reflects how often the work is
+measured, not instability.
+
+The stability guarantee lives in the **profiles**, not in the version number:
+
+- `mesa_shhs` and `chicago_1999` are **frozen**. They reproduce published
+  results (paper v31/v37 and the 1999 Chicago Criteria respectively) and are
+  pinned against behavioural changes, including repairs that every other
+  profile receives.
+- All other profiles track the current best understanding of the AASM rules
+  and may move between releases when a measurement justifies it. Each such
+  change is behind a profile field whose default preserves the previous
+  behaviour, is recorded in `CHANGELOG.md` with the measurement that motivated
+  it, and is pinned by a test.
+
+If you need scored values to stay identical across time — for a study, a
+regulatory submission, or a paper — **pin the version** (`psgscoring==0.17.0`)
+and record which profile you used. Do not rely on a profile name alone.
+
 ## Installation
 
 ```bash

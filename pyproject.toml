@@ -59,3 +59,29 @@ include = ["psgscoring*"]
 
 [tool.setuptools.package-data]
 "psgscoring" = ["data/*.txt", "py.typed"]
+
+[tool.mypy]
+# Pragmatisch, en bewust GESCOPEERD. Een gate die bij invoering rood staat
+# wordt genegeerd -- dat is precies wat er met de ruff-gate van YASAFlaskified
+# gebeurde, die drie releases lang rood stond zonder gevolg.
+#
+# Over de hele codebase geeft mypy nu 96 fouten, vrijwel allemaal `assignment`
+# (`x = None` gevolgd door `x = "iets"`) en `operator` (numpy). Die opruimen is
+# een annotatiecampagne door bestaande code, en die is uitdrukkelijk niet de
+# bedoeling. In plaats daarvan draait de CI mypy op de modules die AL schoon
+# zijn; daar blokkeert hij dus echt. Zie de `files`-lijst hieronder.
+#
+# RATEL: modules worden aan de lijst toegevoegd zodra ze op nul staan, nooit
+# verwijderd. Stand 2026-08-14 van wat er nog buiten valt:
+#   arousal.py 30 · pipeline.py 18 · signal_quality.py 12 · classify.py 12
+#   breath_scoring.py 7 · spo2.py 5 · respiratory.py 1
+ignore_missing_imports = true
+follow_imports = "silent"
+files = [
+    "psgscoring/compare",
+    "psgscoring/_types.py",
+    "psgscoring/constants.py",
+    "psgscoring/ml_classifier.py",
+    "psgscoring/profiles.py",
+    "psgscoring/utils.py",
+]

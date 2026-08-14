@@ -1,3 +1,8 @@
+> **Language policy.** Entries before 2026-08-14 are partly in Dutch; from
+> here on, English. The v0.17.0 entry carries an English translation below the
+> original because it underpins the MESA figures in the paper; earlier entries
+> are deliberately left as they are rather than retranslated.
+
 # v0.17.0 — 2026-08-13 — de RIP-kwaliteitspoort mat de eenhedendeclaratie
 
 ## Het defect
@@ -177,6 +182,83 @@ Bijwerking die apart gemeten hoort: op MESA is de AHI-bias −11 tot −15/u
 `uncertain` belandden en daar uit `ahi_total` vielen, dan verbetert de poort de
 bias. Dat is een hypothese, geen claim — en ze wordt gemeten NA de kalibratie,
 niet ervoor, zodat ze de drempel niet kan sturen.
+
+---
+
+## English translation (v0.17.0)
+
+**The defect.** `assess_rip_channel` rejected an effort channel on two
+ABSOLUTE thresholds, `MAD < 0.005` and `breath_energy < 0.001`. EDF units are
+per-channel free. A recording that declares RIP in mV arrives ~150x below
+those thresholds after conversion to volts, carrying a perfectly normal
+signal; one that declares `n/a` arrives thousands of times above them. The
+threshold therefore selected on how the acquisition system writes its unit,
+not on the sensor.
+
+Measured across three cohorts, three conventions:
+
+| cohort | unit | MAD | breath fraction | gate |
+|---|---|---|---|---|
+| MESA (n=52) | mV | 0.00003 – 0.00005 | 0.37 – 0.58 | **unreliable**, 0/52 pass |
+| clinical `89e63920` | mV | 0.0016 / 0.051 | 0.64 / 0.75 | **single-channel** |
+| PSG-IPA `SN1` | n/a | 164 / 233 | 0.83 / 0.91 | bilateral |
+
+MAD spans seven orders of magnitude; the breath fraction — the actual signal
+quality — spans a factor of 2.5, and the two do not even rank the channels the
+same way. On MESA this made 52 of 52 recordings `unreliable`, so every apnoea
+came out as `uncertain` and apnoea subtyping could not be measured at all. On
+the clinical recording the thorax channel is rejected despite having the best
+waveform of anything measured here, after which the recording degrades
+silently to `single-channel` — without paradoxical phase detection, the very
+quantity obstructive/central typing rests on.
+
+That this never showed on PSG-IPA is no coincidence: that cohort declares
+`n/a`. The paper's validation cohort is precisely the cohort where the gate
+does not bite.
+
+**The repair.** `rip_shape_metrics()` returns two scale-free quantities: the
+breath fraction (power in 0.10–0.50 Hz over 0.02–4.0 Hz) and the flat
+fraction (share of identical consecutive samples). Both are ratios within the
+same signal and therefore independent of the declared unit.
+
+**Decision rule, declared before calibration.** The failure threshold is
+placed in the middle of the gap between a demonstrably dead channel (flat line
+and white noise, whose expected breath fraction is analytically ~0.10) and the
+observed real channels. It is NOT tuned on any outcome measure — not AHI bias,
+not event F1, not agreement with NSRR. Had there been no gap, that would have
+been reported and no number chosen.
+
+Calibration: flat line 0.000; quantisation noise 0.102; white noise 0.103;
+50 Hz mains 0.102; drift without breathing 0.174; **gap**; real channels,
+n=20 across three cohorts, 0.371 – 0.912. Midpoint (0.174 + 0.371)/2 = 0.2725
+→ `BREATH_FRACTION_FAILED_BELOW = 0.27`. That noise lands on the bandwidth
+ratio (0.50−0.10)/(4.0−0.02) = 0.101 is separately tested: the dead end of the
+scale is known analytically rather than fitted.
+
+**Why this is a flag and not a silent fix.** Bare `uncertain` falls OUTSIDE
+`ahi_total` (it is counted in `ahi_incl_uncertain`). A working gate turns
+`uncertain` apnoeas into typed apnoeas on MESA and therefore raises the AHI.
+This is an INDEX change, not merely a typing change, and it breaks byte
+identity for `mesa_shhs` — the reproduction of paper v31/v37. `mesa_shhs` and
+`chicago_1999` are pinned to the absolute behaviour.
+
+**Against the NSRR reference** (`validate_mesa.py`, n=40, reference `aasm15`,
+two runs differing only in `--rip-scale-free`): `aasm_v3_rec` bias
+−9.48 → −5.14, MAE 10.00 → 8.37, r 0.763 → 0.806, severity 20/40 → 24/40;
+`aasm_v3_breath` bias −11.93 → −5.33, MAE 12.98 → 9.04, r 0.723 → 0.801,
+severity 12/40 → 18/40. On `breath`, F1, precision and recall are identical to
+three decimals while the bias halves — the same events, different accounting.
+Confirmed at n=150 on 2026-08-14: bias −11.20 → −5.30 (`rec`),
+−13.25 → −5.18 (`breath`), −15.02 → −2.34 (`breath_dual`).
+
+**Both flags default ON for 13 of 15 profiles** (user decision, 2026-08-13).
+`mesa_shhs` and `chicago_1999` stay pinned. The golden harness was blind to
+this entire class of defect: flipping both flags left all seven existing cases
+bit-identical, because every fixture has effort channels with MAD ~0.6 and
+therefore sits in the range where an absolute threshold happens to work. The
+new case `mv_scale_effort` (`effort_scale=1e-5`) closes that gap and shows the
+bug in its purest form: five apnoeas detected, `ahi_total` 0.0 with the gate
+off against 31.6 with it on.
 
 # v0.16.0 — 2026-08-12 — the square-root linearisation depended on the montage, not on the profile
 
