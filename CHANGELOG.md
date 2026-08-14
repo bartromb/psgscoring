@@ -3,6 +3,44 @@
 > original because it underpins the MESA figures in the paper; earlier entries
 > are deliberately left as they are rather than retranslated.
 
+# Unreleased — block 1B step 2 measured: nearest-edge snapping does NOT fix the offset
+
+`event_boundaries="breath"` is implemented and stays default off. Measured on
+PSG-IPA against the same twelve scorers, `aasm_v3_rec`, single arousal
+derivation:
+
+| recording | hypopnoea onset | hypopnoea offset | median F1 | AHI |
+|---|---|---|---|---|
+| SN1 | −3.30 → **−3.51** | −5.00 → −4.99 | 0.470 → 0.470 | 8.1 → 8.1 |
+| SN2 | −5.30 → **−5.75** | +9.60 → +8.50 | 0.317 → 0.333 | 9.3 → 9.3 |
+| SN3 | −5.15 → −4.24 | −1.10 → −0.70 | 0.886 → 0.886 | 53.8 → 53.8 |
+| SN4 | −3.15 → **−3.66** | +1.65 → +1.85 | 0.286 → 0.286 | 4.3 → 4.3 |
+| SN5 | −2.10 → −2.04 | −0.30 → −1.05 | 0.349 → **0.338** | 11.0 → 11.0 |
+
+**The onset offset does not shrink.** It improves on two recordings, worsens on
+three, the median F1 moves by at most 0.016 in either direction, and the AHI is
+unchanged everywhere.
+
+**Why, and it should have been foreseen.** Nearest-edge snapping is
+direction-agnostic: it moves a boundary to whichever breath edge is closest, at
+most half a breath (~2 s). The measured lag is 2-5 s and systematic, so the
+nearest edge to an early envelope crossing is usually the same early one. To
+correct a one-directional lag you have to snap to the first *reduced* breath at
+onset and the first *recovered* breath at offset -- the semantic rule, not the
+geometric one. That needs a per-breath reduction verdict, which the cascade
+detector does not compute. The graded detector does, which is precisely why it
+already lands at half the offset.
+
+**Consequence.** The field stays, default `"envelope"`, because the
+implementation is correct for what it does and the audit trail
+(`classify_detail.envelope_onset_s`) is useful on its own. It is proposed for
+no profile. The envelope-lag diagnosis from the 1B measurement stands; this
+geometric correction is simply not the fix, and adding a shift constant to
+force it would be fitting on five recordings -- explicitly ruled out by the
+block 1B specification.
+
+Measurement: `docs/event_boundaries_psgipa_20260814.{json,log}`.
+
 # Unreleased — block 1B measurement: event boundaries
 
 No behavioural change. `scripts/measure_boundary_offsets.py` (6 tests) measures

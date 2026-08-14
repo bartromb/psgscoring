@@ -11,17 +11,34 @@
 
 > Rombaut B, Rombaut B, Rombaut C, et al. **Automated Polysomnography Scoring for Clinical Sleep Medicine: An Open-Source Platform Validated Against 59 Independent Scorer Sessions on PSG-IPA.** Manuscript in preparation, 2026.
 
-Technical details (signal processing chain, classification logic, all twelve bias corrections): **[Technical Reference (Online Supplement)](https://github.com/bartromb/psgscoring/wiki/Technical-Reference)**
+Technical details (signal processing chain, classification logic, bias corrections): **[Technical Reference (Online Supplement)](https://github.com/bartromb/psgscoring/wiki/Technical-Reference)**
 
 ## What this library does
 
 `psgscoring` detects and classifies respiratory events (apneas, hypopneas, RERAs) in polysomnography recordings following AASM rules. It extends [YASA](https://github.com/raphaelvallat/yasa) (Vallat & Walker, *eLife* 2021) from sleep staging into a complete clinical respiratory scoring pipeline.
 
-**Three contributions that distinguish this library:**
+**Four things that distinguish this library:**
 
-1. **Twelve bias corrections** — the first systematic identification and empirical quantification of six over-counting and six under-counting mechanisms in automated respiratory scoring
-2. **AHI confidence interval** — every study is scored at three stringency levels (strict/standard/sensitive), yielding a per-study robustness grade (A/B/C) rather than a single AHI number
-3. **Clinical auditability** — every event carries a confidence score, classification rule index, and per-correction counters, enabling the reviewing physician to verify individual scoring decisions
+1. **Graded evidence instead of a threshold cascade** — the AASM Rule 1A
+   conjunction is evaluated as a product of graded terms (flow reduction,
+   duration, desaturation-or-arousal, breath template) rather than a chain of
+   yes/no cuts. One operating point replaces three parameter combinations.
+   On MESA (n=150, held out) this raises event-level agreement over the rule
+   cascade by a median ΔF1 of +0.029 (p = 7·10⁻⁸) without costing anything on
+   the AHI itself.
+2. **AHI confidence interval** — every study is scored at three stringency
+   levels (strict/standard/sensitive), yielding a per-study robustness grade
+   (A/B/C) rather than a single AHI number.
+3. **Clinical auditability** — every event carries a confidence score, the
+   rule that admitted it, the graded terms behind that decision, and the
+   counters of every correction that touched it. Rejected candidates are kept
+   with their rejection reason rather than discarded, so a reviewing physician
+   can see what was *not* scored and why.
+4. **Measured, not asserted** — every behavioural change ships with the
+   measurement that motivated it and a decision rule fixed *before* the sweep.
+   `CHANGELOG.md` carries the numbers, including the ones that argued against
+   the change. Validation runs on PSG-IPA (5 recordings, 12 scorers each) and
+   MESA/NSRR (held out, nothing tuned on it).
 
 ## Release policy
 
@@ -200,7 +217,15 @@ Identical to `aasm_v3_rec` on any montage without a usable thermistor. Set
 
 **MESA** (NSRR, external cohort): q=7 high-quality holdout, n=92 (held out from the optional LightGBM re-classifier's training). LightGBM-augmented AHI: bias −0.02/h, MAE 5.3/h, Pearson r = 0.87 against the NSRR `nsrr_ahi_hp3u` reference. SHHS-1 validation in progress.
 
-## Twelve Bias Corrections
+## Bias corrections
+
+The twelve below were the original systematic pass: six over-counting and six
+under-counting mechanisms, each identified and quantified separately. The list
+has grown since and is no longer the whole story — `CHANGELOG.md` carries the
+current state, with the measurement behind every entry. The most consequential
+recent one: a sensor-quality gate that judged how the EDF declared its unit
+rather than the sensor itself.
+
 
 | # | Correction | Direction | Clinical impact |
 |---|-----------|-----------|----------------|
@@ -216,6 +241,16 @@ Identical to `aasm_v3_rec` on any montage without a usable thermistor. Set
 | 10 | Position signal auto-mapping | Under-counting | Handles raw ADC encoding |
 | 11 | Configurable profiles | Under-counting | Sensitivity adjustment per study |
 | 12 | Flattening-based RERA | Under-counting | Flow limitation without amplitude drop |
+
+**Since then** (see `CHANGELOG.md` for the measurements):
+
+| Correction | Direction | What it was |
+|---|---|---|
+| Square-root linearisation applied per profile, not per montage | Over-counting | The AASM Rule 3 linearisation ran only when the hypopnoea and apnoea channels differed, so the same profile pre-processed one-channel and two-channel montages differently |
+| Scale-free RIP quality gate | Under-counting | An absolute amplitude threshold rejected effort channels by how the EDF declared its unit; on MESA it failed 52 of 52 recordings, halving the reported AHI bias once repaired |
+| Stability filter across all hypopnoea subtypes | Over-counting | The filter compared the event type exactly against `"hypopnea"`, so every subtyped hypopnoea escaped it |
+| Desaturation re-use limit | Over-counting | One desaturation could confirm any number of adjacent events (opt-in, off by default) |
+| Breath-granular event boundaries | Neither | The rule cascade starts hypopnoeas 2–5 s before human scorers; snapping to breath edges removes that offset (opt-in, off by default) |
 
 ## Architecture
 
