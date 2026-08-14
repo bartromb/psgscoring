@@ -3,6 +3,71 @@
 > original because it underpins the MESA figures in the paper; earlier entries
 > are deliberately left as they are rather than retranslated.
 
+# Unreleased — block 1B measurement: event boundaries
+
+No behavioural change. `scripts/measure_boundary_offsets.py` (6 tests) measures
+the SIGNED onset and offset difference of every matched algorithm-to-scorer
+pair on PSG-IPA, against the human-to-human distribution of the same quantity.
+Without that reference "the algorithm is 1.8 s off" cannot be interpreted,
+because scorers differ among themselves too.
+
+Convention: d = algorithm - scorer, so negative means the algorithm starts or
+ends EARLIER. Run with `PSGSCORING_AROUSAL_DERIVATION=single`, matcher
+IoU >= 0.20, type-agnostic.
+
+**Sanity check first.** Human medians are +0.10, -0.05, +0.10, -0.10, -0.11 s
+across 26 000 scorer pairs — no systematic offset between humans, as it should
+be. The human interquartile range is the noise floor everything below is judged
+against.
+
+## Result
+
+| recording | human IQR (onset) | `rec` hypopnoea onset | `breath` hypopnoea onset | apnoea onset |
+|---|---|---|---|---|
+| SN1 | −0.9 .. +1.0 | **−3.30** | −1.55 | +0.80 |
+| SN2 | −1.6 .. +1.3 | **−5.30** | −2.30 | −0.10 |
+| SN3 | −1.3 .. +1.8 | **−5.15** | −1.27 | −0.40 |
+| SN4 | −2.6 .. +1.8 | **−3.15** | −2.38 | — |
+| SN5 | −2.3 .. +1.2 | −2.10 | −2.66 | +0.55 |
+
+**Apnoeas are fine.** Onset medians +0.80, −0.10, −0.40, +0.55 all sit inside
+the human IQR; offsets sit inside on three of four. Identical between the two
+profiles, as expected — apnoeas come from the same detector.
+
+**Cascade hypopnoeas carry a systematic offset.** `aasm_v3_rec` starts
+hypopnoeas 2–5 s earlier than the human scorers, in the same direction on all
+five recordings, four of them outside the human IQR. This is the
+"systematic offset, fixed direction" case: envelope lag. The envelope crosses
+its threshold on the declining flank, while a scorer marks the first clearly
+reduced breath.
+
+**The graded detector already lands close.** `aasm_v3_breath` halves the onset
+offset and puts its hypopnoea OFFSETS inside the human IQR on all five
+recordings (+0.21, +0.55, −0.31, +1.00, +0.52). That is corroboration rather
+than a separate finding: a breath-granular detector is exactly the correction
+the envelope-lag diagnosis predicts, and it demonstrably helps.
+
+**Reclassifying part of the recall gap.** `n_lost_to_iou` — reference events
+that DO have an overlapping algorithm event but fall below the match threshold
+— totals 63 for `rec` against 8 for `breath`. Eight times fewer "missed"
+events on the graded detector are in fact only differently delimited.
+
+## What follows, and what does not
+
+Step 2 (`event_boundaries="breath"`) is NOT implemented. It moves durations,
+therefore counts, therefore the AHI and every coupling window, and the golden
+baseline would break by design. It needs a decision first, and on
+`aasm_v3_breath` the case is weak because that detector's boundaries are
+already near-human.
+
+Bearing on block 2A: the arousal coupling window anchors on the event END.
+For `aasm_v3_breath` — the profile the 2A sweep ran on — the hypopnoea offsets
+sit inside the human IQR on all five recordings, so that anchor is sound and
+the 2A conclusion (keep 15 s) is unaffected.
+
+Measurement: `docs/boundary_offsets_20260814_{summary.json,pairs.csv}`.
+
+
 # v0.17.0 — 2026-08-13 — de RIP-kwaliteitspoort mat de eenhedendeclaratie
 
 ## Het defect
