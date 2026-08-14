@@ -196,6 +196,35 @@ class PostProcessingRules:
     aanzetten en strictness opnieuw afleiden zijn één experiment. Zie de
     CHANGELOG bij v0.16.0."""
 
+    split_events_longer_than_s: float | None = None
+    """Splits events langer dan deze drempel op fysiologische ankers.
+
+    De AASM kent geen bovengrens voor eventduur, maar een flowreductie-envelop
+    van 90 s die drie desaturaties overspant is klinisch drie events, geen één.
+    Op Cheyne-Stokes-nachten kan één envelop meerdere cycli beslaan.
+
+    Ankers, in deze volgorde: de onsets van desaturaties binnen het event; is
+    er geen desaturatie, dan arousal-onsets; is er geen van beide, dan blijft
+    het event heel. Een anker in de eerste of laatste 10 s wordt genegeerd,
+    anders ontstaat een fragment dat per constructie onder de duurdrempel valt.
+
+    Elk deel gaat opnieuw door de duurtoets. Delen die daardoor afvallen gaan
+    naar `rejected_hypopneas` (of de afgewezen apneus) met reden
+    `split_fragment` — ze worden niet weggegooid, zodat de reviewer ze ziet.
+    Elk deel draagt `split_from` en `split_anchor` in zijn criteria-dict.
+
+    Subtype: elk deel erft het label van het oorspronkelijke event. Geen
+    hersubtypering per fragment in deze ronde — dat zou de effortclassificatie
+    op steeds kortere vensters draaien en dat is een aparte vraag.
+
+    Default `None` = geen splitsing = bestaand gedrag; elk bestaand profiel
+    blijft byte-identiek.
+
+    **Herkomst: CAISR-resp** (Nasiri et al., *Sleep* 48(8):zsaf134, 2025),
+    dat events > 60 s splitst op arousals of desaturaties. Alleen het idee en
+    de startwaarde komen over; de implementatie is eigen werk vanaf deze
+    specificatie. Zie `docs/third_party_comparison.md`."""
+
     event_boundaries: str = "envelope"
     """Waar de event-grenzen vandaan komen: `"envelope"` of `"breath"`.
 

@@ -268,15 +268,35 @@ def _apply_rip_scale_free(aan: bool):
         assert _d["RIP_QUALITY_SCALE_FREE"] is bool(aan), _n
 
 
+def _apply_desat_limit(limiet):
+    """Zet `max_events_per_desaturation` op ALLE profielen in dit werkproces."""
+    import importlib
+
+    from psgscoring.profiles import PROFILES as _P
+    for _p in _P.values():
+        _p.post_processing.max_events_per_desaturation = limiet
+    import psgscoring.constants as C
+    importlib.reload(C)
+    import psgscoring.pipeline as PL
+    import psgscoring.respiratory as R
+    PL.SCORING_PROFILES = C.SCORING_PROFILES
+    R.SCORING_PROFILES = C.SCORING_PROFILES
+    for _n, _d in C.SCORING_PROFILES.items():
+        assert _d["MAX_EVENTS_PER_DESATURATION"] == limiet, _n
+
+
 def analyse_one(args):
     # `profiles` moet MEE door de tuple: de worker draait in een eigen proces
     # en kan de argparse-namespace niet zien. Zonder dit rekent hij de
     # standaardset terwijl report() de uitgebreide labels eist — dan valt
     # elke opname af en meldt het harnas 'geen bruikbare opnames'.
-    rec_id, data_dir, strictness_values, profiles, rip_scale_free = args
+    (rec_id, data_dir, strictness_values, profiles, rip_scale_free,
+     desat_limit) = args
     data_dir = Path(data_dir)
     if rip_scale_free:
         _apply_rip_scale_free(True)
+    if desat_limit is not None:
+        _apply_desat_limit(int(desat_limit))
     edf = data_dir / "polysomnography" / "edfs" / f"{rec_id}.edf"
     xml = (data_dir / "polysomnography" / "annotations-events-nsrr"
            / f"{rec_id}-nsrr.xml")
@@ -506,6 +526,9 @@ def main():
     ap.add_argument("--verify-reference", action="store_true",
                     help="controleer de referentie tegen gepubliceerde oahi "
                          "en stop daarna")
+    ap.add_argument("--desat-limit", type=int, default=None,
+                    help="max_events_per_desaturation op alle profielen; "
+                         "weglaten = None = huidig gedrag")
     ap.add_argument("--rip-scale-free", action="store_true",
                     help="meet met de gerepareerde RIP-poort; NIET voor "
                          "een reproductie van paper v31/v37")
@@ -554,8 +577,8 @@ def main():
     print(f"configuraties: {', '.join(labels)}\n")
 
     rows = []
-    jobs = [(x, str(a.data_dir), a.strictness, a.profiles, a.rip_scale_free)
-            for x in picked]
+    jobs = [(x, str(a.data_dir), a.strictness, a.profiles, a.rip_scale_free,
+             a.desat_limit) for x in picked]
     with ProcessPoolExecutor(max_workers=a.workers) as ex:
         for i, r in enumerate(ex.map(analyse_one, jobs), 1):
             rows.append(r)
@@ -601,6 +624,7 @@ def main():
                 n: _prof[n].get("STABILITY_FILTER_ALL_HYPOPNEA_SUBTYPES")
                 for n in labels if n in _prof},
             "rip_scale_free_flag": bool(a.rip_scale_free),
+            "desat_limit": a.desat_limit,
         }
         a.output_json.write_text(json.dumps(
             {"seed": a.seed, "n_requested": len(picked), "configs": labels,
