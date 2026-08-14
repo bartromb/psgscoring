@@ -244,6 +244,31 @@ def estimate_spo2_lag(event_ends, spo2, sf_spo2, lo=5.0, hi=60.0, step=1.0):
     return best_lag
 
 
+def _pre_event_below_local_baseline(spo2, sf_spo2, onset_s,
+                                    baseline_win_s=120.0, pre_win_s=30.0):
+    """Ligt de saturatie vlak vóór het event onder de lokale 2-min-baseline?
+
+    Baseline = 90e percentiel over de 120 s ervoor; pre-event-saturatie =
+    mediaan over de laatste 30 s. Dit is de conditie zoals de specificatie hem
+    stelt. Let op: een 90e percentiel ligt per definitie boven het merendeel
+    van zijn venster, dus deze conditie vuurt vaak — hoe vaak precies is een
+    MEETVRAAG, en het antwoord bepaalt of de conditie deugt. Zie de CHANGELOG.
+    """
+    if spo2 is None:
+        return False
+    s = np.asarray(spo2, dtype=float)
+    b0 = int(max(0.0, onset_s - baseline_win_s) * sf_spo2)
+    p0 = int(max(0.0, onset_s - pre_win_s) * sf_spo2)
+    p1 = int(onset_s * sf_spo2)
+    bl = s[b0:p1]
+    pre = s[p0:p1]
+    bl = bl[np.isfinite(bl) & (bl > 50)]
+    pre = pre[np.isfinite(pre) & (pre > 50)]
+    if bl.size < 3 or pre.size < 3:
+        return False
+    return bool(float(np.median(pre)) < float(np.percentile(bl, 90)))
+
+
 def _desat_at(spo2, sf_spo2, onset_s, end_s, lag_s, tol_s=15.0,
               pre_win_s=60.0):
     """``(diepte_pct, nadir)`` voor dit event, gezocht rond de patiëntlag.
@@ -289,6 +314,7 @@ def score_hypopneas_breathwise(
     min_duration_s: float = 10.0,
     max_duration_s: float = 60.0,
     desat_threshold_pct: float = 3.0,
+    desat_low_baseline_relaxation: bool = False,
     candidate_floor: float = 0.15,
     recovery_margin: float = 0.25,
     strictness: float = 0.50,
@@ -481,7 +507,17 @@ def score_hypopneas_breathwise(
 
         desat, nadir = (_desat_at(spo2, sf_spo2, t0, t1, lag)
                         if spo2 is not None else (None, None))
-        p_desat = graded(desat, desat_threshold_pct, desat_width) if desat is not None else 0.0
+        # AFWIJKING VAN AASM REGEL 1A, alleen wanneer expliciet aangezet.
+        # Bij een reeds gedaalde saturatie is de fysiologische ruimte voor een
+        # 3 %-dip kleiner; het CENTRUM van de sigmoid schuift dan naar 2 %, de
+        # breedte blijft gelijk. Geen nieuwe mechaniek, geen tweede drempel.
+        _laag = False
+        _centrum = desat_threshold_pct
+        if desat_low_baseline_relaxation and spo2 is not None:
+            _laag = _pre_event_below_local_baseline(spo2, sf_spo2, t0)
+            if _laag:
+                _centrum = 2.0
+        p_desat = graded(desat, _centrum, desat_width) if desat is not None else 0.0
 
         near = [a for a in ar_onsets if t0 <= a <= t1 + arousal_window_s]
         if not near:
@@ -539,6 +575,7 @@ def score_hypopneas_breathwise(
                     "flow": round(p_flow, 3),
                     "duration": round(p_dur, 3),
                     "desaturation": round(p_desat, 3),
+                    **({"low_baseline_relaxed": True} if _laag else {}),
                     "arousal": round(p_arousal, 3),
                     "confirmation": round(p_confirm, 3),
                     "template": round(p_tmpl, 3),

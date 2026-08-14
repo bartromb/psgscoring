@@ -196,6 +196,40 @@ class PostProcessingRules:
     aanzetten en strictness opnieuw afleiden zijn één experiment. Zie de
     CHANGELOG bij v0.16.0."""
 
+    desat_low_baseline_relaxation: bool = False
+    """Verschuif het desaturatiecentrum van 3 % naar 2 % bij een lage baseline.
+
+    **Dit is een AFWIJKING van de AASM-manual, geen reparatie.** Regel 1A eist
+    ≥ 3 %. Deze optie versoepelt dat, en mag daarom nooit stilzwijgend aanstaan.
+
+    **Waarom hij bestaat.** Bij een baseline-SpO₂ van 85 % is de fysiologische
+    ruimte voor een daling van 3 % beperkt: de dissociatiecurve is daar steil
+    en een gelijke ventilatiedaling levert een kleinere procentuele dip op dan
+    bij een baseline van 96 %. Een vaste eis onderschat de belasting dan
+    stelselmatig — het probleem dat §S11.3 beschrijft.
+
+    **Hoe, gegradeerd in plaats van binair.** Het CENTRUM van de
+    desaturatie-sigmoid schuift van 3 % naar 2 %, uitsluitend voor events
+    waarvan de pre-event-saturatie ónder de lokale (2 min) baseline ligt. De
+    breedte van de sigmoid blijft gelijk. Er komt dus geen nieuwe mechaniek
+    bij: het blijft één gegradeerde term in dezelfde conjunctie, alleen met een
+    ander centrum. De binaire variant zou een tweede drempel introduceren en
+    daarmee precies de trapfunctie terugbrengen die de gegradeerde detector
+    vermijdt.
+
+    Elk event dat hierdoor kwalificeert draagt `low_baseline_relaxed: true` in
+    zijn criteria-dict, zodat het rapport bij de AHI-regel kan vermelden dat
+    dit profiel van Regel 1A afwijkt — hetzelfde patroon als de bestaande
+    experimenteel-markering.
+
+    **Nooit default aan**, ook niet later, zonder een aparte beslissing die
+    expliciet over de regelafwijking gaat en niet over de meetuitkomst.
+
+    **Herkomst: CAISR-resp** (Nasiri et al., *Sleep* 48(8):zsaf134, 2025), dat
+    een 2 %-daling als zachte 3 % telt wanneer de saturatie al onder de
+    2-minuten-baseline ligt. Hun regel is binair; deze is gegradeerd. Zie
+    `docs/third_party_comparison.md`."""
+
     split_events_longer_than_s: float | None = None
     """Splits events langer dan deze drempel op fysiologische ankers.
 

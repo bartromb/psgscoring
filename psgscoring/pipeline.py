@@ -755,6 +755,8 @@ def run_pneumo_analysis(
                 min_duration_s=float(profile.get("HYPOPNEA_MIN_DUR_S", 10.0)),
                 max_duration_s=float(profile.get("HYPOPNEA_MAX_DUR_S", 60.0)),
                 desat_threshold_pct=float(profile.get("DESATURATION_DROP_PCT", 3.0)),
+                desat_low_baseline_relaxation=bool(
+                    profile.get("DESAT_LOW_BASELINE_RELAXATION", False)),
                 strictness=float(profile.get("HYPOPNEA_STRICTNESS", 0.50)),
                 # v0.14.4: de arousal-tak is nu profielgestuurd. Hij was de
                 # enige as die niet gegradeerd was — p_arousal sprong naar het
