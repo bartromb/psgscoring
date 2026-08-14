@@ -3,6 +3,60 @@
 > original because it underpins the MESA figures in the paper; earlier entries
 > are deliberately left as they are rather than retranslated.
 
+# Unreleased — block 3.1 remeasured with the gate open: subtyping is weak, and it is CSR
+
+No code change. MESA n=60 (52 usable), `aasm_v3_rec`, seed 20260801, single
+arousal derivation.
+
+On 2026-08-12 this could not be measured: the RIP gate failed 52 of 52
+recordings and all 973 matched apnoeas came out `uncertain`. With the repaired
+gate: **52 of 52 usable** (50 bilateral, 2 single-channel), 4 still `uncertain`
+(0.4 %).
+
+**Detection is unchanged to three decimals** — F1 median 0.222, precision
+0.153, recall 0.549, identical to the earlier run. That is the control, not a
+coincidence: the gate touches typing, not detection.
+
+## Classification, 973 matched events
+
+| ref \ algo | obstructive | central | mixed | uncertain |
+|---|---|---|---|---|
+| obstructive | **609** | 235 | 1 | 4 |
+| central | 67 | **57** | 0 | 0 |
+
+Accuracy 0.687, **Cohen kappa 0.114**, recall obstructive 0.721, central 0.460.
+
+The accuracy misleads: 849 of 973 events are obstructive, so calling everything
+obstructive already scores 0.87. Kappa says what accuracy hides — agreement
+barely above chance, and central apnoeas are wrong more often than right.
+
+## Stratified, the error is concentrated
+
+| subset | n | accuracy | kappa | recall obstr. |
+|---|---|---|---|---|
+| all usable | 52 | 0.687 | 0.114 | 0.721 |
+| with Cheyne-Stokes | 38 | 0.652 | 0.091 | 0.681 |
+| without Cheyne-Stokes | 14 | **0.916** | **0.311** | **0.951** |
+
+Of the 235 obstructive-called-central errors, **230 fall on CSR nights** and 5
+outside them. That is physiologically legible: under Cheyne-Stokes the effort
+amplitude itself waxes and wanes, so an obstructive event in the trough of the
+cycle looks effort-poor.
+
+This does NOT show the algorithm is wrong. Obstructive-versus-central is hard
+for human scorers on CSR nights too, and the NSRR annotation is a single
+scoring without a spread. The measurement locates the divergence; it does not
+adjudicate it.
+
+## The ECG-effort branch never fired
+
+The specification asks for a stratum of recordings where it fires. Measured: 0
+of 52 recordings, 0 events reclassified. The axis does not exist on this cohort
+— itself a finding, since a branch that never engages on 52 MESA recordings
+contributes nothing there and its effect cannot be measured.
+
+Report: `docs/subtypering_mesa_20260814.md`.
+
 # Unreleased — block 1B step 2 measured: nearest-edge snapping does NOT fix the offset
 
 `event_boundaries="breath"` is implemented and stays default off. Measured on
