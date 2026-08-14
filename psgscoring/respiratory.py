@@ -629,6 +629,20 @@ def detect_respiratory_events(
 
         events.sort(key=lambda x: x["onset_s"])
 
+        # ── Blok 1B: grenzen naar ademteuggrenzen snappen ──────────────────
+        # Vóór de CSR-markering en vóór de summary, want dit beweegt duren en
+        # dus elke telling die erop volgt. Default "envelope" = ongewijzigd.
+        if str(sp.get("EVENT_BOUNDARIES", "envelope")).lower() == "breath":
+            events, _snap = snap_events_to_breaths(events, breaths or [])
+            result["event_boundary_snap"] = _snap
+            if _snap["n_snapped"]:
+                logger.info(
+                    "1B: %d van %d eventgrenzen naar ademteugranden gesnapt "
+                    "(mediane verschuiving onset %+.2f s, offset %+.2f s)",
+                    _snap["n_snapped"], _snap["n_events"],
+                    _snap["median_onset_shift_s"] or 0.0,
+                    _snap["median_offset_shift_s"] or 0.0)
+
         # ── Fix 3: CSR event markering ─────────────────────────────────────
         if csr_info and csr_info.get("csr_detected"):
             events = _flag_csr_events(events, csr_info)
@@ -665,6 +679,82 @@ def detect_respiratory_events(
 # bestaan (zie onderaan deze module en in de output), zodat YASAFlaskified
 # en bestaande rapporten niet breken.
 # ---------------------------------------------------------------------------
+
+def snap_events_to_breaths(events: list, breaths: list) -> tuple[list, dict]:
+    """Verschuif elke eventgrens naar de dichtstbijzijnde ademteuggrens.
+
+    De cascadedetector legt een grens waar de envelope zijn drempel kruist, op
+    de dalende flank en dus vóór de eerste duidelijk gereduceerde ademteug. Een
+    scoorder markeert die ademteug zelf. Gemeten op PSG-IPA start de cascade
+    hypopneus 2–5 s te vroeg, dezelfde richting op alle vijf opnames; zie
+    `PostProcessingRules.event_boundaries`.
+
+    **Nul gefitte parameters.** Er wordt niets bijgeschoven en niets
+    gekalibreerd — de kandidaatgrenzen zijn uitsluitend de ademteuggrenzen die
+    de bestaande detector al vond. Een naschuifconstante zou op vijf opnames
+    gefit zijn en niet generaliseren.
+
+    Een event dat zélf korter is dan één ademteug blijft ongewijzigd: snappen
+    zou het naar een volledige ademteug oprekken en daarmee een duur veranderen
+    die onder elke AASM-drempel hoort te blijven.
+
+    Returns
+    -------
+    (events, stats) — nieuwe lijst, originelen niet gemuteerd.
+    """
+    stats = {"n_events": len(events), "n_snapped": 0, "n_unchanged": 0,
+             "median_onset_shift_s": None, "median_offset_shift_s": None}
+    if not events or not breaths:
+        stats["n_unchanged"] = len(events)
+        return events, stats
+
+    randen = np.unique(np.concatenate([
+        np.array([b["onset_s"] for b in breaths], dtype=float),
+        np.array([b["onset_s"] + b["duration_s"] for b in breaths], dtype=float),
+    ]))
+    if randen.size < 2:
+        stats["n_unchanged"] = len(events)
+        return events, stats
+
+    def _dichtstbij(t: float) -> float:
+        """De ademteuggrens die het dichtst bij `t` ligt."""
+        i = int(np.searchsorted(randen, t))
+        kandidaten = [j for j in (i - 1, i) if 0 <= j < randen.size]
+        beste = min(kandidaten, key=lambda j: abs(float(randen[j]) - t))
+        return float(randen[beste])
+
+    uit, do, df = [], [], []
+    for e in events:
+        t0 = float(e.get("onset_s", 0.0))
+        t1 = t0 + float(e.get("duration_s", 0.0))
+        n0, n1 = _dichtstbij(t0), _dichtstbij(t1)
+        # Een event dat zélf korter is dan één ademteug blijft ongemoeid.
+        # Snappen zou het naar een volledige ademteug OPREKKEN, en daarmee een
+        # duur veranderen die onder elke AASM-drempel hoort te blijven. De
+        # toets staat op de oorspronkelijke lengte, niet op de gesnapte.
+        if (t1 - t0) < float(np.median(np.diff(randen))) or n1 <= n0:
+            uit.append(e)
+            stats["n_unchanged"] += 1
+            continue
+        nieuw = dict(e)
+        nieuw["onset_s"] = round(n0, 2)
+        nieuw["duration_s"] = round(n1 - n0, 2)
+        nieuw.setdefault("classify_detail", {})
+        if isinstance(nieuw["classify_detail"], dict):
+            nieuw["classify_detail"] = dict(nieuw["classify_detail"])
+            nieuw["classify_detail"]["boundaries"] = "breath"
+            nieuw["classify_detail"]["envelope_onset_s"] = round(t0, 2)
+            nieuw["classify_detail"]["envelope_offset_s"] = round(t1, 2)
+        uit.append(nieuw)
+        stats["n_snapped"] += 1
+        do.append(n0 - t0)
+        df.append(n1 - t1)
+
+    if do:
+        stats["median_onset_shift_s"] = round(float(np.median(do)), 3)
+        stats["median_offset_shift_s"] = round(float(np.median(df)), 3)
+    return uit, stats
+
 
 def reject_stable_breathing(
     events:   list,

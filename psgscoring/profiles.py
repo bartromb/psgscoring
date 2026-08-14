@@ -196,6 +196,33 @@ class PostProcessingRules:
     aanzetten en strictness opnieuw afleiden zijn één experiment. Zie de
     CHANGELOG bij v0.16.0."""
 
+    event_boundaries: str = "envelope"
+    """Waar de event-grenzen vandaan komen: `"envelope"` of `"breath"`.
+
+    De cascadedetector legt een grens waar de envelope zijn drempel kruist —
+    op de dalende flank, dus vóór de eerste duidelijk gereduceerde ademteug.
+    Een menselijke scoorder markeert die ademteug zelf. Gemeten op PSG-IPA
+    (blok 1B, 14-08-2026, gemiddelde over vijf opnames van de mediane
+    getekende afwijking algoritme − scoorder):
+
+    - apneus: onset +0,80 / −0,10 / −0,40 / +0,55 s — binnen de menselijke
+      interkwartielafstand, dus in orde.
+    - hypopneus op `aasm_v3_rec`: onset −3,30 / −5,30 / −5,15 / −3,15 / −2,10 s
+      — dezelfde richting op alle vijf opnames, vier buiten de menselijke IQR.
+      Systematische offset, niet ruis.
+    - hypopneus op `aasm_v3_breath`: de helft daarvan, en de EINDEN vallen op
+      alle vijf binnen de menselijke IQR. Die detector werkt al per ademteug;
+      dat hij dichterbij landt is de bevestiging van de diagnose.
+
+    `"breath"` snapt elke grens naar de dichtstbijzijnde ademteuggrens uit de
+    bestaande breath-detector. **Nul gefitte parameters** — geen
+    naschuifconstante, want die zou op deze vijf opnames gefit zijn en niet
+    generaliseren. De ademteuggrenzen zijn het fysiologische anker zelf.
+
+    Default `"envelope"` = bestaand gedrag; elk bestaand profiel blijft
+    byte-identiek. Aanzetten beweegt duren → tellingen → AHI → elk
+    koppelvenster, en breekt de golden-baseline per ontwerp. Zie CHANGELOG."""
+
     stability_filter_all_hypopnea_subtypes: bool = True
     """Laat het stabiele-ademhalingsfilter ook op gesubtypeerde hypopneus slaan.
 
