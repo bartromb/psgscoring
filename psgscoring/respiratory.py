@@ -680,6 +680,84 @@ def detect_respiratory_events(
 # en bestaande rapporten niet breken.
 # ---------------------------------------------------------------------------
 
+def split_long_events(
+    events:   list,
+    rejected: list,
+    *,
+    threshold_s: float | None,
+    desat_onsets: "np.ndarray | list | None" = None,
+    arousal_onsets: "np.ndarray | list | None" = None,
+    min_duration_s: float = 10.0,
+    edge_margin_s: float = 10.0,
+) -> tuple[list, list, dict]:
+    """Splits events langer dan `threshold_s` op fysiologische ankers.
+
+    Zie `PostProcessingRules.split_events_longer_than_s`. Ankers zijn eerst
+    desaturatie-onsets binnen het event, anders arousal-onsets; zonder anker
+    blijft het event heel. Ankers binnen `edge_margin_s` van een van beide
+    randen tellen niet mee, want die zouden een fragment opleveren dat per
+    constructie onder de duurdrempel valt.
+
+    Delen die de duurtoets niet halen gaan naar `rejected` met
+    `reject_reason="split_fragment"`; ze worden niet weggegooid.
+
+    Returns
+    -------
+    (events, rejected, stats)
+    """
+    stats = {"threshold_s": threshold_s, "n_candidates": 0, "n_split": 0,
+             "n_parts": 0, "n_fragments_rejected": 0, "anchor_desat": 0,
+             "anchor_arousal": 0}
+    if threshold_s is None or not events:
+        return events, rejected, stats
+
+    des = np.sort(np.asarray(desat_onsets if desat_onsets is not None else [],
+                             dtype=float))
+    aro = np.sort(np.asarray(arousal_onsets if arousal_onsets is not None else [],
+                             dtype=float))
+
+    uit = []
+    for e in events:
+        t0 = float(e.get("onset_s", 0.0))
+        dur = float(e.get("duration_s", 0.0))
+        t1 = t0 + dur
+        if dur <= threshold_s:
+            uit.append(e)
+            continue
+        stats["n_candidates"] += 1
+
+        lo, hi = t0 + edge_margin_s, t1 - edge_margin_s
+        ankers = des[(des > lo) & (des < hi)]
+        bron = "desaturation"
+        if ankers.size == 0:
+            ankers = aro[(aro > lo) & (aro < hi)]
+            bron = "arousal"
+        if ankers.size == 0:
+            uit.append(e)          # geen anker: event blijft heel
+            continue
+
+        stats["anchor_desat" if bron == "desaturation" else "anchor_arousal"] += 1
+        stats["n_split"] += 1
+        randen = [t0, *[float(x) for x in ankers], t1]
+        for a, b in zip(randen, randen[1:]):
+            deel = dict(e)
+            deel["onset_s"] = round(a, 2)
+            deel["duration_s"] = round(b - a, 2)
+            det = dict(deel.get("classify_detail") or {})
+            det["split_from"] = {"onset_s": round(t0, 2),
+                                 "duration_s": round(dur, 2)}
+            det["split_anchor"] = bron
+            deel["classify_detail"] = det
+            if (b - a) < min_duration_s:
+                deel["reject_reason"] = "split_fragment"
+                rejected.append(deel)
+                stats["n_fragments_rejected"] += 1
+            else:
+                uit.append(deel)
+                stats["n_parts"] += 1
+    return uit, rejected, stats
+
+
 def snap_events_to_breaths(events: list, breaths: list) -> tuple[list, dict]:
     """Verschuif elke eventgrens naar de dichtstbijzijnde ademteuggrens.
 

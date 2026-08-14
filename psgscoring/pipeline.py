@@ -983,6 +983,52 @@ def run_pneumo_analysis(
             logger.warning("[ml] Re-classification failed: %s", e)
             output["respiratory"]["ml_reclassification"] = {"status": f"exception: {e}"}
 
+    # ── Step 8b0: splits lange events op fysiologische ankers ─────────────
+    # Vóór de desaturatielimiet: splitsen gebeurt juist ÓP desaturaties, dus
+    # elk deel heeft daarna zijn eigen anker en de limiter hoort niet te vuren.
+    # Default None = geen splitsing; zie PostProcessingRules.
+    _split_s = profile.get("SPLIT_EVENTS_LONGER_THAN_S")
+    if _split_s is not None and output["respiratory"].get("success"):
+        try:
+            from .respiratory import split_long_events
+            from .spo2 import detect_desaturations
+            _des = []
+            if spo2_data is not None:
+                _sf_s = sf_spo2 or sf_flow or 1.0
+                _sleep = np.zeros(len(spo2_data), dtype=bool)
+                for _ep, _st in enumerate(hypno):
+                    if _st in ("N1", "N2", "N3", "R"):
+                        _a = int(_ep * 30.0 * _sf_s)
+                        _b = int((_ep + 1) * 30.0 * _sf_s)
+                        if _a < len(_sleep):
+                            _sleep[_a:min(_b, len(_sleep))] = True
+                if _sleep.any():
+                    _des = [d["onset_s"] for d in detect_desaturations(
+                        np.asarray(spo2_data, dtype=float), _sf_s, _sleep,
+                        drop_pct=float(profile.get("DESATURATION_DROP_PCT", 3.0)))]
+            _aro = [float(a.get("onset_s", 0.0)) for a in (arousals or [])]
+            _acc, _rej, _sstats = split_long_events(
+                output["respiratory"].get("events", []),
+                output["respiratory"].get("rejected_hypopneas", []),
+                threshold_s=float(_split_s),
+                desat_onsets=_des, arousal_onsets=_aro,
+            )
+            if _sstats["n_split"]:
+                output["respiratory"]["events"] = _acc
+                output["respiratory"]["rejected_hypopneas"] = _rej
+                output["respiratory"]["summary"] = _compute_summary(
+                    _acc, hypno, artifact_epochs)
+                logger.info(
+                    "[pneumo 8b0] %d lange events gesplitst in %d delen "
+                    "(%d op desaturatie, %d op arousal), %d fragmenten afgewezen",
+                    _sstats["n_split"], _sstats["n_parts"],
+                    _sstats["anchor_desat"], _sstats["anchor_arousal"],
+                    _sstats["n_fragments_rejected"])
+            output["respiratory"]["long_event_split"] = _sstats
+        except Exception as e:
+            logger.warning("[pneumo 8b0] splitsing overgeslagen: %s", e)
+            output["respiratory"]["long_event_split"] = {"status": f"exception: {e}"}
+
     # ── Step 8b: begrens hergebruik van één desaturatie ───────────────────
     # Na 8a, zodat ook door de ML gepromoveerde kandidaten meetellen. Default
     # None = geen begrenzing = byte-identiek; zie PostProcessingRules.
