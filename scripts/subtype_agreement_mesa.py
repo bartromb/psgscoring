@@ -148,10 +148,16 @@ def een(args):
         # dus het moet een stratificatie-as zijn en geen stilzwijgend nulresultaat.
         sq = r.get("signal_quality") or {}
         rip_mode = sq.get("recommended_mode") if isinstance(sq, dict) else None
+        # De ECG-effort-tak herclassificeert events naar centraal op grond van
+        # de hartslagmodulatie. Waar hij vuurt verwacht je de verschillen
+        # geconcentreerd, dus dat is een stratificatie-as (briefing 3.1).
+        n_ecg = int(resp.get("n_ecg_reclassified_central") or 0)
         return {
             "recording": rec_id, "csr": csr,
             "rip_mode": rip_mode,
             "rip_ok": rip_mode not in (None, "unreliable"),
+            "n_ecg_reclassified": n_ecg,
+            "ecg_branch": n_ecg > 0,
             "n_ref": len(ref), "n_algo": len(algo),
             "detect": {k: m.get(k) for k in
                        ("tp", "fp", "fn", "precision", "recall", "f1")},
@@ -269,6 +275,13 @@ def main():
         rapport(rip_ok, "EFFORTBANDEN BRUIKBAAR — hier is de vraag te beantwoorden")
     if rip_bad:
         rapport(rip_bad, "EFFORTBANDEN ONBRUIKBAAR — meet de dataset, niet de classificatie")
+    ecg = [r for r in rip_ok if r.get("ecg_branch")]
+    if ecg:
+        rapport(ecg, f"ECG-EFFORT-TAK VUURT  ({len(ecg)} van {len(rip_ok)})")
+    geen_ecg = [r for r in rip_ok if not r.get("ecg_branch")]
+    if geen_ecg and ecg:
+        rapport(geen_ecg, "ECG-EFFORT-TAK VUURT NIET")
+
     csr = [r for r in rip_ok if r.get("csr")]
     nocsr = [r for r in rip_ok if not r.get("csr")]
     print(f"\n  binnen de bruikbare set: {len(csr)} met CSR, {len(nocsr)} zonder")
