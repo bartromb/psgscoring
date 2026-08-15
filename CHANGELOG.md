@@ -3,6 +3,81 @@
 > original because it underpins the MESA figures in the paper; earlier entries
 > are deliberately left as they are rather than retranslated.
 
+# Unreleased — the thermistor gate asks an amplitude question about a timing problem
+
+**The defect.** `assess_flow_sensor_agreement` correlates the amplitude
+ENVELOPES of nasal pressure and thermistor at 1 Hz and admits the thermistor as
+an apnoea sensor above 0.40. Envelope correlation is the wrong quantity. A
+thermistor is a thermal sensor whose response saturates and does not track
+ventilation linearly; nasal pressure before linearisation scales roughly as the
+square of flow. The two therefore have legitimately different amplitude
+dynamics even when both track the same breaths faithfully, and a thermistor
+with correct timing but compressed dynamic range fails a criterion it should
+pass.
+
+The question the gate needs to answer is whether the two sensors observe the
+SAME BREATHS — a timing question, not an amplitude one.
+
+**The replacement.** Magnitude-squared coherence between the two channels
+across the breathing band (0.10–0.50 Hz), power-weighted. Coherence is
+invariant to a constant amplitude ratio between the channels — exactly the
+nuisance the envelope criterion is confounded by — while remaining sensitive to
+whether the two share a consistent phase relationship at the breathing
+frequency. It is scale-free for the same reason the repaired effort gate is.
+
+**DECISION RULE, declared before calibration.** The threshold is placed at the
+midpoint of the gap between channel pairs that demonstrably do NOT share
+breathing and pairs that demonstrably do. The negative end is constructed, not
+selected: the same recording's thermistor time-reversed, and phase-randomised
+surrogates preserving the power spectrum. Both retain the amplitude statistics
+and destroy the timing correspondence, so they isolate the quantity being
+measured.
+
+The threshold is NOT tuned on any outcome — not AHI, not event F1, not
+agreement with a reference, not the pass rate. If the two distributions
+overlap so that no gap exists, that is reported and no threshold is chosen; the
+existing gate then stays and the finding is that coherence does not separate
+them either.
+
+## Calibrated
+
+Three kinds of negative, from easy to strict:
+
+| negative | max coherence |
+|---|---|
+| thermistor time-reversed | 0.003 |
+| phase-randomised surrogate | 0.004 |
+| **thermistor from another recording** (n = 132 pairs) | **0.008** |
+| — gap — | |
+| real pairs, n = 25 | 0.026 – 0.771 (median 0.482) |
+
+The first two turned out to be too easy: constructed from the same signal,
+they destroy coherence completely. The cross-recording pair is the realistic
+case — two sensors that do not belong to the same patient — and that is the
+boundary that counts. Midpoint of that gap: $(0.008 + 0.026)/2 = 0.017$.
+
+**The margin is narrow, and we say so.** One of the 25 recordings has a
+thermistor that genuinely tracks poorly (0.026), so between "real but weak"
+and "unrelated" there is a factor of three. Enough to place a threshold, not
+enough to be comfortable.
+
+## What it changes
+
+On the same 25 MESA recordings the envelope criterion admits the thermistor on
+11 (44 %); coherence admits 24 (96 %). The envelope criterion was rejecting
+sensors that demonstrably track the same breathing — which is what it was
+supposed to be testing for.
+
+That the coherence threshold rejects almost nothing is the finding, not a
+defect in the calibration. The decision rule forbade tuning on the pass rate,
+and following it produced a number that says: on this cohort, the thermistor
+nearly always sees the breathing.
+
+**Scope.** New value `thermistor_gate="breath_coherence"`, default unchanged
+(`envelope_agreement`). This decides on every recording whether apnoeas are
+scored on the thermistor or on nasal pressure, so it moves the AHI; `mesa_shhs`
+and `chicago_1999` stay pinned regardless.
+
 # Unreleased — block 2B measured against the reference: the limit stays None
 
 MESA n=40, paired, `aasm_v3_breath`, reference `aasm15`. Three runs differing

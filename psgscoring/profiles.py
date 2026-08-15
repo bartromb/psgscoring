@@ -410,6 +410,17 @@ class PostProcessingRules:
                             neusdruk, drempel 0,40.
     "respiratory_band"    — ademband-vermogen van het thermistorkanaal ALLEEN,
                             drempel 0,70. Zie assess_thermistor_band_power.
+    "breath_coherence"    — magnitude-squared coherentie tussen thermistor en
+                            neusdruk over de ademband, drempel 0,015. Vraagt of
+                            beide sensoren DEZELFDE ademteugen zien in plaats
+                            van of hun amplitudes samen bewegen. Zie
+                            assess_breath_coherence: een thermistor is
+                            thermisch en verzadigt, neusdruk schaalt vóór
+                            linearisatie als flow-kwadraat, dus hun
+                            amplitudedynamiek verschilt legitiem. Gemeten op
+                            MESA keurt de envelope-poort 14 van 25 opnames af
+                            terwijl 24 van 25 thermistors aantoonbaar dezelfde
+                            ademhaling volgen.
 
     De default blijft de bestaande poort, en dat is geen conservatisme uit
     gewoonte: deze keuze verschuift op elke opname of apneus op de thermistor

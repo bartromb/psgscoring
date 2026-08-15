@@ -631,6 +631,32 @@ __all__ = [
 # milde overdetectie op de neusdruk. Met meer opnames hoort dit opnieuw
 # bepaald te worden.
 THERMISTOR_AGREEMENT_MIN = 0.40
+# Gekalibreerd 14-08-2026 volgens de beslisregel die VOORAF in de CHANGELOG
+# stond: midden in het gat tussen paren die aantoonbaar GEEN ademhaling delen
+# en paren die dat wel doen. Het negatieve uiteinde is geconstrueerd, niet
+# geselecteerd.
+#
+# Drie soorten negatief, van makkelijk naar streng:
+#   thermistor omgekeerd in de tijd        max 0,003
+#   fase-gerandomiseerd surrogaat          max 0,004
+#   thermistor van een ANDERE opname       max 0,008   (n=132 paren)
+# ------------------------------- gat --------------------------------
+#   echte paren, n=25                      0,026 – 0,771  (mediaan 0,482)
+#
+# De eerste twee bleken te makkelijk: ze vernietigen de coherentie volledig
+# omdat ze uit hetzelfde signaal komen. Het kruis-paar is het realistische
+# geval — twee sensoren die niet bij dezelfde patient horen — en dat is de
+# grens die telt. Midden in dat gat: (0,008 + 0,026) / 2 = 0,017.
+#
+# De marge is smal, en dat is een gemeten eigenschap: een van de 25 opnames
+# heeft een thermistor die werkelijk slecht meeloopt (0,026). Tussen "echt
+# maar zwak" en "niet gerelateerd" zit hier een factor drie.
+#
+# Dat de drempel weinig afkeurt IS de bevinding: de envelope-poort keurt 14
+# van de 25 opnames af terwijl 24 van de 25 thermistors aantoonbaar dezelfde
+# ademhaling volgen. De drempel is niet op de doorlaatverhouding afgesteld —
+# dat verbood de beslisregel expliciet.
+THERMISTOR_COHERENCE_MIN = 0.017
 THERMISTOR_ENV_SMOOTH_S  = 10.0
 
 # ── Alternatieve poort: één kanaal, geen vergelijking ──────────────────────
@@ -741,6 +767,84 @@ def _breath_envelope(x: np.ndarray, sf: float,
     y = np.abs(filtfilt(b, a, x))
     n = max(1, int(smooth_s * sf))
     return np.convolve(y, np.ones(n) / n, mode="same")
+
+
+def assess_breath_coherence(
+    pressure: "np.ndarray", sf_pressure: float,
+    thermistor: "np.ndarray", sf_thermistor: float,
+    min_coherence: float | None = None,
+) -> dict:
+    """Zien beide sensoren DEZELFDE ademteugen? Een timingvraag.
+
+    `assess_flow_sensor_agreement` correleert de amplitude-ENVELOPPES. Dat is
+    de verkeerde grootheid: een thermistor is een thermische sensor met
+    verzadigend bereik en neusdruk schaalt vóór linearisatie ongeveer als het
+    kwadraat van de flow. Hun amplitudedynamiek verschilt dus legitiem, ook
+    wanneer beide dezelfde ademhaling trouw volgen — en een thermistor met
+    correcte timing maar samengedrukt bereik zakt voor een toets die hij
+    hoort te halen.
+
+    Deze toets meet in plaats daarvan de magnitude-squared coherentie over de
+    ademband (0,10–0,50 Hz), gewogen met het vermogen van de neusdruk.
+    Coherentie is invariant voor een constante amplitudeverhouding tussen de
+    kanalen — precies de storende factor hierboven — maar blijft gevoelig voor
+    de vraag of beide een consistente fase-relatie op de ademfrequentie delen.
+    Schaalvrij, om dezelfde reden als de gerepareerde effortpoort.
+
+    Retourneert ``{"coherence", "usable", "reason"}``.
+    """
+    out = {"coherence": None, "usable": False, "reason": ""}
+    if min_coherence is None:
+        min_coherence = THERMISTOR_COHERENCE_MIN
+    if pressure is None or thermistor is None:
+        out["reason"] = "een van beide kanalen ontbreekt"
+        return out
+    if abs(sf_pressure - sf_thermistor) > 1e-6:
+        out["reason"] = (f"verschillende samplefrequenties "
+                         f"({sf_pressure:g} vs {sf_thermistor:g} Hz)")
+        return out
+
+    a = np.asarray(pressure, dtype=float).squeeze()
+    b = np.asarray(thermistor, dtype=float).squeeze()
+    n = min(a.size, b.size)
+    if n < int(sf_pressure * 300):
+        out["reason"] = "signaal te kort voor een betrouwbare coherentie"
+        return out
+    a, b = a[:n], b[:n]
+    ok = np.isfinite(a) & np.isfinite(b)
+    if ok.sum() < int(sf_pressure * 300):
+        out["reason"] = "te weinig eindige monsters"
+        return out
+    a, b = a[ok], b[ok]
+    if float(np.std(a)) == 0 or float(np.std(b)) == 0:
+        out["reason"] = "kanaal zonder variatie"
+        return out
+
+    try:
+        from scipy.signal import coherence as _coh
+        from scipy.signal import welch as _welch
+        nper = int(min(120 * sf_pressure, a.size // 8))
+        f, cxy = _coh(a, b, fs=sf_pressure, nperseg=nper)
+        _fp, pxx = _welch(a, fs=sf_pressure, nperseg=nper)
+    except Exception as e:
+        out["reason"] = f"coherentie niet berekenbaar: {e}"
+        return out
+
+    band = (f >= BREATH_FREQ_LOW) & (f <= BREATH_FREQ_HIGH)
+    if not np.any(band):
+        out["reason"] = "ademband valt buiten de frequentie-as"
+        return out
+    # Wegen met het neusdrukvermogen: coherentie op een frequentie waar
+    # nauwelijks ademhaling zit, zegt niets over deze opname.
+    w = pxx[band]
+    w = w / w.sum() if w.sum() > 0 else np.ones(w.size) / w.size
+    val = float(np.sum(cxy[band] * w))
+
+    out["coherence"] = round(val, 3)
+    out["usable"] = bool(val >= min_coherence)
+    out["reason"] = (f"coherentie {val:.3f} "
+                     f"{'>=' if out['usable'] else '<'} {min_coherence}")
+    return out
 
 
 def assess_flow_sensor_agreement(

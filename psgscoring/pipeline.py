@@ -1354,7 +1354,9 @@ def _resolve_flow_channels(
     # ten onrechte dat de thermistor geweigerd is. Dit legt de beslissing
     # vast in plaats van alleen de meting.
     _gate_meta = {
-        "gate": ("respiratory_band" if str(thermistor_gate) == "respiratory_band"
+        "gate": (str(thermistor_gate)
+                 if str(thermistor_gate) in ("respiratory_band",
+                                             "breath_coherence")
                  else "envelope_agreement"),
         "mode": "informational" if additive_thermistor else "blocking",
         "threshold": None,
@@ -1366,6 +1368,13 @@ def _resolve_flow_channels(
                                              THERMISTOR_BAND_POWER_MIN)
                 _gate_meta["threshold"] = float(THERMISTOR_BAND_POWER_MIN)
                 _therm_check = assess_thermistor_band_power(
+                    flow_therm_data, sf_ft or 0.0)
+            elif str(thermistor_gate) == "breath_coherence":
+                from .signal_quality import (assess_breath_coherence,
+                                             THERMISTOR_COHERENCE_MIN)
+                _gate_meta["threshold"] = float(THERMISTOR_COHERENCE_MIN)
+                _therm_check = assess_breath_coherence(
+                    flow_pressure_data, sf_fp or 0.0,
                     flow_therm_data, sf_ft or 0.0)
             else:
                 from .signal_quality import (assess_flow_sensor_agreement,
