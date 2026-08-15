@@ -45,16 +45,31 @@ def _verzadigd(x, knie=0.4):
 
 # ── het veld ─────────────────────────────────────────────────────────
 
-def test_default_poort_is_ongewijzigd():
-    for n, p in PROFILES.items():
-        assert p.post_processing.thermistor_gate in (
-            "envelope_agreement", "respiratory_band"), n
+GEPIND = ("mesa_shhs", "chicago_1999")
 
 
-def test_geen_enkel_profiel_gebruikt_de_nieuwe_poort():
-    aan = [n for n, p in PROFILES.items()
-           if p.post_processing.thermistor_gate == "breath_coherence"]
-    assert aan == [], f"profielen zouden byte-identiek blijven: {aan}"
+def test_de_reproductieprofielen_houden_de_oude_poort():
+    """Deze poort beslist of apneus op de thermistor of op de neusdruk
+    gescoord worden, en beweegt dus de AHI. De twee profielen die
+    gepubliceerde cijfers reproduceren mogen niet meebewegen."""
+    for naam in GEPIND:
+        assert naam in PROFILES, f"{naam} bestaat niet meer — pin opnieuw"
+        assert PROFILES[naam].post_processing.thermistor_gate == \
+            "envelope_agreement", naam
+
+
+def test_precies_die_twee_houden_de_oude_poort():
+    oud = {n for n, p in PROFILES.items()
+           if p.post_processing.thermistor_gate == "envelope_agreement"}
+    assert oud == set(GEPIND), f"onverwachte pinning: {oud}"
+
+
+def test_de_band_power_profielen_zijn_niet_meeverhuisd():
+    """Die stellen een andere vraag (eenkanaals bandvermogen); ze omzetten
+    zou twee wijzigingen door elkaar halen."""
+    band = {n for n, p in PROFILES.items()
+            if p.post_processing.thermistor_gate == "respiratory_band"}
+    assert band == {"aasm_v3_breath_dual", "aasm_v3_prob_dual"}, band
 
 
 # ── de kern: verzadiging mag niet afkeuren ───────────────────────────
@@ -132,7 +147,24 @@ def test_kanaal_zonder_variatie():
     assert r["usable"] is False
 
 
+def test_witte_ruis_wordt_afgekeurd():
+    """Regressiepin op de bias-correctie.
+
+    Zonder correctie is magnitude-squared coherentie omhoog vertekend bij
+    weinig middelingsvensters: op een opname van 10 minuten gaf pure ruis
+    0,037 en kwam die door een drempel van 0,017 heen. De drempel hing dus aan
+    de OPNAMEDUUR. Deze test pint dat een korte opname met een ruiskanaal
+    afgekeurd blijft.
+    """
+    rng = np.random.default_rng(11)
+    kort = int(600 * SF)
+    p = _adem(seed=12)[:kort]
+    r = assess_breath_coherence(p, SF, rng.normal(0, 1, kort), SF)
+    assert r["usable"] is False, r
+    assert r["coherence"] < THERMISTOR_COHERENCE_MIN, r
+
+
 def test_drempel_ligt_in_het_gemeten_gat():
-    """Boven de geconstrueerde negatieven (max 0,004), onder het zwakste
-    werkelijk waargenomen paar (0,026)."""
+    """Boven het strengste geconstrueerde negatief, onder het zwakste
+    werkelijk waargenomen paar."""
     assert 0.008 < THERMISTOR_COHERENCE_MIN < 0.026

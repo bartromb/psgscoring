@@ -149,29 +149,32 @@ def test_the_threshold_sits_in_the_middle_of_the_gap():
 #  De vlag
 # ─────────────────────────────────────────────────────────────────
 
-def test_only_the_two_new_dual_profiles_use_the_new_gate():
-    """Deze as verschuift op elke opname welke sensor apneus scoort, en dus de
-    AHI. Alleen de twee nieuwe exploratieve profielen mogen hem hebben: die
-    zijn nieuw, dus er is geen bestaande uitkomst om te breken. Elk klinisch
-    profiel en elk datasetprofiel houdt de bestaande poort — daar zou dit
-    mesa_shhs en de gepubliceerde cijfers raken."""
-    moved = {n for n, p in PROFILES.items()
-             if p.post_processing.thermistor_gate != "envelope_agreement"}
-    assert moved == {"aasm_v3_breath_dual", "aasm_v3_prob_dual"}, moved
+def test_only_the_two_dual_profiles_use_the_band_power_gate():
+    """De bandvermogen-poort stelt de eenkanaalsvraag en hoort bij de twee
+    exploratieve duale profielen. Hij is NIET meeverhuisd toen de klinische
+    profielen op coherentie overgingen: dat zou twee wijzigingen door elkaar
+    halen."""
+    band = {n for n, p in PROFILES.items()
+            if p.post_processing.thermistor_gate == "respiratory_band"}
+    assert band == {"aasm_v3_breath_dual", "aasm_v3_prob_dual"}, band
 
 
-def test_no_clinical_or_dataset_profile_moved():
-    for n, p in PROFILES.items():
-        if p.family in ("clinical", "dataset", "legacy"):
-            assert p.post_processing.thermistor_gate == "envelope_agreement", n
+def test_only_the_reproduction_profiles_keep_the_envelope_gate():
+    """Sinds 14-08-2026 draaien de klinische profielen de coherentiepoort.
+    mesa_shhs en chicago_1999 blijven op de envelope-poort, want die
+    reproduceren gepubliceerde cijfers en deze as beweegt de AHI."""
+    oud = {n for n, p in PROFILES.items()
+           if p.post_processing.thermistor_gate == "envelope_agreement"}
+    assert oud == {"mesa_shhs", "chicago_1999"}, oud
 
 
 def test_the_flag_reaches_the_dict_the_pipeline_reads():
     """Twee keer eerder is een veld gepatcht dat niemand leest — de
     dataclass-naam is niet de legacy-sleutel."""
-    assert SCORING_PROFILES["aasm_v3_rec"]["THERMISTOR_GATE"] == "envelope_agreement"
+    assert SCORING_PROFILES["aasm_v3_rec"]["THERMISTOR_GATE"] == "breath_coherence"
     assert get_profile("aasm_v3_rec").post_processing.thermistor_gate \
-        == "envelope_agreement"
+        == "breath_coherence"
+    assert SCORING_PROFILES["mesa_shhs"]["THERMISTOR_GATE"] == "envelope_agreement"
 
 
 def _resolve(pressure, thermistor, gate):

@@ -633,30 +633,36 @@ __all__ = [
 THERMISTOR_AGREEMENT_MIN = 0.40
 # Gekalibreerd 14-08-2026 volgens de beslisregel die VOORAF in de CHANGELOG
 # stond: midden in het gat tussen paren die aantoonbaar GEEN ademhaling delen
-# en paren die dat wel doen. Het negatieve uiteinde is geconstrueerd, niet
-# geselecteerd.
+# en paren die dat wel doen. Alle waarden hieronder zijn NA de bias-correctie
+# hierboven.
 #
 # Drie soorten negatief, van makkelijk naar streng:
-#   thermistor omgekeerd in de tijd        max 0,003
-#   fase-gerandomiseerd surrogaat          max 0,004
-#   thermistor van een ANDERE opname       max 0,008   (n=132 paren)
+#   thermistor omgekeerd in de tijd / fase-surrogaat   max 0,003  (n=50)
+#   thermistor van een ANDERE opname                   max 0,006  (n=132)
 # ------------------------------- gat --------------------------------
-#   echte paren, n=25                      0,026 – 0,771  (mediaan 0,482)
+#   echte paren, n=25                                  0,024 – 0,770
+#                                                      (mediaan 0,481)
 #
-# De eerste twee bleken te makkelijk: ze vernietigen de coherentie volledig
-# omdat ze uit hetzelfde signaal komen. Het kruis-paar is het realistische
+# De eerste twee bleken te makkelijk: ze komen uit hetzelfde signaal en
+# vernietigen de coherentie volledig. Het kruis-paar is het realistische
 # geval — twee sensoren die niet bij dezelfde patient horen — en dat is de
-# grens die telt. Midden in dat gat: (0,008 + 0,026) / 2 = 0,017.
+# grens die telt. Midden in dat gat: (0,006 + 0,024) / 2 = 0,015.
 #
-# De marge is smal, en dat is een gemeten eigenschap: een van de 25 opnames
-# heeft een thermistor die werkelijk slecht meeloopt (0,026). Tussen "echt
-# maar zwak" en "niet gerelateerd" zit hier een factor drie.
+# TWEE DINGEN OVER DE MARGE, want ze zijn smal.
+# 1. Een van de 25 opnames heeft een thermistor die werkelijk slecht meeloopt
+#    (0,024). Tussen "echt maar zwak" en "niet gerelateerd" zit hier een
+#    factor vier.
+# 2. De bias-correctie haalt de duurafhankelijkheid er niet volledig uit. Op
+#    een opname van tien minuten scoort pure ruis nog 0,012 — onder de
+#    drempel, maar met weinig speling. Op klinische opnames van uren is die
+#    speling ruim; op korte fragmenten hoort dit getal met achterdocht
+#    gelezen te worden.
 #
 # Dat de drempel weinig afkeurt IS de bevinding: de envelope-poort keurt 14
 # van de 25 opnames af terwijl 24 van de 25 thermistors aantoonbaar dezelfde
 # ademhaling volgen. De drempel is niet op de doorlaatverhouding afgesteld —
 # dat verbood de beslisregel expliciet.
-THERMISTOR_COHERENCE_MIN = 0.017
+THERMISTOR_COHERENCE_MIN = 0.015
 THERMISTOR_ENV_SMOOTH_S  = 10.0
 
 # ── Alternatieve poort: één kanaal, geen vergelijking ──────────────────────
@@ -829,6 +835,22 @@ def assess_breath_coherence(
     except Exception as e:
         out["reason"] = f"coherentie niet berekenbaar: {e}"
         return out
+
+    # BIAS-CORRECTIE. Magnitude-squared coherentie is omhoog vertekend bij
+    # weinig middelingsvensters: voor K onafhankelijke segmenten ligt de
+    # verwachting onder de nulhypothese op ~1/K, niet op nul. Zonder correctie
+    # hangt de drempel dus aan de OPNAMEDUUR — een opname van 10 minuten geeft
+    # acht segmenten en daarmee een ruisvloer van ~0,04, terwijl een nacht van
+    # acht uur er honderden geeft en op ~0,008 uitkomt.
+    #
+    # Dat is precies dezelfde fout als de poorten die deze module elders
+    # repareert: een drempel op een grootheid die van iets anders afhangt dan
+    # wat hij beweert te meten. Gemeten op de testmontage met een thermistor
+    # van pure ruis gaf de ongecorrigeerde vorm 0,037 en liet die ruis door.
+    K = max(1, int(2 * a.size / nper) - 1)     # Welch, 50 % overlap
+    nul = 1.0 / K
+    cxy = np.clip((cxy - nul) / (1.0 - nul), 0.0, 1.0)
+    out["n_segments"] = K
 
     band = (f >= BREATH_FREQ_LOW) & (f <= BREATH_FREQ_HIGH)
     if not np.any(band):

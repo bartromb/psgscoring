@@ -402,7 +402,7 @@ class PostProcessingRules:
     drempel op 88%.
     """
 
-    thermistor_gate: str = "envelope_agreement"
+    thermistor_gate: str = "breath_coherence"
     """Welke toets beslist of de thermistor de apneu-sensor mag zijn.
 
     "envelope_agreement"  — bestaande poort (default, ongewijzigd gedrag):
@@ -1149,6 +1149,9 @@ _mesa_shhs = Profile(
         artefact_flank_exclusion=True,
         mixed_apnea_decomposition=True,
         unsure_as_hypopnea=True,  # ← NSRR-specific
+        # GEPIND: ook de thermistorpoort blijft de oude, want die beslist of
+        # apneus op de thermistor of op de neusdruk gescoord worden.
+        thermistor_gate="envelope_agreement",
         # GEPIND op het gedrag van vóór 13-08-2026. Beide vlaggen staan
         # sindsdien default aan, maar dit profiel reproduceert paper v31/v37
         # en moet byte-identiek blijven. De poort aanzetten zou hier
@@ -1226,6 +1229,7 @@ _chicago_1999 = Profile(
         # PostProcessingRules.rip_quality_scale_free.
         rip_quality_scale_free=False,
         stability_filter_all_hypopnea_subtypes=False,
+        thermistor_gate="envelope_agreement",
     ),
 )
 

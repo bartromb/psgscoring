@@ -73,8 +73,46 @@ defect in the calibration. The decision rule forbade tuning on the pass rate,
 and following it produced a number that says: on this cohort, the thermistor
 nearly always sees the breathing.
 
-**Scope.** New value `thermistor_gate="breath_coherence"`, default unchanged
-(`envelope_agreement`). This decides on every recording whether apnoeas are
+## Default ON for the clinical profiles
+
+User decision, 2026-08-14. Eleven profiles move to `breath_coherence`.
+`mesa_shhs` and `chicago_1999` stay on `envelope_agreement` — this gate decides
+whether apnoeas are scored on the thermistor or on nasal pressure, so it moves
+the AHI, and those two reproduce published figures. The two band-power dual
+profiles keep their own gate: that criterion asks the single-channel question,
+and moving it too would conflate two changes.
+
+## A bug the existing suite caught
+
+The first implementation admitted PURE WHITE NOISE as a thermistor. The
+regression came from `test_flow_reference.py`, whose fixture carries a
+deliberately dead thermistor: under the new gate `aasm_v3_rec` began scoring
+apnoeas on it and the ventilatory burden fell from 58.4 to 0.0.
+
+The cause is a property of the statistic, not of the signal. Magnitude-squared
+coherence is biased upward when few averaging windows are available: for K
+independent segments the null expectation is about 1/K rather than zero. The
+ten-minute fixture yields fifteen segments and a noise floor near 0.04, while
+an eight-hour night yields hundreds and lands near 0.006. **The threshold
+therefore depended on recording duration** — the same class of defect as the
+two gates repaired earlier in this release, where a threshold tracked something
+other than what it claimed to measure.
+
+The estimate is now bias-corrected, `(C − 1/K)/(1 − 1/K)`, which makes it
+comparable across durations. Noise on the ten-minute fixture drops from 0.037
+to 0.012 and is rejected. A regression test pins that.
+
+Two margins are stated rather than smoothed. One of the 25 recordings has a
+thermistor that genuinely tracks poorly (0.024), so real-but-weak and unrelated
+are separated by a factor of four. And the correction does not remove duration
+dependence entirely: at ten minutes, noise still reaches 0.012 against a
+threshold of 0.015. On clinical recordings of several hours the margin is
+comfortable; on short fragments this number should be read with suspicion.
+
+## Scope
+
+New value `thermistor_gate="breath_coherence"`, now the default for the
+clinical profiles. This decides on every recording whether apnoeas are
 scored on the thermistor or on nasal pressure, so it moves the AHI; `mesa_shhs`
 and `chicago_1999` stay pinned regardless.
 
