@@ -9,7 +9,7 @@
 
 ## Paper
 
-> Rombaut B, Rombaut B, Rombaut C, et al. **Automated Polysomnography Scoring for Clinical Sleep Medicine: An Open-Source Platform Validated Against 59 Independent Scorer Sessions on PSG-IPA.** Manuscript in preparation, 2026.
+> Rombaut B, Rombaut B, Rombaut C, et al. **Graded evidence in place of thresholds: an open-source, AASM-compliant method for respiratory event detection in polysomnography.** Manuscript in preparation, 2026.
 
 Technical details (signal processing chain, classification logic, bias corrections): **[Technical Reference (Online Supplement)](https://github.com/bartromb/psgscoring/wiki/Technical-Reference)**
 
@@ -61,7 +61,7 @@ The stability guarantee lives in the **profiles**, not in the version number:
   it, and is pinned by a test.
 
 If you need scored values to stay identical across time — for a study, a
-regulatory submission, or a paper — **pin the version** (`psgscoring==0.17.0`)
+regulatory submission, or a paper — **pin the version** (`psgscoring==0.18.0`)
 and record which profile you used. Do not rely on a profile name alone.
 
 ## Installation
@@ -213,9 +213,35 @@ Identical to `aasm_v3_rec` on any montage without a usable thermistor. Set
 
 ## Validation
 
-**PSG-IPA** (PhysioNet): 5 recordings, 59 independent scorer sessions. Mean |ΔAHI| = 1.8/h, Pearson r = 0.997, severity concordance 4/5 (standard profile). See the [paper](#paper) for full results.
+**PSG-IPA** (PhysioNet): 5 recordings, 59 independent scorer sessions.
+Against the scorer median, `aasm_v3_rec` gives bias +1.69/h, MAE 1.76/h,
+Pearson r = 0.997, weighted κ = 0.839, severity concordance 4/5. Note the
+sample size: five recordings is enough to expose a defect, not enough to
+estimate a population.
 
-**MESA** (NSRR, external cohort): q=7 high-quality holdout, n=92 (held out from the optional LightGBM re-classifier's training). LightGBM-augmented AHI: bias −0.02/h, MAE 5.3/h, Pearson r = 0.87 against the NSRR `nsrr_ahi_hp3u` reference. SHHS-1 validation in progress.
+**MESA** (NSRR, external cohort, n = 150): nothing is tuned on it. Against a
+reconstructed AASM-2015 reference, per profile:
+
+| profile | median F1 | precision | recall | bias (/h) | MAE (/h) |
+|---|---|---|---|---|---|
+| `aasm_v3_rec` | 0.438 | 0.519 | 0.408 | −5.30 | 10.12 |
+| `aasm_v3_breath` | 0.510 | 0.628 | 0.472 | −5.18 | 9.51 |
+| `aasm_v3_prob` | 0.513 | 0.670 | 0.462 | −6.41 | 9.97 |
+| `aasm_v3_dual` | 0.446 | 0.498 | 0.490 | −1.17 | 9.24 |
+| `aasm_v3_breath_dual` | 0.504 | 0.577 | 0.511 | −2.34 | 9.37 |
+
+Paired against `aasm_v3_rec`, breath-graded scoring raises event agreement by
+a median ΔF1 of **+0.029** (95/150 recordings, p = 6.8·10⁻⁸); the probabilistic
+variant by +0.036 (p = 1.4·10⁻⁹).
+
+**These numbers moved substantially in 0.17.0**, and the reason is worth
+stating plainly. The earlier figures on this cohort reported a bias of −11 to
+−15/h and were read as under-detection. Most of it was not: a signal-quality
+gate was rejecting effort channels by how the EDF declared its unit rather
+than by the signal in them, and it failed 52 of 52 MESA recordings. Repairing
+it halved the bias at **identical** F1, precision and recall on three of the
+five profiles — the events had been found all along and were being discarded
+in the accounting. See `CHANGELOG.md` 0.16.0 and `docs/`.
 
 ## Bias corrections
 
@@ -251,12 +277,29 @@ rather than the sensor itself.
 | Stability filter across all hypopnoea subtypes | Over-counting | The filter compared the event type exactly against `"hypopnea"`, so every subtyped hypopnoea escaped it |
 | Desaturation re-use limit | Over-counting | One desaturation could confirm any number of adjacent events (opt-in, off by default) |
 | Breath-granular event boundaries | Neither | The rule cascade starts hypopnoeas 2–5 s before human scorers; snapping to breath edges removes that offset (opt-in, off by default) |
+| Coherence-based thermistor gate | Neither | The gate deciding which sensor carries apnoeas correlated amplitude *envelopes*, while the question is whether both sensors see the same breaths — a timing question (opt-in, off by default) |
+| Long-event splitting | Neither | Splits events beyond a duration ceiling (opt-in, off by default) |
+| Low-baseline desaturation relaxation | Neither | Relaxes the 3% desaturation requirement when the local baseline is already hypoxic (opt-in, off by default) |
+
+**Four of these are off, and that is a result, not an omission.** Each was
+implemented, measured, and left disabled because the measurement did not
+support enabling it: the desaturation limit removed 8 events in 4303; breath
+boundaries bought recall no precision; long-event splitting duplicated an
+existing splitter and found no hypopnoea candidates; the coherence gate is a
+real repair of a real defect but costs 2.95/h of AHI bias on MESA when
+switched on. They ship as switches so the finding stays reproducible and the
+next cohort can overturn it. `docs/third_party_comparison.md` records one row
+per idea evaluated, including the ones rejected.
 
 ## Architecture
 
-~8,900 lines across 17 submodules, 115 unit tests (CI: Python 3.9–3.12):
+~14,600 lines across 21 submodules, 817 unit tests (CI: Python 3.9–3.12):
 
-`constants` · `utils` · `signal` · `breath` · `classify` · `spo2` · `plm` · `ancillary` · `respiratory` · `pipeline` · `ml_classifier` · `profiles` · `postprocess` · `signal_quality` · `signal_quality_channels` · `ecg_effort` · `_types`
+`constants` · `utils` · `signal` · `breath` · `breath_scoring` · `classify` · `spo2` · `plm` · `ancillary` · `arousal` · `respiratory` · `indices` · `ventilation` · `pipeline` · `ml_classifier` · `profiles` · `postprocess` · `signal_quality` · `signal_quality_channels` · `ecg_effort` · `_types`
+
+Behaviour is pinned by a golden-output harness (`PSGSCORING_GOLDEN=1`) that
+scores fixed synthetic recordings and compares a digest. Every release runs it
+before publishing; a difference is a stop, not a re-bless.
 
 ## Related
 
@@ -268,9 +311,9 @@ rather than the sensor itself.
 
 ```bibtex
 @article{rombaut2026psgscoring,
-  title     = {Automated Polysomnography Scoring for Clinical Sleep Medicine:
-               An Open-Source Platform Validated Against 59 Independent
-               Scorer Sessions on {PSG-IPA}},
+  title     = {Graded evidence in place of thresholds: an open-source,
+               {AASM}-compliant method for respiratory event detection in
+               polysomnography},
   author    = {Rombaut, Bart and Rombaut, Briek and Rombaut, Cedric},
   year      = {2026},
   note      = {Manuscript in preparation}

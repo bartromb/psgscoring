@@ -3,7 +3,36 @@
 > original because it underpins the MESA figures in the paper; earlier entries
 > are deliberately left as they are rather than retranslated.
 
-# Unreleased — the thermistor gate asks an amplitude question about a timing problem
+# v0.18.0 — 2026-08-15 — overview
+
+**No profile changes its output.** All fifteen profiles score identically to
+0.17.0; golden is 9/9 unchanged and the PSG-IPA figures reproduce to the
+decimal (bias +1.69/h, MAE 1.76/h, r 0.997, weighted κ 0.839). This release
+adds capability behind switches that are off, and records six measurements —
+four of which argued *against* the change they were testing.
+
+| what | field | default | measured outcome |
+|---|---|---|---|
+| Coherence-based thermistor gate | `thermistor_gate="breath_coherence"` | off (`envelope_agreement`) | a real repair of a real defect, but **costs 2.95/h of AHI bias on MESA**; default reverted |
+| Long-event splitting | `split_events_longer_than_s` | `None` | no hypopnoea candidates; overlaps an existing splitter |
+| Low-baseline desaturation relaxation | `desat_low_baseline_relaxation` | `False` | fires on 1.8% of events; a deviation from Rule 1A, not a repair |
+| Breath-granular event boundaries | `event_boundaries="breath"` | off (`envelope`) | nearest-edge snapping does not remove the 2–5 s onset offset |
+| Desaturation re-use limit | `max_events_per_desaturation` | `None` | removes 8 events of 4303 |
+| Central/obstructive subtyping, remeasured | — | — | κ = 0.114; 230 of 235 obstructive-called-central errors sit on Cheyne-Stokes nights |
+
+Four ideas evaluated from an external system were measured and **none
+adopted**; `docs/third_party_comparison.md` carries one row each, including
+the rejections. That document is the audit trail for what was borrowed and
+what was not.
+
+The switches ship rather than being deleted so the negative results stay
+reproducible and a future cohort can overturn them. A reader who wants the
+reasoning rather than the summary should read the six sections below, which
+are the original measurement notes.
+
+---
+
+# v0.18.0 — 2026-08-15 — the thermistor gate asks an amplitude question about a timing problem
 
 **The defect.** `assess_flow_sensor_agreement` correlates the amplitude
 ENVELOPES of nasal pressure and thermistor at 1 Hz and admits the thermistor as
@@ -154,7 +183,7 @@ Measurement: `docs/mesa_gate_{envelope_agreement,breath_coherence}.{json,log}`. 
 scored on the thermistor or on nasal pressure, so it moves the AHI; `mesa_shhs`
 and `chicago_1999` stay pinned regardless.
 
-# Unreleased — block 2B measured against the reference: the limit stays None
+# v0.18.0 — 2026-08-15 — block 2B measured against the reference: the limit stays None
 
 MESA n=40, paired, `aasm_v3_breath`, reference `aasm15`. Three runs differing
 only in `max_events_per_desaturation`.
@@ -199,7 +228,7 @@ values are random-search fits on their own pre-processing; ours are the AASM
 thresholds themselves. That they do not transfer to these cohorts strengthens
 the traceability argument of §7.4 rather than weakening it.
 
-# Unreleased — block 2D measured on the duration distribution: it overlaps an existing splitter
+# v0.18.0 — 2026-08-15 — block 2D measured on the duration distribution: it overlaps an existing splitter
 
 Before any sweep, two things that change what 2D can be.
 
@@ -234,7 +263,7 @@ start: at most 593 of 16 839 events (3.5 %) are even candidates, all of them
 apnoeas.
 
 
-# Unreleased — block 3.1 remeasured with the gate open: subtyping is weak, and it is CSR
+# v0.18.0 — 2026-08-15 — block 3.1 remeasured with the gate open: subtyping is weak, and it is CSR
 
 No code change. MESA n=60 (52 usable), `aasm_v3_rec`, seed 20260801, single
 arousal derivation.
@@ -288,7 +317,7 @@ contributes nothing there and its effect cannot be measured.
 
 Report: `docs/subtypering_mesa_20260814.md`.
 
-# Unreleased — block 1B step 2 measured: nearest-edge snapping does NOT fix the offset
+# v0.18.0 — 2026-08-15 — block 1B step 2 measured: nearest-edge snapping does NOT fix the offset
 
 `event_boundaries="breath"` is implemented and stays default off. Measured on
 PSG-IPA against the same twelve scorers, `aasm_v3_rec`, single arousal
@@ -326,7 +355,7 @@ block 1B specification.
 
 Measurement: `docs/event_boundaries_psgipa_20260814.{json,log}`.
 
-# Unreleased — block 1B measurement: event boundaries
+# v0.18.0 — 2026-08-15 — block 1B measurement: event boundaries
 
 No behavioural change. `scripts/measure_boundary_offsets.py` (6 tests) measures
 the SIGNED onset and offset difference of every matched algorithm-to-scorer
