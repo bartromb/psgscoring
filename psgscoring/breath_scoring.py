@@ -245,28 +245,44 @@ def estimate_spo2_lag(event_ends, spo2, sf_spo2, lo=5.0, hi=60.0, step=1.0):
 
 
 def _pre_event_below_local_baseline(spo2, sf_spo2, onset_s,
-                                    baseline_win_s=120.0, pre_win_s=30.0):
-    """Ligt de saturatie vlak vóór het event onder de lokale 2-min-baseline?
+                                    baseline_win_s=120.0,
+                                    low_baseline_pct=92.0):
+    """Ligt de LOKALE baseline zelf laag, vlak vóór dit event?
 
-    Baseline = 90e percentiel over de 120 s ervoor; pre-event-saturatie =
-    mediaan over de laatste 30 s. Dit is de conditie zoals de specificatie hem
-    stelt. Let op: een 90e percentiel ligt per definitie boven het merendeel
-    van zijn venster, dus deze conditie vuurt vaak — hoe vaak precies is een
-    MEETVRAAG, en het antwoord bepaalt of de conditie deugt. Zie de CHANGELOG.
+    Gemeten conditie: het 90e percentiel van de SpO2 over de 120 s vóór het
+    event ligt onder `low_baseline_pct`.
+
+    **Waarom niet zoals eerst.** De specificatie stelde de conditie als
+    "pre-event-saturatie onder de lokale 2-minuten-baseline". Zo geformuleerd
+    is ze vacuum waar: de baseline is een 90e percentiel en de pre-event-
+    saturatie een mediaan over een deelvenster daarvan, dus de mediaan ligt
+    per constructie vrijwel altijd lager. Gemeten op PSG-IPA vuurde die versie
+    op **466 van de 466 events (100 %)** — ze selecteerde niets en zou de
+    3 %-eis blanco naar 2 % hebben verlaagd voor iedereen.
+
+    De MOTIVERING achter 2E gaat over iets anders: bij een lage absolute
+    saturatie is de dissociatiecurve steil en levert dezelfde ventilatiedaling
+    een kleinere procentuele dip. Dat is een uitspraak over het NIVEAU, niet
+    over de verhouding tot het eigen recente gemiddelde. Deze implementatie
+    volgt die motivering.
+
+    `low_baseline_pct` is 92 %: het punt waar de dissociatiecurve merkbaar
+    steiler wordt en, praktisch, ruim onder de baseline van elk PSG-IPA-cohort
+    (90e percentiel 94,0 – 96,9 %) zodat de conditie daar niet vuurt. De waarde
+    is een gedocumenteerde keuze, geen gefitte parameter — en omdat de hele
+    optie een regelafwijking is die nooit default aan staat, draagt ze geen
+    gescoorde uitkomst tenzij iemand haar bewust aanzet.
     """
     if spo2 is None:
         return False
     s = np.asarray(spo2, dtype=float)
     b0 = int(max(0.0, onset_s - baseline_win_s) * sf_spo2)
-    p0 = int(max(0.0, onset_s - pre_win_s) * sf_spo2)
-    p1 = int(onset_s * sf_spo2)
-    bl = s[b0:p1]
-    pre = s[p0:p1]
-    bl = bl[np.isfinite(bl) & (bl > 50)]
-    pre = pre[np.isfinite(pre) & (pre > 50)]
-    if bl.size < 3 or pre.size < 3:
+    b1 = int(onset_s * sf_spo2)
+    bl = s[b0:b1]
+    bl = bl[np.isfinite(bl) & (bl > 50) & (bl <= 100)]
+    if bl.size < 3:
         return False
-    return bool(float(np.median(pre)) < float(np.percentile(bl, 90)))
+    return bool(float(np.percentile(bl, 90)) < low_baseline_pct)
 
 
 def _desat_at(spo2, sf_spo2, onset_s, end_s, lag_s, tol_s=15.0,

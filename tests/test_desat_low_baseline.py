@@ -31,24 +31,38 @@ def test_veld_bereikt_de_legacy_dict():
         assert d["DESAT_LOW_BASELINE_RELAXATION"] is False, naam
 
 
-def test_dalende_saturatie_wordt_herkend():
-    """Laatste 30 s duidelijk onder het niveau van de 2 minuten ervoor."""
-    s = np.concatenate([np.full(90, 96.0), np.full(30, 90.0)])
+def test_lage_baseline_wordt_herkend():
+    """Baseline 85 % — de casus waarvoor de optie bestaat."""
+    s = np.full(120, 85.0)
     assert _pre_event_below_local_baseline(s, SF, 120.0) is True
 
 
-def test_vlakke_saturatie_op_het_90e_percentiel_vuurt_niet():
-    s = np.full(120, 96.0)
-    assert _pre_event_below_local_baseline(s, SF, 120.0) is False
+def test_normale_baseline_vuurt_niet():
+    """PSG-IPA ligt op 94-97 %; daar hoort de optie stil te blijven."""
+    for niveau in (94.0, 95.1, 96.9):
+        assert _pre_event_below_local_baseline(np.full(120, niveau), SF, 120.0) is False
+
+
+def test_de_oude_conditie_was_vacuum_waar():
+    """Regressiepin op de reparatie.
+
+    De eerste versie vergeleek de pre-event-mediaan met het 90e percentiel van
+    een venster dat die mediaan bevat. Dat is per constructie vrijwel altijd
+    waar, en vuurde op PSG-IPA op 466 van 466 events. Een dalende saturatie
+    binnen een verder NORMALE baseline mag de optie dus NIET activeren.
+    """
+    s = np.concatenate([np.full(90, 96.0), np.full(30, 93.0)])
+    assert _pre_event_below_local_baseline(s, SF, 120.0) is False, (
+        "een dip binnen een normale baseline is niet waar deze optie voor is")
 
 
 def test_zonder_bruikbare_data_vuurt_hij_niet():
     assert _pre_event_below_local_baseline(None, SF, 120.0) is False
     assert _pre_event_below_local_baseline(np.full(120, np.nan), SF, 120.0) is False
-    assert _pre_event_below_local_baseline(np.full(5, 96.0), SF, 120.0) is False
+    assert _pre_event_below_local_baseline(np.full(2, 85.0), SF, 120.0) is False
 
 
 def test_implausibele_waarden_tellen_niet_mee():
     """Sensoruitval als 0 mag de baseline niet omlaag trekken."""
-    s = np.concatenate([np.full(60, 0.0), np.full(30, 96.0), np.full(30, 96.0)])
+    s = np.concatenate([np.full(60, 0.0), np.full(60, 96.0)])
     assert _pre_event_below_local_baseline(s, SF, 120.0) is False

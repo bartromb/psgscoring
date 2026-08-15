@@ -210,7 +210,7 @@ class PostProcessingRules:
 
     **Hoe, gegradeerd in plaats van binair.** Het CENTRUM van de
     desaturatie-sigmoid schuift van 3 % naar 2 %, uitsluitend voor events
-    waarvan de pre-event-saturatie ónder de lokale (2 min) baseline ligt. De
+    waarvan de lokale (2 min) baseline zelf onder 92 % ligt. De
     breedte van de sigmoid blijft gelijk. Er komt dus geen nieuwe mechaniek
     bij: het blijft één gegradeerde term in dezelfde conjunctie, alleen met een
     ander centrum. De binaire variant zou een tweede drempel introduceren en
@@ -221,6 +221,15 @@ class PostProcessingRules:
     zijn criteria-dict, zodat het rapport bij de AHI-regel kan vermelden dat
     dit profiel van Regel 1A afwijkt — hetzelfde patroon als de bestaande
     experimenteel-markering.
+
+    **De conditie is één keer herzien, op grond van een meting.** De
+    oorspronkelijke specificatie las "pre-event-saturatie onder de lokale
+    2-minuten-baseline". Zo geformuleerd is ze vacuum waar — de baseline is een
+    90e percentiel en de pre-event-saturatie een mediaan uit datzelfde venster
+    — en ze vuurde op PSG-IPA op **466 van de 466 events**. Dat zou de
+    3 %-eis blanco naar 2 % hebben verlaagd voor iedereen, precies niet wat de
+    optie beoogt. De conditie volgt nu de motivering: de baseline zelf laag
+    (< 92 %), want daar is de dissociatiecurve steil.
 
     **Nooit default aan**, ook niet later, zonder een aparte beslissing die
     expliciet over de regelafwijking gaat en niet over de meetuitkomst.
