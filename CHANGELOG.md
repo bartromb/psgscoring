@@ -3,6 +3,51 @@
 > original because it underpins the MESA figures in the paper; earlier entries
 > are deliberately left as they are rather than retranslated.
 
+# Unreleased — block 2B measured against the reference: the limit stays None
+
+MESA n=40, paired, `aasm_v3_breath`, reference `aasm15`. Three runs differing
+only in `max_events_per_desaturation`.
+
+| limit | F1 | precision | recall | bias | MAE | events |
+|---|---|---|---|---|---|---|
+| **None** | 0.482 | 0.645 | 0.458 | **−5.33** | 9.04 | 4303 |
+| 2 | 0.479 | 0.645 | 0.455 | −5.37 | 9.08 | 4295 |
+| 3 | 0.482 | 0.645 | 0.458 | −5.33 | 9.04 | 4303 |
+
+**Limit 3 removes nothing at all** — every measure identical to three decimals.
+**Limit 2 removes 8 of 4303 events (0.19 %)** and makes everything marginally
+worse: F1 −0.004, bias 0.04 further from zero.
+
+The decision rests on the argument fixed before the measurement, not on these
+numbers: the limiter can only REMOVE events, while MESA already under-counts at
+a bias of −5.33/h and PSG-IPA falls inside the scorer range on 5 of 5
+recordings. There is no shortage of strictness for this knob to fix. The
+measurement only confirms it — CAISR's hard limit of 2 costs eight events here
+and returns nothing for them.
+
+Consistent with what was already on record: on PSG-IPA limit 2 is a complete
+no-op (largest group = 2), and on MESA 6 of 30 recordings had a group of 3 or
+more. That translates into eight events out of 4303.
+
+**Default stays `None`.** The field remains available and is proposed for no
+profile.
+
+Measurement: `docs/mesa_2b_{none,nonelim2,nonelim3}.{json,log}`.
+
+## Block 2 closed: four borrowed ideas, none adopted
+
+| idea | outcome |
+|---|---|
+| 2A arousal coupling window 15 → 25 s | not adopted; every widening costs precision while recall stands still |
+| 2B desaturation re-use limit | not adopted; limit 2 costs 8 events, limit 3 does nothing |
+| 2D split long events | built; turns out to be a different ANCHOR for an existing splitter, and 0 of 9880 hypopnoeas are even candidates |
+| 2E 2 % under a low baseline | built; the specified condition was vacuous (466/466), repaired to fire on 1.8 % |
+
+That none of them was switched on is itself the result. CAISR's parameter
+values are random-search fits on their own pre-processing; ours are the AASM
+thresholds themselves. That they do not transfer to these cohorts strengthens
+the traceability argument of §7.4 rather than weakening it.
+
 # Unreleased — block 2D measured on the duration distribution: it overlaps an existing splitter
 
 Before any sweep, two things that change what 2D can be.
