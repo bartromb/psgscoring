@@ -112,7 +112,45 @@ comfortable; on short fragments this number should be read with suspicion.
 ## Scope
 
 New value `thermistor_gate="breath_coherence"`, now the default for the
-clinical profiles. This decides on every recording whether apnoeas are
+clinical profiles.
+
+## AHI impact on MESA: the flip makes agreement WORSE
+
+Measured after the fact, n = 40, paired, reference `aasm15`, two runs differing
+only in `--thermistor-gate`.
+
+| profile | gate | F1 | precision | recall | bias | MAE | events |
+|---|---|---|---|---|---|---|---|
+| `aasm_v3_rec` | envelope | 0.441 | 0.557 | 0.396 | **−5.18** | 8.37 | 4277 |
+| | coherence | 0.366 | 0.480 | 0.324 | **−8.13** | 9.24 | 3577 |
+| `aasm_v3_breath` | envelope | 0.482 | 0.645 | 0.458 | **−5.33** | 9.04 | 4303 |
+| | coherence | 0.470 | 0.630 | 0.420 | **−6.63** | 9.49 | 3978 |
+
+Everything moves the wrong way: 700 fewer events on the cascade, bias from
+−5.18 to −8.13, F1 −0.075, MAE up. **18 of 40 recordings changed AHI** (median
+|Δ| 4.65/h, max 23.40), so this is not noise from a handful of cases.
+
+The control holds: forcing the old gate reproduces the existing figures exactly
+(`breath` bias −5.33, MAE 9.04), so the comparison isolates the gate.
+
+The mechanism is legible. The gate blocks under mono profiles, so where it was
+closed the apnoeas were scored on NASAL PRESSURE. Opening it moves them to the
+THERMISTOR, which is slower and finds fewer apnoeas. The NSRR reference was
+scored by human scorers on the flow channels as they used them.
+
+**What this does not show** is that the envelope criterion was right. It
+demonstrably measures the wrong quantity — a thermistor with correct timing but
+compressed dynamic range fails it — and that finding stands. The correct
+reading is that the old gate did the right thing for the wrong reason: on this
+cohort nasal pressure is the better apnoea sensor, and rejecting the thermistor
+often happened to be right.
+
+**Recommendation: revert the default** to `envelope_agreement` and keep the
+field, the repaired criterion and this measurement. The coherence gate answers
+the sensor question correctly; it should be enabled only on a cohort where the
+thermistor is demonstrably the better apnoea sensor, which MESA is not.
+
+Measurement: `docs/mesa_gate_{envelope_agreement,breath_coherence}.{json,log}`. This decides on every recording whether apnoeas are
 scored on the thermistor or on nasal pressure, so it moves the AHI; `mesa_shhs`
 and `chicago_1999` stay pinned regardless.
 
