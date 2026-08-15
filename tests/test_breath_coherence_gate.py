@@ -48,20 +48,22 @@ def _verzadigd(x, knie=0.4):
 GEPIND = ("mesa_shhs", "chicago_1999")
 
 
-def test_de_reproductieprofielen_houden_de_oude_poort():
-    """Deze poort beslist of apneus op de thermistor of op de neusdruk
-    gescoord worden, en beweegt dus de AHI. De twee profielen die
-    gepubliceerde cijfers reproduceren mogen niet meebewegen."""
-    for naam in GEPIND:
-        assert naam in PROFILES, f"{naam} bestaat niet meer — pin opnieuw"
-        assert PROFILES[naam].post_processing.thermistor_gate == \
-            "envelope_agreement", naam
+def test_geen_enkel_profiel_gebruikt_de_coherentiepoort():
+    """De poort is gerepareerd maar staat NIET default aan.
 
+    Kort aan geweest op 14-08-2026 en teruggedraaid na de meting: op MESA
+    (n=40) ging de bias van −5,18 naar −8,13 en verdwenen 700 events, omdat
+    de poort bij mono-profielen blokkeert en apneus bij openzetten van de
+    neusdruk naar de tragere thermistor verhuizen. Zie de CHANGELOG.
 
-def test_precies_die_twee_houden_de_oude_poort():
-    oud = {n for n, p in PROFILES.items()
-           if p.post_processing.thermistor_gate == "envelope_agreement"}
-    assert oud == set(GEPIND), f"onverwachte pinning: {oud}"
+    Dat maakt de envelope-poort niet juist — die meet aantoonbaar de verkeerde
+    grootheid. Ze deed het goede om de verkeerde reden.
+    """
+    aan = [n for n, p in PROFILES.items()
+           if p.post_processing.thermistor_gate == "breath_coherence"]
+    assert aan == [], (
+        f"aanzetten kostte op MESA 2,95/u aan bias; niet zonder nieuwe "
+        f"meting default maken: {aan}")
 
 
 def test_de_band_power_profielen_zijn_niet_meeverhuisd():

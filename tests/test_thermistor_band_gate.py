@@ -159,22 +159,27 @@ def test_only_the_two_dual_profiles_use_the_band_power_gate():
     assert band == {"aasm_v3_breath_dual", "aasm_v3_prob_dual"}, band
 
 
-def test_only_the_reproduction_profiles_keep_the_envelope_gate():
-    """Sinds 14-08-2026 draaien de klinische profielen de coherentiepoort.
-    mesa_shhs en chicago_1999 blijven op de envelope-poort, want die
-    reproduceren gepubliceerde cijfers en deze as beweegt de AHI."""
-    oud = {n for n, p in PROFILES.items()
-           if p.post_processing.thermistor_gate == "envelope_agreement"}
-    assert oud == {"mesa_shhs", "chicago_1999"}, oud
+def test_every_other_profile_keeps_the_envelope_gate():
+    """De coherentiepoort is gerepareerd maar niet default.
+
+    Kort default geweest op 14-08-2026; teruggedraaid omdat de AHI-meting op
+    MESA verslechterde (bias −5,18 → −8,13, 700 events minder). Alleen de twee
+    exploratieve duale profielen draaien een andere poort.
+    """
+    niet_envelope = {n for n, p in PROFILES.items()
+                     if p.post_processing.thermistor_gate != "envelope_agreement"}
+    assert niet_envelope == {"aasm_v3_breath_dual", "aasm_v3_prob_dual"}, \
+        niet_envelope
 
 
 def test_the_flag_reaches_the_dict_the_pipeline_reads():
     """Twee keer eerder is een veld gepatcht dat niemand leest — de
     dataclass-naam is niet de legacy-sleutel."""
-    assert SCORING_PROFILES["aasm_v3_rec"]["THERMISTOR_GATE"] == "breath_coherence"
+    assert SCORING_PROFILES["aasm_v3_rec"]["THERMISTOR_GATE"] == "envelope_agreement"
     assert get_profile("aasm_v3_rec").post_processing.thermistor_gate \
-        == "breath_coherence"
-    assert SCORING_PROFILES["mesa_shhs"]["THERMISTOR_GATE"] == "envelope_agreement"
+        == "envelope_agreement"
+    assert SCORING_PROFILES["aasm_v3_breath_dual"]["THERMISTOR_GATE"] \
+        == "respiratory_band"
 
 
 def _resolve(pressure, thermistor, gate):

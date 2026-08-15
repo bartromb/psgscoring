@@ -402,7 +402,7 @@ class PostProcessingRules:
     drempel op 88%.
     """
 
-    thermistor_gate: str = "breath_coherence"
+    thermistor_gate: str = "envelope_agreement"
     """Welke toets beslist of de thermistor de apneu-sensor mag zijn.
 
     "envelope_agreement"  — bestaande poort (default, ongewijzigd gedrag):
