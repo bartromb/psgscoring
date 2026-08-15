@@ -285,18 +285,37 @@ def _apply_desat_limit(limiet):
         assert _d["MAX_EVENTS_PER_DESATURATION"] == limiet, _n
 
 
+def _apply_thermistor_gate(gate):
+    """Zet `thermistor_gate` op ALLE profielen in dit werkproces."""
+    import importlib
+
+    from psgscoring.profiles import PROFILES as _P
+    for _p in _P.values():
+        _p.post_processing.thermistor_gate = gate
+    import psgscoring.constants as C
+    importlib.reload(C)
+    import psgscoring.pipeline as PL
+    import psgscoring.respiratory as R
+    PL.SCORING_PROFILES = C.SCORING_PROFILES
+    R.SCORING_PROFILES = C.SCORING_PROFILES
+    for _n, _d in C.SCORING_PROFILES.items():
+        assert _d["THERMISTOR_GATE"] == gate, _n
+
+
 def analyse_one(args):
     # `profiles` moet MEE door de tuple: de worker draait in een eigen proces
     # en kan de argparse-namespace niet zien. Zonder dit rekent hij de
     # standaardset terwijl report() de uitgebreide labels eist — dan valt
     # elke opname af en meldt het harnas 'geen bruikbare opnames'.
     (rec_id, data_dir, strictness_values, profiles, rip_scale_free,
-     desat_limit) = args
+     desat_limit, therm_gate) = args
     data_dir = Path(data_dir)
     if rip_scale_free:
         _apply_rip_scale_free(True)
     if desat_limit is not None:
         _apply_desat_limit(int(desat_limit))
+    if therm_gate:
+        _apply_thermistor_gate(str(therm_gate))
     edf = data_dir / "polysomnography" / "edfs" / f"{rec_id}.edf"
     xml = (data_dir / "polysomnography" / "annotations-events-nsrr"
            / f"{rec_id}-nsrr.xml")
@@ -526,6 +545,11 @@ def main():
     ap.add_argument("--verify-reference", action="store_true",
                     help="controleer de referentie tegen gepubliceerde oahi "
                          "en stop daarna")
+    ap.add_argument("--thermistor-gate", default=None,
+                    choices=["envelope_agreement", "respiratory_band",
+                             "breath_coherence"],
+                    help="forceer deze poort op alle profielen; weglaten = "
+                         "profieldefault")
     ap.add_argument("--desat-limit", type=int, default=None,
                     help="max_events_per_desaturation op alle profielen; "
                          "weglaten = None = huidig gedrag")
@@ -578,7 +602,7 @@ def main():
 
     rows = []
     jobs = [(x, str(a.data_dir), a.strictness, a.profiles, a.rip_scale_free,
-             a.desat_limit) for x in picked]
+             a.desat_limit, a.thermistor_gate) for x in picked]
     with ProcessPoolExecutor(max_workers=a.workers) as ex:
         for i, r in enumerate(ex.map(analyse_one, jobs), 1):
             rows.append(r)
@@ -625,6 +649,9 @@ def main():
                 for n in labels if n in _prof},
             "rip_scale_free_flag": bool(a.rip_scale_free),
             "desat_limit": a.desat_limit,
+            "thermistor_gate_forced": a.thermistor_gate,
+            "thermistor_gate_per_profile": {
+                n: _prof[n].get("THERMISTOR_GATE") for n in labels if n in _prof},
         }
         a.output_json.write_text(json.dumps(
             {"seed": a.seed, "n_requested": len(picked), "configs": labels,
