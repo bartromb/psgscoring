@@ -3,6 +3,106 @@
 > original because it underpins the MESA figures in the paper; earlier entries
 > are deliberately left as they are rather than retranslated.
 
+# Unreleased — wavelet denoising, implemented as specified and failing its own synthetic gate
+
+`flow_wavelet_denoise: bool = False`, off on every profile. Soft wavelet
+thresholding of the flow waveform to remove impulsive artefacts — motion
+spikes, electrode pops, sensor shifts — before anything reads it. Golden 9/9,
+887 tests green, mypy at its unchanged baseline. PyWavelets is an optional
+extra (`pip install psgscoring[denoise]`), not a hard dependency.
+
+## Where it sits, and why that is the whole design
+
+The switch lives inside `bandpass_flow`, not at its callers. **Four** separate
+consumers read the bandpassed flow — the amplitude envelope, the MMSD apnea
+validation, the breath detector, and the boundary snapping — and the
+specification requires all of them to see the same waveform, or the envelope
+events and the per-breath evidence stop describing one recording. Nothing would
+raise if one were missed. Putting the switch in the shared function makes that
+structural, and `test_every_bandpass_flow_consumer_passes_the_flag` reads the
+source so a *fifth* consumer added later fails the test instead of shipping
+(verified by removing the flag from one call site).
+
+The specification named two consumers. There are four. MMSD is the one that
+matters most: it amplifies rapid oscillations through the second derivative,
+which is exactly the shape of an impulsive artefact, so leaving it undenoised
+would not have been the conservative choice but the inconsistent one.
+
+Scope is the flow signal. RIP belts keep an undenoised waveform — the artefacts
+this targets are airflow-sensor artefacts, and extending it to effort would be
+an unmeasured change riding along on a measured one.
+
+## Decision rule, fixed before any cohort measurement
+
+The primary endpoint is **not** event-F1. An apnea onset is also an abrupt
+amplitude change, so the risk this option carries is that it smooths the flanks
+the detection runs on:
+
+* **PSG-IPA**, field on vs off, both profiles: bias, MAE, event-F1, percentile
+  within the inter-scorer distribution, and the 1B boundary-offset measurement
+  before and after. Acceptance: **|Δ median boundary offset| < 0.5 s AND
+  event-F1 not worse**. Boundary shift decides; F1 cannot buy it back.
+* **MESA subset** where `artefact_flank_exclusion` fires most often — that is
+  where the benefit must be if it exists. No benefit on that subset means the
+  option is dropped regardless of the theory.
+* **Synthetic gate, first**: breathing plus injected spikes (0.5–2 s, 5–20×
+  amplitude) must show **>90 % spike suppression with flank displacement
+  < 0.25 s**.
+* Fix 5 is not removed. Thresholding damps the spike, fix 5 excludes the flank;
+  the counter is reported so a measurement can show whether they duplicate.
+* Not combined with the envelope axis in one round, and only after the 1B
+  boundary measurement has a clean baseline — which it now has (2026-08-14).
+
+## The synthetic gate fails, and the reason is structural
+
+**σ collapses.** `σ = MAD(d₁)/0.6745` assumes the finest detail scale carries
+noise. That scale spans sf/4 to sf/2 — 16 to 32 Hz at 64 Hz sampling — and the
+upstream bandpass has already removed everything above 3 Hz. So d₁ measures an
+empty band rather than a noise floor:
+
+| quantity | measured |
+|---|---|
+| σ | 5.5 · 10⁻⁷ |
+| signal scale (MAD/0.6745) | 9.7 · 10⁻¹ |
+| σ / signal scale | 5.7 · 10⁻⁷ |
+| T | 2.5 · 10⁻⁶ |
+| largest detail coefficient | 55.8 |
+| spike energy removed | **0 %** (RMS 0.5227 → 0.5227) |
+
+Two separate problems, and the second survives fixing the first:
+
+1. **σ is not estimable at this point in the chain.** It would have to come
+   from before the bandpass, or the denoising would have to move ahead of it.
+   Either is a change to the specification and has to be measured as one, not
+   slipped in to make the gate pass.
+2. **The universal threshold targets the noise floor, not outliers.** Soft
+   thresholding shrinks every coefficient by T. A spike whose coefficient is
+   55.8 against a T of order 0.05 — the value a valid σ would give — loses
+   0.1 % of its amplitude. Removing impulsive artefacts needs a per-scale
+   outlier criterion, which is a different rule and a different argument.
+
+So per the working agreement — *no benefit on the target subset means the option
+is dropped regardless of the theory* — this does **not** proceed to PSG-IPA or
+MESA. It ships implemented, off, and with the failure recorded, so the negative
+result stays reproducible and a corrected σ can be measured against it later.
+
+The degenerate case is reported rather than silent: `applied: False` with the
+reason, and the signal returned untouched. A profile that requests denoising and
+quietly does nothing would be worse than one that refuses — the flag would be
+set and the provenance would look populated. The detection is a **ratio**
+(σ against the signal's own robust scale), not an absolute floor, because an
+absolute threshold would measure the recording's unit declaration. That mistake
+has already been made once here, in the RIP quality gate (v0.17.0).
+
+## Cost, measured
+
+On 12 h at 256 Hz, `bandpass_flow` goes from 0.21 s and 177 MB of peak
+allocation to 0.79 s and 266 MB. Worth recording because this option is the
+first one on this axis that *adds* cost rather than saving it — which is fine
+for an artefact remover, and is not fine for one that removes nothing.
+
+---
+
 # v0.19.1 — 2026-08-17 — docs only: the README's last two relative links
 
 **No code changes. Byte-identical scoring.** Nothing in `psgscoring/` is

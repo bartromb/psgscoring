@@ -118,6 +118,8 @@ def _profile_to_legacy_dict(profile) -> dict:
         # acquisition rate, i.e. every published result to date.
         "ENVELOPE_METHOD":            pp.envelope_method,
         "ENVELOPE_FS":                pp.envelope_fs,
+        # v0.20.0: wavelet denoising of the flow signal, off everywhere.
+        "FLOW_WAVELET_DENOISE":       pp.flow_wavelet_denoise,
         # v0.14.1: which channel the non-apnea analyses read (sweep, anchoring,
         # arousal coupling, CSR, ventilatory burden). "apnea" = legacy.
         "FLOW_REFERENCE":             pp.flow_reference,

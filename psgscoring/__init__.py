@@ -44,6 +44,7 @@ from .respiratory import (
 from .signal import (
     ENVELOPE_METHODS,
     compute_envelope,
+    denoise_flow_wavelet,
     linearize_nasal_pressure,
     compute_mmsd,
     preprocess_flow,
@@ -105,6 +106,7 @@ __all__ = [
     # Signal
     "ENVELOPE_METHODS",
     "compute_envelope",
+    "denoise_flow_wavelet",
     "linearize_nasal_pressure",
     "compute_mmsd",
     "preprocess_flow",

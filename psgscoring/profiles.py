@@ -828,6 +828,43 @@ class PostProcessingRules:
     change to a published number.
     """
 
+    flow_wavelet_denoise: bool = False
+    """v0.20.0: remove impulsive artefacts from the flow signal by soft
+    wavelet thresholding, after the bandpass and before anything reads it.
+
+    ``False`` = current behaviour, bit-for-bit. Requires PyWavelets
+    (``pip install psgscoring[denoise]``); a profile that asks for denoising
+    without it raises rather than scoring silently undenoised.
+
+    **What it addresses, and why the bandpass does not already.** The bandpass
+    removes what lies spectrally outside 0.05–3 Hz. A motion artefact of 1–2 s
+    has power *inside* that band and passes straight through. Wavelet
+    thresholding acts locally in time and scale, so it removes the spike without
+    touching the breathing around it. The scope is deliberately narrow: short,
+    high-energy disturbances within the respiratory band.
+
+    Threshold: Donoho & Johnstone's universal ``T = sigma * sqrt(2 ln N)`` with
+    ``sigma = MAD(d1)/0.6745`` from the finest detail scale — derived, not
+    tuned, and conservative on coloured noise because it over-estimates T and
+    therefore removes less.
+
+    **The risk.** An apnea onset is also an abrupt amplitude change. Too
+    aggressive a threshold smooths exactly the flanks the detection runs on and
+    shifts event boundaries — the axis block 1B measures. The boundary-offset
+    distribution is therefore the primary endpoint for this field, ahead of
+    event-F1, and the pre-registered acceptance condition is in the CHANGELOG.
+
+    Scope is the **flow** signal. RIP belts keep the analytic envelope on an
+    undenoised waveform: the artefacts this targets are airflow-sensor
+    artefacts, and extending it to effort would be an unmeasured change riding
+    along on a measured one.
+
+    Interacts with ``artefact_flank_exclusion`` (fix 5) rather than replacing
+    it: thresholding damps the spike, fix 5 excludes the flank around it. Both
+    stay on, and the number of times fix 5 fires is reported so a measurement
+    can show whether they duplicate each other.
+    """
+
     envelope_fs: float | None = None
     """v0.19.0: decimate to this rate before the analytic-signal transform.
 

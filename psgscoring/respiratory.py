@@ -402,14 +402,24 @@ def detect_respiratory_events(
         # envelope and report a suspiciously tight interval.
         _ENV_METHOD = sp.get("ENVELOPE_METHOD", "hilbert")
         _ENV_FS     = sp.get("ENVELOPE_FS", None)
-        _ENV_KEY    = f"{_ENV_METHOD}|{_ENV_FS}"
+        # v0.20.0: wavelet denoising sits in bandpass_flow, so it changes the
+        # filtered waveform that FOUR consumers read (envelope, MMSD, breath
+        # detector, boundary snapping). It therefore belongs in the cache key
+        # for the same reason the envelope method does.
+        _DENOISE    = bool(sp.get("FLOW_WAVELET_DENOISE", False))
+        _ENV_KEY    = f"{_ENV_METHOD}|{_ENV_FS}|dn{int(_DENOISE)}"
+        _DN_INFO: dict = {}
         flow_env = _cache(f"flow_env|{_ENV_KEY}", lambda: preprocess_flow(
             flow_data, sf_flow, is_nasal_pressure=False,
-            envelope_method=_ENV_METHOD, envelope_fs=_ENV_FS))
+            envelope_method=_ENV_METHOD, envelope_fs=_ENV_FS,
+            denoise=_DENOISE,
+            denoise_info=_DN_INFO.setdefault("apnea_flow", {})))
 
         # MMSD – drift-independent apnea validation
         mmsd_norm = _cache(
-            "mmsd_norm", lambda: _compute_mmsd_norm(flow_data, sf_flow, result))
+            f"mmsd_norm|dn{int(_DENOISE)}",
+            lambda: _compute_mmsd_norm(flow_data, sf_flow, result,
+                                       denoise=_DENOISE))
 
         # Dynamic baseline → stage-specific → position-reset. The final baseline
         # and position changes (#4) are cached as one unit: all inputs (flow_env,
@@ -427,6 +437,12 @@ def detect_respiratory_events(
             return _bl, _pc_changes
         baseline, pos_changes = _cache(
             f"baseline_final|{_BL_WIN_S}|{_BL_PCT}|{_ENV_KEY}", _build_baseline)
+
+        # Provenance van de denoising. Alleen aanwezig als het veld aan staat --
+        # een leeg veld in de uitvoer zou suggereren dat er iets gemeten is.
+        if _DENOISE:
+            result["flow_wavelet_denoise"] = {
+                k: v for k, v in _DN_INFO.items() if v}
 
         flow_norm = np.clip(flow_env / baseline, 0, 2)
 
@@ -451,15 +467,18 @@ def detect_respiratory_events(
                 force_linearisation=bool(
                     sp.get("HYPOPNEA_FORCE_LINEARISATION", False)),
                 envelope_method=_ENV_METHOD, envelope_fs=_ENV_FS,
+                denoise=_DENOISE,
+                denoise_info=_DN_INFO.setdefault("hypop_flow", {}),
             )
         hypop_env, hypop_norm, hypop_baseline, sf_hy = _cache(
             f"hypop|{_BL_WIN_S}|{_BL_PCT}|{_ENV_KEY}", _build_hypop)
 
         # ── Breath-by-breath analysis ────────────────────────────────────
-        breaths, bb_apneas, bb_hypopneas = _cache("breaths", lambda: _run_breath_analysis(
-            hypop_flow if hypop_flow is not None else flow_data,
-            sf_hy, hypno, result,
-        ))
+        breaths, bb_apneas, bb_hypopneas = _cache(
+            f"breaths|dn{int(_DENOISE)}", lambda: _run_breath_analysis(
+                hypop_flow if hypop_flow is not None else flow_data,
+                sf_hy, hypno, result, denoise=_DENOISE,
+            ))
 
         # ── Effort envelopes ─────────────────────────────────────────────
         thorax_env  = _cache(f"thorax_env|{_ENV_KEY}", lambda: (
@@ -494,7 +513,8 @@ def detect_respiratory_events(
 
         # v0.2.5/v0.8.30: bandpass-filtered flow for breath boundary snapping
         # Only computed when USE_BREATH_SNAP is True (sensitive profile only)
-        _flow_filt_snap = bandpass_flow(flow_data, sf_flow) if _USE_SNAP else None
+        _flow_filt_snap = (bandpass_flow(flow_data, sf_flow, denoise=_DENOISE)
+                           if _USE_SNAP else None)
 
         # ── v0.8.14: AASM-conforme peak-gebaseerde hypopnea-detectie ─────
         # AASM: "peak signal excursions drop by ≥30%"
@@ -1153,10 +1173,17 @@ def _compute_mmsd_norm(
     flow_data: np.ndarray,
     sf_flow: float,
     result: dict,
+    denoise: bool = False,
 ) -> np.ndarray | None:
-    """Bereken genormaliseerde MMSD (Mean Magnitude Second Derivative) van flowsignaal."""
+    """Bereken genormaliseerde MMSD (Mean Magnitude Second Derivative) van flowsignaal.
+
+    De MMSD versterkt snelle oscillaties via de tweede afgeleide, en dat is
+    precies de vorm van een impulsief artefact. Dit is dus de consument die het
+    meest van denoising verandert -- en de reden dat hem overslaan geen
+    conservatieve keuze zou zijn maar een inconsistente.
+    """
     try:
-        filt       = bandpass_flow(flow_data, sf_flow)
+        filt       = bandpass_flow(flow_data, sf_flow, denoise=denoise)
         mmsd       = compute_mmsd(filt, sf_flow, window_s=1.0)
         stable     = mmsd[mmsd > np.percentile(mmsd, 10)]
         mmsd_bl    = float(np.median(stable)) if len(stable) > 100 else 1.0
@@ -1214,6 +1241,7 @@ def _setup_hypop_channel(
     hypop_is_same_channel=None,
     force_linearisation=False,
     envelope_method="hilbert", envelope_fs=None,
+    denoise=False, denoise_info=None,
 ):
     """Return (hypop_env, hypop_norm, hypop_baseline, sf_hy)."""
     if hypop_flow is not None and sf_hypop is not None:
@@ -1244,7 +1272,8 @@ def _setup_hypop_channel(
         else:
             hypop_env = preprocess_flow(
                 hypop_flow, sf_hypop, is_nasal_pressure=True,
-                envelope_method=envelope_method, envelope_fs=envelope_fs)
+                envelope_method=envelope_method, envelope_fs=envelope_fs,
+                denoise=denoise, denoise_info=denoise_info)
 
         # De wortellinearisatie (AASM Regel 3) wordt op DEZE tak toegepast en
         # op de andere niet: bij één flowkanaal is hypop_env identiek aan
@@ -1326,10 +1355,10 @@ def _setup_hypop_channel(
         return flow_env, flow_norm, baseline, sf_flow
 
 
-def _run_breath_analysis(hypop_raw, hypop_sf, hypno, result):
+def _run_breath_analysis(hypop_raw, hypop_sf, hypno, result, denoise=False):
     """Voer breath-by-breath analyse uit: detecteer ademhalingen en bereken amplitudes."""
     try:
-        filt   = bandpass_flow(hypop_raw, hypop_sf)
+        filt   = bandpass_flow(hypop_raw, hypop_sf, denoise=denoise)
         breaths = detect_breaths(filt, hypop_sf)
         if len(breaths) > 10:
             ratios = compute_breath_amplitudes(breaths, hypop_sf)

@@ -73,19 +73,181 @@ def compute_mmsd(
 # Flow preprocessing pipeline
 # ---------------------------------------------------------------------------
 
-def bandpass_flow(flow_data: np.ndarray, sf: float) -> np.ndarray:
+def denoise_flow_wavelet(
+    x: np.ndarray,
+    sf: float,
+    wavelet: str = "sym8",
+    coarsest_s: float = 2.0,
+) -> tuple[np.ndarray, dict]:
+    """
+    Remove impulsive artefacts by soft wavelet thresholding.
+
+    Returns ``(denoised, info)``; ``info`` carries the mother wavelet, the
+    number of levels, the estimated noise scale and the threshold actually
+    applied, so a scored recording can say what was removed from it.
+
+    Why this is not the bandpass again
+    ----------------------------------
+    The upstream bandpass removes what lies spectrally outside 0.05–3 Hz. A
+    motion artefact lasting 1–2 s has power *inside* that band and passes
+    straight through. Wavelet thresholding acts locally in time **and** scale,
+    so it can take out the spike without touching the breathing around it. The
+    scope is correspondingly narrow: short, high-energy disturbances within the
+    respiratory band. It is not a general-purpose cleaner.
+
+    The threshold
+    -------------
+    Donoho & Johnstone's universal threshold, ``T = sigma * sqrt(2 ln N)``,
+    with ``sigma = MAD(d1) / 0.6745`` estimated from the finest detail scale.
+    That is an analytically derived quantity rather than a tuned constant,
+    which is the same footing the RIP quality gate stands on. It assumes white
+    noise and therefore *over*-estimates T on coloured noise — conservative in
+    the direction that matters here, because an over-estimated threshold removes
+    less, not more.
+
+    Soft, not hard: soft thresholding shrinks every coefficient continuously
+    toward zero, while hard thresholding introduces discontinuities that
+    reappear in the envelope as phantom flanks — exactly what must not happen
+    at an event boundary.
+
+    The risk, stated plainly
+    ------------------------
+    An apnea onset is also an abrupt amplitude change. A threshold that is too
+    aggressive smooths precisely the flanks the detection runs on and shifts
+    event boundaries, which is the axis block 1B measures. That is why the
+    profile field defaults to off and why the boundary-offset measurement is
+    the primary endpoint rather than event-F1.
+
+    Raises
+    ------
+    ImportError
+        If PyWavelets is absent. A profile that asks for denoising must not
+        silently score without it; install ``psgscoring[denoise]``.
+    """
+    try:
+        import pywt
+    except ImportError as exc:                                # pragma: no cover
+        raise ImportError(
+            "wavelet denoising requires PyWavelets. Install it with "
+            "`pip install psgscoring[denoise]`. Scoring was NOT performed: a "
+            "profile that requests denoising cannot fall back to not doing it."
+        ) from exc
+
+    n = len(x)
+    # Level so the coarsest detail scale spans roughly `coarsest_s` seconds:
+    # detail level k covers ~2**k / sf seconds.
+    want = int(np.floor(np.log2(max(2.0, coarsest_s * sf))))
+    cap = pywt.dwt_max_level(n, pywt.Wavelet(wavelet).dec_len)
+    level = max(1, min(want, cap))
+    info = {"wavelet": wavelet, "levels": level, "coarsest_s": coarsest_s}
+
+    if n < 2 ** (level + 1) or cap < 1:
+        info.update({"applied": False, "reason": "signal too short for the DWT"})
+        return x, info
+
+    coeffs = pywt.wavedec(x, wavelet, level=level)
+    # MAD of the FINEST detail scale: the estimator assumes that at that scale
+    # the signal is essentially noise.
+    d1 = coeffs[-1]
+    sigma = float(np.median(np.abs(d1)) / 0.6745)
+    thr = sigma * float(np.sqrt(2.0 * np.log(n)))
+
+    # The estimator degenerates HERE, and it does so structurally rather than
+    # occasionally. The finest detail scale covers sf/4 to sf/2 -- 16 to 32 Hz
+    # at 64 Hz sampling -- and the upstream bandpass already removed everything
+    # above 3 Hz. So d1 is empty by construction, MAD(d1) -> 0, and T -> 0,
+    # which makes soft thresholding an expensive no-op.
+    #
+    # Measured on 10 min of synthetic breathing at 64 Hz: sigma = 5.5e-07
+    # against a signal scale of 9.7e-01, so the estimated noise floor is six
+    # orders of magnitude below the signal it is meant to sit in, and T is
+    # 2.5e-07 of the largest detail coefficient. Nothing is removed.
+    #
+    # The test is a RATIO, not an absolute floor: "the estimated noise level is
+    # a negligible fraction of the signal's own robust scale" is the statement
+    # that means "d1 measured an empty band". An absolute cutoff would depend on
+    # the recording's units, which is the mistake the RIP gate already made once
+    # (v0.17.0, where an absolute MAD threshold turned out to be measuring the
+    # EDF's unit declaration).
+    #
+    # Reporting this is the whole point of the branch. A profile that asks for
+    # denoising and silently does nothing is worse than one that refuses: the
+    # flag would be set, the provenance would look populated, and the signal
+    # would be untouched.
+    sig_scale = float(np.median(np.abs(x - np.median(x))) / 0.6745)
+    if sig_scale <= 0 or sigma < 1e-4 * sig_scale:
+        info.update({
+            "applied": False,
+            "sigma": sigma,
+            "threshold": thr,
+            "sigma_over_signal_scale": (sigma / sig_scale) if sig_scale > 0 else None,
+            "reason": (
+                "the universal threshold degenerates in this position of the "
+                "chain: the finest detail scale spans sf/4-sf/2 Hz, which the "
+                "3 Hz low-pass has already emptied, so MAD(d1) estimates an "
+                "empty band rather than the noise floor and T collapses. "
+                "Estimating sigma here is invalid; it would have to come from "
+                "before the bandpass, which is a change to the specification "
+                "and has to be measured as one."
+            ),
+        })
+        return x, info
+
+    out = [coeffs[0]] + [pywt.threshold(c, thr, mode="soft") for c in coeffs[1:]]
+    rec = pywt.waverec(out, wavelet)
+    # waverec returns an even-length array, so it is one sample long on odd n.
+    rec = np.asarray(rec[:n], dtype=float)
+
+    info.update({
+        "applied": True,
+        "sigma": sigma,
+        "threshold": thr,
+        "removed_rms": float(np.sqrt(np.mean((x - rec) ** 2))),
+    })
+    return rec, info
+
+
+def bandpass_flow(
+    flow_data: np.ndarray,
+    sf: float,
+    denoise: bool = False,
+    denoise_info: dict | None = None,
+) -> np.ndarray:
     """
     3rd-order Butterworth bandpass 0.05–3 Hz, zero-phase.
 
     Retains the raw waveform (no envelope) for zero-crossing breath
     segmentation.  The 3 Hz upper cutoff removes snoring vibrations
     (50–200 Hz) before any downstream flattening-index computation.
+
+    Parameters
+    ----------
+    denoise      : v0.20.0. Apply :func:`denoise_flow_wavelet` to the filtered
+                   waveform. Default ``False`` = the pre-v0.20.0 result,
+                   bit-for-bit.
+    denoise_info : optional dict, updated in place with the provenance of the
+                   denoising so the caller can put it in ``meta``.
+
+    Denoising lives *here*, rather than at each caller, on purpose. Four
+    separate consumers read the bandpassed flow — the amplitude envelope, the
+    MMSD apnea validation, the breath detector, and the boundary snapping — and
+    the specification requires all of them to see the same signal, or the
+    envelope events and the per-breath evidence stop describing one recording.
+    Putting the switch in the shared function makes that structural instead of
+    a thing to remember; `tests/test_wavelet_denoise.py` fails if a fifth
+    consumer is added without it.
     """
     nyq = sf / 2
     lo  = max(0.05 / nyq, 0.001)
     hi  = min(3.0  / nyq, 0.99)
     b, a = sp_signal.butter(3, [lo, hi], btype="band")
-    return sp_signal.filtfilt(b, a, flow_data)
+    filtered = sp_signal.filtfilt(b, a, flow_data)
+    if not denoise:
+        return filtered
+    filtered, info = denoise_flow_wavelet(filtered, sf)
+    if denoise_info is not None:
+        denoise_info.update(info)
+    return filtered
 
 
 # ---------------------------------------------------------------------------
@@ -368,6 +530,8 @@ def preprocess_flow(
     is_nasal_pressure: bool = False,
     envelope_method: str = "hilbert",
     envelope_fs: float | None = None,
+    denoise: bool = False,
+    denoise_info: dict | None = None,
 ) -> np.ndarray:
     """
     Full flow preprocessing: [linearize ->] bandpass -> envelope -> 1 s smooth.
@@ -384,7 +548,8 @@ def preprocess_flow(
     """
     if is_nasal_pressure:
         flow_data = linearize_nasal_pressure(flow_data)
-    filtered = bandpass_flow(flow_data, sf)
+    filtered = bandpass_flow(flow_data, sf, denoise=denoise,
+                             denoise_info=denoise_info)
     envelope = compute_envelope(filtered, sf, envelope_method, envelope_fs)
     win      = max(1, int(sf))                        # 1-second smoothing
     return np.convolve(envelope, np.ones(win) / win, mode="same")
