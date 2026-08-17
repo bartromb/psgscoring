@@ -3,7 +3,7 @@
 > original because it underpins the MESA figures in the paper; earlier entries
 > are deliberately left as they are rather than retranslated.
 
-# Unreleased — the envelope becomes a profile axis, and option 1 turns out not to be free
+# v0.19.0 — 2026-08-17 — the envelope becomes a profile axis, and option 1 turns out not to be free
 
 **No profile changes its output.** The nineteen profiles that existed before
 this change all keep `envelope_method="hilbert"` and `envelope_fs=None`, which
@@ -209,9 +209,16 @@ rerunning the pipeline).
 
 ### Provenance, and one thing that had to change to get the run to finish
 
-psgscoring 0.18.0, arousal derivation at the profile default (`multi`), which
-is the convention of the MESA runs; the PSG-IPA run above used `single`, which
-is the convention there. Both are recorded in their own output.
+Both output files record `psgscoring 0.18.0`, because that is what
+`__version__` still said while this release was being measured — the code under
+test is the tree that became 0.19.0, not the published 0.18.0. Read those two
+JSON files as "the 0.19.0 candidate"; the 0.18.0 on PyPI has no envelope axis
+and cannot produce those profile names at all, which is what makes the
+distinction harmless.
+
+Arousal derivation ran at the profile default (`multi`), which is the convention
+of the MESA runs; the PSG-IPA run above used `single`, which is the convention
+there. Both are recorded in their own output.
 
 This run was pinned to one BLAS/OpenMP thread per worker and capped at six
 cores, which the previous MESA runs were not. The machine hard-froze twice
