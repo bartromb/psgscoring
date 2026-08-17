@@ -3,6 +3,31 @@
 > original because it underpins the MESA figures in the paper; earlier entries
 > are deliberately left as they are rather than retranslated.
 
+# v0.19.1 — 2026-08-17 — docs only: the README's last two relative links
+
+**No code changes. Byte-identical scoring.** Nothing in `psgscoring/` is
+touched, so no profile, no threshold and no output moves; the version exists
+only because PyPI cannot re-render an already-published description.
+
+`README.md` still carried two relative markdown links, `[LICENSE](LICENSE)` and
+the interim-conclusion document. PyPI renders the README at
+`https://pypi.org/project/psgscoring/`, so a relative target resolves against
+that page rather than against the repository and lands nowhere. Both are now
+absolute `github.com/.../blob/main/` URLs.
+
+This is the second release spent on this defect — 0.12.2 fixed one set of
+links, and these two survived it. The reason it recurs is that it is invisible
+from where the README is written: every relative link works perfectly on
+GitHub, and the failure only exists on the page nobody reviews. So this time it
+is pinned rather than fixed: `tests/test_readme_links.py` rejects any link that
+is not absolute, an anchor, or a mailto, checks that an absolute link into this
+repository points at a path that actually exists, and fails loudly if the link
+regex ever stops matching — because a link test that silently matches nothing
+reports success for having checked nothing.
+
+Verified against the sabotage: reverting one link to its relative form fails
+`test_no_relative_links`.
+
 # v0.19.0 — 2026-08-17 — the envelope becomes a profile axis, and option 1 turns out not to be free
 
 **No profile changes its output.** The nineteen profiles that existed before

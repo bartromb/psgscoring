@@ -61,7 +61,7 @@ The stability guarantee lives in the **profiles**, not in the version number:
   it, and is pinned by a test.
 
 If you need scored values to stay identical across time — for a study, a
-regulatory submission, or a paper — **pin the version** (`psgscoring==0.19.0`)
+regulatory submission, or a paper — **pin the version** (`psgscoring==0.19.1`)
 and record which profile you used. Do not rely on a profile name alone.
 
 ## Installation
@@ -149,7 +149,7 @@ falls **1.84 → 0.29**. On MESA the paired advantage replicates on two
 disjoint held-out samples of 50 (p = 0.0069 and p = 0.0016). But the two
 datasets disagree on the *absolute* level by ~16 AHI points, and until that
 is explained the existing clinical output stays the default. See
-[`docs/interim_conclusie_klinisch_gebruik.md`](docs/interim_conclusie_klinisch_gebruik.md).
+[`docs/interim_conclusie_klinisch_gebruik.md`](https://github.com/bartromb/psgscoring/blob/main/docs/interim_conclusie_klinisch_gebruik.md).
 
 ### `aasm_v3_dual` — apneas on both flow sensors (v0.14.0, opt-in)
 
@@ -392,7 +392,7 @@ before publishing; a difference is a stop, not a re-bless.
 
 ## License
 
-BSD-3-Clause. See [LICENSE](LICENSE).
+BSD-3-Clause. See [LICENSE](https://github.com/bartromb/psgscoring/blob/main/LICENSE).
 
 ---
 

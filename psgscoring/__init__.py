@@ -94,7 +94,7 @@ from .utils import (
     safe_r,
 )
 
-__version__ = "0.19.0"
+__version__ = "0.19.1"
 __all__ = [
     # Master
     "run_pneumo_analysis",
