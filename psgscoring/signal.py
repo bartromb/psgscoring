@@ -14,6 +14,7 @@ import numpy as np
 from scipy import signal as sp_signal
 from scipy.ndimage import median_filter
 
+from .breath import detect_breaths
 from .constants import BASELINE_WINDOW_S, EPOCH_LEN_S
 from .utils import is_nrem, is_rem, safe_r
 
@@ -87,13 +88,289 @@ def bandpass_flow(flow_data: np.ndarray, sf: float) -> np.ndarray:
     return sp_signal.filtfilt(b, a, flow_data)
 
 
+# ---------------------------------------------------------------------------
+# Amplitude envelopes  (the `envelope_method` / `envelope_fs` profile axis)
+# ---------------------------------------------------------------------------
+#
+# `scipy.signal.hilbert` FFTs the WHOLE signal at once and returns complex128
+# (16 B/sample). One 8 h channel at 256 Hz is ~7.4 M samples, so the transform
+# alone peaks around half a gigabyte per channel, on top of the preloaded raw
+# data. Multiply that by the worker count of a sweep and the machine swaps.
+#
+# The three alternatives below trade that peak for a different envelope. They
+# are NOT interchangeable: each one shifts event boundaries, and therefore the
+# measured reductions, in its own way. That is why they sit on a profile axis
+# with `hilbert` as the default rather than being swapped in globally --
+# including `hilbert_chunked`, which was specified as a free implementation
+# detail but measured as a behaviour change (see its docstring).
+
+ENVELOPE_METHODS = ("hilbert", "hilbert_chunked", "rectify_lowpass",
+                    "breath_amplitude")
+
+
+def hilbert_envelope(x: np.ndarray) -> np.ndarray:
+    """Amplitude envelope via the analytic signal over the full array."""
+    return np.abs(sp_signal.hilbert(x))
+
+
+def hilbert_envelope_chunked(
+    x: np.ndarray,
+    sf: float,
+    chunk_s: float = 1800.0,
+    pad_s: float = 60.0,
+) -> np.ndarray:
+    """
+    Analytic-signal envelope computed blockwise with overlap-discard.
+
+    Peak memory drops from "one complex128 copy of the whole night" to "one
+    complex128 copy of ``chunk_s + 2 * pad_s`` seconds" -- roughly 30 MB per
+    channel instead of ~500 MB, independent of recording length.
+
+    NOT identical to :func:`hilbert_envelope`
+    ----------------------------------------
+    This was specified as a free optimisation, on the reasoning that the
+    Hilbert transform is a linear convolution and a generous pad therefore
+    reproduces the full-array result up to numerical noise. Measurement says
+    otherwise, and the difference is structural rather than a tuning problem:
+
+      * The Hilbert kernel is 1/(pi t). It decays as 1/t and has no compact
+        support, so any finite pad truncates a tail that never vanishes. On an
+        8 h synthetic breathing signal at 256 Hz the interior residual sits
+        around 1e-4 of the p95 envelope and does NOT converge as the pad grows
+        (60 s -> 2.8e-4, 120 s -> 1.1e-3, 600 s -> 5.5e-5): it is a floor, not
+        a decay curve. Widening the pad buys memory back without buying
+        accuracy.
+      * At the very first and last samples the two disagree by ~30 % of the
+        p95 envelope. `scipy.signal.hilbert` is an FFT, so the full-array
+        version wraps the end of the night onto the beginning; a chunked
+        version wraps within its own window instead. Neither is more correct,
+        but they are not the same number.
+
+    1e-4 is far below any clinical threshold, yet the envelope is compared
+    against a baseline sample by sample, so it can still move a boundary and,
+    at the margin, flip a borderline event. That is a behaviour change, and it
+    belongs on the profile axis with the default untouched.
+
+    Note that the golden harness cannot referee this: its cases are 600 s at
+    32 Hz, far shorter than one chunk, so chunking never engages and every
+    case passes unchanged. Absence of a golden diff is not evidence here --
+    :mod:`tests.test_envelope_methods` uses a signal long enough to cross
+    several chunk boundaries instead.
+
+    Parameters
+    ----------
+    chunk_s : block length in seconds.
+    pad_s   : overlap discarded on each side. The slowest component that
+              survives the upstream bandpass has a 20 s period (0.05 Hz), so
+              60 s covers three of them. Larger pads are not better, per the
+              measurement above.
+    """
+    n     = len(x)
+    chunk = max(1, int(chunk_s * sf))
+    pad   = max(0, int(pad_s * sf))
+
+    # Short signal: one block is the whole array, so this IS the full transform.
+    if n <= chunk + 2 * pad:
+        return hilbert_envelope(x)
+
+    out = np.empty(n, dtype=float)
+    for start in range(0, n, chunk):
+        stop = min(start + chunk, n)          # last block may be short: keep it
+        lo   = max(0, start - pad)
+        hi   = min(n, stop + pad)
+        seg  = np.abs(sp_signal.hilbert(x[lo:hi]))
+        out[start:stop] = seg[start - lo: start - lo + (stop - start)]
+    return out
+
+
+def rectify_lowpass_envelope(
+    x: np.ndarray,
+    sf: float,
+    cutoff_hz: float = 0.5,
+) -> np.ndarray:
+    """
+    Envelope by AM demodulation: ``|x|`` through a zero-phase lowpass.
+
+    O(n), streamable, negligible memory. The price is a genuinely different
+    envelope: full-wave rectification puts energy at twice the breathing
+    frequency, so what survives the lowpass carries a ripple at the breathing
+    rate and the flanks of a reduction are shaped by the filter rather than by
+    the analytic signal. Event boundaries -- and therefore the measured
+    percentage reduction -- move.
+
+    ``|x|`` of a sinusoid has mean 2A/pi, so the result is scaled back by pi/2
+    to land on the same amplitude as the analytic envelope. Without that the
+    envelope sits ~36 % low against an unchanged baseline percentile, and every
+    reduction threshold fires early.
+
+    Reference: standard AM demodulation; e.g. Oppenheim & Schafer,
+    *Discrete-Time Signal Processing*, on envelope detection.
+    """
+    nyq = sf / 2
+    hi  = min(cutoff_hz / nyq, 0.99)
+    b, a = sp_signal.butter(2, hi, btype="low")
+    return sp_signal.filtfilt(b, a, np.abs(x)) * (np.pi / 2.0)
+
+
+def breath_amplitude_envelope(
+    x: np.ndarray,
+    sf: float,
+    min_breath_s: float = 1.0,
+    max_breath_s: float = 15.0,
+) -> np.ndarray:
+    """
+    Envelope from per-breath peak-to-trough amplitudes, interpolated.
+
+    Each detected breath contributes one point -- half its peak-to-trough
+    excursion, placed at the breath midpoint -- and the points are joined by
+    linear interpolation onto the original sample grid. Memory is negligible:
+    one value per breath instead of one complex number per sample.
+
+    Why this is a method change and not an optimisation
+    ---------------------------------------------------
+    AASM defines reductions per breath, not against a continuous envelope, so
+    a breath-granular envelope is arguably closer to the rule. It also makes
+    event boundaries fall on breaths by construction. But it moves the
+    sensitivity into peak detection at low amplitudes -- which is exactly when
+    events happen -- and when breaths are missed the envelope interpolates
+    straight across the gap instead of dipping. On a signal where detection
+    fails outright this returns zeros rather than a wrong answer.
+
+    Origin
+    ------
+    The approach (per-breath peak detection, then interpolation to a
+    continuous envelope) is described for CAISR's respiratory module. This is
+    an independent implementation written from that description under
+    ``CAISR_CLEANROOM_BRIEF.md``: no CAISR code, names, or constants were
+    used. Linear interpolation is used here rather than cubic -- a cubic fit
+    can overshoot below zero between a normal breath and an apneic one, and a
+    negative envelope has no meaning against a baseline ratio.
+
+    Notes
+    -----
+    Expects an already bandpass-filtered waveform (zero-crossing segmentation
+    needs the raw oscillation, not an envelope).
+    """
+    n = len(x)
+    breaths = detect_breaths(x, sf, min_breath_s=min_breath_s,
+                             max_breath_s=max_breath_s)
+    if len(breaths) < 2:
+        # Too few breaths to interpolate between. Returning zeros is honest:
+        # a flat non-zero envelope would read downstream as steady breathing.
+        return np.zeros(n, dtype=float)
+
+    centres = np.array([b["mid"] for b in breaths], dtype=float)
+    # Half the peak-to-trough excursion is the amplitude of the equivalent
+    # sinusoid, which is what the analytic envelope reports.
+    amps = np.array([b["amplitude"] for b in breaths], dtype=float) / 2.0
+
+    order   = np.argsort(centres)
+    centres = centres[order]
+    amps    = amps[order]
+    # np.interp holds the first/last value beyond the ends, which is the right
+    # behaviour here: no extrapolated trend into a region with no breaths.
+    return np.interp(np.arange(n, dtype=float), centres, amps)
+
+
+def _decimated_hilbert_envelope(
+    x: np.ndarray,
+    sf: float,
+    envelope_fs: float,
+    chunked: bool = False,
+    chunk_s: float = 1800.0,
+    pad_s: float = 60.0,
+) -> np.ndarray:
+    """
+    Decimate to ``envelope_fs``, take the envelope there, interpolate back.
+
+    Everything the upstream bandpass passes sits below 3 Hz, so a 10 Hz
+    envelope rate keeps Nyquist comfortably above the band while cutting the
+    transform by a factor of 20-50.
+
+    The result is returned on the ORIGINAL sample grid. That is deliberate:
+    every downstream consumer indexes the envelope in original samples, and
+    handing them a second sample rate would push an fs-aware conversion into
+    the baseline, the boundary refinement, and the breath coupling all at
+    once. The saving is in the transform, not in the returned array.
+
+    The decimation anti-alias filter and the coarser sample raster both leave
+    a fingerprint, so this is a small but real deviation -- hence a profile
+    field rather than a default.
+    """
+    if envelope_fs is None or envelope_fs <= 0 or envelope_fs >= sf:
+        return (hilbert_envelope_chunked(x, sf, chunk_s, pad_s) if chunked
+                else hilbert_envelope(x))
+
+    factor = int(sf // envelope_fs)
+    if factor < 2:
+        return (hilbert_envelope_chunked(x, sf, chunk_s, pad_s) if chunked
+                else hilbert_envelope(x))
+
+    # ftype="fir" with zero_phase keeps the envelope aligned in time; an IIR
+    # decimator would shift it, and a shifted envelope moves every boundary.
+    small    = sp_signal.decimate(x, factor, ftype="fir", zero_phase=True)
+    sf_small = sf / factor
+    env_small = (hilbert_envelope_chunked(small, sf_small, chunk_s, pad_s)
+                 if chunked else hilbert_envelope(small))
+
+    # Map decimated index k back to original index k * factor.
+    src = np.arange(len(env_small), dtype=float) * factor
+    return np.interp(np.arange(len(x), dtype=float), src, env_small)
+
+
+def compute_envelope(
+    filtered: np.ndarray,
+    sf: float,
+    method: str = "hilbert",
+    envelope_fs: float | None = None,
+) -> np.ndarray:
+    """
+    Amplitude envelope of an already-filtered signal, per the profile axis.
+
+    Parameters
+    ----------
+    filtered    : bandpass-filtered waveform (NOT an envelope).
+    method      : one of :data:`ENVELOPE_METHODS`. ``"hilbert"`` is the
+                  default and reproduces every result published to date.
+    envelope_fs : if set, decimate to this rate before the analytic-signal
+                  transform. Ignored by the two methods that never build one
+                  (``rectify_lowpass``, ``breath_amplitude``) -- both are
+                  already O(n) in memory, so decimating would cost accuracy
+                  for nothing.
+
+    Raises
+    ------
+    ValueError
+        On an unknown method. Falling back to the default would make a typo in
+        a profile silently score with different rules than its name claims.
+    """
+    if method not in ENVELOPE_METHODS:
+        raise ValueError(
+            f"unknown envelope_method {method!r}; expected one of "
+            f"{', '.join(ENVELOPE_METHODS)}")
+
+    if method == "rectify_lowpass":
+        return rectify_lowpass_envelope(filtered, sf)
+    if method == "breath_amplitude":
+        return breath_amplitude_envelope(filtered, sf)
+
+    chunked = (method == "hilbert_chunked")
+    if envelope_fs:
+        return _decimated_hilbert_envelope(filtered, sf, envelope_fs,
+                                           chunked=chunked)
+    return (hilbert_envelope_chunked(filtered, sf) if chunked
+            else hilbert_envelope(filtered))
+
+
 def preprocess_flow(
     flow_data: np.ndarray,
     sf: float,
     is_nasal_pressure: bool = False,
+    envelope_method: str = "hilbert",
+    envelope_fs: float | None = None,
 ) -> np.ndarray:
     """
-    Full flow preprocessing: [linearize ->] bandpass -> Hilbert envelope -> 1 s smooth.
+    Full flow preprocessing: [linearize ->] bandpass -> envelope -> 1 s smooth.
 
     Parameters
     ----------
@@ -101,25 +378,42 @@ def preprocess_flow(
     sf                : sample rate (Hz)
     is_nasal_pressure : if True, apply sqrt-linearization before filtering
                         (AASM Rule 3; use for hypopnea channel only)
+    envelope_method   : see :func:`compute_envelope`. Default reproduces the
+                        pre-v0.19.0 behaviour exactly.
+    envelope_fs       : see :func:`compute_envelope`.
     """
     if is_nasal_pressure:
         flow_data = linearize_nasal_pressure(flow_data)
     filtered = bandpass_flow(flow_data, sf)
-    envelope = np.abs(sp_signal.hilbert(filtered))
+    envelope = compute_envelope(filtered, sf, envelope_method, envelope_fs)
     win      = max(1, int(sf))                        # 1-second smoothing
     return np.convolve(envelope, np.ones(win) / win, mode="same")
 
 
-def preprocess_effort(effort_data: np.ndarray, sf: float) -> np.ndarray:
+def preprocess_effort(
+    effort_data: np.ndarray,
+    sf: float,
+    envelope_method: str = "hilbert",
+    envelope_fs: float | None = None,
+) -> np.ndarray:
     """
     Thorax / abdomen RIP preprocessing: bandpass 0.05–2 Hz -> amplitude envelope.
+
+    The envelope axis applies here too, with one exception: ``breath_amplitude``
+    falls back to the analytic signal. That method segments breaths by
+    zero-crossing on a flow waveform; a RIP belt measures excursion, and its
+    zero-crossings are a property of the belt's own baseline drift rather than
+    of the breath. Effort would silently become the noisiest channel in the
+    montage exactly where the flow envelope got sharper.
     """
     nyq = sf / 2
     lo  = max(0.03 / nyq, 0.001)
     hi  = min(2.0  / nyq, 0.99)
     b, a = sp_signal.butter(3, [lo, hi], btype="band")
     filtered = sp_signal.filtfilt(b, a, effort_data)
-    envelope = np.abs(sp_signal.hilbert(filtered))
+    method = ("hilbert" if envelope_method == "breath_amplitude"
+              else envelope_method)
+    envelope = compute_envelope(filtered, sf, method, envelope_fs)
     win      = max(1, int(sf * 2))
     return np.convolve(envelope, np.ones(win) / win, mode="same")
 

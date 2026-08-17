@@ -104,8 +104,9 @@ print(f"Robustness: {interval['robustness_grade']}")
 | SpO₂ nadir window | 30 s | 45 s | 45 s |
 | Peak-based detection | No | Yes | Yes |
 
-`list_profiles()` enumerates the full registry (AASM v1/v2/v3, CMS/Medicare,
-Chicago 1999, and the NSRR dataset profile).
+`list_profiles()` enumerates the full registry — 19 profiles: AASM v1/v2/v3,
+CMS/Medicare, Chicago 1999, the NSRR dataset profile, and the exploratory arms
+(breath-graded, dual-sensor, and the four on the envelope axis below).
 
 ### `aasm_v3_breath` — breath-graded hypopnea scoring (v0.13.0, opt-in)
 
@@ -211,6 +212,71 @@ Identical to `aasm_v3_rec` on any montage without a usable thermistor. Set
 `flow_reference` on any profile to get the same behaviour;
 `meta["flow_channels"]["reference_sensor"]` reports which channel was used.
 
+### The envelope axis — four exploratory arms (v0.19.0, all off)
+
+Every threshold in the library is applied to an amplitude envelope, and until
+now there was only one way to build it: the analytic signal over the whole
+recording. That transform is also the library's largest allocation. On a 12 h
+recording at 256 Hz, one `preprocess_flow` call costs **592 MB of peak RSS and
+34 s**, which is what makes a parallel sweep swap.
+
+`envelope_method` and `envelope_fs` make the choice explicit. Measured on
+`mesa-sleep-0001.edf` with `/usr/bin/time -v`, peak above a 701 MB load-only
+floor:
+
+| profile | `envelope_method` | peak | time | what changes |
+|---|---|---|---|---|
+| `aasm_v3_rec` | `hilbert` | 592 MB | 33.7 s | reference — every published result |
+| `aasm_v3_env_chunked` | `hilbert_chunked` | 116 MB | 0.8 s | same transform, 30-min blocks |
+| `aasm_v3_env_rectify` | `rectify_lowpass` | 255 MB | 0.9 s | AM demodulation |
+| `aasm_v3_env_breath` | `breath_amplitude` | 92 MB | 1.1 s | per-breath amplitude, interpolated |
+| `aasm_v3_env_decimated` | `hilbert`, `envelope_fs=10` | 152 MB | 1.1 s | decimate, transform, interpolate back |
+
+**None of these is a default, and the blockwise one is not free.** It was
+planned as an implementation detail — same numbers, no profile field — on the
+reasoning that a generous overlap reproduces the full transform up to
+numerical noise. It does not: the 1/(πt) kernel has no compact support, so the
+interior residual floors around 1e-4 of the p95 envelope and does *not*
+converge as the overlap grows, while the first and last samples differ by ~30 %
+because an FFT wraps circularly. Far below any clinical threshold, but the
+envelope is compared to a baseline sample by sample, so it moves boundaries.
+
+The golden harness cannot referee this axis — its cases are shorter than one
+block, so chunking never engages and every case passes regardless. The tests
+that do use 8 h signals; see `tests/test_envelope_methods.py`.
+
+Measured against human scoring on PSG-IPA (n = 5, twelve scorers each, anchor
+in the same run — bias +1.69/h, MAE 1.76/h, F1 0.462):
+
+| arm | F1 | bias | MAE | verdict |
+|---|---|---|---|---|
+| `aasm_v3_env_chunked` | 0.462 | +1.69 | 1.76 | identical to the anchor; 116 of 8350 boundaries move, each by one 0.1 s step |
+| `aasm_v3_env_rectify` | 0.487 | +0.01 | 1.72 | better on nearly every axis — and still off, see below |
+| `aasm_v3_env_breath` | 0.414 | +3.19 | 4.11 | fails; events lost to the IoU threshold go 63 → 205 |
+| `aasm_v3_env_decimated` | 0.463 | +1.71 | 1.78 | within noise, one extra event |
+
+And on MESA (n = 150, held out, paired per recording, anchor F1 0.438 / bias
+−5.30 in the same job):
+
+| arm | F1 med | bias | paired ΔF1 | p | verdict |
+|---|---|---|---|---|---|
+| `aasm_v3_env_chunked` | 0.436 | −5.29 | +0.0000 | 0.70 | equal on 129/150 recordings |
+| `aasm_v3_env_rectify` | 0.416 | −5.67 | −0.0015 | 0.10 | the PSG-IPA gain did not replicate |
+| `aasm_v3_env_breath` | 0.413 | −5.78 | −0.0206 | 2.4·10⁻⁶ | rejected on both cohorts |
+| `aasm_v3_env_decimated` | 0.438 | −5.30 | +0.0000 | 0.91 | equal on 111/150 recordings |
+
+`rectify_lowpass` is why the decision rule was fixed *before* the measurement.
+It was the best arm on PSG-IPA on nearly every axis; on 150 held-out recordings
+the sign flips and the advantage is gone. Five recordings had described those
+five recordings. Had the rule been written afterwards, it would have shipped.
+
+`hilbert_chunked` now meets its promotion criterion on both cohorts — same
+bias, same mean F1, identical severity confusion matrix — at 592 MB → 116 MB
+and 33.7 s → 0.8 s. It is still not promoted: that is a decision about the
+published numbers (the MESA F1 median moves 0.438 → 0.436), not about the code.
+The rule and the full numbers, including boundary offsets against the
+human-versus-human distribution, are in the CHANGELOG.
+
 ## Validation
 
 **PSG-IPA** (PhysioNet): 5 recordings, 59 independent scorer sessions.
@@ -293,7 +359,7 @@ per idea evaluated, including the ones rejected.
 
 ## Architecture
 
-~14,600 lines across 21 submodules, 817 unit tests (CI: Python 3.9–3.12):
+~15,000 lines across 21 submodules, 868 unit tests (CI: Python 3.9–3.12):
 
 `constants` · `utils` · `signal` · `breath` · `breath_scoring` · `classify` · `spo2` · `plm` · `ancillary` · `arousal` · `respiratory` · `indices` · `ventilation` · `pipeline` · `ml_classifier` · `profiles` · `postprocess` · `signal_quality` · `signal_quality_channels` · `ecg_effort` · `_types`
 

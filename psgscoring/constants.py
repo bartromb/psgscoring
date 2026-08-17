@@ -113,6 +113,11 @@ def _profile_to_legacy_dict(profile) -> dict:
         "BASELINE_WINDOW_S":          pp.baseline_window_s,
         "BASELINE_PERCENTILE":        pp.baseline_percentile,
         "FLOW_FALLBACK_STRATEGY":     pp.flow_fallback_strategy,
+        # v0.19.0: how the amplitude envelope is built, and at what rate the
+        # analytic-signal transform runs. Default = full-array Hilbert at the
+        # acquisition rate, i.e. every published result to date.
+        "ENVELOPE_METHOD":            pp.envelope_method,
+        "ENVELOPE_FS":                pp.envelope_fs,
         # v0.14.1: which channel the non-apnea analyses read (sweep, anchoring,
         # arousal coupling, CSR, ventilatory burden). "apnea" = legacy.
         "FLOW_REFERENCE":             pp.flow_reference,

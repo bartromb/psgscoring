@@ -41,10 +41,14 @@ class TestRegistry:
             "aasm_v3_fusion",          # v0.14.4: sensorovereenstemming als gewicht
             "aasm_v3_breath_dual",     # ademteug-gegradeerd + twee flowsensoren
             "aasm_v3_prob_dual",       # probabilistisch + twee flowsensoren
+            "aasm_v3_env_chunked",     # v0.19.0: enveloppe-as, blokgewijze Hilbert
+            "aasm_v3_env_rectify",     # v0.19.0: enveloppe-as, gelijkrichten+laagdoorlaat
+            "aasm_v3_env_breath",      # v0.19.0: enveloppe-as, ademteugamplitude
+            "aasm_v3_env_decimated",   # v0.19.0: enveloppe-as, gedecimeerde Hilbert
         }
         assert expected <= set(PROFILES), (
             f"ontbrekende profielen: {sorted(expected - set(PROFILES))}")
-        assert len(PROFILES) == 15, sorted(PROFILES)
+        assert len(PROFILES) == 19, sorted(PROFILES)
 
     def test_all_profiles_valid(self):
         for name, p in PROFILES.items():

@@ -3,6 +3,236 @@
 > original because it underpins the MESA figures in the paper; earlier entries
 > are deliberately left as they are rather than retranslated.
 
+# Unreleased — the envelope becomes a profile axis, and option 1 turns out not to be free
+
+**No profile changes its output.** The nineteen profiles that existed before
+this change all keep `envelope_method="hilbert"` and `envelope_fs=None`, which
+is the full-array analytic signal every published result rests on. Golden is
+9/9 unchanged and the full suite is 868 green. Four new exploratory profiles
+are added, none of them selectable as a clinical profile.
+
+## Why an axis at all
+
+`scipy.signal.hilbert` FFTs the whole night at once and returns complex128. On
+a 12 h MESA recording at 256 Hz (11.06 M samples) one `preprocess_flow` call
+costs **592 MB of peak RSS above the load-only floor, and 34 s of wall clock**
+— the largest per-worker allocation in the library, and the reason a parallel
+sweep drives the workstation into swap.
+
+Measured on `mesa-sleep-0001.edf`, `/usr/bin/time -v`, one flow channel,
+attributable peak = total minus a 701 MB load-only floor:
+
+| method | profile | peak above floor | transform time |
+|---|---|---|---|
+| `hilbert` (default) | — | 592 MB | 33.7 s |
+| `hilbert_chunked` | `aasm_v3_env_chunked` | 116 MB | 0.8 s |
+| `rectify_lowpass` | `aasm_v3_env_rectify` | 255 MB | 0.9 s |
+| `breath_amplitude` | `aasm_v3_env_breath` | 92 MB | 1.1 s |
+| `hilbert` + `envelope_fs=10` | `aasm_v3_env_decimated` | 152 MB | 1.1 s |
+
+The speed column was not the point and is the larger result: one 11 M-point FFT
+costs 42× what the blockwise equivalent does.
+
+## Option 1 was specified as free. It is not.
+
+The plan for this work called blockwise Hilbert an
+implementation detail needing no profile field, on the reasoning that the
+transform is a linear convolution and a generous pad therefore reproduces the
+full-array result up to numerical noise. Measured on 8 h of synthetic breathing
+at 256 Hz, against the full transform:
+
+* The interior residual is ~1e-4 of the p95 envelope and **does not converge
+  with the pad**: 60 s → 2.8e-4, 120 s → 1.1e-3, 300 s → 2.6e-4, 600 s →
+  5.5e-5, 1200 s → 9.8e-5. That is a floor, not a decay curve — the 1/(πt)
+  kernel has no compact support, so a finite pad always truncates a tail.
+  Widening the pad spends the memory saving without buying accuracy.
+* At the first and last samples the two differ by **~30 % of the p95
+  envelope**. `hilbert` is an FFT, so the full-array version wraps the end of
+  the night onto the beginning and a block wraps inside its own window.
+  Neither is more correct; they are not the same number.
+* High-passing at 0.5 Hz leaves the residual unchanged, so it is kernel
+  truncation and not near-DC leakage.
+
+1e-4 is far below any clinical threshold, but the envelope is compared against
+a baseline sample by sample. On a 2 h synthetic recording it moves one event
+boundary of nineteen by 0.1 s. That is a behaviour change, so option 1 goes on
+the axis with the rest and the default stays untouched.
+
+**The golden harness cannot referee this.** Its cases are 600 s at 32 Hz,
+shorter than a single 30-minute chunk, so chunking never engages and every case
+passes whether the implementation is right, subtly wrong, or off by a whole
+block. `tests/test_envelope_methods.py` uses 8 h signals for that reason, and
+`tests/test_envelope_profiles_e2e.py` pins the short-recording collapse
+explicitly so nobody validates the arm on a clip and concludes it is free.
+
+## Decision rule, fixed before any clinical measurement
+
+None of the four arms is a candidate for a default until it is measured against
+human scoring on PSG-IPA, reporting bias, MAE, event-F1 and the 1B boundary
+offsets. Written down now so it cannot be adjusted to fit the result:
+
+* **`hilbert_chunked` may become the default** if, and only if, PSG-IPA bias
+  and event-F1 are unchanged to the reported precision and the boundary-offset
+  distribution does not shift. It is a memory and speed optimisation; if it
+  costs accuracy it is not worth having, and it stays an opt-in sweep arm.
+* **`rectify_lowpass`, `breath_amplitude` and `envelope_fs`** are method
+  changes. They stay off regardless of how they measure, unless a change is
+  argued on physiological grounds and reported as a deviation — a better F1 on
+  one cohort is not sufficient.
+* An arm that is not measured within the year is deleted rather than left in
+  the registry looking endorsed.
+
+Ordering, unchanged from the plan: the 1B boundary measurement runs on the
+current envelope **before** any arm is compared against it, or the two effects
+are confounded. That measurement exists (2026-08-14), so the comparison below
+is against a reference that was fixed first.
+
+## Measured on PSG-IPA — n = 5, twelve scorers each
+
+`scripts/sweep_envelope_psgipa.py`, hypnogram of scorer 1 for every arm so
+numerator and denominator are identical, precision/recall/F1 per recording =
+median over the twelve scorers, matcher in legacy mode (IoU 0.20, type-blind,
+greedy), `PSGSCORING_AROUSAL_DERIVATION=single`. `aasm_v3_rec` ran in the same
+job as the anchor — PSG-IPA AHIs are harness-sensitive, so a number from
+another run is not a comparison. The anchor reproduces the published figures
+exactly (bias +1.69/h, MAE 1.76/h), which is what makes the rest readable.
+
+| arm | prec | recall | F1 | bias | MAE | in range | severity | events |
+|---|---|---|---|---|---|---|---|---|
+| `aasm_v3_rec` (anchor) | 0.430 | 0.524 | 0.462 | +1.69 | 1.76 | 3/5 | 4/5 | 521 |
+| `aasm_v3_env_chunked` | 0.430 | 0.524 | 0.462 | +1.69 | 1.76 | 3/5 | 4/5 | 521 |
+| `aasm_v3_env_rectify` | 0.488 | 0.509 | **0.487** | **+0.01** | 1.72 | 4/5 | 4/5 | 470 |
+| `aasm_v3_env_breath` | 0.372 | 0.506 | 0.414 | +3.19 | 4.11 | 3/5 | 3/5 | 567 |
+| `aasm_v3_env_decimated` | 0.432 | 0.527 | 0.463 | +1.71 | 1.78 | 3/5 | 4/5 | 522 |
+
+Boundary offsets from `scripts/measure_boundary_offsets.py` on the same five
+recordings, against the same human-versus-human reference (median onset −0.01 s,
+mean |onset| 2.42 s, mean |offset| 2.96 s):
+
+| arm | apnea \|onset\| | hypopnea \|onset\| | pct vs humans | lost to IoU |
+|---|---|---|---|---|
+| `aasm_v3_rec` | 1.54 | 5.75 | 66.2 | 63 |
+| `aasm_v3_env_chunked` | 1.54 | 5.75 | 66.2 | 63 |
+| `aasm_v3_env_rectify` | 1.42 | 5.10 | 58.7 | 56 |
+| `aasm_v3_env_breath` | 2.68 | 8.05 | 83.1 | 205 |
+| `aasm_v3_env_decimated` | 1.54 | 5.74 | 66.0 | 63 |
+
+**`hilbert_chunked` meets its promotion criterion on this cohort.** Identical
+AHI on all five recordings, identical event count, F1 equal to four decimals
+per recording, and every boundary statistic equal to two decimals. The residual
+is visible only at the pair level: **116 of 8350 matched boundaries move, and
+every one of them by exactly one 0.1 s reporting step** — 71 on SN3, which
+carries 326 of the 521 events. That is the ~1e-4 envelope difference arriving
+where it was expected to, and it is smaller than the annotation resolution.
+
+The criterion is met on PSG-IPA, not met anywhere else yet: n = 5, and the
+paper's severity figures rest on MESA. **Not promoted.** MESA n = 150 is the
+cohort that would settle it.
+
+**`rectify_lowpass` scores better on nearly every axis and stays off.** Bias
++1.69 → +0.01, precision +0.058, F1 +0.025, one more recording inside the
+scorer range, tighter hypopnea onsets, 51 fewer events. This is exactly the
+result the decision rule was written in advance to survive: it is a method
+change, n is 5, and a bias that lands on zero across five recordings is a
+finding to test on a large cohort, not a reason to switch. Worth measuring on
+MESA n = 150; not worth switching on.
+
+**`breath_amplitude` fails, in the way its docstring predicted.** Bias +3.19,
+MAE 4.11, F1 −0.048, and on SN1 an AHI of 18.00 against a scorer median of 5.96
+(range 4.66–6.56). The mechanism shows in the boundary table: events lost to the
+IoU threshold go 63 → 205, so a third of the extra events overlap a human event
+but are delimited differently, and the absolute onset error moves from the 66th
+to the 83rd percentile of the human-versus-human distribution. Missed breaths at
+low amplitude — during events — are where this comes from.
+
+**`envelope_fs=10` is within noise but not free**: one extra event on SN5,
+ΔF1 +0.001, Δbias +0.02.
+
+Raw output: `docs/enveloppe_psgipa_20260816.json`,
+`docs/boundary_offsets_envelope_20260816_summary.json`.
+
+## Measured on MESA — n = 150, held out, paired per recording
+
+`scripts/validate_mesa.py`, seed 20260801 — the same cohort as the 2026-08-14
+remeasurement — with `aasm_v3_rec` running as the paired anchor in the same
+job. The anchor reproduces that remeasurement to the digit (F1 0.438, bias
+−5.30, MAE 10.11 against `aasm15`), which is what makes the arms readable.
+Reference `aasm15` is the primary: it is literally Rule 1A, the rule all five
+arms implement.
+
+| arm | F1 med | prec | rec | bias | MAE | severity | paired ΔF1 | p |
+|---|---|---|---|---|---|---|---|---|
+| `aasm_v3_rec` (anchor) | 0.438 | 0.517 | 0.408 | −5.30 | 10.11 | 87/150 | — | — |
+| `aasm_v3_env_chunked` | 0.436 | 0.515 | 0.408 | −5.29 | 10.12 | 87/150 | +0.0000 | 0.70 |
+| `aasm_v3_env_rectify` | 0.416 | 0.527 | 0.417 | −5.67 | 10.30 | 84/150 | −0.0015 | 0.10 |
+| `aasm_v3_env_breath` | 0.413 | 0.487 | 0.392 | −5.78 | 10.51 | 79/150 | −0.0206 | **2.4·10⁻⁶** |
+| `aasm_v3_env_decimated` | 0.438 | 0.519 | 0.408 | −5.30 | 10.11 | 88/150 | +0.0000 | 0.91 |
+
+The `oahi3` and `oahi4` references tell the same story and are in the log.
+
+**`hilbert_chunked` meets its promotion criterion on the second cohort too.**
+Bias −5.29 against −5.30, mean F1 identical to three decimals, and the severity
+confusion matrix identical line for line — all ten transition counts. Paired,
+it is **exactly equal on 129 of 150 recordings**; of the 21 that move, 8 improve
+and 13 worsen, p = 0.70. On PSG-IPA the residual was 116 of 8350 boundaries
+moving by one 0.1 s step; here it is 21 of 150 recordings moving in the third
+decimal. Same size of effect, arriving in the same place.
+
+That is the criterion satisfied on both cohorts, so the arm is now a legitimate
+candidate — but it is still **not promoted here**, because promotion is a
+decision about the published numbers rather than about the code: the MESA F1
+median would move 0.438 → 0.436. The cost side is the reason to consider it
+anyway: 592 MB → 116 MB of peak transform memory, and 33.7 s → 0.8 s.
+
+**`rectify_lowpass` did not replicate, and that is the whole point of the
+pre-registered rule.** On PSG-IPA it looked like the best arm on nearly every
+axis: bias +1.69 → +0.01, F1 +0.025, precision +0.058. On MESA the sign flips —
+bias −5.30 → −5.67, F1 median −0.0015, 61 recordings better against 79 worse,
+p = 0.10. Precision does rise (0.517 → 0.527) and so does recall (0.408 →
+0.417), so this is a wash rather than a loss; what it is not is the improvement
+five recordings suggested. Had the rule been written after seeing PSG-IPA, this
+would have shipped.
+
+**`breath_amplitude` is rejected on two independent cohorts.** MESA paired
+ΔF1 −0.0206, worse on 96 of 150 recordings, p = 2.4·10⁻⁶, with severity
+agreement dropping 87 → 79. PSG-IPA showed the mechanism: events lost to the
+IoU threshold went 63 → 205, i.e. the extra events overlap a human event but
+are delimited differently. Missed breaths at low amplitude — during events.
+
+**`envelope_fs=10` is free on MESA**: identical bias, MAE and mean F1, equal on
+111 of 150 recordings, p = 0.91, and one recording better on severity. Its one
+extra event on PSG-IPA SN5 was noise, not a trend.
+
+Raw output: `docs/enveloppe_mesa_n150_20260816.json` (per recording, including
+the event lists, so a reference change can be rematched offline without
+rerunning the pipeline).
+
+### Provenance, and one thing that had to change to get the run to finish
+
+psgscoring 0.18.0, arousal derivation at the profile default (`multi`), which
+is the convention of the MESA runs; the PSG-IPA run above used `single`, which
+is the convention there. Both are recorded in their own output.
+
+This run was pinned to one BLAS/OpenMP thread per worker and capped at six
+cores, which the previous MESA runs were not. The machine hard-froze twice
+while this was being measured, at 12 and at 10 workers, both times 20–30
+minutes in. It was not memory — 57.8 GiB in use with 62.1 GiB free at the
+second freeze — but heat: `sensors` reports `high = 74 °C, crit = 84 °C` for
+this CPU and the cores were at 83 °C. Sustained all-core FFT work saturates the
+cooling on this chassis after tens of minutes, which is why short runs never
+showed it. Capped, the same run held a 63.3 °C average with a single 78 °C
+sample out of 2670. `scripts/thermal_guard.sh` records this and stops the job
+before the machine does.
+
+The cap does not affect the comparison: every arm and the anchor ran inside the
+same job under the same conditions.
+
+`breath_amplitude` implements an approach described for CAISR's respiratory
+module; see the row in `docs/third_party_comparison.md` and the docstring for
+the clean-room provenance.
+
+---
+
 # v0.18.0 — 2026-08-15 — overview
 
 **No profile changes its output.** All fifteen profiles score identically to

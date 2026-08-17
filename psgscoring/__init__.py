@@ -42,6 +42,8 @@ from .respiratory import (
     reinstate_rule1b_hypopneas,      # deprecated alias
 )
 from .signal import (
+    ENVELOPE_METHODS,
+    compute_envelope,
     linearize_nasal_pressure,
     compute_mmsd,
     preprocess_flow,
@@ -101,6 +103,8 @@ __all__ = [
     "reinstate_rule1a_arousal_hypopneas",
     "reinstate_rule1b_hypopneas",    # deprecated alias
     # Signal
+    "ENVELOPE_METHODS",
+    "compute_envelope",
     "linearize_nasal_pressure",
     "compute_mmsd",
     "preprocess_flow",

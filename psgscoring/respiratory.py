@@ -393,8 +393,19 @@ def detect_respiratory_events(
         # v0.5.1: profile-tunable baseline window/percentile
         _BL_WIN_S  = sp.get("BASELINE_WINDOW_S", 300)
         _BL_PCT    = sp.get("BASELINE_PERCENTILE", 95.0)
-        flow_env = _cache("flow_env", lambda: preprocess_flow(
-            flow_data, sf_flow, is_nasal_pressure=False))
+        # v0.19.0: the envelope axis. These MUST appear in every cache key
+        # below that holds an envelope or anything derived from one. The cache
+        # exists because the interval reruns share their preprocessing, and
+        # that argument only holds while the preprocessing is profile-
+        # independent — which the envelope stopped being. Without the key, a
+        # group mixing envelope arms would score every arm on the first arm's
+        # envelope and report a suspiciously tight interval.
+        _ENV_METHOD = sp.get("ENVELOPE_METHOD", "hilbert")
+        _ENV_FS     = sp.get("ENVELOPE_FS", None)
+        _ENV_KEY    = f"{_ENV_METHOD}|{_ENV_FS}"
+        flow_env = _cache(f"flow_env|{_ENV_KEY}", lambda: preprocess_flow(
+            flow_data, sf_flow, is_nasal_pressure=False,
+            envelope_method=_ENV_METHOD, envelope_fs=_ENV_FS))
 
         # MMSD – drift-independent apnea validation
         mmsd_norm = _cache(
@@ -415,7 +426,7 @@ def detect_respiratory_events(
                     _bl, flow_env, sf_flow, pos_data, sf_pos, result)
             return _bl, _pc_changes
         baseline, pos_changes = _cache(
-            f"baseline_final|{_BL_WIN_S}|{_BL_PCT}", _build_baseline)
+            f"baseline_final|{_BL_WIN_S}|{_BL_PCT}|{_ENV_KEY}", _build_baseline)
 
         flow_norm = np.clip(flow_env / baseline, 0, 2)
 
@@ -439,9 +450,10 @@ def detect_respiratory_events(
                 baseline_window_s=_BL_WIN_S, baseline_percentile=_BL_PCT,
                 force_linearisation=bool(
                     sp.get("HYPOPNEA_FORCE_LINEARISATION", False)),
+                envelope_method=_ENV_METHOD, envelope_fs=_ENV_FS,
             )
         hypop_env, hypop_norm, hypop_baseline, sf_hy = _cache(
-            f"hypop|{_BL_WIN_S}|{_BL_PCT}", _build_hypop)
+            f"hypop|{_BL_WIN_S}|{_BL_PCT}|{_ENV_KEY}", _build_hypop)
 
         # ── Breath-by-breath analysis ────────────────────────────────────
         breaths, bb_apneas, bb_hypopneas = _cache("breaths", lambda: _run_breath_analysis(
@@ -450,11 +462,15 @@ def detect_respiratory_events(
         ))
 
         # ── Effort envelopes ─────────────────────────────────────────────
-        thorax_env  = _cache("thorax_env", lambda: (
-            preprocess_effort(thorax_data, sf_flow) if thorax_data  is not None else None))
-        abdomen_env = _cache("abdomen_env", lambda: (
-            preprocess_effort(abdomen_data, sf_flow) if abdomen_data is not None else None))
-        effort_bl   = _cache("effort_bl", lambda: _compute_effort_baseline(
+        thorax_env  = _cache(f"thorax_env|{_ENV_KEY}", lambda: (
+            preprocess_effort(thorax_data, sf_flow, envelope_method=_ENV_METHOD,
+                              envelope_fs=_ENV_FS)
+            if thorax_data  is not None else None))
+        abdomen_env = _cache(f"abdomen_env|{_ENV_KEY}", lambda: (
+            preprocess_effort(abdomen_data, sf_flow, envelope_method=_ENV_METHOD,
+                              envelope_fs=_ENV_FS)
+            if abdomen_data is not None else None))
+        effort_bl   = _cache(f"effort_bl|{_ENV_KEY}", lambda: _compute_effort_baseline(
             thorax_env, abdomen_env, flow_norm, sf_flow))
 
         # ── Global SpO2 baseline ─────────────────────────────────────────
@@ -1197,6 +1213,7 @@ def _setup_hypop_channel(
     baseline_window_s=300.0, baseline_percentile=95.0,
     hypop_is_same_channel=None,
     force_linearisation=False,
+    envelope_method="hilbert", envelope_fs=None,
 ):
     """Return (hypop_env, hypop_norm, hypop_baseline, sf_hy)."""
     if hypop_flow is not None and sf_hypop is not None:
@@ -1225,7 +1242,9 @@ def _setup_hypop_channel(
             # Hergebruik flow_env envelope (al berekend), sla preprocess opnieuw over
             hypop_env = flow_env
         else:
-            hypop_env = preprocess_flow(hypop_flow, sf_hypop, is_nasal_pressure=True)
+            hypop_env = preprocess_flow(
+                hypop_flow, sf_hypop, is_nasal_pressure=True,
+                envelope_method=envelope_method, envelope_fs=envelope_fs)
 
         # De wortellinearisatie (AASM Regel 3) wordt op DEZE tak toegepast en
         # op de andere niet: bij één flowkanaal is hypop_env identiek aan

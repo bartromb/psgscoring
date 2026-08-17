@@ -173,6 +173,13 @@ def run_pneumo_analysis(
         profile["label"],
     )
 
+    # v0.19.0: the envelope axis. The ancillary detectors below (baseline
+    # anchoring, Cheyne-Stokes) build their own envelope; they have to use the
+    # profile's method too, or a run would score its events on one envelope and
+    # its CSR on another without saying so anywhere in the output.
+    _env_method = profile.get("ENVELOPE_METHOD", "hilbert")
+    _env_fs     = profile.get("ENVELOPE_FS", None)
+
     ch = channel_map_from_user(channel_map, raw.ch_names)
 
     output: dict = {
@@ -578,7 +585,9 @@ def run_pneumo_analysis(
     if ref_flow is not None:
         try:
             from .signal import compute_anchor_baseline  # not in the top-level import
-            _anchor_env = preprocess_flow(ref_flow, sf_ref, is_nasal_pressure=False)
+            _anchor_env = preprocess_flow(
+                ref_flow, sf_ref, is_nasal_pressure=False,
+                envelope_method=_env_method, envelope_fs=_env_fs)
             anchor_info = compute_anchor_baseline(
                 _anchor_env, sf_ref, hypno,
                 events=resp.get("events", []),
@@ -680,7 +689,8 @@ def run_pneumo_analysis(
         output["arousal"] = ext
     elif eeg_data is not None and _AROUSAL_AVAILABLE:
         logger.info("[pneumo 7/9] Arousal detection & respiratory coupling...")
-        flow_env_norm = _compute_flow_norm(ref_flow, sf_ref)
+        flow_env_norm = _compute_flow_norm(ref_flow, sf_ref,
+                                           _env_method, _env_fs)
         # v0.9.0: arousal-afleidingsmodus. Clinical profielen defaulten naar 'multi'
         # (centraal + occipitaal + frontaal, event-level union + EOG-reject); dataset-
         # profielen (mesa_shhs) blijven 'single' voor NSRR-reproductie. Env
@@ -1066,7 +1076,9 @@ def run_pneumo_analysis(
     logger.info("[pneumo 9/10] Cheyne-Stokes detection...")
     if ref_flow is not None:
         try:
-            flow_env_csr = preprocess_flow(ref_flow, sf_ref)
+            flow_env_csr = preprocess_flow(
+                ref_flow, sf_ref,
+                envelope_method=_env_method, envelope_fs=_env_fs)
             output["cheyne_stokes"] = detect_cheyne_stokes(
                 flow_env_csr, sf_apnea, hypno
             )
@@ -1117,7 +1129,8 @@ def run_pneumo_analysis(
     # %·min/h area integral.
     if ref_flow is not None and output["respiratory"].get("success"):
         try:
-            _vb_fn = _compute_flow_norm(ref_flow, sf_ref)
+            _vb_fn = _compute_flow_norm(ref_flow, sf_ref,
+                                        _env_method, _env_fs)
             output["respiratory"]["summary"]["ventilatory_burden"] = (
                 compute_ventilatory_burden(
                     _vb_fn, sf_ref,
@@ -1531,12 +1544,16 @@ def _pick_eog(raw, ch) -> np.ndarray | None:
     return None
 
 
-def _compute_flow_norm(flow_data, sf_flow) -> np.ndarray | None:
+def _compute_flow_norm(flow_data, sf_flow,
+                       envelope_method="hilbert",
+                       envelope_fs=None) -> np.ndarray | None:
     """Normaliseer het flowsignaal voor amplitude-onafhankelijke analyse."""
     if flow_data is None:
         return None
     try:
-        env = preprocess_flow(flow_data, sf_flow)
+        env = preprocess_flow(flow_data, sf_flow,
+                              envelope_method=envelope_method,
+                              envelope_fs=envelope_fs)
         bl  = compute_dynamic_baseline(env, sf_flow)
         return np.clip(env / bl, 0, 2)
     except Exception:

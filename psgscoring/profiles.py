@@ -790,6 +790,61 @@ class PostProcessingRules:
     ``"ripsum_on_nasal_failure"``.
     """
 
+    envelope_method: str = "hilbert"
+    """v0.19.0: how the amplitude envelope of flow and effort is built.
+
+    Every published result to date uses ``"hilbert"``: the analytic signal over
+    the full recording. That transform FFTs the whole night at once and returns
+    complex128, so it peaks at roughly half a gigabyte per channel — the
+    largest per-worker allocation in the library, and the one that makes a
+    parallel sweep swap.
+
+    Options (all measured against ``"hilbert"``, none of them free):
+
+      ``"hilbert"``          — full-array analytic signal. Default.
+      ``"hilbert_chunked"``  — same transform, blockwise with overlap-discard.
+                               ~30 MB per channel instead of ~500 MB.
+      ``"rectify_lowpass"``  — ``|x|`` through a 0.5 Hz zero-phase lowpass.
+                               O(n), negligible memory, ripple at the breathing
+                               rate and filter-shaped flanks.
+      ``"breath_amplitude"`` — per-breath peak-to-trough amplitude, interpolated.
+                               Closest to how AASM words the rules (excursions
+                               per breath, not a continuous envelope), and puts
+                               the sensitivity into peak detection at low
+                               amplitudes — i.e. during events.
+
+    ``"hilbert_chunked"`` was specified as a free implementation detail on the
+    reasoning that a generous pad reproduces the full transform up to numerical
+    noise. It does not: the 1/(pi t) kernel has no compact support, the
+    interior residual floors around 1e-4 of the p95 envelope and does not
+    converge as the pad grows, and the first and last samples differ by ~30 %
+    because an FFT wraps circularly and the two versions wrap differently.
+    1e-4 is far below any clinical threshold, but the envelope is compared to a
+    baseline sample by sample, so it can still move a boundary. It is on this
+    axis for that reason, not for symmetry.
+
+    The default is ``"hilbert"`` for every profile, including the two
+    reproduction profiles. A memory optimisation is never worth an unannounced
+    change to a published number.
+    """
+
+    envelope_fs: float | None = None
+    """v0.19.0: decimate to this rate before the analytic-signal transform.
+
+    ``None`` = current behaviour (transform at the acquisition rate). The
+    upstream bandpass passes nothing above 3 Hz while acquisition runs at
+    200–512 Hz, so a 10 Hz envelope rate keeps Nyquist well clear of the band
+    and shrinks the transform by a factor of 20–50.
+
+    The envelope is interpolated back onto the original sample grid, so no
+    downstream consumer has to learn a second sample rate. The saving is in the
+    transform, not in the returned array.
+
+    Not free either: the decimation anti-alias filter and the coarser raster
+    both leave a fingerprint. Ignored by ``rectify_lowpass`` and
+    ``breath_amplitude``, which never build an analytic signal.
+    """
+
 
 @dataclass
 class Profile:
@@ -1574,6 +1629,128 @@ _aasm_v3_sensitive = Profile(
 )
 
 
+# ---- Envelope axis (exploratory) ----
+# Four arms that differ from `aasm_v3_rec` in ONE respect: how the amplitude
+# envelope of flow and effort is built. Every other rule is inherited verbatim
+# from `aasm_v3_rec`, so a difference measured between any of these and the
+# reference is attributable to the envelope and to nothing else.
+#
+# They exist because the analytic-signal transform is the largest per-worker
+# allocation in the library (~500 MB per channel on an 8 h 256 Hz recording),
+# and because "which envelope" turns out to be a methodological question in its
+# own right: AASM words its rules as excursions per breath, while three of
+# these four build a continuous envelope.
+#
+# None of them is a candidate for clinical use until it has been measured
+# against human scoring. `aasm_v3_rec` remains the reference arm; nothing here
+# changes it.
+
+_ENVELOPE_ARM_HYPOPNEA = HypopneaRules(
+    flow_reduction_threshold=0.30,
+    sensor="nasal_pressure",
+    min_duration_s=10.0,
+    max_duration_s=60.0,
+    desat_threshold=0.03,
+    desat_required=False,
+    arousal_required=False,
+    desat_or_arousal=True,
+    square_root_linearisation=True,
+)
+
+_aasm_v3_env_chunked = Profile(
+    name="aasm_v3_env_chunked",
+    display_name="AASM v3 — envelope: chunked Hilbert",
+    family="exploratory",
+    aasm_version="v3 (2023)",
+    aasm_rule="1A (RECOMMENDED)",
+    description=(
+        "AASM v3 Rule 1A with the analytic-signal envelope computed blockwise "
+        "(30 min blocks, 60 s overlap discarded) instead of over the whole "
+        "recording. Peak memory per channel drops from ~500 MB to ~30 MB. "
+        "Intended as a low-memory arm for parallel sweeps, NOT as a "
+        "replacement for the reference: the block transform is not identical "
+        "to the full one — the interior residual floors around 1e-4 of the p95 "
+        "envelope and does not shrink as the overlap grows, and the first and "
+        "last samples differ by ~30% because an FFT wraps circularly."
+    ),
+    citation="Rombaut et al. 2026 — envelope axis (blockwise Hilbert); see the CHANGELOG entry for the measurement and the decision rule.",
+    hypopnea=_ENVELOPE_ARM_HYPOPNEA,
+    post_processing=PostProcessingRules(
+        summary_after_reclassification=True,
+        envelope_method="hilbert_chunked",
+    ),
+)
+
+_aasm_v3_env_rectify = Profile(
+    name="aasm_v3_env_rectify",
+    display_name="AASM v3 — envelope: rectify + lowpass",
+    family="exploratory",
+    aasm_version="v3 (2023)",
+    aasm_rule="1A (RECOMMENDED)",
+    description=(
+        "AASM v3 Rule 1A with the envelope from AM demodulation — |x| through "
+        "a 0.5 Hz zero-phase lowpass — instead of the analytic signal. Fully "
+        "streamable and O(n) in memory. This is a different envelope, not a "
+        "cheaper one: rectification leaves a ripple at the breathing rate and "
+        "the flanks of a reduction are shaped by the filter, so event "
+        "boundaries and the measured percentage reduction both move."
+    ),
+    citation="Rombaut et al. 2026 — envelope axis (rectify + lowpass); see the CHANGELOG entry for the measurement and the decision rule.",
+    hypopnea=_ENVELOPE_ARM_HYPOPNEA,
+    post_processing=PostProcessingRules(
+        summary_after_reclassification=True,
+        envelope_method="rectify_lowpass",
+    ),
+)
+
+_aasm_v3_env_breath = Profile(
+    name="aasm_v3_env_breath",
+    display_name="AASM v3 — envelope: breath amplitude",
+    family="exploratory",
+    aasm_version="v3 (2023)",
+    aasm_rule="1A (RECOMMENDED)",
+    description=(
+        "AASM v3 Rule 1A with the envelope built from per-breath peak-to-"
+        "trough amplitudes, interpolated onto the sample grid. Closest to how "
+        "AASM words the rules — excursions per breath rather than a continuous "
+        "envelope — and event boundaries fall on breaths by construction. The "
+        "risk sits in peak detection at low amplitudes, i.e. during events: "
+        "where breaths are missed the envelope interpolates straight across "
+        "instead of dipping. Distinct from aasm_v3_breath, which changes the "
+        "decision rule; this one changes only the envelope."
+    ),
+    citation="Rombaut et al. 2026 — envelope axis (breath amplitude); see the CHANGELOG entry for the measurement and the decision rule.",
+    hypopnea=_ENVELOPE_ARM_HYPOPNEA,
+    post_processing=PostProcessingRules(
+        summary_after_reclassification=True,
+        envelope_method="breath_amplitude",
+    ),
+)
+
+_aasm_v3_env_decimated = Profile(
+    name="aasm_v3_env_decimated",
+    display_name="AASM v3 — envelope: decimated Hilbert (10 Hz)",
+    family="exploratory",
+    aasm_version="v3 (2023)",
+    aasm_rule="1A (RECOMMENDED)",
+    description=(
+        "AASM v3 Rule 1A with the signal decimated to 10 Hz before the "
+        "analytic-signal transform, then interpolated back onto the original "
+        "sample grid. The upstream bandpass passes nothing above 3 Hz while "
+        "acquisition runs at 200–512 Hz, so 10 Hz keeps Nyquist well clear of "
+        "the band while shrinking the transform 20–50×. The deviation from the "
+        "reference is small but real: the anti-alias filter and the coarser "
+        "raster each leave a fingerprint."
+    ),
+    citation="Rombaut et al. 2026 — envelope axis (decimated Hilbert); see the CHANGELOG entry for the measurement and the decision rule.",
+    hypopnea=_ENVELOPE_ARM_HYPOPNEA,
+    post_processing=PostProcessingRules(
+        summary_after_reclassification=True,
+        envelope_fs=10.0,
+    ),
+)
+
+
 # ============================================================
 # Registry
 # ============================================================
@@ -1590,6 +1767,14 @@ PROFILES: Dict[str, Profile] = {
     "aasm_v3_prob_dual":   _aasm_v3_prob_dual,
     "aasm_v3_strict":    _aasm_v3_strict,
     "aasm_v3_sensitive": _aasm_v3_sensitive,
+
+    # Envelope axis (exploratory) — identical to aasm_v3_rec except for how
+    # the amplitude envelope is built.
+    "aasm_v3_env_chunked":   _aasm_v3_env_chunked,
+    "aasm_v3_env_rectify":   _aasm_v3_env_rectify,
+    "aasm_v3_env_breath":    _aasm_v3_env_breath,
+    "aasm_v3_env_decimated": _aasm_v3_env_decimated,
+
     "aasm_v2_rec":       _aasm_v2_rec,
     "aasm_v1_rec":       _aasm_v1_rec,
     "cms_medicare":      _cms_medicare,
@@ -1614,6 +1799,12 @@ PROFILE_GROUPS: Dict[str, List[str]] = {
 
     # Dataset reproduction check (e.g., compare our v3_rec to NSRR-conv)
     "dataset":  ["aasm_v3_rec", "mesa_shhs"],
+
+    # Envelope axis: the reference first, then the four arms. Everything except
+    # the envelope is held constant across all five, so any difference measured
+    # here is attributable to the envelope alone.
+    "envelope": ["aasm_v3_rec", "aasm_v3_env_chunked", "aasm_v3_env_rectify",
+                 "aasm_v3_env_breath", "aasm_v3_env_decimated"],
 
     # Maximum coverage: all 6 "standard" profiles
     "full_6":   ["aasm_v3_rec", "aasm_v2_rec", "aasm_v1_rec",
