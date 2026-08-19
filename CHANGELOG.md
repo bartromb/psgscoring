@@ -3,6 +3,82 @@
 > original because it underpins the MESA figures in the paper; earlier entries
 > are deliberately left as they are rather than retranslated.
 
+# v0.21.0 — 2026-08-19 — the RIP pair gate compares gain, not signal
+
+**No scored value changes.** The repair ships behind a flag that is off on
+every profile; what ships on is a warning. Golden 9/9, 924 tests green.
+
+## What went wrong
+
+A clinical recording returned 23 apnoeas labelled bare `uncertain` — a label
+that falls **outside `ahi_total`** entirely. All 23 traced to one decision:
+
+    rip_pair_gate=single-channel working=abdomen
+    "RIP energy ratio 1186× — thorax likely disconnected."
+
+The thorax was not disconnected. The gate's own per-channel test gave that
+same thorax `status=ok` and `breath_fraction` 0.740 ("normaal"), and the belt
+was visibly moving. What produces 1186× is a ~23× amplitude difference between
+the two belts: `breath_energy` is the summed PSD in the breathing band, so it
+scales with the *square* of amplitude.
+
+This is the defect v0.17.0 found in the **per-channel** threshold — "the gate
+measured the EDF unit" — and fixed behind `rip_quality_scale_free`. The
+**pair** rule stayed absolute. Worse, its branch sits *above* the branch that
+consults per-channel status, so an absolute heuristic overrides a scale-free
+assessment that says both channels are fine.
+
+## What it costs, measured
+
+Same recording scored twice with only that decision different:
+
+| | gate active | gate forced bilateral |
+|---|---:|---:|
+| obstructive | 9 | **74** |
+| central | 89 | **47** |
+| uncertain | 23 | **0** |
+| `ahi_total` | 20.0 | **23.9** |
+
+142 events in both runs, **Jaccard 1.000** — the gate changes no detection at
+all. But 73 of 142 changed label: 49 central→obstructive, 16
+uncertain→obstructive, 7 uncertain→central. On that recording it inverts the
+CSAS-versus-OSAS question.
+
+## The repair, and why it stays off
+
+`rip_pair_scale_free` (default `False`) lets no channel be called
+"disconnected" if it passes its own scale-free quality test. A disconnected
+belt carries no breathing and fails that test on its own; a belt with a
+different gain does not. Profile `aasm_v3_pair_scalefree` is the measurement
+arm — exploratory, differing from `aasm_v3_rec` in exactly one field, with a
+test that fails if a second difference ever appears.
+
+**It stays off, and the pre-registered criterion says why.** A scan of 150
+MESA recordings: the gate fires on 6 (4.0 %) and the flag changes exactly 1
+(0.7 %). MESA energy ratios run at median 2.1×, p99 33.5× — the clinical
+recording's 1186× is past the p99 of an entire cohort, because MESA's belts
+are gain-matched and this montage's are not. Five of the six firings had a
+channel carrying no breathing (`breath_fraction` 0.03–0.38): the gate was
+right there, and the flag leaves those alone.
+
+With n=1 affected recording the criterion cannot be met, so the flag does not
+go on. That rule was written before the numbers existed, and it holds when the
+numbers disappoint. Validating it would need clinical recordings from a
+montage where the belts are not gain-matched — a consent question, not a
+technical one.
+
+## What does ship: the warning
+
+When the gate rejects a channel that passes its own quality test, it now says
+so, with both breath fractions and the instruction to check the subtyping, and
+sets `pair_gate_suspect` so a reporting layer can show it prominently instead
+of losing it in a warning list. Behaviour is identical.
+
+Guards on the guards: a genuinely dead channel is **not** flagged suspect, and
+the field is present even when the gate does not fire — a field that is
+sometimes absent forces every reader into `.get()` with a default, and that is
+where a silent `False` comes from.
+
 # v0.20.0 — 2026-08-19 — pairwise event agreement, and a wavelet option that fails its own gate
 
 Two additions, both off the scoring path: nothing a profile produces changes.
