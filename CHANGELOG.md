@@ -3,6 +3,79 @@
 > original because it underpins the MESA figures in the paper; earlier entries
 > are deliberately left as they are rather than retranslated.
 
+# v0.22.0 — 2026-08-19 — the single-channel fallback counts breaths instead of amplitude
+
+**Scored values change** on the v3 clinical profiles, wherever the effort
+classification falls back to one band. OAHI and CAHI move, and `ahi_total`
+rises because apnoeas that were `uncertain` now carry a subtype. A report from
+before and after this release is not directly comparable. Golden 9/9 (those
+cases do not exercise the fallback), 932 tests green.
+
+## What was wrong
+
+When only one effort band is usable, the classifier had ONE axis: median event
+envelope against the baseline P75. Below 0.20 central, above 0.50 obstructive,
+in between `uncertain` — and bare `uncertain` falls outside `ahi_total`.
+
+That axis conflates two different things. A band that gets **smaller**: under
+obstruction thorax and abdomen move in antiphase, so volume shifts between
+compartments and a single band drops in excursion while effort continues. And a
+band that is **absent**: under a central apnoea it lies still. A scorer
+separates those effortlessly, by looking at whether the band still moves at
+breathing frequency.
+
+The error is systematic. Obstructive gives reduced-but-present effort and lands
+in the dead zone; central gives a flat band and is labelled confidently. So the
+rule is sharp where it should say central and vague where it should say
+obstructive — and in a population where obstructive dominates, the most common
+diagnosis is discarded most often.
+
+## Two cohorts, two references, same sign
+
+**PSG-IPA**, twelve human scorers per recording, single-channel mode forced
+(the pair gate never fires there, so otherwise nothing is measured):
+
+    arm            SN1     SN3     SN5    mean   uncertain
+    bilateral    0.573   0.628   0.626   0.609       0.0 %
+    abd_rhythm   0.573   0.593   0.611   0.592       1.3 %
+    chest_rhythm 0.573   0.575   0.611   0.586       3.5 %
+    chest_amp    0.068   0.185   0.344   0.199      63.1 %
+    abd_amp      0.000   0.160   0.260   0.140      52.1 %
+
+**MESA** against NSRR scoring, n=12 paired recordings, criterion registered
+blind beforehand: median Δ **+0.236** (chest) and **+0.336** (abdomen), both
+**p = 0.002**, with `uncertain` falling from 15–19 % to 2–5 %.
+
+On SN3 — 273 matched events per scorer — the scorers see 249 obstructive
+against 33 central. The amplitude rule produces ONE obstructive, 102 central
+and 179 undecided. That is inversion, not degradation, and it reproduces what a
+clinical recording showed independently.
+
+## The scale it should be read against
+
+Human-versus-human subtype agreement on PSG-IPA, same matcher, 181 scorer
+pairs: **median 0.883**. So the rhythm axis closes almost the whole gap between
+one band and two, while a substantial gap between the algorithm and a human
+remains. Note the asymmetry: those same scorers agree poorly on *which* events
+exist (Jaccard median 0.385) and almost fully on *what type* a shared event is.
+
+## Where it is on, and where deliberately not
+
+`single_channel_rhythm` defaults to **True**, as a dataclass default rather
+than per profile — set per profile, every pre-existing exploratory arm would
+suddenly differ from its reference in two fields instead of one, and five
+"differs in exactly one field" tests caught precisely that.
+
+Explicitly **off**: `aasm_v2_rec` and `aasm_v1_rec` (historical rule sets, a
+user decision), `cms_medicare` (a payer definition, not an AASM rule), and
+`mesa_shhs` / `chicago_1999` (frozen for paper v31/v37).
+
+`aasm_v3_rhythm` from the development branch is renamed **`aasm_v3_amplitude`**
+and now carries the flag `False`. It had become a duplicate of `aasm_v3_rec`,
+and three profiles producing one scoring is the exact problem found in the
+profile matrix earlier the same day. As the arm that preserves the *old*
+behaviour it earns its place: it reproduces a pre-0.22.0 report.
+
 # v0.21.0 — 2026-08-19 — the RIP pair gate compares gain, not signal
 
 **No scored value changes.** The repair ships behind a flag that is off on

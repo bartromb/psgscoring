@@ -275,11 +275,52 @@ def test_a_flat_band_still_reads_as_central():
                                             use_rhythm=True) == "central"
 
 
-def test_the_rhythm_axis_is_off_by_default():
+def test_the_rhythm_axis_is_on_for_v3_and_off_where_it_must_be():
+    """Waar de vlag AAN staat is een besluit, geen toeval.
+
+    Aan op de v3-klinische profielen: twee cohorten, twee referenties,
+    hetzelfde teken (PSG-IPA 0,586-0,592 tegen 0,609 bilateraal en 0,140-0,199
+    voor de amplituderegel; MESA gepaard p=0,002 op beide banden).
+
+    UIT op de historische profielen -- die bootsen oudere regelsets na, en het
+    is een gebruikersbesluit dat ze onaangeroerd blijven. UIT op `cms_medicare`
+    om dezelfde reden: dat is een betalersdefinitie, geen AASM-regel.
+
+    UIT op de bevroren families, altijd: die reproduceren gepubliceerde cijfers
+    en zijn afgeschermd tegen reparaties die elk ander profiel wel krijgt.
+    """
     from psgscoring.profiles import PROFILES
-    on = [n for n, p in PROFILES.items()
-          if p.post_processing.single_channel_rhythm]
-    assert not on, f"single_channel_rhythm staat aan op: {on}"
+    on = {n for n, p in PROFILES.items()
+          if p.post_processing.single_channel_rhythm}
+
+    for n in ("aasm_v3_rec", "aasm_v3_breath", "aasm_v3_pressure",
+              "aasm_v3_dual"):
+        assert n in on, f"{n} hoort de ritmiek-as te dragen"
+    assert "aasm_v3_amplitude" not in on, (
+        "de amplitude-arm bestaat juist om het OUDE gedrag te bewaren")
+
+    for n in ("aasm_v2_rec", "aasm_v1_rec", "cms_medicare"):
+        assert n not in on, (
+            f"{n} is historisch/regulatoir en blijft onaangeroerd")
+
+    for n, p in PROFILES.items():
+        if p.family in ("dataset", "legacy"):
+            assert n not in on, f"{n} is bevroren en mag niet meebewegen"
+
+
+def test_the_amplitude_arm_differs_in_exactly_one_field():
+    """Een arm die meer verandert, meet meer dan de ritmiek-as."""
+    import dataclasses as dc
+
+    from psgscoring.profiles import PROFILES
+    arm, anchor = PROFILES["aasm_v3_amplitude"], PROFILES["aasm_v3_rec"]
+    assert dc.asdict(arm.hypopnea) == dc.asdict(anchor.hypopnea)
+    assert dc.asdict(arm.apnea) == dc.asdict(anchor.apnea)
+    diff = {k for k, v in dc.asdict(arm.post_processing).items()
+            if v != dc.asdict(anchor.post_processing)[k]}
+    assert diff == {"single_channel_rhythm"}, sorted(diff)
+    assert arm.post_processing.single_channel_rhythm is False, (
+        "de arm reproduceert het pre-0.22 gedrag, dus de vlag staat UIT")
 
 
 def test_the_flag_reaches_the_classifier():

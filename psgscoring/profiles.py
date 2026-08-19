@@ -328,7 +328,7 @@ class PostProcessingRules:
     blijven expliciet op `False` voor de reproduceerbaarheid van paper
     v31/v37 respectievelijk de historische Chicago-criteria."""
 
-    single_channel_rhythm: bool = False
+    single_channel_rhythm: bool = True
     """Beslis de eenkanaalsfallback op RITMIEK in plaats van alleen amplitude.
 
     Draait de effortclassificatie op één band, dan kent
@@ -357,8 +357,18 @@ class PostProcessingRules:
     15 % centraal, daartussen beslist de oude amplituderegel. Cyclustellen is
     schaalvrij, dus dit hangt niet af van de versterking van de band.
 
-    **Default `False`.** Dit verschuift subtypes en dus OAHI/CAHI; het hoort
-    gemeten te worden tegen een referentie voordat het aan gaat."""
+    **Default `True` sinds 19-08-2026.** Twee cohorten, twee referenties,
+    hetzelfde teken. PSG-IPA met twaalf scorers per opname: 0,586-0,592
+    tegen 0,609 bilateraal, waar de amplituderegel op 0,140-0,199 blijft.
+    MESA tegen NSRR, gepaard over 12 opnames: mediaan delta +0,236
+    (borstband) en +0,336 (buikband), p=0,002 beide. Het aandeel
+    `uncertain` daalt van 15-19 % naar 2-5 %; die events vielen buiten
+    `ahi_total`, dus dit verhoogt ook de gerapporteerde index.
+
+    De historische profielen (`aasm_v2_rec`, `aasm_v1_rec`) en
+    `cms_medicare` blijven expliciet op `False`: die bootsen oudere of
+    regulatoire regelsets na. `mesa_shhs` en `chicago_1999` idem, voor de
+    reproduceerbaarheid van paper v31/v37."""
 
     rip_pair_scale_free: bool = False
     """Laat de PAAR-poort geen effortkanaal meer afkeuren dat zijn eigen
@@ -1027,7 +1037,9 @@ _aasm_v3_rec = Profile(
         desat_or_arousal=True,
         square_root_linearisation=True,
     ),
-    post_processing=PostProcessingRules(summary_after_reclassification=True),
+    post_processing=PostProcessingRules(
+        summary_after_reclassification=True,
+    ),
 )
 
 # ---- AASM v3 Rule 1A, ademteug-gebaseerd en gegradeerd (experimenteel) ----
@@ -1199,7 +1211,9 @@ _aasm_v2_rec = Profile(
         desat_or_arousal=True,
         square_root_linearisation=True,
     ),
-    post_processing=PostProcessingRules(summary_after_reclassification=True),
+    post_processing=PostProcessingRules(
+        # Ritmiek-as UIT: historisch/regulatoir dan wel bevroren.
+        single_channel_rhythm=False,summary_after_reclassification=True),
 )
 
 # ---- AASM v1 RECOMMENDED (2007) ----
@@ -1228,7 +1242,9 @@ _aasm_v1_rec = Profile(
         desat_or_arousal=False,
         square_root_linearisation=True,
     ),
-    post_processing=PostProcessingRules(summary_after_reclassification=True),
+    post_processing=PostProcessingRules(
+        # Ritmiek-as UIT: historisch/regulatoir dan wel bevroren.
+        single_channel_rhythm=False,summary_after_reclassification=True),
 )
 
 # ---- CMS / Medicare (AASM v3 1B OPTIONAL) ----
@@ -1260,7 +1276,9 @@ _cms_medicare = Profile(
         desat_or_arousal=False,
         square_root_linearisation=True,
     ),
-    post_processing=PostProcessingRules(summary_after_reclassification=True),
+    post_processing=PostProcessingRules(
+        # Ritmiek-as UIT: historisch/regulatoir dan wel bevroren.
+        single_channel_rhythm=False,summary_after_reclassification=True),
 )
 
 # ---- MESA / NSRR convention ----
@@ -1305,6 +1323,8 @@ _mesa_shhs = Profile(
         output_variants=["ahi_3pct", "ahi_3pct_arousal", "ahi_4pct"],
     ),
     post_processing=PostProcessingRules(
+        # Ritmiek-as UIT: historisch/regulatoir dan wel bevroren.
+        single_channel_rhythm=False,
         stability_filter_enabled=True,
         stability_filter_cv=0.45,
         csr_reclassification=True,
@@ -1387,6 +1407,8 @@ _chicago_1999 = Profile(
         square_root_linearisation=True,
     ),
     post_processing=PostProcessingRules(
+        # Ritmiek-as UIT: historisch/regulatoir dan wel bevroren.
+        single_channel_rhythm=False,
         # GEPIND op het gedrag van vóór 13-08-2026: dit profiel reproduceert
         # de Chicago-criteria van 1999 en hoort niet mee te bewegen met
         # reparaties aan de sensorpoorten. Zie
@@ -1766,6 +1788,55 @@ _ENVELOPE_ARM_HYPOPNEA = HypopneaRules(
     square_root_linearisation=True,
 )
 
+_aasm_v3_amplitude = Profile(
+    name="aasm_v3_amplitude",
+    display_name="AASM v3 — eenkanaals amplituderegel, pre-0.22 (experimental)",
+    family="exploratory",
+    aasm_version="v3 (2023)",
+    aasm_rule="1A (RECOMMENDED)",
+    description=(
+        "Identiek aan `aasm_v3_rec` op elke detectieregel; het enige verschil "
+        "is dat de EENKANAALSFALLBACK op ritmiek beslist in plaats van op "
+        "amplitude alleen. Raakt uitsluitend opnames waar de effort"
+        "classificatie op één band terugvalt; waar de bilaterale analyse "
+        "gewoon draait verandert er niets.\n\n"
+        "De oude regel vergelijkt de mediane envelope tijdens het event met de "
+        "P75 van de basislijn: onder 0,20 centraal, boven 0,50 obstructief, "
+        "daartussen `uncertain` -- en die kale `uncertain` vallen buiten "
+        "`ahi_total`. Die ene as gooit twee dingen op een hoop: een band die "
+        "KLEINER wordt (bij obstructie bewegen thorax en abdomen in tegenfase, "
+        "dus een enkele band zakt terwijl de inspanning doorgaat) en een band "
+        "die AFWEZIG is.\n\n"
+        "Gemeten op PSG-IPA met twaalf menselijke scorers per opname en "
+        "geforceerde eenkanaalsmodus (de paarpoort gaat daar nooit af, dus "
+        "anders meet je niets): subtype-overeenstemming 0,586-0,592 tegen "
+        "0,609 bilateraal -- 97 % van het plafond met één band -- waar de "
+        "amplituderegel op 0,140-0,199 blijft. Het aandeel `uncertain` gaat "
+        "van 52-63 % naar 1-3 %."
+    ),
+    citation=(
+        "Rombaut et al. 2026 — single-channel rhythm axis; zie "
+        "docs/RITMIEK_AS_CRITERIUM.md voor de meting en het criterium, "
+        "inclusief welke opnames verkennend en welke blind waren."
+    ),
+    hypopnea=HypopneaRules(
+        flow_reduction_threshold=0.30,
+        sensor="nasal_pressure",
+        min_duration_s=10.0,
+        max_duration_s=60.0,
+        desat_threshold=0.03,
+        desat_required=False,
+        arousal_required=False,
+        desat_or_arousal=True,
+        square_root_linearisation=True,
+    ),
+    post_processing=PostProcessingRules(
+        summary_after_reclassification=True,
+        single_channel_rhythm=False,
+    ),
+)
+
+
 _aasm_v3_pair_scalefree = Profile(
     name="aasm_v3_pair_scalefree",
     display_name="AASM v3 — RIP-paarpoort schaalvrij (experimental)",
@@ -1926,6 +1997,7 @@ PROFILES: Dict[str, Profile] = {
 
     # Envelope axis (exploratory) — identical to aasm_v3_rec except for how
     # the amplitude envelope is built.
+    "aasm_v3_amplitude":     _aasm_v3_amplitude,
     "aasm_v3_pair_scalefree": _aasm_v3_pair_scalefree,
     "aasm_v3_env_chunked":   _aasm_v3_env_chunked,
     "aasm_v3_env_rectify":   _aasm_v3_env_rectify,
