@@ -60,6 +60,8 @@ target: *Physiological Measurement* (the earlier JCSM/JSR targets were retired).
 │   ├── tests/                   # 115 tests (incl. golden harness, gated by PSGSCORING_GOLDEN)
 │   ├── scripts/golden_snapshot.py
 │   ├── docs/developer_handbook.md   # ← this file
+│   ├── docs/performance_policy.md   # measured profile; why Rust/Polars/GPU/mmap are out
+│   ├── scripts/thermal_guard.sh     # stops a job before the chassis does (see policy §1)
 │   ├── .github/workflows/       # tests.yml (3.9–3.12 + golden job), publish.yml (OIDC)
 │   ├── pyproject.toml · README.md · CHANGELOG.md · DISCLAIMER.md
 │

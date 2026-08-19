@@ -47,6 +47,10 @@ ml   = ["lightgbm>=3.0"]
 test = ["pytest>=7.0", "hypothesis>=6.0"]
 plot = ["matplotlib>=3.5"]
 denoise = ["PyWavelets>=1.4"]   # optional: flow_wavelet_denoise (BSD-3)
+# Profilers, per docs/performance_policy.md §2. Never imported at runtime;
+# py-spy attaches to a live worker (MIT), scalene gives the Python/C split
+# (Apache-2.0). Declared so the policy names tools that are actually here.
+dev  = ["py-spy>=0.3", "scalene>=1.5"]
 
 [project.urls]
 Homepage = "https://slaapkliniek.be"
