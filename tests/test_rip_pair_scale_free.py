@@ -230,3 +230,79 @@ def test_the_flag_and_the_warning_are_independent():
                          scale_free=True, pair_scale_free=True)
     assert r["recommended_mode"] == "bilateral"
     assert r["pair_gate_suspect"] is False
+
+
+# ── de ritmiek-as ───────────────────────────────────────────────────────
+
+def _effort(dur_s=300.0, sf=32.0, amp=1.0, freq=0.25, seed=0):
+    rng = np.random.default_rng(seed)
+    t = np.arange(0, dur_s, 1 / sf)
+    return amp * (np.sin(2 * np.pi * freq * t) + 0.03 * rng.standard_normal(t.size))
+
+
+def test_reduced_but_rhythmic_effort_reads_as_obstructive():
+    """Het geval dat de amplituderegel verkeerd doet.
+
+    Bij obstructie bewegen thorax en abdomen in tegenfase: het volume
+    verplaatst zich, dus EEN band zakt in uitslag terwijl de inspanning
+    doorgaat. De amplituderegel ziet alleen "kleiner" en belandt in de dode
+    zone 0,20-0,50 -> `uncertain`. De ritmiek-as ziet dat de band nog
+    ademhaalt en noemt het obstructief.
+    """
+    from psgscoring.signal_quality import single_channel_fallback_classify
+    sf = 32.0
+    sig = _effort(sf=sf, amp=1.0)
+    i0, i1 = int(200 * sf), int(225 * sf)
+    sig[i0:i1] *= 0.35              # ademt door, 35% van de uitslag
+
+    amp_only = single_channel_fallback_classify(200.0, 225.0, sig, sf)
+    rhythm = single_channel_fallback_classify(200.0, 225.0, sig, sf,
+                                              use_rhythm=True)
+    assert amp_only == "uncertain", (
+        "de opzet klopt niet: zonder 'uncertain' bij de oude regel meet deze "
+        "test niets")
+    assert rhythm == "obstructive"
+
+
+def test_a_flat_band_still_reads_as_central():
+    """Guard: zou de ritmiek-as alles obstructief noemen, dan meet ze niets."""
+    from psgscoring.signal_quality import single_channel_fallback_classify
+    sf = 32.0
+    sig = _effort(sf=sf)
+    i0, i1 = int(200 * sf), int(225 * sf)
+    sig[i0:i1] = 0.0                # band ligt stil
+    assert single_channel_fallback_classify(200.0, 225.0, sig, sf,
+                                            use_rhythm=True) == "central"
+
+
+def test_the_rhythm_axis_is_off_by_default():
+    from psgscoring.profiles import PROFILES
+    on = [n for n, p in PROFILES.items()
+          if p.post_processing.single_channel_rhythm]
+    assert not on, f"single_channel_rhythm staat aan op: {on}"
+
+
+def test_the_flag_reaches_the_classifier():
+    """Leest de bron: een vergeten doorgifte faalt nergens luid."""
+    import inspect
+
+    import psgscoring.respiratory as R
+    src = inspect.getsource(R)
+    assert 'sp.get("SINGLE_CHANNEL_RHYTHM"' in src
+    assert src.count("use_rhythm=use_rhythm") >= 2, (
+        "de detectors geven de parameter niet door aan classify_apnea_type")
+    from psgscoring.constants import _profile_to_legacy_dict
+    from psgscoring.profiles import PROFILES
+    assert "SINGLE_CHANNEL_RHYTHM" in _profile_to_legacy_dict(
+        PROFILES["aasm_v3_rec"])
+
+
+def test_an_unusable_baseline_falls_back_instead_of_guessing():
+    """Te weinig ademhalingen in de basislijn -> de oude regel beslist.
+
+    Gokken op een ritme dat niet vast te stellen is, is erger dan de bekende
+    onzekerheid van de amplituderegel.
+    """
+    from psgscoring.signal_quality import _rhythm_ratio
+    flat = np.zeros(int(300 * 32.0))
+    assert _rhythm_ratio(flat, flat, 32.0, 25.0) is None

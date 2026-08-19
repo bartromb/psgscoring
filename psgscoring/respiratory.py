@@ -327,6 +327,8 @@ def detect_respiratory_events(
         _CONTAM_WIN    = sp.get("CROSS_CONTAM_WINDOW_S", 15.0)
         _USE_PEAK      = sp.get("USE_PEAK_DETECTION", True)
         _USE_SNAP      = sp.get("USE_BREATH_SNAP", False)  # v0.8.30: off by default
+        # v0.22.0: ritmiek-as voor de eenkanaalsfallback; default uit.
+        _USE_RHYTHM    = sp.get("SINGLE_CHANNEL_RHYTHM", False)
         # v0.11.0 (A4): the max-duration cap splits over-long events at a partial
         # recovery point. For genuinely long *central* apneas (CSA/Cheyne-Stokes,
         # which can exceed 90 s) this over-counts. AASM v3 imposes no maximum apnea
@@ -545,7 +547,8 @@ def detect_respiratory_events(
             ecg_data=ecg_data, tecg=_tecg, r_peaks=_r_peaks,
             sf_ecg=_sf_ecg_local,
             flow_filt=_flow_filt_snap,
-            signal_quality=signal_quality,  # v0.3.001 BUG2 gate
+            signal_quality=signal_quality,  # v0.3.001 BUG2 gate,
+            use_rhythm=_USE_RHYTHM
         )
 
         # ── Fix 1: Herbereken hypopnea-basislijn zonder post-apnea recovery ─
@@ -635,6 +638,7 @@ def detect_respiratory_events(
             # v0.5.0: profile-aware floors previously hard-coded
             local_bl_min_reduction_pct=sp.get("LOCAL_BL_MIN_REDUCTION_PCT", 20.0),
             local_bl_pre_win_s=sp.get("LOCAL_BL_PRE_WIN_S", 30.0),
+            use_rhythm=_USE_RHYTHM,
         )
         events = new_events
 
@@ -1542,6 +1546,8 @@ def _detect_apneas(
     ecg_data=None, tecg=None, r_peaks=None, sf_ecg=None,
     flow_filt: np.ndarray | None = None,
     signal_quality: dict | None = None,
+    # v0.22.0: ritmiek-as, default uit.
+    use_rhythm: bool = False,
 ) -> list[dict]:
     """Detecteer apnea-events: ≥90% flow-reductie gedurende ≥10s (AASM)."""
     events: list[dict] = []
@@ -1586,6 +1592,7 @@ def _detect_apneas(
                     sf_flow, sf_ecg or sf_flow, sub_idx[0], sub_idx[-1] + 1
                 ) if tecg is not None else None,
                 signal_quality=signal_quality,  # v0.3.001 BUG2 gate
+                use_rhythm=use_rhythm,
             )
             desat, min_spo2 = get_desaturation(
                 spo2_data, onset_s, sub_dur, sf_spo2, global_spo2_bl
@@ -1621,6 +1628,8 @@ def _detect_hypopneas(
     flow_filt: np.ndarray | None = None,
     breaths: list | None = None,
     signal_quality: dict | None = None,
+    # v0.22.0: ritmiek-as, default uit.
+    use_rhythm: bool = False,
     baseline_mode: str = "rolling",             # v0.12.3+: "rolling" | "pre_event"
     flow_reduction_threshold: float = 0.30,     # AASM: >=30% daling
     pre_event_window_s: float = 120.0,
@@ -1782,6 +1791,7 @@ def _detect_hypopneas(
                 ) if tecg is not None else None,
                 flattening_index=_ev_flat,
                 signal_quality=signal_quality,  # v0.3.001 BUG2 gate
+                use_rhythm=use_rhythm,
             )
             hy_label = f"hypopnea_{hy_sub}" if hy_sub != "obstructive" else "hypopnea"
             flow_red_ratio = safe_r(
