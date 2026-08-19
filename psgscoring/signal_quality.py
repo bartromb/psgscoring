@@ -304,6 +304,7 @@ def compare_rip_pair(
     sf: float,
     *,
     scale_free: bool = False,
+    pair_scale_free: bool = False,
 ) -> PairQuality:
     """
     Compare thorax + abdomen RIP pair to detect channel failure,
@@ -315,6 +316,13 @@ def compare_rip_pair(
         Raw RIP signals (time domain, same length)
     sf : float
         Sample rate in Hz
+    scale_free : bool
+        Per-channel thresholds scale-free (v0.17.0). Zie
+        `rip_quality_scale_free`.
+    pair_scale_free : bool
+        Laat de ENERGIERATIO geen kanaal meer afkeuren dat zijn eigen
+        kwaliteitstoets doorstaat. Zie de uitleg bij de modusbepaling
+        hieronder; default False houdt het bestaande gedrag.
 
     Returns
     -------
@@ -335,6 +343,7 @@ def compare_rip_pair(
     ratio = max(thor_e, abd_e) / min(thor_e, abd_e)
 
     warnings_list: list[str] = []
+    pair_gate_suspect = False
     thor_ok = thor_q["status"] == "ok"
     abd_ok = abd_q["status"] == "ok"
     thor_failed = thor_q["status"] == "failed"
@@ -362,13 +371,86 @@ def compare_rip_pair(
             "Abdomen RIP failed — thorax-only classification. "
             "Paradoxical phase detection unavailable."
         )
-    elif ratio > ENERGY_RATIO_FAIL:
+    elif ratio > ENERGY_RATIO_FAIL and not (pair_scale_free
+                                            and thor_ok and abd_ok):
+        # DE ENERGIERATIO IS NIET SCHAALVRIJ, EN DAT IS DE HELE KWESTIE
+        #
+        # `breath_energy` is de som van de PSD in de ademband: een ABSOLUTE
+        # grootheid die kwadratisch meeschaalt met de amplitude. Twee banden
+        # met verschillende versterking -- of in verschillende eenheden
+        # geexporteerd -- geven daarmee een enorme ratio zonder dat er iets
+        # mis is. Dit is dezelfde fout die v0.17.0 vond in de PER-KANAAL
+        # drempel ("de poort mat de EDF-eenheid"); die is toen schaalvrij
+        # gemaakt, deze paarregel niet.
+        #
+        # GEMETEN, op een klinische opname (19-08-2026): ratio 1186x, thorax
+        # afgekeurd als "disconnected" -- terwijl de per-kanaal-toets voor
+        # diezelfde thorax `status=ok` en ademfractie 0,740 ("normaal") gaf,
+        # en de band visueel bewoog. Het amplitudeverschil was ~23x, wat in
+        # energie ruim 500x wordt.
+        #
+        # WAT DAT KOSTTE: dezelfde 142 events, Jaccard 1,000 -- de poort
+        # verandert geen detectie, alleen labels. Maar 73 van de 142 kregen
+        # een ander label zodra de bilaterale analyse mocht draaien:
+        #   49 central -> obstructive
+        #   16 uncertain -> obstructive
+        #    7 uncertain -> central
+        # De verdeling ging van 89 centraal / 9 obstructief naar 47 / 74, en
+        # ahi_total van 20,0 naar 23,9. Op deze opname draait dat het
+        # onderscheid CSAS-versus-OSAS om.
+        #
+        # DE REGEL, met `pair_scale_free=True`: een kanaal mag alleen
+        # "disconnected" heten als het zijn EIGEN, schaalvrije kwaliteitstoets
+        # niet doorstaat. Een losgekoppelde band draagt geen ademhaling en
+        # valt daar vanzelf op; een band met een andere versterking niet.
+        # Halen beide kanalen `ok`, dan blijft de ratio een WAARSCHUWING
+        # (hieronder) in plaats van een modusomschakeling.
         mode = "single-channel"
         weak = "thorax" if thor_e < abd_e else "abdomen"
         working_ch = "abdomen" if weak == "thorax" else "thorax"
         warnings_list.append(
             f"RIP energy ratio {ratio:.0f}× — {weak} likely disconnected. "
             f"Using {working_ch}-only classification."
+        )
+        # ZICHTBAAR MAKEN WANNEER "disconnected" WAARSCHIJNLIJK ONJUIST IS
+        #
+        # Dit verandert geen enkele beslissing -- de modus blijft
+        # single-channel en elke gescoorde waarde blijft gelijk. Het zegt
+        # alleen dat het afgekeurde kanaal zijn EIGEN kwaliteitstoets
+        # doorstond, en dat het verschil dus even goed versterking of eenheid
+        # kan zijn.
+        #
+        # Zonder deze regel leest een rapport als "89 centrale apneus" zonder
+        # dat iemand kan zien dat de bilaterale analyse uitstond en waarom.
+        # Op MESA gebeurt dit bij 1 van 150 opnames (0,7 %); op een montage
+        # waar de twee banden niet op dezelfde versterking staan aanzienlijk
+        # vaker. Wie het ziet, kan de subtypering met de hand nakijken.
+        if thor_ok and abd_ok:
+            pair_gate_suspect = True
+            warnings_list.append(
+                f"LET OP: {weak} is afgekeurd op de energieratio, maar "
+                f"doorstaat zijn eigen kwaliteitstoets wél (ademfractie "
+                f"thorax {thor_q['breath_fraction']:.2f}, abdomen "
+                f"{abd_q['breath_fraction']:.2f}). Een losgekoppelde band "
+                f"draagt geen ademhaling; dit verschil kan dus even goed "
+                f"versterking of eenheid zijn. De paradoxale-fasedetectie "
+                f"staat hierdoor UIT en het onderscheid obstructief/centraal "
+                f"berust op één kanaal — controleer de subtypering."
+            )
+    elif ratio > ENERGY_RATIO_FAIL:
+        # Alleen bereikbaar met pair_scale_free EN beide kanalen ok: grote
+        # amplitude-asymmetrie terwijl beide banden aantoonbaar ademhaling
+        # dragen. Bilateraal doorgaan, maar het wel zeggen -- dit is precies
+        # de situatie waarin een versterkings- of eenheidsverschil de
+        # waarschijnlijkste verklaring is.
+        mode = "bilateral"
+        working_ch = None
+        warnings_list.append(
+            f"RIP energy ratio {ratio:.0f}× terwijl beide banden ademhaling "
+            f"dragen (thorax {thor_q['breath_fraction']:.2f}, abdomen "
+            f"{abd_q['breath_fraction']:.2f}) — waarschijnlijk een "
+            f"versterkings- of eenheidsverschil, geen defect. Bilaterale "
+            f"classificatie blijft actief."
         )
     elif ratio > ENERGY_RATIO_WARN:
         mode = "bilateral"
@@ -396,6 +478,11 @@ def compare_rip_pair(
         "energy_ratio": float(ratio),
         "warnings": warnings_list,
         "classification_reliable": classification_reliable,
+        # True wanneer de poort een kanaal afkeurde dat zijn eigen
+        # kwaliteitstoets doorstond: machineleesbaar, zodat de
+        # rapportagelaag het prominent kan tonen in plaats van het in
+        # een waarschuwingslijst te laten verdwijnen.
+        "pair_gate_suspect": pair_gate_suspect,
         "recommended_mode": mode,
         "working_channel": working_ch,
     }

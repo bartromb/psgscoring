@@ -328,6 +328,46 @@ class PostProcessingRules:
     blijven expliciet op `False` voor de reproduceerbaarheid van paper
     v31/v37 respectievelijk de historische Chicago-criteria."""
 
+    rip_pair_scale_free: bool = False
+    """Laat de PAAR-poort geen effortkanaal meer afkeuren dat zijn eigen
+    kwaliteitstoets doorstaat.
+
+    `rip_quality_scale_free` maakte de PER-KANAAL drempel schaalvrij. De
+    paarregel bleef absoluut: `breath_energy` is de som van de PSD in de
+    ademband, dus kwadratisch in de amplitude, en bij `ratio > 100` verklaart
+    de poort het zwakste kanaal "disconnected". Twee banden met een andere
+    versterking -- of in een andere eenheid geexporteerd -- halen die drempel
+    zonder dat er iets mis is.
+
+    GEMETEN op een klinische opname (19-08-2026, CSAS-of-OSAS-vraagstelling):
+    ratio 1186x, thorax afgekeurd, terwijl de per-kanaal-toets voor diezelfde
+    thorax `status=ok` en ademfractie 0,740 gaf en de band visueel bewoog. Het
+    amplitudeverschil tussen de banden was ~23x.
+
+    Zonder thorax is er geen paradoxale fase te meten, dus valt de
+    classificatie terug op een eenkanaalsheuristiek. Wat dat kostte, gemeten
+    door dezelfde opname twee keer te scoren met alleen deze beslissing
+    verschillend -- 142 events in beide runs, Jaccard 1,000, dus de poort
+    raakt geen detectie:
+
+        49 central   -> obstructive
+        16 uncertain -> obstructive
+         7 uncertain -> central
+
+    De verdeling ging van 89 centraal / 9 obstructief naar 47 / 74, en
+    `ahi_total` van 20,0 naar 23,9 (de kale `uncertain` vallen buiten die
+    index). Op die opname draait dat de diagnose om van centraal naar
+    obstructief met centrale apneus.
+
+    Met `True` mag een kanaal alleen "disconnected" heten als het zijn eigen,
+    schaalvrije kwaliteitstoets NIET doorstaat. Een losgekoppelde band draagt
+    geen ademhaling en valt daar vanzelf op. Halen beide kanalen `ok`, dan
+    blijft de ratio een waarschuwing in plaats van een modusomschakeling.
+
+    **Default `False`.** Dit verschuift subtypes en daarmee OAHI/CAHI op elke
+    opname waar de poort nu afgaat; het hoort gemeten te worden op MESA en
+    PSG-IPA voordat het aan gaat, niet stil gecorrigeerd."""
+
     rip_quality_scale_free: bool = True
     """Beoordeel de RIP-effortkanalen op signaalVORM in plaats van op absolute
     amplitude.
@@ -1694,6 +1734,53 @@ _ENVELOPE_ARM_HYPOPNEA = HypopneaRules(
     square_root_linearisation=True,
 )
 
+_aasm_v3_pair_scalefree = Profile(
+    name="aasm_v3_pair_scalefree",
+    display_name="AASM v3 — RIP-paarpoort schaalvrij (experimental)",
+    family="exploratory",
+    aasm_version="v3 (2023)",
+    aasm_rule="1A (RECOMMENDED)",
+    description=(
+        "Identiek aan `aasm_v3_rec` op elke detectieregel; het enige verschil "
+        "is dat de RIP-PAARPOORT geen effortkanaal meer afkeurt dat zijn "
+        "eigen, schaalvrije kwaliteitstoets doorstaat. Bedoeld als meetarm "
+        "voor `rip_pair_scale_free`, niet als klinisch profiel.\n\n"
+        "De bestaande paarregel vergelijkt `breath_energy`, een absolute "
+        "grootheid die kwadratisch meeschaalt met de amplitude, en verklaart "
+        "bij `ratio > 100` het zwakste kanaal 'disconnected'. Twee banden met "
+        "een andere versterking halen dat zonder defect. Op een klinische "
+        "opname (19-08-2026) gaf dat ratio 1186x met een thorax die "
+        "`status=ok` en ademfractie 0,740 had en zichtbaar bewoog.\n\n"
+        "Wat de poort daar kostte, gemeten met dezelfde opname twee keer "
+        "gescoord en alleen deze beslissing verschillend: 142 events in beide "
+        "runs, Jaccard 1,000 -- geen detectie verandert -- maar 73 van de 142 "
+        "kregen een ander label (49 central->obstructive, 16 "
+        "uncertain->obstructive, 7 uncertain->central). De verdeling ging van "
+        "89 centraal / 9 obstructief naar 47 / 74 en `ahi_total` van 20,0 "
+        "naar 23,9."
+    ),
+    citation=(
+        "Rombaut et al. 2026 — RIP pair gate scale dependence; zie de "
+        "CHANGELOG-entry voor de meting en het vooraf vastgelegde criterium."
+    ),
+    hypopnea=HypopneaRules(
+        flow_reduction_threshold=0.30,
+        sensor="nasal_pressure",
+        min_duration_s=10.0,
+        max_duration_s=60.0,
+        desat_threshold=0.03,
+        desat_required=False,
+        arousal_required=False,
+        desat_or_arousal=True,
+        square_root_linearisation=True,
+    ),
+    post_processing=PostProcessingRules(
+        summary_after_reclassification=True,
+        rip_pair_scale_free=True,
+    ),
+)
+
+
 _aasm_v3_env_chunked = Profile(
     name="aasm_v3_env_chunked",
     display_name="AASM v3 — envelope: chunked Hilbert",
@@ -1807,6 +1894,7 @@ PROFILES: Dict[str, Profile] = {
 
     # Envelope axis (exploratory) — identical to aasm_v3_rec except for how
     # the amplitude envelope is built.
+    "aasm_v3_pair_scalefree": _aasm_v3_pair_scalefree,
     "aasm_v3_env_chunked":   _aasm_v3_env_chunked,
     "aasm_v3_env_rectify":   _aasm_v3_env_rectify,
     "aasm_v3_env_breath":    _aasm_v3_env_breath,

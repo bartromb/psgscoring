@@ -305,6 +305,7 @@ def run_pneumo_analysis(
             output["signal_quality"] = compare_rip_pair(
                 thorax_data, abdomen_data, sf_rip,
                 scale_free=bool(profile.get("RIP_QUALITY_SCALE_FREE", False)),
+                pair_scale_free=bool(profile.get("RIP_PAIR_SCALE_FREE", False)),
             )
             sq_mode = output["signal_quality"].get("recommended_mode")
             sq_ratio = output["signal_quality"].get("energy_ratio", 1.0)
