@@ -3,7 +3,65 @@
 > original because it underpins the MESA figures in the paper; earlier entries
 > are deliberately left as they are rather than retranslated.
 
-# Unreleased — wavelet denoising, implemented as specified and failing its own synthetic gate
+# v0.20.0 — 2026-08-19 — pairwise event agreement, and a wavelet option that fails its own gate
+
+Two additions, both off the scoring path: nothing a profile produces changes.
+Golden 9/9, 906 tests green.
+
+## `psgscoring.agreement` — the question an index table cannot answer
+
+A profile comparison that shows only indices raises a question it cannot
+answer. On `mesa-sleep-0001`, `aasm_v3_rec`, `aasm_v3_pressure` and
+`aasm_v2_rec` each produced AHI 19.6 from 126 events. Are those the same 126
+events, or three different sets that happen to be the same size? That is the
+difference between "these rules do the same thing" and "these rules do
+different things and land on the same number", and no index column carries it.
+
+`compare_event_sets(a, b)` pairs two event lists with the same IoU logic the
+validation harness uses (`_iou`, threshold 0.20) and reports shared / only-a /
+only-b, Jaccard, median and minimum IoU of matched pairs, per-category counts,
+and the events that matched but carry a different label.
+
+### Two choices that differ from `corroborate_apnea_events`
+
+**Symmetric matching.** That function walks the thermistor list greedily
+because one sensor defines the AASM boundaries there; the asymmetry is
+deliberate. Here there is no privileged list, so A-against-B must equal
+B-against-A — otherwise a reported figure depends on column order. All
+candidate pairs above threshold are sorted by IoU and assigned best-first, ties
+broken on index so the same input always gives the same output.
+
+The test that pins this fails against the naive form: on the pinned case,
+greedy over A finds 1 pair where best-first finds 2, and gives A→B 1 against
+B→A 2.
+
+**Both uncertain classes reported.** Bare `uncertain` falls outside `ahi_total`
+while `hypopnea_uncertain` counts through substring matching, so the event list
+contains events the index does not count. A tally that ignores that shows
+phantom disagreement between profiles differing only in their uncertain
+bookkeeping. Of 810 measured events across seven profiles, 176 were bare
+`uncertain` and 182 `hypopnea_uncertain`; on `aasm_v3_dual` the two variants
+give Jaccard 0.733 against 0.672, so the distinction is not theoretical.
+
+### What it says about the seven clinical profiles
+
+Against the measured event sets, primary `aasm_v3_rec` (126 events):
+
+| profile | n | shared | Jaccard | relabelled |
+|---|---:|---:|---:|---:|
+| `aasm_v3_pressure` | 126 | 126 | **1.000** | 0 |
+| `aasm_v2_rec` | 126 | 126 | **1.000** | 0 |
+| `aasm_v1_rec` | 100 | 100 | 0.794 | 0 |
+| `cms_medicare` | 100 | 100 | 0.794 | 0 |
+| `aasm_v3_dual` | 134 | 110 | 0.733 | **8** |
+| `aasm_v3_breath` | 98 | 76 | **0.513** | 0 |
+
+Three profiles are the same scoring under three names. Two are `rec` minus 26
+events rather than a different detection — their AHI of 14.5 against 19.6 is a
+subset, not a disagreement. One is genuinely different. None of that is visible
+in an AHI column. Matching cost: 124 ms for six pairs.
+
+## `flow_wavelet_denoise` — implemented as specified, and failing its own synthetic gate
 
 `flow_wavelet_denoise: bool = False`, off on every profile. Soft wavelet
 thresholding of the flow waveform to remove impulsive artefacts — motion
