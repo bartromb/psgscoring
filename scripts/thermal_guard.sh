@@ -44,7 +44,19 @@ NEED="${3:-3}"
 IVAL="${4:-10}"
 LOG="${LOG:-/home/bart/CODE/docs/thermal_guard.log}"
 
-say() { printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$LOG"; sync -d "$LOG" 2>/dev/null; }
+# Schrijft naar TWEE plekken, en dat is geen luxe. Het vaste pad overleeft een
+# aanroep zonder redirect; stdout zorgt dat het bewijs óók landt waar de
+# operator het zoekt. Op 19-08-2026 draaide deze bewaker 206 metingen met een
+# piek van 75 °C terwijl `-p StandardOutput=append:...` een leeg bestand
+# opleverde, en de conclusie was "de guard doet niets" — precies de stille
+# poort waartegen dit script is geschreven.
+say() {
+    local line
+    line="$(date '+%F %T') $*"
+    printf '%s\n' "$line"
+    printf '%s\n' "$line" >> "$LOG"
+    sync -d "$LOG" 2>/dev/null
+}
 
 pkg_temp() {
     # Package id 0 is de sensor waar `crit` op slaat. Val terug op de heetste
@@ -57,7 +69,9 @@ pkg_temp() {
 }
 
 say "start: bewaakt ${UNIT}, drempel ${MAX_C}C, ${NEED} opeenvolgende metingen, elke ${IVAL}s"
+say "log: ${LOG} (en stdout)"
 
+n=0; peak=0; sum=0
 over=0
 while systemctl --user is-active --quiet "$UNIT"; do
     t=$(pkg_temp)
@@ -70,6 +84,8 @@ while systemctl --user is-active --quiet "$UNIT"; do
     else
         over=0
     fi
+    n=$((n + 1)); sum=$((sum + t))
+    [ "$t" -gt "$peak" ] && peak=$t
     say "temp=${t}C load=${load} mem_avail=${memg}G mhz=${mhz} over=${over}/${NEED}"
 
     if [ "$over" -ge "$NEED" ]; then
@@ -82,4 +98,9 @@ while systemctl --user is-active --quiet "$UNIT"; do
 done
 
 say "einde: ${UNIT} draait niet meer (klaar of gestopt)"
+if [ "$n" -gt 0 ]; then
+    say "samenvatting: ${n} metingen, piek ${peak}C, gemiddeld $((sum / n))C, drempel ${MAX_C}C"
+else
+    say "samenvatting: GEEN metingen — de unit draaide al niet meer bij de start"
+fi
 exit 0
