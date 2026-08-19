@@ -328,6 +328,38 @@ class PostProcessingRules:
     blijven expliciet op `False` voor de reproduceerbaarheid van paper
     v31/v37 respectievelijk de historische Chicago-criteria."""
 
+    single_channel_rhythm: bool = False
+    """Beslis de eenkanaalsfallback op RITMIEK in plaats van alleen amplitude.
+
+    Draait de effortclassificatie op één band, dan kent
+    `single_channel_fallback_classify` maar EEN as: de mediane envelope tijdens
+    het event tegen de P75 van de basislijn. Onder 0,20 centraal, boven 0,50
+    obstructief, daartussen `uncertain` -- en die kale `uncertain` vallen
+    buiten `ahi_total`.
+
+    Die as gooit twee verschillende dingen op een hoop. Een band die KLEINER
+    wordt: bij obstructie bewegen thorax en abdomen in tegenfase, dus het
+    volume verplaatst zich en een enkele band zakt terwijl de inspanning
+    doorgaat. En een band die AFWEZIG is: bij een centrale apneu ligt hij stil.
+    Een scorer scheidt die twee moeiteloos, want die kijkt of de band nog
+    meebeweegt op ademfrequentie.
+
+    De fout is systematisch. Obstructief levert verminderde-maar-aanwezige
+    inspanning en belandt in de dode zone; centraal levert een vlakke band en
+    wordt met vertrouwen gelabeld. De regel is dus scherp waar hij centraal
+    moet zeggen en vaag waar hij obstructief moet zeggen -- in een populatie
+    waar obstructief overheerst wordt de meest voorkomende diagnose het vaakst
+    weggegooid. Gemeten op een klinische opname met de paarpoort actief: 89
+    centraal, 23 uncertain, 9 obstructief.
+
+    Met `True` telt `detect_breaths` hoeveel van de uit de basislijn verwachte
+    ademhalingen er tijdens het event nog zijn. Vanaf 50 % obstructief, onder
+    15 % centraal, daartussen beslist de oude amplituderegel. Cyclustellen is
+    schaalvrij, dus dit hangt niet af van de versterking van de band.
+
+    **Default `False`.** Dit verschuift subtypes en dus OAHI/CAHI; het hoort
+    gemeten te worden tegen een referentie voordat het aan gaat."""
+
     rip_pair_scale_free: bool = False
     """Laat de PAAR-poort geen effortkanaal meer afkeuren dat zijn eigen
     kwaliteitstoets doorstaat.

@@ -129,6 +129,23 @@ FALLBACK_OBSTRUCTIVE_RATIO  = 0.50   # Event envelope >50% baseline → obstruct
 FALLBACK_BASELINE_WINDOW_S  = 120.0  # Baseline = preceding 2 minutes
 FALLBACK_BASELINE_PERCENTILE = 75    # Robust to event clusters
 
+# ── Ritmiek-as voor de eenkanaalsfallback (single_channel_rhythm) ────────
+# De amplituderegel hierboven kent EEN as en gooit daarmee twee verschillende
+# dingen op een hoop: een band die KLEINER wordt (paradox verplaatst volume,
+# dus een enkele band zakt terwijl de inspanning doorgaat) en een band die
+# AFWEZIG is. Een scorer scheidt die moeiteloos, omdat hij naar ritmiek kijkt:
+# gaat de band nog op en neer met ademfrequentie?
+#
+# De fout is bovendien systematisch, niet toevallig. Obstructief geeft
+# verminderde-maar-aanwezige inspanning en belandt in de dode zone
+# 0,20-0,50 -> `uncertain`; centraal geeft een vlakke band en wordt met
+# vertrouwen gelabeld. De regel is dus scherp waar hij centraal moet zeggen en
+# vaag waar hij obstructief moet zeggen -- in een populatie waar obstructief
+# overheerst wordt de meest voorkomende diagnose het vaakst weggegooid.
+RHYTHM_OBSTRUCTIVE = 0.50   # >=50% van de verwachte ademhalingen -> effort gaat door
+RHYTHM_CENTRAL     = 0.15   # <=15% -> de band ligt stil
+RHYTHM_MIN_BASELINE_BREATHS = 3   # minder is geen betrouwbare periode
+
 
 # ════════════════════════════════════════════════════════════════════
 #  Core functions
@@ -488,12 +505,50 @@ def compare_rip_pair(
     }
 
 
+def _rhythm_ratio(bl_seg, ev_seg, sf, event_dur_s):
+    """Hoeveel van de verwachte ademhalingen zijn er tijdens het event nog?
+
+    Schaalvrij van opzet: het telt cycli, niet uitslagen. Retourneert None
+    wanneer de basislijn te weinig ademhalingen bevat om een periode uit af te
+    leiden -- dan valt de aanroeper terug op de amplituderegel in plaats van
+    op een gok.
+    """
+    from .breath import detect_breaths
+    from .signal import bandpass_flow
+    # `denoise=False` is hier een KEUZE, geen verzuim. De waveletruisreductie
+    # uit v0.20.0 is expliciet begrensd tot het FLOWsignaal; effortbanden
+    # houden een ongefilterde golfvorm, omdat de artefacten waar die reductie
+    # op mikt sensorartefacten van de flowopnemer zijn. `bandpass_flow` heet
+    # naar zijn gebruikelijke invoer, maar levert hier de bandpass voor een
+    # RIP-band. De structurele test op die vlag vraagt terecht om een
+    # expliciete waarde; dit is hem.
+    try:
+        bl_b = detect_breaths(bandpass_flow(bl_seg, sf, denoise=False), sf)
+        if len(bl_b) < RHYTHM_MIN_BASELINE_BREATHS:
+            return None
+        periods = [b["duration_s"] for b in bl_b if b.get("duration_s")]
+        if not periods:
+            return None
+        period = float(np.median(periods))
+        if period <= 0:
+            return None
+        expected = event_dur_s / period
+        if expected < 1.0:
+            return None          # te kort voor een zinnig ritme-oordeel
+        ev_b = detect_breaths(bandpass_flow(ev_seg, sf, denoise=False), sf)
+        return len(ev_b) / expected
+    except Exception:            # noqa: BLE001 -- nooit de classificatie laten vallen
+        return None
+
+
 def single_channel_fallback_classify(
     apnea_start_s: float,
     apnea_end_s: float,
     effort_signal: np.ndarray,
     sf: float,
     baseline_window_s: float = FALLBACK_BASELINE_WINDOW_S,
+    *,
+    use_rhythm: bool = False,
 ) -> EventClassification:
     """
     Classify event using only ONE effort signal (when bilateral fails).
@@ -541,6 +596,22 @@ def single_channel_fallback_classify(
         return "uncertain"
 
     ratio = ev_amp / bl_amp
+
+    # ── Ritmiek eerst, wanneer ingeschakeld ─────────────────────────────
+    # Beweegt de band nog mee op ademfrequentie, dan gaat de inspanning door
+    # en is het obstructief -- ook als de uitslag gehalveerd is. Ligt hij
+    # stil, dan is het centraal, ongeacht wat de amplitudeverhouding zegt.
+    # Alleen wanneer de ritmiek zelf onduidelijk is, of niet te bepalen valt,
+    # beslist de oude amplituderegel.
+    if use_rhythm:
+        rhythm = _rhythm_ratio(bl_seg, ev_seg, sf, apnea_end_s - apnea_start_s)
+        if rhythm is not None:
+            if rhythm >= RHYTHM_OBSTRUCTIVE:
+                return "obstructive"
+            if rhythm <= RHYTHM_CENTRAL:
+                return "central"
+            # tussenin: laat de amplitude beslissen, met een smallere zone dan
+            # voorheen omdat de duidelijke gevallen er al uit zijn.
 
     if ratio < FALLBACK_CENTRAL_RATIO:
         return "central"

@@ -115,6 +115,7 @@ def classify_apnea_type(
     ecg_assessment: dict | None = None,
     flattening_index: float | None = None,
     signal_quality: dict | None = None,
+    use_rhythm: bool = False,
 ) -> tuple[str, float, dict]:
     """
     Classify an apnea event as ``"obstructive"``, ``"central"``, or
@@ -191,6 +192,7 @@ def classify_apnea_type(
                 apnea_end_s=_end_s,
                 effort_signal=_working_raw,
                 sf=sf,
+                use_rhythm=use_rhythm,
             )
 
             if _fallback_type == "uncertain":
