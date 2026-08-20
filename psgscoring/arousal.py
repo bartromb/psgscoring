@@ -1103,6 +1103,14 @@ def arousal_couples_to_event(arousal_onset_s: float,
 
     De ondergrens is de event-onset en niet `onset - 5`: een arousal die
     begint voordat het event begint, kan er niet door zijn veroorzaakt.
+
+    GEMETEN OMVANG. Over zes MESA-opnames onder `aasm_v3_rec`: van 796
+    arousal-eventkoppelingen voldeden er 446 (56 %) aan beide regels, 350
+    (44 %) alleen aan de scoringsregel, en nul alleen aan de rapportageregel.
+    Die asymmetrie is structureel: voor elk event langer dan vijf seconden
+    omvat het scoringsvenster [t0, t1+15] het rapportagevenster [t1-5, t1+15].
+    Het rapportagepad kon dus alleen ondertellen, en telde bijna de helft van
+    de gekoppelde arousals als spontaan.
     """
     return event_onset_s <= arousal_onset_s <= event_end_s + window_post_s
 
