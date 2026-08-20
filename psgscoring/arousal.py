@@ -1084,6 +1084,29 @@ def _classify_arousal_index(ai: float) -> str:
 # RESPIRATOIR-AROUSAL KOPPELING
 # ═══════════════════════════════════════════════════════════════
 
+def arousal_couples_to_event(arousal_onset_s: float,
+                             event_onset_s: float,
+                             event_end_s: float,
+                             window_post_s: float = 15.0) -> bool:
+    """Hoort deze arousal bij dit respiratoire event?
+
+    EEN definitie, gebruikt door zowel de scoring als de rapportage. Tot
+    v0.23.0 hanteerden die twee paden verschillende regels:
+
+      scoring  (breath_scoring.py)  event-ONSET tot 15 s na het einde
+      rapport  (deze module)        latentie t.o.v. het EINDE, -5 tot +15 s
+
+    Een arousal twee seconden na de onset van een event van dertig seconden
+    bevestigde dat event dus in de index en heette in hetzelfde rapport
+    spontaan. De scoringsregel is hier normatief omdat die de gepubliceerde
+    index produceert; de rapportage roept nu dezelfde functie aan.
+
+    De ondergrens is de event-onset en niet `onset - 5`: een arousal die
+    begint voordat het event begint, kan er niet door zijn veroorzaakt.
+    """
+    return event_onset_s <= arousal_onset_s <= event_end_s + window_post_s
+
+
 def correlate_arousals_to_respiratory(
     arousals:       list,
     resp_events:    list,
@@ -1130,11 +1153,16 @@ def correlate_arousals_to_respiratory(
             best_latency = float("inf")
 
             for ev in resp_events:
-                ev_end = (ev.get("onset_s") or 0) + (ev.get("duration_s") or 0)
+                ev_start = ev.get("onset_s") or 0
+                ev_end = ev_start + (ev.get("duration_s") or 0)
                 # Latentie = arousal_onset - event_end (positief = na event)
                 latency = ar_onset - ev_end
 
-                if -window_pre_s <= latency <= window_post_s:
+                # v0.23.0: dezelfde koppelregel als de scoring. `window_pre_s`
+                # blijft in de signatuur voor aanroepers die hem meegeven,
+                # maar bepaalt de koppeling niet meer.
+                if arousal_couples_to_event(ar_onset, ev_start, ev_end,
+                                            window_post_s):
                     if abs(latency) < abs(best_latency):
                         best_latency = latency
                         best_match   = ev
