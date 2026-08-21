@@ -56,15 +56,39 @@ run van vijftien uur is niet langer alles-of-niets.
 
 ## De ingreep
 
-Twee vlaggen, in deze volgorde, elk apart gemeten:
+*Herzien op 21-08-2026, vóór enige meting. De eerste versie hiervan
+beschreef twee vlaggen als losse stappen A en B. Dat klopt niet, en het
+verschil is niet cosmetisch — zie hieronder.*
 
-- **A. `arousal_limb_wired=True` op `aasm_v3_rec`** — Rule 1B-reinstatement
-  krijgt de arousals. Raakt alleen hypopneus die al afgewezen waren wegens
-  ontbrekende desaturatie.
-- **B. `rule1a_arousal_enabled=True`** — de Rule 1A-arousaltak zelf.
+De aanroep in `pipeline.py:940` luidt:
 
-Env-overrides bestaan al (`PSGSCORING_RULE1A_AROUSAL`), dus de 2×2 kan
-gemeten worden zonder profielen te muteren.
+```python
+if rejected and arousals and allow_arousal and limb_enabled:
+```
+
+`arousals` is leeg zonder `arousal_limb_wired`, en `limb_enabled` is False
+zonder `rule1a_arousal_enabled`. **Beide vlaggen moeten dus tegelijk om**;
+alleen `wired` aanzetten op `aasm_v3_rec` doet aantoonbaar niets. Was dit
+niet opgemerkt, dan had de eerste arm van de meting nul verschil laten zien
+en had die uitkomst gelezen kunnen worden als "de tak levert niets op".
+
+Daar komt bij dat de twee profielen de arousals langs verschillende wegen
+gebruiken, en dat verklaart de n=6-voorproef:
+
+| | hypopneedetector | arousals bereiken de scoring via |
+|---|---|---|
+| `aasm_v3_rec` | `envelope` | **niets** — geen arousaltak in de detector, en Rule 1B-reinstatement staat dicht |
+| `aasm_v3_breath` | `breath_graded` | de detector zelf (stap 7b leest `output["arousal"]["events"]` rechtstreeks, gewicht 0,9), plus Rule 1B als beide vlaggen om gaan |
+
+Het verschil dat de hybride op `aasm_v3_breath` gaf, kwam dus **niet** van de
+Rule 1A-tak — die staat overal uit — maar van de weging in de
+breath-graded detector. Op `aasm_v3_rec` speelden de arousals geen enkele rol,
+en dat is waarom die zes opnames tot op het cijfer identiek waren.
+
+De ingreep is daarmee één ding, geen twee: **`arousal_limb_wired=True` én
+`rule1a_arousal_enabled=True`**, gemeten als 2×2 tegen de bestaande stand.
+Env-overrides bestaan al (`PSGSCORING_RULE1A_AROUSAL`), dus dat kan zonder
+profielen te muteren.
 
 ## Acceptatiecriterium (vastgelegd vóór de meting)
 
