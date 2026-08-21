@@ -73,3 +73,52 @@ def test_the_summary_says_the_model_did_not_run(monkeypatch):
     assert "lgbm_n_post" not in s, (
         "lgbm_n_post suggereert dat er gefilterd is terwijl dat niet gebeurd is"
     )
+
+
+# ══════════════════════════════════════════════════════════════
+# Het profielveld — `arousal_lgbm`
+# ══════════════════════════════════════════════════════════════
+
+def test_the_profile_field_reaches_the_detector(monkeypatch):
+    """`lgbm=True` schakelt de hybride in zonder env-variabele.
+
+    Tot v0.23.0 was het hybride pad ALLEEN via PSGSCORING_AROUSAL_LGBM te
+    bereiken. Dat maakte de keuze installatiebreed: `mesa_shhs` kon niet
+    gepind blijven terwijl de klinische profielen hem gebruikten. Zonder een
+    profielveld is de beslissing alles-of-niets, en dat is geen beslissing die
+    per profiel genomen kan worden.
+    """
+    monkeypatch.delenv("PSGSCORING_AROUSAL_LGBM", raising=False)
+    monkeypatch.delenv("YASAFLASKIFIED_AROUSAL_LGBM", raising=False)
+    eeg, hypno = _recording()
+
+    uit = detect_arousals(eeg, SF, hypno)
+    aan = detect_arousals(eeg, SF, hypno, lgbm=True)
+
+    assert "lgbm_available" not in uit["summary"], (
+        "zonder de vlag hoort er geen lgbm-sleutel in de samenvatting te staan")
+    assert aan["summary"].get("lgbm_available") is True, (
+        "profielveld bereikt de detector niet")
+
+
+def test_the_env_variable_still_wins(monkeypatch):
+    """De env blijft werken en overschrijft het profiel — in beide richtingen.
+
+    Een installatie moet hem kunnen forceren of uitzetten, en een meting moet
+    kunnen aantonen dat hij niet actief was.
+    """
+    eeg, hypno = _recording()
+    monkeypatch.setenv("PSGSCORING_AROUSAL_LGBM", "0")
+    assert "lgbm_available" not in detect_arousals(
+        eeg, SF, hypno, lgbm=True)["summary"]
+    monkeypatch.setenv("PSGSCORING_AROUSAL_LGBM", "1")
+    assert detect_arousals(eeg, SF, hypno, lgbm=False)["summary"].get(
+        "lgbm_available") is True
+
+
+def test_no_profile_enables_it_by_default():
+    from psgscoring.constants import SCORING_PROFILES
+    for name, d in SCORING_PROFILES.items():
+        assert "AROUSAL_LGBM" in d, name
+    aan = [n for n, d in SCORING_PROFILES.items() if d["AROUSAL_LGBM"]]
+    assert not aan, f"vlag hoort nergens default aan te staan: {aan}"

@@ -382,6 +382,21 @@ class PostProcessingRules:
     Default `False`: dit verzet een gerapporteerde grootheid. Zie
     docs/hypoxic_burden_venster_preregistratie.md."""
 
+    arousal_lgbm: bool = False
+    """Filter arousal-kandidaten met het op MESA getrainde LightGBM-model.
+
+    Het kandidaatstadium draait dan op ruime drempels (ratio 1,2 / abrupt 1,0)
+    en de classifier gooit weg. Gemeten op PSG-IPA, extern voor dit model:
+    mediane event-F1 0,182 -> 0,463 tegen 0,692 scoorder-onderling, mediane
+    eventduur 4,0 -> 6,2 s tegen 8,3 s menselijk, en de spreiding van
+    index_algo/index_scoorder over vijf opnames 10,13 -> 2,10.
+
+    **Default False.** Arousals voeden Rule 1B-hypopneus en RERA's, dus dit
+    verandert de AHI; zie docs/arousal_lgbm_preregistratie.md voor de
+    voorwaarden die eerst gehaald moeten worden. Het profielveld bestaat zodat
+    die beslissing per profiel genomen kan worden in plaats van via een
+    env-variabele voor de hele installatie."""
+
     plm_time_base: bool = True
     """Reken de tijd van een beenbeweging met de echte vensterlengte.
 

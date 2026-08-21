@@ -715,6 +715,12 @@ def run_pneumo_analysis(
         _ar_shift_env = os.environ.get("PSGSCORING_AROUSAL_SPECTRAL_SHIFT")
         if _ar_shift_env is not None:
             _ar_shift = _ar_shift_env == "1"
+        # v0.23.0: hybride LGBM-pad. Tot nu toe ALLEEN via een env-variabele
+        # bereikbaar, waardoor de keuze voor de hele installatie gold en
+        # `mesa_shhs` niet gepind kon blijven terwijl klinische profielen hem
+        # gebruiken. De env blijft werken en wint, zodat een meting kan
+        # aantonen dat hij niet actief was.
+        _ar_lgbm = bool(profile.get("AROUSAL_LGBM", False))
         _ar_hyst = bool(profile.get("AROUSAL_HYSTERESIS", False))
         _ar_hyst_env = os.environ.get("PSGSCORING_AROUSAL_HYSTERESIS")
         if _ar_hyst_env is not None:
@@ -752,6 +758,7 @@ def run_pneumo_analysis(
                 eog_reject  = _eog_reject,
                 spectral_shift = _ar_shift,
                 hysteresis  = _ar_hyst,
+                lgbm        = _ar_lgbm,
             )
         except Exception as e:  # noqa: BLE001 — arousal failure must not abort the run
             logger.warning("[pneumo] arousal analysis failed, continuing: %s", e)

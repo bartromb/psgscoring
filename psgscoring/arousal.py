@@ -574,6 +574,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                     shift_abrupt: float | None = None,
                     hysteresis: bool = False,
                     exit_ratio: float | None = None,
+                    lgbm: bool | None = None,
                     _no_hybrid: bool = False) -> dict:
     """
     Detecteer EEG-arousals conform AASM, Sectie 5.
@@ -617,7 +618,15 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
     # the module globals while the rule-based body runs, then filter
     # via LGBM after the function completes. The swap is restored in a
     # try/finally below so concurrent callers see the original values.
-    _hybrid_requested = _is_arousal_lgbm_enabled() and not _no_hybrid
+    # `lgbm=True` komt uit het profiel; de env-variabele blijft werken en
+    # wint, zodat een installatie hem kan forceren of uitzetten.
+    _env = os.environ.get("PSGSCORING_AROUSAL_LGBM",
+                          os.environ.get("YASAFLASKIFIED_AROUSAL_LGBM"))
+    if _env is not None:
+        _want = _env == "1"
+    else:
+        _want = bool(lgbm) if lgbm is not None else False
+    _hybrid_requested = _want and not _no_hybrid
     _hybrid = _hybrid_requested
     # v0.23.0: verruim de kandidaatdrempels alleen als de classifier ook
     # werkelijk kan draaien. Lukte dat niet -- model ontbreekt, lightgbm niet
@@ -1222,7 +1231,8 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                           eog_data: np.ndarray | None = None,
                           eog_reject: bool = False,
                           spectral_shift: bool = False,
-                          hysteresis: bool = False) -> dict:
+                          hysteresis: bool = False,
+                          lgbm: bool | None = None) -> dict:
     """Multi-derivatie arousal-detectie via event-level union.
 
     ``derivations``: geordende lijst ``[(naam, eeg_data[, sf]), ...]`` — element 0
@@ -1245,7 +1255,7 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                               hr_data=hr_data, sf_hr=sf_hr,
                               ratio_thresh=rt, abrupt_thresh=at,
                               spectral_shift=spectral_shift,
-                              hysteresis=hysteresis)
+                              hysteresis=hysteresis, lgbm=lgbm)
         if res.get("success"):
             per.append((name, res))
     if not per:
@@ -1754,6 +1764,7 @@ def run_arousal_respiratory_analysis(
     eog_reject:  bool = False,
     spectral_shift: bool = False,
     hysteresis:  bool = False,
+    lgbm:        bool | None = None,
 ) -> dict:
     """
     Master-functie: detecteer arousals, RERAs en koppel aan respiratoire events.
@@ -1789,13 +1800,13 @@ def run_arousal_respiratory_analysis(
                                           per_channel_thresh=per_channel_thresh,
                                           eog_data=eog_data, eog_reject=eog_reject,
                                           spectral_shift=spectral_shift,
-                                          hysteresis=hysteresis)
+                                          hysteresis=hysteresis, lgbm=lgbm)
     else:
         ar_result = detect_arousals(eeg_data, sf_eeg, hypno, emg_data=emg_data,
                                     artifact_epochs=artifact_epochs,
                                     hr_data=hr_data, sf_hr=sf_hr,
                                     spectral_shift=spectral_shift,
-                                    hysteresis=hysteresis)
+                                    hysteresis=hysteresis, lgbm=lgbm)
     output["arousals"] = ar_result
 
     arousals = ar_result.get("events", [])
