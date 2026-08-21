@@ -100,6 +100,37 @@ De meegeleverde drempel 0,60 is óók het optimum van de veeg. Dat is niet door
 mij afgesteld — hij stond al zo in de code — maar het is het vermelden waard,
 want het betekent dat er hier geen keuze te maken viel.
 
+## Een voetangel die eerst weg moest
+
+Gevonden bij het nalopen van dit pad, vóór enige defaultwissel.
+
+In hybride modus zet `detect_arousals` de drempels op de RUIME
+kandidaatwaarden (ratio 1,2 / abrupt 1,0) en laat de classifier daarna
+wegfilteren. Faalde die -- model ontbreekt, lightgbm niet geïnstalleerd,
+corrupte booster -- dan logde de code *"falling back to rule-based output"*
+terwijl `result["events"]` op dat moment de **kandidatenlijst** bevatte. De
+samenvatting zei bovendien nergens dat de classifier niet gedraaid had.
+
+Gemeten op PSG-IPA, single derivatie:
+
+| | regels | hybride MET model | hybride ZONDER model | scoordermediaan |
+|---|---:|---:|---:|---:|
+| SN2 | 203 ev (37,1/u) | 60 (11,0) | **777 (142,1)** | 8,5 |
+| SN4 | 94 ev (12,8/u) | 99 (13,5) | **979 (133,8)** | 14,3 |
+
+Een installatie met de vlag aan maar zonder model rapporteert dus een
+arousal-index van 134 tot 142 per uur waar 11 tot 14 hoort — een factor tien,
+met een logregel die het tegendeel beweert. Zolang de vlag opt-in is, is dat
+een voetangel; wordt hij default, dan is het een productiedefect.
+
+Gerepareerd: het model wordt geladen **voordat** de kandidaatdrempels
+verruimd worden, en lukt dat niet, dan blijven de regelgebaseerde drempels
+staan. Mislukt het filteren pas ná een geslaagde laadpoging, dan wordt er
+opnieuw gedetecteerd op de regeldrempels (met een privé-parameter die de
+recursie stopt). `summary["lgbm_available"]` zegt of de classifier gedraaid
+heeft, en verschijnt alleen als de hybride ook gevraagd was. Tests in
+`tests/test_arousal_lgbm_fallback.py`.
+
 ## Stand van de voorwaarden
 
 | | |

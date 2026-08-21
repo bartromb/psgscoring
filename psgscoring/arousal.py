@@ -573,7 +573,8 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                     shift_delta: float | None = None,
                     shift_abrupt: float | None = None,
                     hysteresis: bool = False,
-                    exit_ratio: float | None = None) -> dict:
+                    exit_ratio: float | None = None,
+                    _no_hybrid: bool = False) -> dict:
     """
     Detecteer EEG-arousals conform AASM, Sectie 5.
 
@@ -616,7 +617,27 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
     # the module globals while the rule-based body runs, then filter
     # via LGBM after the function completes. The swap is restored in a
     # try/finally below so concurrent callers see the original values.
-    _hybrid = _is_arousal_lgbm_enabled()
+    _hybrid_requested = _is_arousal_lgbm_enabled() and not _no_hybrid
+    _hybrid = _hybrid_requested
+    # v0.23.0: verruim de kandidaatdrempels alleen als de classifier ook
+    # werkelijk kan draaien. Lukte dat niet -- model ontbreekt, lightgbm niet
+    # geinstalleerd, corrupte booster -- dan bleef `result["events"]` de
+    # KANDIDATENLIJST op ratio 1,2 staan, terwijl het log "falling back to
+    # rule-based output" meldde. Gemeten op PSG-IPA, single derivatie:
+    #   SN2  regels 203 ev (37,1/u) | met model  60 (11,0) | zonder model 777 (142,1)
+    #   SN4  regels  94 ev (12,8/u) | met model  99 (13,5) | zonder model 979 (133,8)
+    # tegen scoordermedianen van 8,5 en 14,3/u.
+    _lgbm_ok = _hybrid_requested
+    if _hybrid:
+        try:
+            _load_arousal_lgbm_booster()
+        except Exception as _e:  # noqa: BLE001 -- elke laadfout telt hier gelijk
+            logger.warning(
+                "[arousal] LGBM-model niet beschikbaar (%s); regelgebaseerd "
+                "pad, kandidaatdrempels NIET verruimd", _e,
+            )
+            _hybrid = False
+            _lgbm_ok = False
     # v0.8.1: effective thresholds are LOCAL (concurrency-safe — no module-global
     # mutation, which was fragile under the 8 parallel workers + the multi-derivation
     # loop). Explicit caller values win; else LGBM-candidate values in hybrid mode;
@@ -1078,13 +1099,33 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                     "(threshold %.2f)", n_pre, len(kept), AROUSAL_LGBM_THRESHOLD,
                 )
             except Exception as e:  # noqa: BLE001
-                logger.warning("[arousal] LGBM filter failed: %s; "
-                               "falling back to rule-based output", e)
+                # De drempels staan hier al ruim, dus teruggeven wat er ligt
+                # zou de KANDIDATEN opleveren. Opnieuw detecteren op de
+                # regelgebaseerde drempels; `_no_hybrid` stopt de recursie.
+                logger.warning(
+                    "[arousal] LGBM-filter mislukt na het laden (%s); "
+                    "opnieuw detecteren op de regelgebaseerde drempels", e,
+                )
+                _lgbm_ok = False
+                result = detect_arousals(
+                    eeg_data, sf, hypno, emg_data=emg_data,
+                    artifact_epochs=artifact_epochs, hr_data=hr_data,
+                    sf_hr=sf_hr,
+                    spectral_shift=spectral_shift,
+                    shift_delta=shift_delta, shift_abrupt=shift_abrupt,
+                    hysteresis=hysteresis, exit_ratio=exit_ratio,
+                    _no_hybrid=True,
+                )
                 result["lgbm_error"] = str(e)
 
     except Exception as e:
         result["error"]     = str(e)
         result["traceback"] = traceback.format_exc()
+    if _hybrid_requested and isinstance(result.get("summary"), dict):
+        # Een consument moet kunnen zien DAT de hybride gevraagd was en of hij
+        # gedraaid heeft. Zonder dit is een regelgebaseerd resultaat niet te
+        # onderscheiden van een gefilterd resultaat.
+        result["summary"]["lgbm_available"] = _lgbm_ok
     return result
 
 
