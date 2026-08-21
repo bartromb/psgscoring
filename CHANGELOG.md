@@ -108,6 +108,20 @@ criterion — details in `docs/arousal_spectral_shift_preregistratie.md` and
 criterion scores a pure amplitude step of 1.8x with an unchanged spectrum as
 an AASM arousal.
 
+**A missing arousal model no longer turns the hybrid into a tenfold
+over-count.** With `PSGSCORING_AROUSAL_LGBM=1`, `detect_arousals` sets the
+permissive candidate thresholds (ratio 1.2, abrupt 1.0) and lets the
+classifier filter what survives. If the classifier could not run — model file
+absent, lightgbm not installed — the code logged "falling back to rule-based
+output" while `result["events"]` still held the CANDIDATE list. Measured on
+PSG-IPA: SN2 777 events (142.1/h) against 203 rule-based (37.1) and 60 with a
+working model (11.0); SN4 979 (133.8) against 94 (12.8) and 99 (13.5), with
+scorer medians of 8.5 and 14.3/h. The model is now loaded BEFORE the
+thresholds are widened, and `summary["lgbm_available"]` reports whether the
+classifier ran — present only when the hybrid was actually requested. The
+lesson generalises: a fallback reached only after a behaviour change cannot
+undo it.
+
 **MESA does not serve as a PLM replication cohort as it stands.** Its EDFs
 carry one bare `Leg` channel, which matches no entry in `CHANNEL_PATTERNS`,
 so the PLM step does not run there at all — empty summary, no error. Arousals
