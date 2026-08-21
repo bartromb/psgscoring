@@ -228,3 +228,65 @@ overeenkomt met wat Azarbarzins eigen code oplevert is hiermee niet getoetst.
    gepubliceerde definitie berust.
 4. Een regressietest met realistische eventdichtheid, zodat de val van de
    synthetische fixture niet terugkomt.
+
+---
+
+# Waarom het geen schaalfout is: het venster is een sprongfunctie
+
+*Naar aanleiding van de vraag "is het toch geen oppervlakteberekening?" — en
+die vraag legt precies de vinger op de wond.*
+
+Een oppervlakte onder dezelfde curve, voor dezelfde events, met een andere
+basislijn is `∫(B − S)` tegen `∫(B′ − S)`. Het verschil is
+`(B − B′) × vensterlengte`. Bij een VASTE vensterlengte is dat een nette
+schaalfactor: de waarden verschuiven, de volgorde blijft. Een rangcorrelatie
+van 0,69 kan daar niet uit volgen.
+
+Onze vensterlengte ligt niet vast. Ze wordt bepaald door één binaire toets per
+event: keert de saturatie terug tot `basislijn − 1 %`? Zo ja, dan stopt de
+integratie daar; zo nee, dan loopt ze door tot 120 s na het eventeinde.
+
+| opname | ratio t.o.v. spec | mediaan venster | % events aan de 120 s-cap | % overlappend |
+|---|---:|---:|---:|---:|
+| 1374 | 2,34 | 126,5 s | 46 % | 64 % |
+| 6157 | 1,49 | 110,6 s | 45 % | 55 % |
+| 1020 | 2,22 | 21,3 s | 35 % | 27 % |
+| 2149 | 1,33 | 25,0 s | 16 % | 24 % |
+| 3743 | 1,31 | 49,3 s | 16 % | 37 % |
+| 2747 | 0,77 | 45,1 s | 4 % | 31 % |
+| 3823 | 0,47 | 18,5 s | 1 % | 5 % |
+| 3135 | 0,29 | 25,7 s | 0 % | 3 % |
+
+**ratio versus aandeel aan de cap: r = 0,89.** Het aandeel events dat de
+120 s-grens haalt verklaart de afwijking vrijwel volledig; de overlap volgt
+daaruit (r = 0,75).
+
+`mesa-sleep-1020` laat zien waarom de mediaan misleidt: mediaan venster 21,3 s
+maar 35 % aan de cap. De verdeling is **tweetoppig** — events herstellen snel
+óf helemaal niet — en dat is de handtekening van een drempel, niet van een
+geleidelijke verbreding.
+
+## De twee afwijkingen staan niet los van elkaar
+
+De hersteldrempel is `basislijn − 1 %`. De basislijn bepaalt dus mede wie de
+cap haalt. Het nachtbrede plafond tilt de basislijn op (op mesa-sleep-1374:
+92,6 % lokaal tegen 94,2 % globaal), tilt daarmee de hersteldrempel op, en
+duwt daarmee meer events over de cap — waar ze vervolgens 120 s lang tegen
+diezelfde verhoogde basislijn worden geïntegreerd. De twee afwijkingen
+vermenigvuldigen elkaar in plaats van op te tellen.
+
+Dat verklaart ook waarom `lokaal alleen` de volgorde beter volgt (ρ 0,93) maar
+op ongeveer de helft van de schaal zit: zonder plafond is de hersteldrempel
+lager, lopen minder events vol, en wordt het gedrag weer bijna een
+schaalfactor.
+
+## Wat dit betekent voor de reparatie
+
+De volgorde van ingrijpen ligt hiermee vast, en anders dan ik eerst dacht:
+
+1. **Het venster eerst.** Zolang de vensterlengte per event omslaat op een
+   drempel, is elke basislijncorrectie een correctie op een sprongfunctie.
+2. **Daarna pas de basislijn.** Met een vast of ensemble-afgeleid venster
+   wordt een basislijnverschil weer wat het hoort te zijn: een schaalfactor.
+
+Meetscript: `docs/meet_hypoxic_burden_venster.py`.
