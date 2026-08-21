@@ -52,7 +52,15 @@ _pre_v041_backup_*/
 .v042_backup_*/
 
 # One-time test/deploy scripts (zie scripts/ voor archiving)
-test_stability_filter_*.py
+#
+# LET OP: dit patroon was ONGEANKERD en ving daardoor ook
+# `tests/test_stability_filter_subtypes.py` -- 193 regels, 13 tests, die de
+# subtypefout in het stabiele-ademhalingsfilter vastleggen. Die module stond
+# daardoor niet in git en dus niet in CI, en zou bij een schone checkout
+# verdwenen zijn. Ontdekt op 21-08-2026 doordat een tweede worktree 13 tests
+# minder draaide dan de hoofdboom. Nu geankerd op de repo-root, waar de
+# eenmalige scripts stonden waar de regel voor bedoeld was.
+/test_stability_filter_*.py
 diagnose_fp_fn.py
 psgscoring_output_*.txt
 
