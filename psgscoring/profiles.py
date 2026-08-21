@@ -370,7 +370,7 @@ class PostProcessingRules:
     regulatoire regelsets na. `mesa_shhs` en `chicago_1999` idem, voor de
     reproduceerbaarheid van paper v31/v37."""
 
-    plm_time_base: bool = False
+    plm_time_base: bool = True
     """Reken de tijd van een beenbeweging met de echte vensterlengte.
 
     `_detect_lm_channel` berekent RMS over vensters van `int(sf * 0.1)`
@@ -382,9 +382,16 @@ class PostProcessingRules:
     0,038 -> 0,692 (mens onderling 0,820). Zie
     docs/plm_tijdbasis_bevinding.md.
 
-    Default `False` conform de regel dat gedragswijzigingen achter een vlag
-    gaan met het huidige gedrag als default -- niet omdat het huidige gedrag
-    verdedigbaar is."""
+    **Default `True` sinds 21-08-2026** (gebruikersbeslissing). Dit is geen
+    andere keuze maar een rekenfout: de omzetting van vensterindex naar tijd
+    nam 0,1 s aan waar het venster 0,09766 s duurt. Daarom volgt deze vlag
+    het patroon van `rip_quality_scale_free` -- overal aan, ook op de
+    historische profielen, want geen enkele regelset schrijft een
+    tijdsafwijking van 2,3 % voor -- en niet dat van `single_channel_rhythm`,
+    dat een scoringscriterium verandert.
+
+    Uitgezonderd blijven `mesa_shhs` en `chicago_1999`, die paper v31/v37
+    reproduceren."""
 
     arousal_hysteresis: bool = False
     """Laat een arousal doorlopen zolang de activiteit verhoogd blijft.
@@ -1393,6 +1400,9 @@ _mesa_shhs = Profile(
         # `uncertain`-apneus in `ahi_total` trekken en de gepubliceerde
         # indices verschuiven; zie PostProcessingRules.rip_quality_scale_free.
         rip_quality_scale_free=False,
+        # Idem voor de PLM-tijdbasis: die is per 21-08-2026 default aan omdat
+        # het een rekenfout was, maar dit profiel moet reproduceerbaar blijven.
+        plm_time_base=False,
         stability_filter_all_hypopnea_subtypes=False,
         local_baseline_cv_threshold=0.3,
         local_baseline_strict_reduction=25.0,
@@ -1465,6 +1475,7 @@ _chicago_1999 = Profile(
         # reparaties aan de sensorpoorten. Zie
         # PostProcessingRules.rip_quality_scale_free.
         rip_quality_scale_free=False,
+        plm_time_base=False,
         stability_filter_all_hypopnea_subtypes=False,
         thermistor_gate="envelope_agreement",
     ),

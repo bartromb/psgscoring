@@ -93,13 +93,33 @@ in de menselijk geannoteerde intervallen ligt de EMG-RMS 6,3× (SN1) en 10,2×
 ## De reparatie
 
 `stap = win / sf` in plaats van de aangenomen 0,1, voor zowel `onset_s` als
-`duration_s`. Achter profielvlag `plm_time_base`, default uit, conform de
-staande regel dat gedragswijzigingen achter een vlag gaan met het huidige
-gedrag als default.
+`duration_s`. Profielvlag `plm_time_base`.
 
-**Aanbeveling: default aanzetten.** Het huidige gedrag is niet een andere
-keuze maar een rekenfout, en de gerapporteerde tijden lopen tot een kwartier
-uit de pas — zichtbaar zodra iemand een beenbeweging opzoekt in de
-signaalweergave van `/review/<job_id>`. De PLM-index zelf schuift mee (het
-duurfilter werkt nu op de juiste duur), dus het is geen zuiver cosmetische
-wissel en de knop hoort bij de gebruiker te liggen.
+**Default AAN sinds 21-08-2026** (beslissing van de gebruiker, op advies).
+Uitgezonderd blijven `mesa_shhs` en `chicago_1999`, die paper v31/v37
+reproduceren; die twee draaien de oude tijdbasis en er ligt een test op die
+omvalt als dat verandert.
+
+De vlag volgt daarmee het patroon van `rip_quality_scale_free` — overal aan,
+óók op de historische en regulatoire profielen — en níét dat van
+`single_channel_rhythm`, dat een scoringscriterium verandert. Het onderscheid
+is de reden: geen enkele regelset, hoe oud of hoe regulatoir ook, schrijft
+een tijdsafwijking van 2,3 % voor. `aasm_v2_rec`, `aasm_v1_rec` en
+`cms_medicare` bootsen oudere criteria na, geen oudere rekenfouten.
+
+Ook de functie-defaults van `analyze_plm` en `_detect_lm_channel` staan op
+`True`, zodat wie de bibliotheek rechtstreeks aanroept de juiste tijd krijgt;
+`time_base_fix=False` is wat de twee gepinde profielen doorgeven.
+
+Golden 9/9 blijft groen, en dat is echt en niet gemaskeerd: de digest sluit
+PLM expliciet uit (`tests/test_golden_output.py`, "Position/snore/PLM/HR are
+intentionally excluded"). De respiratoire cijfers bewegen niet mee omdat PLM
+de respiratoire scoring niet voedt.
+
+## De afkapping is niet meer stil
+
+Bij deze wissel is `result["events"] = plm_eligible[:200]` blijven staan --
+het is een payloadgrens, geen scoringsregel -- maar ze laat nu een spoor na:
+`summary["n_events_truncated"]` zegt hoeveel er wegviel, en er komt een
+WARNING in het log. Zonder dat kon niemand zien dat de eventlijst ergens
+midden in de nacht ophoudt. Tests in `tests/test_plm_event_cap.py`.
