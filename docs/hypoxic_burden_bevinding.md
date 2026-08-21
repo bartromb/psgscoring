@@ -1,4 +1,15 @@
-# De hypoxic burden staat op een andere schaal dan de literatuur
+# De hypoxic burden wijkt af van de gepubliceerde definitie — maar niet als schaalverschuiving
+
+> **Herzien, later op 21 augustus 2026.** De eerste versie van dit document
+> concludeerde dat onze burden "op een andere schaal staat dan de literatuur"
+> en dat onze default 4 van 8 opnames in de hoogrisicoband > 73 legt tegen 0
+> van 8 voor de gepubliceerde methode. **Dat klopte niet.** Het berustte op
+> `ensemble`-waarden die te laag waren door een defect in de
+> vensterafleiding, en op de aanname dat ons `ensemble`-pad de publicatie
+> volgde. Dat doet het niet. Met de specificatie opgezocht en correct
+> geïmplementeerd valt 7 van de 8 opnames in dezelfde risicoband. De
+> onderstaande secties zijn bijgewerkt; de conclusie is veranderd, de
+> vastgestelde afwijkingen niet.
 
 *21 augustus 2026. Uitgevoerd op verzoek, naar aanleiding van W31b in
 `docs/PAPER_REVISIE_v40.md`: is de driftgevoeligheid van onze hypoxic burden
@@ -137,3 +148,83 @@ een default op omgaat.
    die vandaag al klinisch scheelt.
 
 Meetscript: `docs/meet_hypoxic_burden_varianten.py`.
+
+
+---
+
+# Herziening — de specificatie opgezocht, en wat er dan overblijft
+
+## De definitie, uit de literatuur
+
+> *"For each individually identified apnea or hypopnea, the maximum SpO2
+> during the 100 seconds before the end of the event is considered as the
+> pre-event baseline oxygen saturation. For each event, the area under this
+> baseline value was calculated over a subject-specific search window that was
+> determined from the ensemble average of time-aligned SpO2 curves."*
+
+Het venster is *"the interval between the pre-event and post-event maximum
+oxygen saturation values"*; de individuele oppervlaktes worden gesommeerd en
+gedeeld door de totale slaaptijd.
+
+De review in Archivos de Bronconeumología merkt daarbij op dat de publicatie
+implementatiedetails mist die nodig zijn voor onafhankelijke replicatie — over
+het omgaan met overlappende vensters staat er niets. Dedupliceren zou dus een
+eigen keuze zijn, geen reparatie.
+
+## Vier afwijkingen, alle vier bevestigd
+
+| | onze `percentile` (default) | onze `ensemble` | specificatie |
+|---|---|---|---|
+| basislijn | max(90e pct van 120 s vóór **onset**, 95e pct nachtbreed) | max van de eerste 3 s ván het zoekvenster | **max over `[einde − 100 s, einde]`** |
+| venster | onset → herstel of +120 s (mediaan 126 s) | ensemble-afgeleid | ensemble-afgeleid |
+| linkerflank | n.v.t. | kon ná het eventeinde landen | pre-event maximum |
+
+De vierde afwijking is gerepareerd (`_ensemble_search_window` dwingt de
+linkerflank nu vóór het eventeinde) en dat was materieel: `mesa-sleep-1374`
+ging van 18,33 naar 44,31 en `mesa-sleep-2747` van 23,39 naar 66,52.
+
+## De meting, met de specificatie erbij
+
+`baseline_method="azarbarzin"` implementeert de definitie zoals geciteerd.
+Toegevoegd, default uit; de twee bestaande paden zijn ongewijzigd.
+
+| opname | `max(l,g)` default | lokaal | ensemble | **azarbarzin** | default/spec |
+|---|---:|---:|---:|---:|---:|
+| 1374 | 266,14 | 108,83 | 44,31 | **113,97** | 2,34 |
+| 2149 | 66,98 | 24,03 | 23,64 | **50,52** | 1,33 |
+| 2747 | 81,03 | 46,51 | 66,52 | **105,61** | 0,77 |
+| 3135 | 2,82 | 2,13 | 3,48 | **9,71** | 0,29 |
+| 3743 | 64,73 | 21,43 | 22,31 | **49,35** | 1,31 |
+| 3823 | 25,16 | 17,06 | 36,46 | **53,77** | 0,47 |
+| 6157 | 168,26 | 62,46 | 41,95 | **112,99** | 1,49 |
+| 1020 | 100,27 | 12,32 | 15,53 | **45,13** | 2,22 |
+
+## De herziene conclusie
+
+**Geen schaalverschuiving maar spreiding.** De verhouding default/specificatie
+loopt van 0,29 tot 2,34, op zes opnames te hoog en op twee te laag, zonder
+patroon. Er bestaat dus geen correctiefactor die het rechttrekt — per patiënt
+is de afwijking onvoorspelbaar. Dat is lastiger dan een systematische
+afwijking, niet makkelijker.
+
+**De risicoband komt meestal wél overeen.** Met de banden < 20 / 20–73 / > 73
+vallen 7 van de 8 opnames in dezelfde klasse; alleen `mesa-sleep-1020`
+verschuift (hoog → matig). De klinische stelling uit de eerste versie van dit
+document — dat de banden systematisch verschillen — wordt door deze meting
+NIET gedragen.
+
+**Wat er niet mee bewezen is.** Er is geen ijkpunt op dit cohort: MESA
+publiceert geen hypoxic-burdenvariabele, en van SHHS staat hier alleen 36 KB
+scripts. `azarbarzin` volgt de geciteerde definitie, maar of het getal
+overeenkomt met wat Azarbarzins eigen code oplevert is hiermee niet getoetst.
+
+## Wat hier de volgende stap is
+
+1. Meet `azarbarzin` tegen `percentile` op MESA n = 150, gepaard, met een
+   vooraf vastgelegd criterium. n = 8 is te klein voor een defaultwissel.
+2. Geef `baseline_method` door aan de samenvatting en het rapport. Een getal
+   dat op vier manieren berekend kan worden, hoort te zeggen welke het was.
+3. Laat de referentiewaarde "< 20" pas staan wanneer het getal ernaast op de
+   gepubliceerde definitie berust.
+4. Een regressietest met realistische eventdichtheid, zodat de val van de
+   synthetische fixture niet terugkomt.

@@ -38,7 +38,7 @@ ids = sys.argv[1:] if len(sys.argv) > 1 else [
     "mesa-sleep-3135","mesa-sleep-3743","mesa-sleep-3823",
     "mesa-sleep-6157","mesa-sleep-1020"]
 print(f"{'opname':>18} {'drift':>6} {'n_ev':>5} {'max(l,g)':>9} {'lokaal':>8} "
-      f"{'ensemble':>9} {'max/lok':>8}")
+      f"{'ensemble':>9} {'azarbarzin':>11}")
 for rid in ids:
     xml = ANNS / f"{rid}-nsrr.xml"; edf = EDFS / f"{rid}.edf"
     if not xml.exists() or not edf.exists():
@@ -70,11 +70,10 @@ for rid in ids:
         drift = float(np.percentile(a,95)-np.percentile(b,95)) if len(a) and len(b) else float("nan")
     r = {}
     for tag, kw in (("maxlg", {}), ("lokaal", {"local_baseline_only": True}),
-                    ("ens", {"baseline_method": "ensemble"})):
+                    ("ens", {"baseline_method": "ensemble"}), ("azb", {"baseline_method": "azarbarzin"})):
         try:
             r[tag] = compute_hypoxic_burden(spo2, sf, ev, hyp, **kw).get("hypoxic_burden")
         except Exception as e:
             r[tag] = None
-    ratio = (r["maxlg"]/r["lokaal"]) if r.get("maxlg") and r.get("lokaal") else float("nan")
     print(f"{rid:>18} {drift:6.1f} {len(ev):5d} {r['maxlg'] or 0:9.2f} "
-          f"{r['lokaal'] or 0:8.2f} {r['ens'] or 0:9.2f} {ratio:8.2f}", flush=True)
+          f"{r['lokaal'] or 0:8.2f} {r['ens'] or 0:9.2f} {r['azb'] or 0:11.2f}", flush=True)
