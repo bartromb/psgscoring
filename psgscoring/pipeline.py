@@ -701,6 +701,13 @@ def run_pneumo_analysis(
         # afleidingen degradeert 'multi' vanzelf naar single (byte-identiek).
         _ar_mode = (os.environ.get("PSGSCORING_AROUSAL_DERIVATION")
                     or profile.get("AROUSAL_DERIVATION_MODE", "single")).lower()
+        # v0.23.0: schaalvrij arousalcriterium (spectrale verschuiving i.p.v.
+        # vermogen). Profielvlag `arousal_spectral_shift`, env-override
+        # PSGSCORING_AROUSAL_SPECTRAL_SHIFT=0/1 zoals bij de afleidingsmodus.
+        _ar_shift = bool(profile.get("AROUSAL_SPECTRAL_SHIFT", False))
+        _ar_shift_env = os.environ.get("PSGSCORING_AROUSAL_SPECTRAL_SHIFT")
+        if _ar_shift_env is not None:
+            _ar_shift = _ar_shift_env == "1"
         _derivations = None
         _eog_arousal = None
         _eog_reject = False
@@ -732,6 +739,7 @@ def run_pneumo_analysis(
                 derivations = _derivations,
                 eog_data    = _eog_arousal,
                 eog_reject  = _eog_reject,
+                spectral_shift = _ar_shift,
             )
         except Exception as e:  # noqa: BLE001 — arousal failure must not abort the run
             logger.warning("[pneumo] arousal analysis failed, continuing: %s", e)

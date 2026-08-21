@@ -352,6 +352,26 @@ AROUSAL_RATIO_THRESH  = 2.0     # v0.8.11: verlaagd van 3.0 → 2.0 (v0.8.11: ve
 ABRUPT_RATIO_THRESH   = 1.5     # v0.8.11: verlaagd van 2.0 → 1.5 (2s FFT-vensters smoothen te veel)
 EPOCH_LEN_S           = 30
 
+# v0.23.0: spectrale-verschuivingscriterium (opt-in, `arousal_spectral_shift`).
+#
+# De regels hierboven vergelijken VERMOGEN in de snelle banden met een
+# basislijn uit de opname zelf. De AASM beschrijft een verschuiving van de
+# FREQUENTIE. Vermogen is onbegrensd en amplitude-gevoelig, dus betekent een
+# vaste verhouding op de ene opname iets anders dan op de andere — gemeten op
+# PSG-IPA: de drempel die de scoordermediaan reproduceert loopt van 1,2 tot
+# 4,0 over vijf nachten.
+#
+# `r = (alpha + theta + beta) / (delta + alpha + theta + beta + sigma)` is de
+# fractie van het spectrale vermogen in de snelle banden: dimensieloos,
+# begrensd op [0,1] en invariant onder een amplitudeschaling van het EEG. Op
+# een begrensde grootheid is een ABSOLUUT increment tussen opnames
+# vergelijkbaar; op een onbegrensde vermogensmaat is het dat nooit.
+#
+# Waarden vastgelegd in docs/arousal_spectral_shift_preregistratie.md vóór
+# enige meting, gekozen uit de grootheid en niet uit de data.
+AROUSAL_SHIFT_DELTA   = 0.15    # r moet 0,15 absoluut boven de lokale basislijn
+AROUSAL_SHIFT_ABRUPT  = 0.10    # r in de eerste 1 s ligt 0,10 boven de 3 s ervoor
+
 
 # ═══════════════════════════════════════════════════════════════
 # HULPFUNCTIES
@@ -530,7 +550,10 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                     hr_data: np.ndarray = None,
                     sf_hr: float = 1.0,
                     ratio_thresh: float | None = None,
-                    abrupt_thresh: float | None = None) -> dict:
+                    abrupt_thresh: float | None = None,
+                    spectral_shift: bool = False,
+                    shift_delta: float | None = None,
+                    shift_abrupt: float | None = None) -> dict:
     """
     Detecteer EEG-arousals conform AASM, Sectie 5.
 
@@ -554,6 +577,14 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
     re-classifier at threshold AROUSAL_LGBM_THRESHOLD (default 0.60).
     Backward-compat: with the env var unset the function is
     bit-identical to the rule-based v0.8.40 detector.
+
+    v0.23.0 (``spectral_shift=True``, opt-in): the power criterion is
+    replaced by a criterion on the FAST-BAND FRACTION
+    ``r = (alpha+theta+beta) / (delta+alpha+theta+beta+sigma)``, which is
+    bounded and invariant under an amplitude scaling of the EEG — see the
+    module constants and docs/arousal_spectral_shift_preregistratie.md.
+    With ``spectral_shift=False`` (the default) this function is
+    byte-identical to v0.22.0.
     """
     # v0.9.8: hybrid mode dispatch — swap the candidate thresholds in
     # the module globals while the rule-based body runs, then filter
@@ -598,6 +629,28 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
         # Gecombineerd arousal-vermogen: alpha_narrow + theta + beta
         # (AASM: "alpha, theta en/of >16 Hz")
         arousal_pow = alpha_pow + theta_pow + beta_pow
+
+        # v0.23.0: schaalvrije variant — de FRACTIE van het spectrale vermogen
+        # in de snelle banden. delta_pow werd tot nu toe berekend en alleen als
+        # rapportagewaarde gebruikt; het is precies de noemer die van een
+        # vermogensmaat een frequentiemaat maakt.
+        if spectral_shift:
+            if shift_delta is None:
+                shift_delta = AROUSAL_SHIFT_DELTA
+            if shift_abrupt is None:
+                shift_abrupt = AROUSAL_SHIFT_ABRUPT
+            _total_pow = (delta_pow + alpha_pow + theta_pow
+                          + beta_pow + sigma_pow)
+            _total_pow = np.maximum(_total_pow, 1e-12)
+            fast_frac  = arousal_pow / _total_pow      # r(t), NREM
+            alpha_frac = alpha_pow / _total_pow        # REM: theta is achtergrond
+            # De detectiegrootheden zelf worden vervangen; de rapportagevelden
+            # (alpha_ratio, beta_ratio, dominant_band) blijven op vermogen.
+            _detect_nrem = fast_frac
+            _detect_rem  = alpha_frac
+        else:
+            _detect_nrem = arousal_pow
+            _detect_rem  = alpha_pow
 
         # ── Baseline per slaapfase (v0.8.11: rolling 2-min venster) ────
         nrem_mask = _build_stage_mask(hypno, sf, n_samples,
@@ -668,8 +721,22 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
             return np.maximum(baseline, 1e-9)
 
         # Gebruik rolling baseline per sample (v0.8.11)
-        arousal_bl_nrem_arr = _rolling_baseline(arousal_pow, nrem_mask)
-        arousal_bl_rem_arr  = _rolling_baseline(arousal_pow, rem_mask)
+        # v0.23.0: bij spectral_shift draait dezelfde rolling machinerie op de
+        # fractie i.p.v. het vermogen — de basislijn is dan de lokale rustige
+        # spectrale balans, niet de lokale rustige amplitude.
+        #
+        # LET OP bij de else-tak: de oude code bouwt de REM-basislijn op
+        # `arousal_pow` (alpha+theta+beta) terwijl fase 1 in REM alleen
+        # `alpha_pow` toetst. Die asymmetrie is bestaand gedrag en blijft
+        # ongemoeid; ze rechtzetten verandert de REM-arousals stil (gemeten op
+        # PSG-IPA SN3: 61 -> 73 events). Alleen onder de vlag zijn teller en
+        # noemer dezelfde grootheid.
+        if spectral_shift:
+            arousal_bl_nrem_arr = _rolling_baseline(_detect_nrem, nrem_mask)
+            arousal_bl_rem_arr  = _rolling_baseline(_detect_rem, rem_mask)
+        else:
+            arousal_bl_nrem_arr = _rolling_baseline(arousal_pow, nrem_mask)
+            arousal_bl_rem_arr  = _rolling_baseline(arousal_pow, rem_mask)
         sigma_bl_nrem_arr   = _rolling_baseline(sigma_pow, nrem_mask)
 
         # Globale baselines voor statistiek (backward compat)
@@ -751,10 +818,17 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
             if _is_nrem(stage):
                 # v0.8.11: vergelijk met rolling baseline i.p.v. globaal
                 local_bl = arousal_bl_nrem_arr[s:e]
-                arousal_mask[s:e] = arousal_pow[s:e] > ratio_thresh * local_bl
+                if spectral_shift:
+                    # ABSOLUUT increment op een begrensde grootheid
+                    arousal_mask[s:e] = _detect_nrem[s:e] > local_bl + shift_delta
+                else:
+                    arousal_mask[s:e] = arousal_pow[s:e] > ratio_thresh * local_bl
             elif _is_rem(stage):
                 local_bl = arousal_bl_rem_arr[s:e]
-                arousal_mask[s:e] = alpha_pow[s:e] > ratio_thresh * local_bl
+                if spectral_shift:
+                    arousal_mask[s:e] = _detect_rem[s:e] > local_bl + shift_delta
+                else:
+                    arousal_mask[s:e] = alpha_pow[s:e] > ratio_thresh * local_bl
 
         # ── FASE 2: Label, valideer per event ──
         labeled, n_events = label(arousal_mask)
@@ -784,11 +858,24 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
             onset_idx = indices[0]
             pre_3s_start = max(0, onset_idx - int(3.0 * sf))
             onset_1s_end = min(onset_idx + int(1.0 * sf), indices[-1] + 1)
-            pre_power  = float(np.mean(arousal_pow[pre_3s_start:onset_idx])) if onset_idx > pre_3s_start else 1e-12
-            onset_power = float(np.mean(arousal_pow[onset_idx:onset_1s_end]))
-            onset_ratio = onset_power / max(pre_power, 1e-12)
-            if onset_ratio < abrupt_thresh:
-                continue
+            # LET OP: de oude regel gebruikte hier ALTIJD arousal_pow, ook in
+            # REM (waar fase 1 op alpha draait). Dat gedrag blijft ongemoeid als
+            # de vlag uit staat; alleen bij spectral_shift volgt de abruptheid
+            # dezelfde grootheid als fase 1.
+            _abr_src = ((_detect_rem if _is_rem(stage) else _detect_nrem)
+                        if spectral_shift else arousal_pow)
+            pre_power  = float(np.mean(_abr_src[pre_3s_start:onset_idx])) if onset_idx > pre_3s_start else 1e-12
+            onset_power = float(np.mean(_abr_src[onset_idx:onset_1s_end]))
+            if spectral_shift:
+                # Verschil i.p.v. verhouding: op een fractie is een verhouding
+                # opnieuw afhankelijk van waar de basislijn toevallig ligt.
+                onset_ratio = onset_power - pre_power
+                if onset_ratio < shift_abrupt:
+                    continue
+            else:
+                onset_ratio = onset_power / max(pre_power, 1e-12)
+                if onset_ratio < abrupt_thresh:
+                    continue
 
             # Check C: Spindle-exclusie (v0.8.11: ratio-check)
             # Bij het ontwaken uit N2 valt de arousal-burst vaak samen met een
@@ -1027,7 +1114,8 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                           sf_hr: float = 1.0,
                           per_channel_thresh: dict | None = None,
                           eog_data: np.ndarray | None = None,
-                          eog_reject: bool = False) -> dict:
+                          eog_reject: bool = False,
+                          spectral_shift: bool = False) -> dict:
     """Multi-derivatie arousal-detectie via event-level union.
 
     ``derivations``: geordende lijst ``[(naam, eeg_data[, sf]), ...]`` — element 0
@@ -1048,7 +1136,8 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
         res = detect_arousals(eeg, sf, hypno, emg_data=emg_data,
                               artifact_epochs=artifact_epochs,
                               hr_data=hr_data, sf_hr=sf_hr,
-                              ratio_thresh=rt, abrupt_thresh=at)
+                              ratio_thresh=rt, abrupt_thresh=at,
+                              spectral_shift=spectral_shift)
         if res.get("success"):
             per.append((name, res))
     if not per:
@@ -1555,6 +1644,7 @@ def run_arousal_respiratory_analysis(
     per_channel_thresh: dict | None = None,
     eog_data:    np.ndarray | None = None,
     eog_reject:  bool = False,
+    spectral_shift: bool = False,
 ) -> dict:
     """
     Master-functie: detecteer arousals, RERAs en koppel aan respiratoire events.
@@ -1588,11 +1678,13 @@ def run_arousal_respiratory_analysis(
                                           artifact_epochs=artifact_epochs,
                                           hr_data=hr_data, sf_hr=sf_hr,
                                           per_channel_thresh=per_channel_thresh,
-                                          eog_data=eog_data, eog_reject=eog_reject)
+                                          eog_data=eog_data, eog_reject=eog_reject,
+                                          spectral_shift=spectral_shift)
     else:
         ar_result = detect_arousals(eeg_data, sf_eeg, hypno, emg_data=emg_data,
                                     artifact_epochs=artifact_epochs,
-                                    hr_data=hr_data, sf_hr=sf_hr)
+                                    hr_data=hr_data, sf_hr=sf_hr,
+                                    spectral_shift=spectral_shift)
     output["arousals"] = ar_result
 
     arousals = ar_result.get("events", [])

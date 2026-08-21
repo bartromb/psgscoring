@@ -370,6 +370,25 @@ class PostProcessingRules:
     regulatoire regelsets na. `mesa_shhs` en `chicago_1999` idem, voor de
     reproduceerbaarheid van paper v31/v37."""
 
+    arousal_spectral_shift: bool = False
+    """Beslis arousals op een SPECTRALE VERSCHUIVING i.p.v. op vermogen.
+
+    De regel tot nu toe vergelijkt het vermogen in alpha+theta+beta met een
+    basislijn uit de opname zelf (`detect_arousals`, fase 1). De AASM
+    beschrijft een verschuiving van de FREQUENTIE. Vermogen is onbegrensd en
+    amplitude-gevoelig, dus een vaste verhouding betekent per opname iets
+    anders — op PSG-IPA loopt de drempel die de scoordermediaan reproduceert
+    van 1,2 tot 4,0 over vijf nachten, en `delta_pow` werd wel berekend maar
+    nergens in de beslissing gebruikt.
+
+    Met deze vlag beslist de detector op de FRACTIE van het spectrale
+    vermogen in de snelle banden, `(alpha+theta+beta) / totaal`: dimensieloos,
+    begrensd op [0,1] en invariant onder een amplitudeschaling. Zie
+    docs/arousal_spectral_shift_preregistratie.md voor het vooraf vastgelegde
+    acceptatiecriterium.
+
+    Default `False` — bestaand gedrag is byte-identiek met de vlag uit."""
+
     rip_pair_scale_free: bool = False
     """Laat de PAAR-poort geen effortkanaal meer afkeuren dat zijn eigen
     kwaliteitstoets doorstaat.

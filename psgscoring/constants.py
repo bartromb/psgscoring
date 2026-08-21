@@ -95,6 +95,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "MAX_EVENTS_PER_DESATURATION": pp.max_events_per_desaturation,
         "RIP_QUALITY_SCALE_FREE": pp.rip_quality_scale_free,
         "RIP_PAIR_SCALE_FREE": pp.rip_pair_scale_free,
+        "AROUSAL_SPECTRAL_SHIFT": pp.arousal_spectral_shift,
         "SINGLE_CHANNEL_RHYTHM": pp.single_channel_rhythm,
         "STABILITY_FILTER_ALL_HYPOPNEA_SUBTYPES":
             pp.stability_filter_all_hypopnea_subtypes,
