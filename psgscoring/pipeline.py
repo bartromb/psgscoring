@@ -1175,6 +1175,15 @@ def run_pneumo_analysis(
             if output.get("spo2", {}).get("summary"):
                 output["spo2"]["summary"]["hypoxic_burden"] = hb.get("hypoxic_burden")
                 output["spo2"]["summary"]["hypoxic_burden_unit"] = hb.get("unit")
+                # v0.23.0: WELKE definitie het getal opleverde. De burden kan op
+                # vier manieren berekend worden en die geven op dezelfde opname
+                # waarden die een factor 0,29 tot 2,34 uiteenlopen (gemeten op
+                # acht MESA-opnames, docs/hypoxic_burden_bevinding.md). Een
+                # consument -- rapport, export, vergelijking tussen centra --
+                # kan zonder dit veld niet weten wat hij voor zich heeft, en de
+                # gepubliceerde afkapwaarden gelden alleen voor "azarbarzin".
+                output["spo2"]["summary"]["hypoxic_burden_method"] = (
+                    hb.get("baseline_method"))
             logger.info("[pneumo 10/10] Hypoxic burden: %.1f %%·min/h (%d events)",
                         hb.get("hypoxic_burden") or 0, hb.get("n_events_with_burden", 0))
         except Exception as e:

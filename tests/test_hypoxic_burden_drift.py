@@ -194,3 +194,55 @@ def test_search_window_left_edge_precedes_event_end():
     assert left is not None
     assert left <= 0.0, f"linkerflank op {left:+.1f}s, dus NA het eventeinde"
     assert right > left
+
+
+def test_the_summary_says_which_definition_produced_the_number():
+    """De burden kan op vier manieren berekend worden.
+
+    Op dezelfde opname lopen die uiteen met een factor 0,29 tot 2,34
+    (docs/hypoxic_burden_bevinding.md). Wie het getal leest -- het PDF-rapport,
+    een export, een vergelijking tussen centra -- moet kunnen zien welke
+    definitie eronder zit, want de gepubliceerde afkapwaarden gelden alleen
+    voor de gepubliceerde definitie.
+
+    Dit is dezelfde afleverkant-eis als bij `plm_time_base` en
+    `lgbm_available`: een keuze die het getal bepaalt, hoort naast het getal
+    te staan.
+    """
+    import numpy as np
+    import pytest
+
+    mne = pytest.importorskip("mne")
+    import psgscoring
+
+    # De eerste versie van deze fixture (flow x0,3 gedurende 20 s) leverde NUL
+    # respiratoire events op, waardoor de test stilletjes skipte en dus niets
+    # mat. x0,1 gedurende 25 s met een desaturatie van 5 % geeft 11 events en
+    # een burden van 7,14 -- pas dan is er iets om te labelen.
+    sf, minutes = 32.0, 14
+    n = int(sf * 60 * minutes)
+    t = np.arange(n) / sf
+    rng = np.random.default_rng(3)
+    flow = np.sin(2 * np.pi * 0.25 * t)
+    spo2 = np.full(n, 97.0)
+    for start in range(90, 60 * minutes - 90, 60):
+        flow[int(start * sf):int((start + 25) * sf)] *= 0.1
+        e = start + 25
+        spo2[int(e * sf):int((e + 20) * sf)] = 92.0
+    info = mne.create_info(["Resp nasal", "SaO2", "EEG C4-M1", "EMG chin"],
+                           sf, ["misc", "misc", "eeg", "emg"])
+    raw = mne.io.RawArray(
+        np.vstack([flow, spo2, rng.normal(0, 20e-6, n), rng.normal(0, 5e-6, n)]),
+        info, verbose=False)
+    hypno = ["N2"] * int(np.ceil(raw.times[-1] / 30.0))
+    out = psgscoring.run_pneumo_analysis(raw, hypno=hypno,
+                                         scoring_profile="aasm_v3_rec")
+    ss = (out.get("spo2") or {}).get("summary") or {}
+    assert ss.get("hypoxic_burden"), (
+        "fixture levert geen burden -- dan meet deze test niets; zie de "
+        "opmerking bij de fixture")
+    assert ss.get("hypoxic_burden_method"), (
+        "het getal staat er zonder te zeggen welke definitie het opleverde")
+    assert ss["hypoxic_burden_method"] in (
+        "percentile", "ensemble", "azarbarzin",
+        "percentile (ensemble fallback)")
