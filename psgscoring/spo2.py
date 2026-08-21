@@ -228,6 +228,7 @@ def compute_hypoxic_burden(
     max_recovery_s: float = 120.0,
     baseline_method: str = "percentile",
     local_baseline_only: bool = False,
+    cap_at_next_event: bool = False,
 ) -> dict:
     """
     Compute the hypoxic burden: total area of SpO2 desaturation
@@ -342,6 +343,24 @@ def compute_hypoxic_burden(
         total_area = 0.0
         n_burden = 0
 
+        # v0.23.0: grens per event, om dubbeltelling te voorkomen. De
+        # herstelzoektocht loopt tot 120 s na het eventeinde als de saturatie
+        # niet terugkeert; bij geclusterde events overlappen die vensters en
+        # telt dezelfde hypoxemie meermaals mee. Wat na de ONSET van het
+        # volgende event gebeurt, hoort per definitie bij dat event.
+        _ordered = sorted(
+            resp_events,
+            key=lambda e: float(e.get("onset_s", 0)),
+        )
+        _next_onset = {}
+        if cap_at_next_event:
+            for _i, _e in enumerate(_ordered):
+                _key = (float(_e.get("onset_s", 0)), float(_e.get("duration_s", 0)))
+                _next_onset[_key] = (
+                    float(_ordered[_i + 1].get("onset_s", 0))
+                    if _i + 1 < len(_ordered) else None
+                )
+
         _trapz = getattr(np, "trapezoid", getattr(np, "trapz", None))
 
         for ev in resp_events:
@@ -421,6 +440,10 @@ def compute_hypoxic_burden(
                 # Integration window: event onset → recovery or max_recovery_s
                 int_start = int(onset_s * sf_spo2)
                 int_end_max = min(n_spo2, int((event_end_s + max_recovery_s) * sf_spo2))
+                if cap_at_next_event:
+                    nxt = _next_onset.get((onset_s, dur_s))
+                    if nxt is not None and nxt > onset_s:
+                        int_end_max = min(int_end_max, int(nxt * sf_spo2))
                 if int_start >= int_end_max:
                     continue
 

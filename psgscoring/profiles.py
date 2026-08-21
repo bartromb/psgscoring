@@ -370,6 +370,18 @@ class PostProcessingRules:
     regulatoire regelsets na. `mesa_shhs` en `chicago_1999` idem, voor de
     reproduceerbaarheid van paper v31/v37."""
 
+    hypoxic_burden_cap_at_next_event: bool = False
+    """Kap de integratie van elk event af bij de onset van het volgende.
+
+    De herstelzoektocht loopt tot 120 s ná het eventeinde als de saturatie niet
+    terugkeert tot `basislijn - 1 %`. Bij geclusterde events overlappen die
+    vensters -- 73 van de 114 op mesa-sleep-1374 -- en telt dezelfde hypoxemie
+    meermaals mee. Het aandeel events dat de 120 s-grens haalt verklaart de
+    afwijking t.o.v. de gepubliceerde definitie met r = 0,89.
+
+    Default `False`: dit verzet een gerapporteerde grootheid. Zie
+    docs/hypoxic_burden_venster_preregistratie.md."""
+
     plm_time_base: bool = True
     """Reken de tijd van een beenbeweging met de echte vensterlengte.
 

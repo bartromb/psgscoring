@@ -1170,6 +1170,8 @@ def run_pneumo_analysis(
                 spo2_data, sf_spo2, resp_events, hypno,
                 local_baseline_only=bool(
                     profile.get("HYPOXIC_BURDEN_LOCAL_BASELINE", False)),
+                cap_at_next_event=bool(
+                    profile.get("HYPOXIC_BURDEN_CAP_AT_NEXT_EVENT", False)),
             )
             output["hypoxic_burden"] = hb
             if output.get("spo2", {}).get("summary"):
