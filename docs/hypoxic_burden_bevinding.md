@@ -63,6 +63,41 @@ einde als er geen herstel komt. Op deze opname:
 **2. De basislijn ligt hoger.** Lokaal 92,6 % tegen een nachtbreed plafond van
 94,2 %: 1,6 procentpunt extra deficit op élk sample binnen die 193 minuten.
 
+## De verantwoording rust op een fixture die het defect niet kan tonen
+
+De wiki (`psgscoring.wiki/Hypoxic-Burden.md`) vergelijkt de twee methodes en
+concludeert dat ze dicht bij elkaar liggen:
+
+> On synthetic data (30 events, 8 h): Percentile 9,76 · Ensemble 10,54.
+> Difference: ~8%.
+
+Dertig events over acht uur is één per zestien minuten. Dan overlappen de
+integratievensters nooit en herstelt de saturatie ruimschoots tussen twee
+events — precies de twee omstandigheden waaronder het verschil ontstaat. Op
+de acht MESA-opnames hierboven, met 66 tot 234 events, is het verschil geen
+8 % maar een factor 2 tot 14.
+
+Dezelfde valkuil als bij de tests van vandaag: een fixture die te braaf is om
+te meten wat ze zou moeten meten. Een hermeting hoort op echte opnames met
+realistische eventdichtheid, niet op synthetische.
+
+## Wat dit klinisch betekent, preciezer
+
+De wiki noemt drie banden uit Azarbarzin 2019: < 20 laag risico, 20–73 matig,
+**> 73 hoog** — en in die bovenste band liet CPAP een beschermend effect zien
+(HR 0,57; Pinilla et al., ERJ 2023) waar het in het ongestratificeerde cohort
+geen effect had.
+
+Op deze acht opnames:
+
+| | < 20 | 20–73 | **> 73** |
+|---|---:|---:|---:|
+| onze default | 1 | 3 | **4** |
+| ensemble | 3 | 5 | **0** |
+
+Het gaat dus niet om een randgeval rond een afkapwaarde, maar om de band die
+een behandelargument draagt.
+
 ## Waarom de bestaande verantwoording niet dekt wat er gebeurt
 
 De docstring citeert He et al. voor de stelling dat de percentiel-basislijn
