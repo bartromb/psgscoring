@@ -3,6 +3,130 @@
 > original because it underpins the MESA figures in the paper; earlier entries
 > are deliberately left as they are rather than retranslated.
 
+# v0.23.0 — 2026-08-21 — the limb-movement detector was reporting the wrong time
+
+**Scored values change** for PLM on every recording sampled at a rate where
+`sf * 0.1` is not an integer — 256 Hz and 128 Hz among them. Event times move,
+and the count moves with them because the duration filter now works on the
+real duration. AHI, ODI and every respiratory index are untouched: PLM does
+not feed respiratory scoring. Golden 9/9 (the digest excludes PLM by design),
+963 tests green.
+
+## What was wrong
+
+`_detect_lm_channel` computes RMS over windows of `int(sf * 0.1)` SAMPLES and
+then converts the window index back to seconds with `idx * 0.1`:
+
+```python
+win = max(1, int(sf * 0.1))          # 25 samples at 256 Hz
+rms = [... for i in range(len(filt) // win)]
+dur_s = len(idx) * 0.1               # assumes 0.1 s
+"onset_s": idx[0] * 0.1,             # same
+```
+
+At 256 Hz a window is 25 samples = **0.09766 s**. The conversion still used
+0.1, so every reported time ran 2.3% fast — and because it is a position, not
+a duration, the error **accumulates**:
+
+| recording | sf | window | drift at the end |
+|---|---:|---:|---:|
+| PSG-IPA SN1 (7.4 h) | 256 Hz | 0.09766 s | **+620 s** (10.3 min) |
+| PSG-IPA SN3 (7.8 h) | 256 Hz | 0.09766 s | +657 s |
+| MESA (12 h) | 256 Hz | 0.09766 s | +1013 s (16.9 min) |
+
+Always late, never early. It only bites where `sf * 0.1` is not an integer:
+256 Hz (2.3%) and 128 Hz (6.3%) yes, 100/200/500 Hz no. That is why it never
+surfaced.
+
+## What it cost
+
+Event-F1 against twelve scorers on PSG-IPA, per leg, greedy IoU matching at
+0.20:
+
+| | current | time base repaired | scorer vs scorer |
+|---|---:|---:|---:|
+| SN1 | 0.038 | **0.592** | 0.745 |
+| SN2 | 0.014 | **0.699** | 0.820 |
+| SN3 | 0.045 | **0.692** | 0.909 |
+| SN4 | 0.062 | **0.779** | 0.906 |
+| SN5 | 0.031 | **0.402** | 0.741 |
+| median | 0.038 | **0.692** | 0.820 |
+
+The detector was not bad at what it finds. It put it at the wrong time.
+
+## Why nobody noticed
+
+The COUNT was already right, and an index per hour is insensitive to a shift.
+Only an event-by-event comparison exposes it, and the PLM module had never
+been held against human scorers before 20 August 2026.
+
+That the reference is sound was checked before anything was repaired: inside
+the human-annotated intervals the EMG RMS sits 6.3x (SN1) and 10.2x (SN2)
+above the level outside them, against 1.44 and 1.03 for the same events
+shifted by 60 s.
+
+## What else rode on those timestamps
+
+- `pipeline.py` couples a PLM onset to an arousal onset within −0.5..+3 s for
+  `plm_arousal_index`, which the clinical PDF prints. With onsets drifting by
+  up to ten minutes that coupling was chance.
+- `_exclude_resp_associated` drops movements falling within seconds of a
+  respiratory event — on shifted times.
+- YASAFlaskified writes the onsets straight into the EDF+ export
+  (`generate_edfplus.py:155`), so a viewer drew the marker up to ten minutes
+  away from the movement.
+
+## Scope
+
+`plm_time_base`, **on by default** on every profile except `mesa_shhs` and
+`chicago_1999`, which reproduce paper v31/v37 and stay on the old time base;
+a test fails if either changes. The function defaults of `analyze_plm` and
+`_detect_lm_channel` flip too, so a direct library caller gets the right time.
+
+The flag deliberately follows `rip_quality_scale_free` — on everywhere,
+including the historical and regulatory profiles — and not
+`single_channel_rhythm`, which stops at the historical ones. `aasm_v2_rec`,
+`aasm_v1_rec` and `cms_medicare` reproduce older criteria, not older
+arithmetic; no ruleset prescribes a 2.3% timing error.
+
+## Also in this release
+
+**The 200-event cap is no longer silent.** `result["events"]` is still
+`plm_eligible[:200]` — a payload bound, not a scoring rule — but
+`summary["n_events_truncated"]` now reports what was dropped and a WARNING
+says so. On PSG-IPA SN1 that is 200 of 660 movements, so everything
+downstream only ever saw the first part of the night.
+
+**Two arousal flags, both default off, both refuted on their own
+pre-registered criterion.** `arousal_spectral_shift` decides on the fast-band
+FRACTION rather than power (the AASM defines a shift of frequency, and
+`delta_pow` was computed and never used in a decision); `arousal_hysteresis`
+lets an event run while activity stays elevated. Neither cleared its
+criterion — details in `docs/arousal_spectral_shift_preregistratie.md` and
+`docs/arousal_duration_preregistratie.md`. They stay because
+`test_pure_amplitude_step_*` pins something worth pinning: the current
+criterion scores a pure amplitude step of 1.8x with an unchanged spectrum as
+an AASM arousal.
+
+**A missing arousal model no longer turns the hybrid into a tenfold
+over-count.** With `PSGSCORING_AROUSAL_LGBM=1`, `detect_arousals` sets the
+permissive candidate thresholds (ratio 1.2, abrupt 1.0) and lets the
+classifier filter what survives. If the classifier could not run — model file
+absent, lightgbm not installed — the code logged "falling back to rule-based
+output" while `result["events"]` still held the CANDIDATE list. Measured on
+PSG-IPA: SN2 777 events (142.1/h) against 203 rule-based (37.1) and 60 with a
+working model (11.0); SN4 979 (133.8) against 94 (12.8) and 99 (13.5), with
+scorer medians of 8.5 and 14.3/h. The model is now loaded BEFORE the
+thresholds are widened, and `summary["lgbm_available"]` reports whether the
+classifier ran — present only when the hybrid was actually requested. The
+lesson generalises: a fallback reached only after a behaviour change cannot
+undo it.
+
+**MESA does not serve as a PLM replication cohort as it stands.** Its EDFs
+carry one bare `Leg` channel, which matches no entry in `CHANNEL_PATTERNS`,
+so the PLM step does not run there at all — empty summary, no error. Arousals
+are unaffected.
+
 # v0.22.0 — 2026-08-19 — the single-channel fallback counts breaths instead of amplitude
 
 **Scored values change** on the v3 clinical profiles, wherever the effort

@@ -185,9 +185,22 @@ def _ensemble_search_window(
     # Find nadir of ensemble
     nadir_idx = int(np.nanargmin(ensemble_sm))
 
-    # Left peak: max of ensemble before nadir
+    # Left peak: max of ensemble before nadir.
+    #
+    # Azarbarzin defines the window as "the interval between the pre-event and
+    # post-event maximum oxygen saturation values", so the left edge belongs
+    # BEFORE event termination. On recordings with densely clustered events the
+    # +/-60 s ensemble span holds more than one event cycle, the nadir lands in
+    # a later cycle, and the maximum before it can sit well AFTER termination:
+    # measured [+29.4, +60.0] s on mesa-sleep-1374. The window then no longer
+    # brackets the event it belongs to. Restrict the left peak to t <= 0 when
+    # the unrestricted search lands after termination.
     left_region = ensemble_sm[:nadir_idx] if nadir_idx > 0 else ensemble_sm[:1]
     left_peak_idx = int(np.nanargmax(left_region))
+    if time_axis[left_peak_idx] > 0.0:
+        pre_end = int(np.searchsorted(time_axis, 0.0))
+        if pre_end > 1:
+            left_peak_idx = int(np.nanargmax(ensemble_sm[:pre_end]))
 
     # Right peak: max of ensemble after nadir
     right_region = ensemble_sm[nadir_idx:] if nadir_idx < len(ensemble_sm) else ensemble_sm[-1:]
@@ -215,6 +228,7 @@ def compute_hypoxic_burden(
     max_recovery_s: float = 120.0,
     baseline_method: str = "percentile",
     local_baseline_only: bool = False,
+    cap_at_next_event: bool = False,
 ) -> dict:
     """
     Compute the hypoxic burden: total area of SpO2 desaturation
@@ -242,11 +256,17 @@ def compute_hypoxic_burden(
           window with global 95th-percentile fallback.  Simple, robust,
           validated by He et al. (2023) as comparable to ensemble method.
 
-        - ``"ensemble"`` (Azarbarzin original): Subject-specific search
-          window derived from the ensemble average of all time-aligned
-          SpO2 curves.  The pre-event baseline is the SpO2 at the left
-          peak of the ensemble curve.  Area is integrated within the
-          ensemble-derived search window.
+        - ``"ensemble"``: Subject-specific search window derived from the
+          ensemble average of all time-aligned SpO2 curves.  The baseline
+          is taken from the first seconds of that window.  **Not the
+          published definition** -- see ``"azarbarzin"``.
+
+        - ``"azarbarzin"`` (v0.23.0): the published definition. The
+          pre-event baseline is the **maximum SpO2 in the 100 s before the
+          END of the event**; the area is integrated over the
+          ensemble-derived search window. See
+          docs/hypoxic_burden_bevinding.md for how the other two paths
+          deviate and by how much.
 
     Returns
     -------
@@ -303,7 +323,8 @@ def compute_hypoxic_burden(
         global_bl = float(np.percentile(spo2_sleep, 95))
 
         # ── Ensemble method: compute search window ────────────────
-        use_ensemble = (baseline_method == "ensemble")
+        use_ensemble = baseline_method in ("ensemble", "azarbarzin")
+        spec_baseline = (baseline_method == "azarbarzin")
         ens_left_s, ens_right_s = None, None
         if use_ensemble:
             ens_left_s, ens_right_s, _, _ = _ensemble_search_window(
@@ -321,6 +342,24 @@ def compute_hypoxic_burden(
 
         total_area = 0.0
         n_burden = 0
+
+        # v0.23.0: grens per event, om dubbeltelling te voorkomen. De
+        # herstelzoektocht loopt tot 120 s na het eventeinde als de saturatie
+        # niet terugkeert; bij geclusterde events overlappen die vensters en
+        # telt dezelfde hypoxemie meermaals mee. Wat na de ONSET van het
+        # volgende event gebeurt, hoort per definitie bij dat event.
+        _ordered = sorted(
+            resp_events,
+            key=lambda e: float(e.get("onset_s", 0)),
+        )
+        _next_onset = {}
+        if cap_at_next_event:
+            for _i, _e in enumerate(_ordered):
+                _key = (float(_e.get("onset_s", 0)), float(_e.get("duration_s", 0)))
+                _next_onset[_key] = (
+                    float(_ordered[_i + 1].get("onset_s", 0))
+                    if _i + 1 < len(_ordered) else None
+                )
 
         _trapz = getattr(np, "trapezoid", getattr(np, "trapz", None))
 
@@ -348,13 +387,25 @@ def compute_hypoxic_burden(
                 if np.sum(seg_valid) < 2:
                     continue
 
-                # Baseline: SpO2 at start of search window (first valid samples)
-                bl_region = seg[:max(1, int(3 * sf_spo2))]
-                bl_valid = bl_region[~np.isnan(bl_region)]
-                if len(bl_valid) > 0:
-                    baseline = float(np.max(bl_valid))
+                if spec_baseline:
+                    # Azarbarzin: "the maximum SpO2 during the 100 s prior to
+                    # the END of the event is considered as the pre-event
+                    # baseline oxygen saturation". Purely local, taken BEFORE
+                    # termination -- not from inside the search window, which
+                    # on a degenerate window lies in the desaturation itself.
+                    pre_i0 = max(0, int((event_end_s - 100.0) * sf_spo2))
+                    pre_i1 = max(pre_i0 + 1, int(event_end_s * sf_spo2))
+                    pre = spo2[pre_i0:min(pre_i1, n_spo2)]
+                    pre = pre[~np.isnan(pre)]
+                    baseline = float(np.max(pre)) if len(pre) else global_bl
                 else:
-                    baseline = global_bl
+                    # Baseline: SpO2 at start of search window (first valid samples)
+                    bl_region = seg[:max(1, int(3 * sf_spo2))]
+                    bl_valid = bl_region[~np.isnan(bl_region)]
+                    if len(bl_valid) > 0:
+                        baseline = float(np.max(bl_valid))
+                    else:
+                        baseline = global_bl
 
                 # Area: integral of (baseline - SpO2) within search window
                 deficit = np.zeros(len(seg))
@@ -389,6 +440,10 @@ def compute_hypoxic_burden(
                 # Integration window: event onset → recovery or max_recovery_s
                 int_start = int(onset_s * sf_spo2)
                 int_end_max = min(n_spo2, int((event_end_s + max_recovery_s) * sf_spo2))
+                if cap_at_next_event:
+                    nxt = _next_onset.get((onset_s, dur_s))
+                    if nxt is not None and nxt > onset_s:
+                        int_end_max = min(int_end_max, int(nxt * sf_spo2))
                 if int_start >= int_end_max:
                     continue
 

@@ -370,6 +370,91 @@ class PostProcessingRules:
     regulatoire regelsets na. `mesa_shhs` en `chicago_1999` idem, voor de
     reproduceerbaarheid van paper v31/v37."""
 
+    hypoxic_burden_cap_at_next_event: bool = False
+    """Kap de integratie van elk event af bij de onset van het volgende.
+
+    De herstelzoektocht loopt tot 120 s ná het eventeinde als de saturatie niet
+    terugkeert tot `basislijn - 1 %`. Bij geclusterde events overlappen die
+    vensters -- 73 van de 114 op mesa-sleep-1374 -- en telt dezelfde hypoxemie
+    meermaals mee. Het aandeel events dat de 120 s-grens haalt verklaart de
+    afwijking t.o.v. de gepubliceerde definitie met r = 0,89.
+
+    Default `False`: dit verzet een gerapporteerde grootheid. Zie
+    docs/hypoxic_burden_venster_preregistratie.md."""
+
+    arousal_lgbm: bool = False
+    """Filter arousal-kandidaten met het op MESA getrainde LightGBM-model.
+
+    Het kandidaatstadium draait dan op ruime drempels (ratio 1,2 / abrupt 1,0)
+    en de classifier gooit weg. Gemeten op PSG-IPA, extern voor dit model:
+    mediane event-F1 0,182 -> 0,463 tegen 0,692 scoorder-onderling, mediane
+    eventduur 4,0 -> 6,2 s tegen 8,3 s menselijk, en de spreiding van
+    index_algo/index_scoorder over vijf opnames 10,13 -> 2,10.
+
+    **Default False.** Arousals voeden Rule 1B-hypopneus en RERA's, dus dit
+    verandert de AHI; zie docs/arousal_lgbm_preregistratie.md voor de
+    voorwaarden die eerst gehaald moeten worden. Het profielveld bestaat zodat
+    die beslissing per profiel genomen kan worden in plaats van via een
+    env-variabele voor de hele installatie."""
+
+    plm_time_base: bool = True
+    """Reken de tijd van een beenbeweging met de echte vensterlengte.
+
+    `_detect_lm_channel` berekent RMS over vensters van `int(sf * 0.1)`
+    STALEN en zette de vensterindex om met `idx * 0.1`. Bij 256 Hz duurt een
+    venster 0,09766 s, dus liep elke gerapporteerde tijd 2,3 % voor --
+    lineair oplopend tot +620 s aan het eind van een nacht van 7,4 u.
+
+    Event-F1 op PSG-IPA tegen twaalf scoorders, per been: mediaan
+    0,038 -> 0,692 (mens onderling 0,820). Zie
+    docs/plm_tijdbasis_bevinding.md.
+
+    **Default `True` sinds 21-08-2026** (gebruikersbeslissing). Dit is geen
+    andere keuze maar een rekenfout: de omzetting van vensterindex naar tijd
+    nam 0,1 s aan waar het venster 0,09766 s duurt. Daarom volgt deze vlag
+    het patroon van `rip_quality_scale_free` -- overal aan, ook op de
+    historische profielen, want geen enkele regelset schrijft een
+    tijdsafwijking van 2,3 % voor -- en niet dat van `single_channel_rhythm`,
+    dat een scoringscriterium verandert.
+
+    Uitgezonderd blijven `mesa_shhs` en `chicago_1999`, die paper v31/v37
+    reproduceren."""
+
+    arousal_hysteresis: bool = False
+    """Laat een arousal doorlopen zolang de activiteit verhoogd blijft.
+
+    Fase 1 van `detect_arousals` bouwt haar mask per sample en labelt die
+    direct: er wordt geen enkel gat gedicht. Bandvermogen fluctueert op
+    subseconde-schaal, dus één arousal valt uiteen in scherven en de 3 s-eis
+    gooit ze bijna allemaal weg. Gemeten op MESA: 1897 ruwe regio's, waarvan
+    er 65 overblijven. De mediane eventduur (3,6 s) ligt daardoor op de
+    ondergrens zelf, tegen 8,6 s (PSG-IPA) en 11,0 s (MESA) bij mensen.
+
+    Met deze vlag geldt een tweede, lagere drempel voor het DOORLOPEN van een
+    event. De instapdrempel verandert niet, dus de vlag bepaalt alleen waar
+    een event eindigt. Zie docs/arousal_duration_preregistratie.md.
+
+    Default `False` — bestaand gedrag is byte-identiek met de vlag uit."""
+
+    arousal_spectral_shift: bool = False
+    """Beslis arousals op een SPECTRALE VERSCHUIVING i.p.v. op vermogen.
+
+    De regel tot nu toe vergelijkt het vermogen in alpha+theta+beta met een
+    basislijn uit de opname zelf (`detect_arousals`, fase 1). De AASM
+    beschrijft een verschuiving van de FREQUENTIE. Vermogen is onbegrensd en
+    amplitude-gevoelig, dus een vaste verhouding betekent per opname iets
+    anders — op PSG-IPA loopt de drempel die de scoordermediaan reproduceert
+    van 1,2 tot 4,0 over vijf nachten, en `delta_pow` werd wel berekend maar
+    nergens in de beslissing gebruikt.
+
+    Met deze vlag beslist de detector op de FRACTIE van het spectrale
+    vermogen in de snelle banden, `(alpha+theta+beta) / totaal`: dimensieloos,
+    begrensd op [0,1] en invariant onder een amplitudeschaling. Zie
+    docs/arousal_spectral_shift_preregistratie.md voor het vooraf vastgelegde
+    acceptatiecriterium.
+
+    Default `False` — bestaand gedrag is byte-identiek met de vlag uit."""
+
     rip_pair_scale_free: bool = False
     """Laat de PAAR-poort geen effortkanaal meer afkeuren dat zijn eigen
     kwaliteitstoets doorstaat.
@@ -1342,6 +1427,9 @@ _mesa_shhs = Profile(
         # `uncertain`-apneus in `ahi_total` trekken en de gepubliceerde
         # indices verschuiven; zie PostProcessingRules.rip_quality_scale_free.
         rip_quality_scale_free=False,
+        # Idem voor de PLM-tijdbasis: die is per 21-08-2026 default aan omdat
+        # het een rekenfout was, maar dit profiel moet reproduceerbaar blijven.
+        plm_time_base=False,
         stability_filter_all_hypopnea_subtypes=False,
         local_baseline_cv_threshold=0.3,
         local_baseline_strict_reduction=25.0,
@@ -1414,6 +1502,7 @@ _chicago_1999 = Profile(
         # reparaties aan de sensorpoorten. Zie
         # PostProcessingRules.rip_quality_scale_free.
         rip_quality_scale_free=False,
+        plm_time_base=False,
         stability_filter_all_hypopnea_subtypes=False,
         thermistor_gate="envelope_agreement",
     ),

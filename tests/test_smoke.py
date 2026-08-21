@@ -102,3 +102,34 @@ def test_no_unexpected_hard_dependencies():
         assert optional not in sys.modules, (
             f"psgscoring unexpectedly loaded optional dependency '{optional}'"
         )
+
+
+def test_version_matches_pyproject():
+    """`__version__` en `pyproject.toml` mogen niet uit elkaar lopen.
+
+    Ze staan op twee plekken en worden met de hand bijgewerkt. Loopt er een
+    achter, dan schrijft alles wat de versie rapporteert het verkeerde nummer
+    op -- en dat merkt niemand, want er komt geen fout van.
+
+    Op 21-08-2026 gebeurde dat: `scripts/validate_mesa.py` legt
+    `psgscoring.__version__` vast als provenance van een meting die uren
+    duurt, en dat veld noteerde 0.22.0 terwijl de code al verder was. Een
+    meting die zichzelf verkeerd labelt is achteraf niet meer met een andere
+    te vergelijken -- dezelfde klasse gat als de run van 9 augustus, die de
+    arousal-modus niet vastlegde.
+    """
+    import re
+    from pathlib import Path
+
+    import psgscoring
+
+    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    if not pyproject.exists():          # geinstalleerd zonder bronboom
+        import pytest
+        pytest.skip("pyproject.toml niet aanwezig naast de tests")
+    m = re.search(r'^version\s*=\s*"([^"]+)"', pyproject.read_text(), re.M)
+    assert m, "geen version-regel in pyproject.toml"
+    assert m.group(1) == psgscoring.__version__, (
+        f"pyproject.toml zegt {m.group(1)}, __version__ zegt "
+        f"{psgscoring.__version__}"
+    )

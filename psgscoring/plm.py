@@ -16,6 +16,8 @@ Dependencies: numpy, scipy, psgscoring.constants, psgscoring.utils
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 from scipy import signal as sp_signal
 from scipy.ndimage import label
@@ -28,6 +30,12 @@ from .utils import safe_r
 LM_MIN_DUR_S       = 0.5
 LM_MAX_DUR_S       = 10.0
 LM_AMPLITUDE_UV    = 8.0     # µV above resting EMG
+
+# Hoeveel events er hoogstens in `result["events"]` gaan. Een payloadgrens,
+# geen scoringsregel: `summary["n_events_truncated"]` zegt hoeveel er wegviel.
+EVENT_LIST_CAP     = 200
+
+_log_plm = logging.getLogger(__name__)
 PLM_MIN_INTERVAL_S = 5.0
 PLM_MAX_INTERVAL_S = 90.0
 PLM_MIN_SERIES     = 4
@@ -43,12 +51,20 @@ def analyze_plm(
     resp_events: list | None = None,
     artifact_epochs: list | None = None,
     leg_unit: str = "auto",
+    time_base_fix: bool = True,
 ) -> dict:
     """
     Detect PLMs on left and/or right tibialis anterior EMG channels.
 
     Parameters
     ----------
+    time_base_fix   : convert RMS-window index to seconds with the window's
+                      real length (`win / sf`) instead of the 0.1 s it was
+                      derived from. **Default True since 21-08-2026**; pass
+                      False only to reproduce pre-repair output. See the
+                      comment in `_detect_lm_channel` and
+                      docs/plm_tijdbasis_bevinding.md.
+
     leg_l / leg_r   : raw EMG arrays
     sf              : sample rate
     hypno           : string hypnogram
@@ -74,8 +90,12 @@ def analyze_plm(
             result["error"] = "No leg-EMG channels available"
             return result
 
-        lms_l = _detect_lm_channel(leg_l, sf, unit=leg_unit) if leg_l is not None else []
-        lms_r = _detect_lm_channel(leg_r, sf, unit=leg_unit) if leg_r is not None else []
+        lms_l = (_detect_lm_channel(leg_l, sf, unit=leg_unit,
+                                    time_base_fix=time_base_fix)
+                 if leg_l is not None else [])
+        lms_r = (_detect_lm_channel(leg_r, sf, unit=leg_unit,
+                                    time_base_fix=time_base_fix)
+                 if leg_r is not None else [])
         all_lms = _merge_bilateral(lms_l, lms_r)
         all_lms.sort(key=lambda x: x["onset_s"])
 
@@ -118,9 +138,24 @@ def analyze_plm(
         plmi = per_hour(plm_count, total_sleep_h)
         lmi  = per_hour(len(sleep_lms), total_sleep_h)
 
-        result["events"]  = plm_eligible[:200]
+        # De lijst is afgekapt op 200. Dat is geen inhoudelijke keuze maar een
+        # payloadgrens, en ze was tot 21-08-2026 onzichtbaar: op PSG-IPA SN1
+        # zijn dat 200 van 660 bewegingen, en alles wat verderop
+        # `output["plm"]["events"]` leest -- `plm_arousal_index` in het
+        # PDF-rapport, de EDF+-export -- ziet dus hooguit de eerste 200 van de
+        # nacht. De grens zelf blijft staan; wat er wegvalt hoort afleesbaar te
+        # zijn uit de samenvatting.
+        n_truncated = max(0, len(plm_eligible) - EVENT_LIST_CAP)
+        if n_truncated:
+            _log_plm.warning(
+                "PLM: %d van %d geschikte bewegingen niet in events[] "
+                "(grens %d); n_events_truncated staat in de samenvatting",
+                n_truncated, len(plm_eligible), EVENT_LIST_CAP,
+            )
+        result["events"]  = plm_eligible[:EVENT_LIST_CAP]
         result["series"]  = plm_series
         result["summary"] = {
+            "n_events_truncated": n_truncated,
             "n_lm_total":        len(all_lms),
             "n_lm_sleep":        len(sleep_lms),
             "n_lm_wake":         len(all_lms) - len(sleep_lms),
@@ -148,6 +183,7 @@ def _detect_lm_channel(
     data: np.ndarray,
     sf: float,
     unit: str = "auto",
+    time_base_fix: bool = True,
 ) -> list[dict]:
     """Detect LM events on a single EMG channel (AASM).
 
@@ -215,6 +251,23 @@ def _detect_lm_channel(
         for i in range(n_w)
     ])
 
+    # `win` is een geheel aantal STALEN, dus een venster duurt `win / sf` --
+    # niet de 0,1 s waar het uit is afgeleid. Bij 256 Hz is int(25,6) = 25
+    # stalen = 0,09766 s. De omzetting van vensterindex naar tijd hieronder
+    # rekende met 0,1, waardoor elke gerapporteerde tijd 2,3 % voorliep:
+    # LINEAIR OPLOPEND tot +620 s aan het eind van een nacht van 7,4 u, en
+    # +1013 s op een MESA-opname van 12 u. Het treft 256 Hz (2,3 %) en 128 Hz
+    # (6,3 %); bij 100, 200 en 500 Hz is sf*0,1 toevallig geheel en is er geen
+    # fout -- daarom viel het nooit op, en daarom klopte het AANTAL al.
+    #
+    # Gemeten op PSG-IPA tegen twaalf scoorders, per been, IoU 0,20:
+    # mediane event-F1 0,038 -> 0,692 (mens onderling 0,820).
+    # Zie docs/plm_tijdbasis_bevinding.md.
+    # Default True sinds 21-08-2026; `time_base_fix=False` reproduceert het
+    # gedrag van vóór die datum en is wat `mesa_shhs` en `chicago_1999`
+    # via hun profiel doorgeven.
+    step_s = (win / sf) if time_base_fix else 0.1
+
     resting   = float(np.percentile(rms, 10))
     threshold = resting + LM_AMPLITUDE_UV
 
@@ -222,10 +275,10 @@ def _detect_lm_channel(
     lms: list[dict] = []
     for i in range(1, n_bursts + 1):
         idx   = np.where(labeled == i)[0]
-        dur_s = len(idx) * 0.1
+        dur_s = len(idx) * step_s
         if LM_MIN_DUR_S <= dur_s <= LM_MAX_DUR_S:
             lms.append({
-                "onset_s":     idx[0] * 0.1,
+                "onset_s":     idx[0] * step_s,
                 "duration_s":  round(dur_s, 2),
                 "amplitude_uv": round(float(np.max(rms[idx])), 1),
             })

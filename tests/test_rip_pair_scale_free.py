@@ -347,3 +347,37 @@ def test_an_unusable_baseline_falls_back_instead_of_guessing():
     from psgscoring.signal_quality import _rhythm_ratio
     flat = np.zeros(int(300 * 32.0))
     assert _rhythm_ratio(flat, flat, 32.0, 25.0) is None
+
+
+# ── één koppelregel voor arousals ───────────────────────────────────────
+
+def test_one_coupling_rule_for_scoring_and_reporting():
+    """De scoring en de rapportage koppelden arousals verschillend.
+
+    Scoring accepteerde vanaf de event-ONSET tot 15 s na het einde; de
+    rapportage rekende latentie t.o.v. het EINDE met 5 s speling ervoor. Een
+    arousal twee seconden na de onset van een event van dertig seconden
+    bevestigde dat event dus in de index en heette in hetzelfde rapport
+    spontaan. Deze test pint de gedeelde definitie.
+    """
+    from psgscoring.arousal import arousal_couples_to_event as couples
+    # het geval dat de twee regels uit elkaar liet lopen
+    assert couples(102.0, 100.0, 130.0) is True
+    # binnen het na-venster
+    assert couples(140.0, 100.0, 130.0) is True
+    # net erbuiten
+    assert couples(146.0, 100.0, 130.0) is False
+    # vóór de onset: kan er niet door veroorzaakt zijn
+    assert couples(97.0, 100.0, 130.0) is False
+
+
+def test_the_report_path_uses_the_shared_rule():
+    """Leest de bron: een tweede regel die terugsluipt faalt hier."""
+    import inspect
+
+    import psgscoring.arousal as A
+    src = inspect.getsource(A.correlate_arousals_to_respiratory)
+    assert "arousal_couples_to_event(" in src, (
+        "de rapportage koppelt niet via de gedeelde definitie")
+    assert "-window_pre_s <= latency" not in src, (
+        "de oude, afwijkende koppelregel staat er nog")

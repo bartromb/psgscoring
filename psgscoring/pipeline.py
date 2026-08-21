@@ -661,11 +661,18 @@ def run_pneumo_analysis(
     # ── Step 6: PLM ────────────────────────────────────────────────────────
     logger.info("[pneumo 6/9] PLM detection...")
     if leg_l_data is not None or leg_r_data is not None:
+        # v0.23.0: tijdbasis van de RMS-vensters. Profielvlag `plm_time_base`,
+        # env-override PSGSCORING_PLM_TIME_BASE=0/1.
+        _plm_tb = bool(profile.get("PLM_TIME_BASE", False))
+        _plm_tb_env = os.environ.get("PSGSCORING_PLM_TIME_BASE")
+        if _plm_tb_env is not None:
+            _plm_tb = _plm_tb_env == "1"
         output["plm"] = _run_step("plm", lambda: analyze_plm(
             leg_l_data, leg_r_data,
             sf_leg or raw.info["sfreq"], hypno,
             resp_events=resp.get("events", []),
             artifact_epochs=artifact_epochs,
+            time_base_fix=_plm_tb,
         ))
     else:
         output["plm"] = {"success": False, "error": "No leg-EMG channels", "summary": {}}
@@ -701,6 +708,23 @@ def run_pneumo_analysis(
         # afleidingen degradeert 'multi' vanzelf naar single (byte-identiek).
         _ar_mode = (os.environ.get("PSGSCORING_AROUSAL_DERIVATION")
                     or profile.get("AROUSAL_DERIVATION_MODE", "single")).lower()
+        # v0.23.0: schaalvrij arousalcriterium (spectrale verschuiving i.p.v.
+        # vermogen). Profielvlag `arousal_spectral_shift`, env-override
+        # PSGSCORING_AROUSAL_SPECTRAL_SHIFT=0/1 zoals bij de afleidingsmodus.
+        _ar_shift = bool(profile.get("AROUSAL_SPECTRAL_SHIFT", False))
+        _ar_shift_env = os.environ.get("PSGSCORING_AROUSAL_SPECTRAL_SHIFT")
+        if _ar_shift_env is not None:
+            _ar_shift = _ar_shift_env == "1"
+        # v0.23.0: hybride LGBM-pad. Tot nu toe ALLEEN via een env-variabele
+        # bereikbaar, waardoor de keuze voor de hele installatie gold en
+        # `mesa_shhs` niet gepind kon blijven terwijl klinische profielen hem
+        # gebruiken. De env blijft werken en wint, zodat een meting kan
+        # aantonen dat hij niet actief was.
+        _ar_lgbm = bool(profile.get("AROUSAL_LGBM", False))
+        _ar_hyst = bool(profile.get("AROUSAL_HYSTERESIS", False))
+        _ar_hyst_env = os.environ.get("PSGSCORING_AROUSAL_HYSTERESIS")
+        if _ar_hyst_env is not None:
+            _ar_hyst = _ar_hyst_env == "1"
         _derivations = None
         _eog_arousal = None
         _eog_reject = False
@@ -732,6 +756,9 @@ def run_pneumo_analysis(
                 derivations = _derivations,
                 eog_data    = _eog_arousal,
                 eog_reject  = _eog_reject,
+                spectral_shift = _ar_shift,
+                hysteresis  = _ar_hyst,
+                lgbm        = _ar_lgbm,
             )
         except Exception as e:  # noqa: BLE001 — arousal failure must not abort the run
             logger.warning("[pneumo] arousal analysis failed, continuing: %s", e)
@@ -882,7 +909,7 @@ def run_pneumo_analysis(
         # geraakt en worden altijd gehonoreerd: wie ze expliciet meegeeft,
         # vraagt erom. Dit is het pad dat cms_arousal in de golden dekt.
         arousals = list(_ar_block.get("events") or [])
-    elif profile.get("AROUSAL_LIMB_WIRED", False):
+    elif _arousal_limb_wired(profile):
         arousals = list(_ar_block.get("events") or [])
     else:
         arousals = []
@@ -1150,11 +1177,22 @@ def run_pneumo_analysis(
                 spo2_data, sf_spo2, resp_events, hypno,
                 local_baseline_only=bool(
                     profile.get("HYPOXIC_BURDEN_LOCAL_BASELINE", False)),
+                cap_at_next_event=bool(
+                    profile.get("HYPOXIC_BURDEN_CAP_AT_NEXT_EVENT", False)),
             )
             output["hypoxic_burden"] = hb
             if output.get("spo2", {}).get("summary"):
                 output["spo2"]["summary"]["hypoxic_burden"] = hb.get("hypoxic_burden")
                 output["spo2"]["summary"]["hypoxic_burden_unit"] = hb.get("unit")
+                # v0.23.0: WELKE definitie het getal opleverde. De burden kan op
+                # vier manieren berekend worden en die geven op dezelfde opname
+                # waarden die een factor 0,29 tot 2,34 uiteenlopen (gemeten op
+                # acht MESA-opnames, docs/hypoxic_burden_bevinding.md). Een
+                # consument -- rapport, export, vergelijking tussen centra --
+                # kan zonder dit veld niet weten wat hij voor zich heeft, en de
+                # gepubliceerde afkapwaarden gelden alleen voor "azarbarzin".
+                output["spo2"]["summary"]["hypoxic_burden_method"] = (
+                    hb.get("baseline_method"))
             logger.info("[pneumo 10/10] Hypoxic burden: %.1f %%·min/h (%d events)",
                         hb.get("hypoxic_burden") or 0, hb.get("n_events_with_burden", 0))
         except Exception as e:
@@ -1966,6 +2004,25 @@ def _compute_arousal_etiology(output: dict, hypno: list) -> None:
             summ["plm_arousal_index"] = round(ai * min(n_plm_ar, n_total) / n_total, 1)
     except Exception as e:  # noqa: BLE001
         logger.warning("[pneumo] arousal-etiology indices failed: %s", e)
+
+
+def _arousal_limb_wired(profile: dict) -> bool:
+    """Bereiken de gedetecteerde arousals Rule 1B-reinstatement?
+
+    Profielvlag `arousal_limb_wired`, met env-override
+    `PSGSCORING_AROUSAL_LIMB_WIRED`. Die override bestaat om dezelfde reden als
+    `PSGSCORING_RULE1A_AROUSAL`: de 2x2 moet te meten zijn zonder profielen te
+    muteren. Zonder hem is de vlag alleen te bewegen door de registry te
+    wijzigen, en dan meet je een andere bibliotheek dan die je uitrolt.
+
+    Let op de koppeling: `pipeline.py` vereist arousals EN `limb_enabled`, dus
+    deze vlag in zijn eentje aanzetten doet aantoonbaar niets -- zie
+    docs/rule1a_arousal_preregistratie.md.
+    """
+    env = os.environ.get("PSGSCORING_AROUSAL_LIMB_WIRED")
+    if env is not None:
+        return env.strip().lower() in ("1", "true", "yes", "on")
+    return bool(profile.get("AROUSAL_LIMB_WIRED", False))
 
 
 def _flag_apneas_at_cap(output: dict, profile: dict) -> None:

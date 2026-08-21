@@ -57,6 +57,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import random
 import sys
 import xml.etree.ElementTree as ET
@@ -566,6 +567,8 @@ def main():
     ap.add_argument("--exclude-seed", type=int, default=None,
                     help="sluit de steekproef van dit zaad uit, zodat een "
                          "tweede ronde disjunct is van de eerste")
+    ap.add_argument("--no-resume", action="store_true",
+                    help="negeer een bestaand .partial.jsonl en begin opnieuw")
     ap.add_argument("--exclude-n", type=int, default=None,
                     help="omvang van de uit te sluiten eerdere steekproef")
     a = ap.parse_args()
@@ -600,22 +603,59 @@ def main():
               f"{len(set(picked) & excluded)}")
     print(f"configuraties: {', '.join(labels)}\n")
 
+    # Per-opname checkpoint. De JSON hieronder wordt pas aan het EIND
+    # geschreven, en een run over 150 opnames duurt op deze machine ruim zeven
+    # uur per arm. `scripts/thermal_guard.sh` legt de unit stil bij 3x >=78 C,
+    # en op 16-08-2026 bevroor de machine twee keer helemaal -- in beide
+    # gevallen was alles kwijt. Elke afgeronde opname gaat daarom meteen als
+    # JSON-regel naar een zijbestand, gesynct, en een herstart slaat over wat
+    # er al staat. Dit verandert NIETS aan wat er gemeten wordt: de
+    # eind-JSON en de rapportage blijven identiek.
     rows = []
+    ckpt = a.output_json.with_suffix(".partial.jsonl") if a.output_json else None
+    done_ids: set[str] = set()
+    if ckpt and ckpt.exists() and not a.no_resume:
+        for line in ckpt.read_text().splitlines():
+            try:
+                r = json.loads(line)
+            except Exception:      # noqa: BLE001 -- halve regel na een freeze
+                continue
+            rows.append(r)
+            done_ids.add(r.get("recording"))
+        if done_ids:
+            print(f"  checkpoint: {len(done_ids)} opnames al klaar, "
+                  f"worden overgeslagen ({ckpt.name})")
+    todo = [x for x in picked if x not in done_ids]
+
     jobs = [(x, str(a.data_dir), a.strictness, a.profiles, a.rip_scale_free,
-             a.desat_limit, a.thermistor_gate) for x in picked]
+             a.desat_limit, a.thermistor_gate) for x in todo]
+    fh = ckpt.open("a") if ckpt else None
     with ProcessPoolExecutor(max_workers=a.workers) as ex:
         for i, r in enumerate(ex.map(analyse_one, jobs), 1):
             rows.append(r)
+            if fh is not None:
+                fh.write(json.dumps(r) + "\n")
+                fh.flush()
+                os.fsync(fh.fileno())
             if "error" in r:
-                print(f"  [{i}/{len(picked)}] {r['recording']}: FOUT {r['error']}")
+                print(f"  [{i}/{len(todo)}] {r['recording']}: FOUT {r['error']}")
             else:
                 parts = []
                 for lab in labels:
                     v = (r["profiles"].get(lab, {}).get("match", {})
                          .get(PRIMARY_REFERENCE, {}).get("f1"))
                     parts.append(f"{lab} {'--' if v is None else format(v, '.3f')}")
-                print(f"  [{i}/{len(picked)}] {r['recording']}  "
+                print(f"  [{i}/{len(todo)}] {r['recording']}  "
                       + "  ".join(parts))
+    if fh is not None:
+        fh.close()
+
+    # Volgorde vastzetten op de steekproef, niet op de volgorde waarin de
+    # workers klaar waren -- anders verschilt een hervatte run van een run in
+    # een keer, en dat is precies het soort verschil dat later niet meer te
+    # verklaren is.
+    _by_id = {r.get("recording"): r for r in rows}
+    rows = [_by_id[x] for x in picked if x in _by_id]
 
     for ref in REFERENCES:
         report(rows, ref, labels)
@@ -629,14 +669,28 @@ def main():
         # waardoor achteraf niet te bewijzen viel of hij op de profiel-default
         # (`multi`) of op `single` draaide. Zonder deze velden is een
         # herhaling niet met de vorige te vergelijken.
-        import os as _os
-
         import psgscoring as _ps
         import psgscoring.constants as _C
         _prof = _C.SCORING_PROFILES
+        def _git(*args):
+            import subprocess
+            try:
+                return subprocess.run(
+                    ["git", "-C", str(Path(_ps.__file__).resolve().parent.parent),
+                     *args],
+                    capture_output=True, text=True, timeout=10,
+                ).stdout.strip()
+            except Exception:      # noqa: BLE001 -- geen git is geen reden te stoppen
+                return ""
+
         meta = {
+            # `__version__` volgt de release, niet de code: tussen twee
+            # releases door draait een meting op code die nieuwer is dan het
+            # nummer dat ze opschrijft. De SHA wijst naar wat er echt liep.
             "psgscoring_version": _ps.__version__,
-            "arousal_derivation_env": _os.environ.get(
+            "git_sha": _git("rev-parse", "--short", "HEAD"),
+            "git_dirty": bool(_git("status", "--porcelain")),
+            "arousal_derivation_env": os.environ.get(
                 "PSGSCORING_AROUSAL_DERIVATION") or "(niet gezet — profieldefault)",
             "arousal_derivation_per_profile": {
                 n: _prof[n].get("AROUSAL_DERIVATION_MODE")

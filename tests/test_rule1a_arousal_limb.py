@@ -171,3 +171,105 @@ def test_plumbing_is_repaired_end_to_end():
     nested = ((ar.get("arousals") or {}).get("events") or [])
     assert len(ar.get("events", [])) == len(nested), (
         "platte sleutel loopt weer uit de pas met de detectie (issue #16)")
+
+
+# ══════════════════════════════════════════════════════════════
+# De profielvlag zelf — `arousal_limb_wired`
+# ══════════════════════════════════════════════════════════════
+#
+# Alles hierboven toetst de tak zodra de arousals hem bereiken. Of ze hem
+# bereiken hangt af van `PostProcessingRules.arousal_limb_wired`, en die vlag
+# had tot 21-08-2026 geen enkele test -- hij stond alleen in een commentaar in
+# de golden. Dat is hetzelfde gat als bij `plm_time_base`: een vlag in een
+# profiel is niets waard tot de consument hem leest, en een profiel dat de
+# arousals negeert ziet er in de uitvoer precies zo uit als een profiel
+# waarvan de detector niets vond.
+#
+# Dit is geen theoretisch punt. Op zes MESA-opnames gaf `aasm_v3_rec` tot op
+# het cijfer identieke resultaten met en zonder het hybride arousalpad --
+# terecht, want de vlag staat daar uit, maar zonder deze test is "terecht"
+# niet te onderscheiden van "kapot".
+
+def test_the_wired_flag_decides_whether_arousals_reach_rule_1b():
+    """`arousal_limb_wired` bepaalt of de tak arousals TE ZIEN krijgt.
+
+    `aasm_v3_rec` heeft hem uit, `aasm_v3_breath` aan. Beide draaien op
+    hetzelfde signaal, dus het aantal beschikbare arousals hoort alleen door
+    die vlag te verschillen.
+    """
+    import psgscoring
+    from psgscoring.constants import SCORING_PROFILES
+
+    assert SCORING_PROFILES["aasm_v3_rec"]["AROUSAL_LIMB_WIRED"] is False
+    assert SCORING_PROFILES["aasm_v3_breath"]["AROUSAL_LIMB_WIRED"] is True
+
+    raw = _synthetic_raw()
+    hypno = ["N2"] * int(np.ceil(raw.times[-1] / 30.0))
+
+    uit = psgscoring.run_pneumo_analysis(
+        raw, hypno=hypno, scoring_profile="aasm_v3_rec")
+    aan = psgscoring.run_pneumo_analysis(
+        raw, hypno=hypno, scoring_profile="aasm_v3_breath")
+
+    n_gedetecteerd = len((uit.get("arousal") or {}).get("events") or [])
+    assert n_gedetecteerd > 0, (
+        "de fixture levert geen arousals -- dan meet deze test niets")
+
+    st_uit = uit["respiratory"]["rule1a_arousal_stats"]
+    st_aan = aan["respiratory"]["rule1a_arousal_stats"]
+    assert st_uit["n_arousals_available"] == 0, (
+        f"vlag staat uit maar de tak zag {st_uit['n_arousals_available']} "
+        "arousals")
+    assert st_aan["n_arousals_available"] == n_gedetecteerd, (
+        f"vlag staat aan maar de tak zag {st_aan['n_arousals_available']} van "
+        f"{n_gedetecteerd} gedetecteerde arousals")
+
+
+def test_zero_available_arousals_is_never_silent():
+    """Nul beschikbare arousals moet een reden hebben, geen stilte.
+
+    Dit is de eigenschap die issue #16 jarenlang liet overleven: een tak die
+    op nul stond zonder dat iets dat meldde.
+    """
+    import psgscoring
+    raw = _synthetic_raw()
+    hypno = ["N2"] * int(np.ceil(raw.times[-1] / 30.0))
+    out = psgscoring.run_pneumo_analysis(
+        raw, hypno=hypno, scoring_profile="aasm_v3_rec")
+    st = out["respiratory"]["rule1a_arousal_stats"]
+    assert st["n_arousals_available"] == 0
+    assert st["skipped_reason"], "nul zonder reden"
+
+
+def test_the_env_override_moves_the_wired_flag(monkeypatch):
+    """`PSGSCORING_AROUSAL_LIMB_WIRED` overschrijft het profiel.
+
+    Bestaat om dezelfde reden als `PSGSCORING_RULE1A_AROUSAL`: de 2x2 moet te
+    meten zijn zonder de profielregistry te muteren. Muteer je die wel, dan
+    meet je een andere bibliotheek dan je uitrolt.
+    """
+    import psgscoring
+    from psgscoring.pipeline import _arousal_limb_wired
+
+    uit = {"AROUSAL_LIMB_WIRED": False}
+    aan = {"AROUSAL_LIMB_WIRED": True}
+    monkeypatch.delenv("PSGSCORING_AROUSAL_LIMB_WIRED", raising=False)
+    assert _arousal_limb_wired(uit) is False
+    assert _arousal_limb_wired(aan) is True
+    monkeypatch.setenv("PSGSCORING_AROUSAL_LIMB_WIRED", "1")
+    assert _arousal_limb_wired(uit) is True
+    monkeypatch.setenv("PSGSCORING_AROUSAL_LIMB_WIRED", "0")
+    assert _arousal_limb_wired(aan) is False
+
+    # en het blijft nutteloos zonder de tweede vlag: beide zijn nodig
+    raw = _synthetic_raw()
+    hypno = ["N2"] * int(np.ceil(raw.times[-1] / 30.0))
+    monkeypatch.setenv("PSGSCORING_AROUSAL_LIMB_WIRED", "1")
+    monkeypatch.delenv("PSGSCORING_RULE1A_AROUSAL", raising=False)
+    out = psgscoring.run_pneumo_analysis(raw, hypno=hypno,
+                                         scoring_profile="aasm_v3_rec")
+    st = out["respiratory"]["rule1a_arousal_stats"]
+    assert st["n_arousals_available"] > 0, "de vlag bereikt de tak niet"
+    assert st["enabled"] is False
+    assert st["skipped_reason"] == "disabled_by_profile", (
+        "wired alleen hoort niets te doen zolang rule1a_arousal_enabled uit staat")
