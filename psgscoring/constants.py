@@ -96,6 +96,8 @@ def _profile_to_legacy_dict(profile) -> dict:
         "RIP_QUALITY_SCALE_FREE": pp.rip_quality_scale_free,
         "RIP_PAIR_SCALE_FREE": pp.rip_pair_scale_free,
         "AROUSAL_SPECTRAL_SHIFT": pp.arousal_spectral_shift,
+        "AROUSAL_HYSTERESIS": pp.arousal_hysteresis,
+        "PLM_TIME_BASE": pp.plm_time_base,
         "SINGLE_CHANNEL_RHYTHM": pp.single_channel_rhythm,
         "STABILITY_FILTER_ALL_HYPOPNEA_SUBTYPES":
             pp.stability_filter_all_hypopnea_subtypes,

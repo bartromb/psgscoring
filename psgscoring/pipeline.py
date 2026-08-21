@@ -661,11 +661,18 @@ def run_pneumo_analysis(
     # ── Step 6: PLM ────────────────────────────────────────────────────────
     logger.info("[pneumo 6/9] PLM detection...")
     if leg_l_data is not None or leg_r_data is not None:
+        # v0.23.0: tijdbasis van de RMS-vensters. Profielvlag `plm_time_base`,
+        # env-override PSGSCORING_PLM_TIME_BASE=0/1.
+        _plm_tb = bool(profile.get("PLM_TIME_BASE", False))
+        _plm_tb_env = os.environ.get("PSGSCORING_PLM_TIME_BASE")
+        if _plm_tb_env is not None:
+            _plm_tb = _plm_tb_env == "1"
         output["plm"] = _run_step("plm", lambda: analyze_plm(
             leg_l_data, leg_r_data,
             sf_leg or raw.info["sfreq"], hypno,
             resp_events=resp.get("events", []),
             artifact_epochs=artifact_epochs,
+            time_base_fix=_plm_tb,
         ))
     else:
         output["plm"] = {"success": False, "error": "No leg-EMG channels", "summary": {}}
@@ -708,6 +715,10 @@ def run_pneumo_analysis(
         _ar_shift_env = os.environ.get("PSGSCORING_AROUSAL_SPECTRAL_SHIFT")
         if _ar_shift_env is not None:
             _ar_shift = _ar_shift_env == "1"
+        _ar_hyst = bool(profile.get("AROUSAL_HYSTERESIS", False))
+        _ar_hyst_env = os.environ.get("PSGSCORING_AROUSAL_HYSTERESIS")
+        if _ar_hyst_env is not None:
+            _ar_hyst = _ar_hyst_env == "1"
         _derivations = None
         _eog_arousal = None
         _eog_reject = False
@@ -740,6 +751,7 @@ def run_pneumo_analysis(
                 eog_data    = _eog_arousal,
                 eog_reject  = _eog_reject,
                 spectral_shift = _ar_shift,
+                hysteresis  = _ar_hyst,
             )
         except Exception as e:  # noqa: BLE001 — arousal failure must not abort the run
             logger.warning("[pneumo] arousal analysis failed, continuing: %s", e)

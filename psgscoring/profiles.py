@@ -370,6 +370,38 @@ class PostProcessingRules:
     regulatoire regelsets na. `mesa_shhs` en `chicago_1999` idem, voor de
     reproduceerbaarheid van paper v31/v37."""
 
+    plm_time_base: bool = False
+    """Reken de tijd van een beenbeweging met de echte vensterlengte.
+
+    `_detect_lm_channel` berekent RMS over vensters van `int(sf * 0.1)`
+    STALEN en zette de vensterindex om met `idx * 0.1`. Bij 256 Hz duurt een
+    venster 0,09766 s, dus liep elke gerapporteerde tijd 2,3 % voor --
+    lineair oplopend tot +620 s aan het eind van een nacht van 7,4 u.
+
+    Event-F1 op PSG-IPA tegen twaalf scoorders, per been: mediaan
+    0,038 -> 0,692 (mens onderling 0,820). Zie
+    docs/plm_tijdbasis_bevinding.md.
+
+    Default `False` conform de regel dat gedragswijzigingen achter een vlag
+    gaan met het huidige gedrag als default -- niet omdat het huidige gedrag
+    verdedigbaar is."""
+
+    arousal_hysteresis: bool = False
+    """Laat een arousal doorlopen zolang de activiteit verhoogd blijft.
+
+    Fase 1 van `detect_arousals` bouwt haar mask per sample en labelt die
+    direct: er wordt geen enkel gat gedicht. Bandvermogen fluctueert op
+    subseconde-schaal, dus één arousal valt uiteen in scherven en de 3 s-eis
+    gooit ze bijna allemaal weg. Gemeten op MESA: 1897 ruwe regio's, waarvan
+    er 65 overblijven. De mediane eventduur (3,6 s) ligt daardoor op de
+    ondergrens zelf, tegen 8,6 s (PSG-IPA) en 11,0 s (MESA) bij mensen.
+
+    Met deze vlag geldt een tweede, lagere drempel voor het DOORLOPEN van een
+    event. De instapdrempel verandert niet, dus de vlag bepaalt alleen waar
+    een event eindigt. Zie docs/arousal_duration_preregistratie.md.
+
+    Default `False` — bestaand gedrag is byte-identiek met de vlag uit."""
+
     arousal_spectral_shift: bool = False
     """Beslis arousals op een SPECTRALE VERSCHUIVING i.p.v. op vermogen.
 

@@ -372,6 +372,24 @@ EPOCH_LEN_S           = 30
 AROUSAL_SHIFT_DELTA   = 0.15    # r moet 0,15 absoluut boven de lokale basislijn
 AROUSAL_SHIFT_ABRUPT  = 0.10    # r in de eerste 1 s ligt 0,10 boven de 3 s ervoor
 
+# v0.23.0: hysterese (opt-in, `arousal_hysteresis`).
+#
+# Fase 1 bouwt de mask per sample en labelt die direct -- er wordt geen enkel
+# gat gedicht. Bandvermogen fluctueert op subseconde-schaal, dus de mask
+# flikkert en één arousal valt uiteen in scherven. Gemeten op MESA: 1897 ruwe
+# regio's waarvan er 65 de 3 s-eis halen; de rest verdwijnt. Wat overblijft is
+# niet de sterkste maar de toevallig langste aaneengesloten scherf, en de
+# mediane eventduur (3,6 s) ligt daardoor op de ondergrens zelf -- tegen 8,6 s
+# (PSG-IPA) en 11,0 s (MESA) bij menselijke scoorders.
+#
+# Hysterese is de standaardvorm voor een eventdetector en ligt dichter bij wat
+# een scoorder doet: binnenkomen bij duidelijk verhoogde activiteit, doorlopen
+# zolang ze verhoogd blijft. De INSTAPDREMPEL blijft exact `ratio_thresh`, dus
+# deze vlag bepaalt alleen waar een event eindigt, niet of het begint.
+#
+# Waarde vastgelegd in docs/arousal_duration_preregistratie.md vóór de meting.
+AROUSAL_EXIT_RATIO    = 1.2     # doorlopen zolang het vermogen 20% boven de vloer blijft
+
 
 # ═══════════════════════════════════════════════════════════════
 # HULPFUNCTIES
@@ -553,7 +571,9 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                     abrupt_thresh: float | None = None,
                     spectral_shift: bool = False,
                     shift_delta: float | None = None,
-                    shift_abrupt: float | None = None) -> dict:
+                    shift_abrupt: float | None = None,
+                    hysteresis: bool = False,
+                    exit_ratio: float | None = None) -> dict:
     """
     Detecteer EEG-arousals conform AASM, Sectie 5.
 
@@ -585,6 +605,12 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
     module constants and docs/arousal_spectral_shift_preregistratie.md.
     With ``spectral_shift=False`` (the default) this function is
     byte-identical to v0.22.0.
+
+    v0.23.0 (``hysteresis=True``, opt-in): an event keeps running while the
+    power stays above ``exit_ratio`` times the local baseline, instead of
+    ending at the first sample that drops below the entry threshold. The
+    entry threshold is unchanged, so this only moves event ENDS. See
+    docs/arousal_duration_preregistratie.md.
     """
     # v0.9.8: hybrid mode dispatch — swap the candidate thresholds in
     # the module globals while the rule-based body runs, then filter
@@ -829,6 +855,45 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                     arousal_mask[s:e] = _detect_rem[s:e] > local_bl + shift_delta
                 else:
                     arousal_mask[s:e] = alpha_pow[s:e] > ratio_thresh * local_bl
+
+        # v0.23.0: hysterese — een event loopt door zolang het vermogen boven
+        # `exit_ratio` blijft. `arousal_mask` bevat de INSTAPpunten; hieronder
+        # wordt elk aaneengesloten stuk van de ruimere `sustain_mask` behouden
+        # dat minstens één instappunt bevat. Zonder de vlag verandert er niets.
+        if hysteresis:
+            if exit_ratio is None:
+                exit_ratio = AROUSAL_EXIT_RATIO
+            # Bij spectral_shift is de instap een ABSOLUUT increment, geen
+            # verhouding. De uitstap ligt dan op dezelfde fractie van de
+            # instap als hier: exit_ratio / ratio_thresh = 1,2/2,0 = 0,6.
+            sustain_mask = np.zeros(n_samples, dtype=bool)
+            for ep_i, stage in enumerate(hypno):
+                if ep_i in artifact_set:
+                    continue
+                s = ep_i * spe
+                e = min(s + spe, n_samples)
+                if _is_nrem(stage):
+                    local_bl = arousal_bl_nrem_arr[s:e]
+                    if spectral_shift:
+                        sustain_mask[s:e] = (_detect_nrem[s:e]
+                                             > local_bl + shift_delta * exit_ratio
+                                             / max(ratio_thresh, 1e-9))
+                    else:
+                        sustain_mask[s:e] = arousal_pow[s:e] > exit_ratio * local_bl
+                elif _is_rem(stage):
+                    local_bl = arousal_bl_rem_arr[s:e]
+                    if spectral_shift:
+                        sustain_mask[s:e] = (_detect_rem[s:e]
+                                             > local_bl + shift_delta * exit_ratio
+                                             / max(ratio_thresh, 1e-9))
+                    else:
+                        sustain_mask[s:e] = alpha_pow[s:e] > exit_ratio * local_bl
+            sus_lab, n_sus = label(sustain_mask)
+            if n_sus > 0:
+                # welke sustain-regio's raken een instappunt?
+                touched = np.unique(sus_lab[arousal_mask])
+                touched = touched[touched > 0]
+                arousal_mask = np.isin(sus_lab, touched)
 
         # ── FASE 2: Label, valideer per event ──
         labeled, n_events = label(arousal_mask)
@@ -1115,7 +1180,8 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                           per_channel_thresh: dict | None = None,
                           eog_data: np.ndarray | None = None,
                           eog_reject: bool = False,
-                          spectral_shift: bool = False) -> dict:
+                          spectral_shift: bool = False,
+                          hysteresis: bool = False) -> dict:
     """Multi-derivatie arousal-detectie via event-level union.
 
     ``derivations``: geordende lijst ``[(naam, eeg_data[, sf]), ...]`` — element 0
@@ -1137,7 +1203,8 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                               artifact_epochs=artifact_epochs,
                               hr_data=hr_data, sf_hr=sf_hr,
                               ratio_thresh=rt, abrupt_thresh=at,
-                              spectral_shift=spectral_shift)
+                              spectral_shift=spectral_shift,
+                              hysteresis=hysteresis)
         if res.get("success"):
             per.append((name, res))
     if not per:
@@ -1645,6 +1712,7 @@ def run_arousal_respiratory_analysis(
     eog_data:    np.ndarray | None = None,
     eog_reject:  bool = False,
     spectral_shift: bool = False,
+    hysteresis:  bool = False,
 ) -> dict:
     """
     Master-functie: detecteer arousals, RERAs en koppel aan respiratoire events.
@@ -1679,12 +1747,14 @@ def run_arousal_respiratory_analysis(
                                           hr_data=hr_data, sf_hr=sf_hr,
                                           per_channel_thresh=per_channel_thresh,
                                           eog_data=eog_data, eog_reject=eog_reject,
-                                          spectral_shift=spectral_shift)
+                                          spectral_shift=spectral_shift,
+                                          hysteresis=hysteresis)
     else:
         ar_result = detect_arousals(eeg_data, sf_eeg, hypno, emg_data=emg_data,
                                     artifact_epochs=artifact_epochs,
                                     hr_data=hr_data, sf_hr=sf_hr,
-                                    spectral_shift=spectral_shift)
+                                    spectral_shift=spectral_shift,
+                                    hysteresis=hysteresis)
     output["arousals"] = ar_result
 
     arousals = ar_result.get("events", [])
