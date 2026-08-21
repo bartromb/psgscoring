@@ -909,7 +909,7 @@ def run_pneumo_analysis(
         # geraakt en worden altijd gehonoreerd: wie ze expliciet meegeeft,
         # vraagt erom. Dit is het pad dat cms_arousal in de golden dekt.
         arousals = list(_ar_block.get("events") or [])
-    elif profile.get("AROUSAL_LIMB_WIRED", False):
+    elif _arousal_limb_wired(profile):
         arousals = list(_ar_block.get("events") or [])
     else:
         arousals = []
@@ -2004,6 +2004,25 @@ def _compute_arousal_etiology(output: dict, hypno: list) -> None:
             summ["plm_arousal_index"] = round(ai * min(n_plm_ar, n_total) / n_total, 1)
     except Exception as e:  # noqa: BLE001
         logger.warning("[pneumo] arousal-etiology indices failed: %s", e)
+
+
+def _arousal_limb_wired(profile: dict) -> bool:
+    """Bereiken de gedetecteerde arousals Rule 1B-reinstatement?
+
+    Profielvlag `arousal_limb_wired`, met env-override
+    `PSGSCORING_AROUSAL_LIMB_WIRED`. Die override bestaat om dezelfde reden als
+    `PSGSCORING_RULE1A_AROUSAL`: de 2x2 moet te meten zijn zonder profielen te
+    muteren. Zonder hem is de vlag alleen te bewegen door de registry te
+    wijzigen, en dan meet je een andere bibliotheek dan die je uitrolt.
+
+    Let op de koppeling: `pipeline.py` vereist arousals EN `limb_enabled`, dus
+    deze vlag in zijn eentje aanzetten doet aantoonbaar niets -- zie
+    docs/rule1a_arousal_preregistratie.md.
+    """
+    env = os.environ.get("PSGSCORING_AROUSAL_LIMB_WIRED")
+    if env is not None:
+        return env.strip().lower() in ("1", "true", "yes", "on")
+    return bool(profile.get("AROUSAL_LIMB_WIRED", False))
 
 
 def _flag_apneas_at_cap(output: dict, profile: dict) -> None:

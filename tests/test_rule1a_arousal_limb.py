@@ -239,3 +239,37 @@ def test_zero_available_arousals_is_never_silent():
     st = out["respiratory"]["rule1a_arousal_stats"]
     assert st["n_arousals_available"] == 0
     assert st["skipped_reason"], "nul zonder reden"
+
+
+def test_the_env_override_moves_the_wired_flag(monkeypatch):
+    """`PSGSCORING_AROUSAL_LIMB_WIRED` overschrijft het profiel.
+
+    Bestaat om dezelfde reden als `PSGSCORING_RULE1A_AROUSAL`: de 2x2 moet te
+    meten zijn zonder de profielregistry te muteren. Muteer je die wel, dan
+    meet je een andere bibliotheek dan je uitrolt.
+    """
+    import psgscoring
+    from psgscoring.pipeline import _arousal_limb_wired
+
+    uit = {"AROUSAL_LIMB_WIRED": False}
+    aan = {"AROUSAL_LIMB_WIRED": True}
+    monkeypatch.delenv("PSGSCORING_AROUSAL_LIMB_WIRED", raising=False)
+    assert _arousal_limb_wired(uit) is False
+    assert _arousal_limb_wired(aan) is True
+    monkeypatch.setenv("PSGSCORING_AROUSAL_LIMB_WIRED", "1")
+    assert _arousal_limb_wired(uit) is True
+    monkeypatch.setenv("PSGSCORING_AROUSAL_LIMB_WIRED", "0")
+    assert _arousal_limb_wired(aan) is False
+
+    # en het blijft nutteloos zonder de tweede vlag: beide zijn nodig
+    raw = _synthetic_raw()
+    hypno = ["N2"] * int(np.ceil(raw.times[-1] / 30.0))
+    monkeypatch.setenv("PSGSCORING_AROUSAL_LIMB_WIRED", "1")
+    monkeypatch.delenv("PSGSCORING_RULE1A_AROUSAL", raising=False)
+    out = psgscoring.run_pneumo_analysis(raw, hypno=hypno,
+                                         scoring_profile="aasm_v3_rec")
+    st = out["respiratory"]["rule1a_arousal_stats"]
+    assert st["n_arousals_available"] > 0, "de vlag bereikt de tak niet"
+    assert st["enabled"] is False
+    assert st["skipped_reason"] == "disabled_by_profile", (
+        "wired alleen hoort niets te doen zolang rule1a_arousal_enabled uit staat")
