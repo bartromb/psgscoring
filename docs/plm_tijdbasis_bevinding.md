@@ -123,3 +123,22 @@ het is een payloadgrens, geen scoringsregel -- maar ze laat nu een spoor na:
 `summary["n_events_truncated"]` zegt hoeveel er wegviel, en er komt een
 WARNING in het log. Zonder dat kon niemand zien dat de eventlijst ergens
 midden in de nacht ophoudt. Tests in `tests/test_plm_event_cap.py`.
+
+
+## MESA is geen PLM-replicatiecohort, althans niet zonder meer
+
+Bij de verificatie hierboven bleek dit, en het corrigeert een eerdere
+aantekening. MESA-EDF's dragen één kaal kanaal `Leg`. `CHANNEL_PATTERNS`
+kent alleen benoemde zijden (`"leg l"`, `"lleg"`, `"emg la"`, ...), dus
+`leg_l` en `leg_r` blijven leeg en **de PLM-stap draait op MESA helemaal
+niet** — `output["plm"]["summary"]` komt leeg terug, geen fout, geen melding.
+
+Dat is op zichzelf verdedigbaar: één ongelabeld beenkanaal is dubbelzinnig,
+en `_merge_bilateral` heeft twee zijden nodig. Maar het betekent wel dat de
+NSRR-annotaties `Periodic leg movement - left|PLM (Left)` op MESA nergens
+tegen vergeleken worden, en dat de uitspraak "MESA levert een
+replicatiecohort voor PLM" een expliciete `channel_map` vereist plus een
+beslissing over hoe je één kanaal tegen per-zijde-annotaties legt.
+
+Voor arousals geldt die beperking niet: MESA heeft EEG1/2/3 en die worden wel
+herkend.
