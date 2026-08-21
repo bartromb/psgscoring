@@ -60,3 +60,55 @@ De verleiding is groot: het regelgebaseerde pad is vandaag tweemaal
 tevergeefs bijgesteld, en dan is een bestaande vlag die het wél doet een
 opluchting. Precies daarom staan de voorwaarden op papier voordat de laatste
 cijfers binnen zijn.
+
+---
+
+# Meting — 21 augustus 2026, PSG-IPA (extern voor dit model)
+
+Vijf opnames, twaalf scoorders elk, event-F1 met greedy IoU-matching op 0,20,
+single-derivatie op één centraal kanaal. `q = index_algoritme /
+index_scoordermediaan`.
+
+| | mediane F1 | mediane duur | spreiding max(q)/min(q) |
+|---|---:|---:|---:|
+| regels alleen | 0,182 | 4,0 s | 10,13 |
+| hybride, drempel 0,30 | 0,409 | 5,5 s | 1,53 |
+| hybride, drempel 0,45 | 0,429 | 5,8 s | 1,79 |
+| **hybride, drempel 0,60 (meegeleverde default)** | **0,463** | **6,2 s** | **2,10** |
+| hybride, drempel 0,75 | 0,442 | 6,5 s | 2,21 |
+| hybride, drempel 0,85 | 0,409 | 7,4 s | 2,67 |
+
+Mens tegen mens: **0,692**, mediane menselijke eventduur 8,3 s.
+
+Per opname bij drempel 0,60:
+
+| | scoorder-index | regels | hybride | mens |
+|---|---:|---:|---:|---:|
+| SN1 | 24,2 | 0,326 (idx 21,0) | **0,463** (idx 26,6) | 0,642 |
+| SN2 | 8,5 | 0,160 (idx 37,1) | **0,347** (idx 11,0) | 0,492 |
+| SN3 | 18,0 | 0,154 (idx 7,8) | **0,340** (idx 11,1) | 0,692 |
+| SN4 | 14,3 | 0,182 (idx 12,8) | **0,505** (idx 13,5) | 0,767 |
+| SN5 | 27,7 | 0,499 (idx 27,6) | **0,666** (idx 31,6) | 0,766 |
+
+De hybride haalt 67 % van het menselijke plafond waar de regels op 26 %
+zitten, en `q` ligt op elke opname tussen 0,61 en 1,29 tegen 0,43 tot 4,36.
+De overdetectie die geen enkele drempelingreep wegkreeg (SN2: 37,1 tegen een
+scoordermediaan van 8,5) verdwijnt: 11,0. Op SN5 komt de eventduur uit op
+9,2 s tegen menselijk 9,1 s.
+
+De meegeleverde drempel 0,60 is óók het optimum van de veeg. Dat is niet door
+mij afgesteld — hij stond al zo in de code — maar het is het vermelden waard,
+want het betekent dat er hier geen keuze te maken viel.
+
+## Stand van de voorwaarden
+
+| | |
+|---|---|
+| 1. respiratoir niet slechter (MESA n=150) | **nog niet gemeten** |
+| 2. looptijd ≤ 2× | **nog niet gemeten** |
+| 3. `mesa_shhs`/`chicago_1999` gepind, golden 9/9 | te doen bij de wissel |
+| 4. toestemming gebruiker | openstaand |
+
+Voorwaarde 1 is de zwaarste en de enige die de uitkomst nog kan keren. De
+hybride vindt op vier van vijf opnames MEER arousals dan de regels; via Rule
+1B betekent dat meer arousal-gekoppelde hypopneus in de AHI.
