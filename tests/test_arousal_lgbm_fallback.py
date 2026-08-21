@@ -79,14 +79,35 @@ def test_the_summary_says_the_model_did_not_run(monkeypatch):
 # Het profielveld — `arousal_lgbm`
 # ══════════════════════════════════════════════════════════════
 
+def _lgbm_installed() -> bool:
+    """Kan de classifier hier uberhaupt draaien?
+
+    CI installeert `.[test]`, niet `[ml]`, dus daar ontbreekt lightgbm. Dat is
+    geen tekortkoming van de test maar de omgeving waarin het terugvalpad moet
+    werken -- en de enige plek waar dat pad ECHT getoetst wordt, want lokaal
+    is lightgbm geinstalleerd. De eerste versie van deze test eiste
+    `lgbm_available is True` en viel daardoor terecht om in CI.
+    """
+    try:
+        import lightgbm  # noqa: F401
+    except Exception:      # noqa: BLE001
+        return False
+    from pathlib import Path
+    from psgscoring.arousal import AROUSAL_LGBM_MODEL_PATH
+    return Path(AROUSAL_LGBM_MODEL_PATH).exists()
+
+
 def test_the_profile_field_reaches_the_detector(monkeypatch):
-    """`lgbm=True` schakelt de hybride in zonder env-variabele.
+    """`lgbm=True` bereikt de detector zonder env-variabele.
 
     Tot v0.23.0 was het hybride pad ALLEEN via PSGSCORING_AROUSAL_LGBM te
     bereiken. Dat maakte de keuze installatiebreed: `mesa_shhs` kon niet
-    gepind blijven terwijl de klinische profielen hem gebruikten. Zonder een
-    profielveld is de beslissing alles-of-niets, en dat is geen beslissing die
-    per profiel genomen kan worden.
+    gepind blijven terwijl de klinische profielen hem gebruikten.
+
+    Getoetst wordt of de VLAG aankomt -- de sleutel verschijnt in de
+    samenvatting -- niet of de classifier kan draaien. Dat tweede hangt van de
+    omgeving af, en de waarde van de sleutel zegt precies welke van de twee je
+    voor je hebt.
     """
     monkeypatch.delenv("PSGSCORING_AROUSAL_LGBM", raising=False)
     monkeypatch.delenv("YASAFLASKIFIED_AROUSAL_LGBM", raising=False)
@@ -97,8 +118,14 @@ def test_the_profile_field_reaches_the_detector(monkeypatch):
 
     assert "lgbm_available" not in uit["summary"], (
         "zonder de vlag hoort er geen lgbm-sleutel in de samenvatting te staan")
-    assert aan["summary"].get("lgbm_available") is True, (
+    assert "lgbm_available" in aan["summary"], (
         "profielveld bereikt de detector niet")
+    assert aan["summary"]["lgbm_available"] is _lgbm_installed(), (
+        "de sleutel hoort te zeggen of de classifier werkelijk gedraaid heeft")
+    if not _lgbm_installed():
+        # zonder classifier hoort het resultaat gelijk te zijn aan de regels,
+        # niet aan de ruime kandidatenlijst
+        assert aan["events"] == uit["events"]
 
 
 def test_the_env_variable_still_wins(monkeypatch):
@@ -110,10 +137,12 @@ def test_the_env_variable_still_wins(monkeypatch):
     eeg, hypno = _recording()
     monkeypatch.setenv("PSGSCORING_AROUSAL_LGBM", "0")
     assert "lgbm_available" not in detect_arousals(
-        eeg, SF, hypno, lgbm=True)["summary"]
+        eeg, SF, hypno, lgbm=True)["summary"], (
+        "env=0 hoort het profielveld te overrulen")
     monkeypatch.setenv("PSGSCORING_AROUSAL_LGBM", "1")
-    assert detect_arousals(eeg, SF, hypno, lgbm=False)["summary"].get(
-        "lgbm_available") is True
+    assert "lgbm_available" in detect_arousals(
+        eeg, SF, hypno, lgbm=False)["summary"], (
+        "env=1 hoort het profielveld te overrulen")
 
 
 def test_no_profile_enables_it_by_default():
