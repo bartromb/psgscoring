@@ -282,6 +282,7 @@ def detect_respiratory_events(
     ecg_data:          np.ndarray | None = None,
     sf_ecg:            float | None = None,
     signal_quality:    dict | None = None,
+    apnea_on_thermistor: bool = False,
     _precomputed:      dict | None = None,
 ) -> dict:
     """
@@ -511,7 +512,24 @@ def detect_respiratory_events(
             gap_mask_hy, _ = _detect_signal_gaps(hypop_flow, sf_hy)
         sleep_mask_hy = sleep_mask_hy & ~gap_mask_hy
 
-        apnea_raw    = flow_norm  < APNEA_THRESHOLD
+        # De apneudrempel hangt af van WELKE sensor de apneus draagt. De
+        # neusdruk vergroot een flowdaling uit (het signaal loopt ongeveer met
+        # het kwadraat van de flow), de thermistor niet: van 597 door mensen
+        # gescoorde apneus haalt 50 % de drempel van 0,90 op de druk en 13 %
+        # op de thermistor, terwijl de AUC apneu-vs-hypopneu gelijk is. Eén
+        # drempel leest die twee schalen niet.
+        #
+        # Zonder profielwaarde verandert er niets: dan geldt APNEA_THRESHOLD
+        # voor beide, zoals vóór 22-08-2026.
+        _ap_thresh = APNEA_THRESHOLD
+        if apnea_on_thermistor:
+            _t = (scoring_profile or {}).get("APNEA_THRESHOLD_THERMISTOR")
+            if _t is not None:
+                _ap_thresh = float(_t)
+                logger.info(
+                    "[resp] apneus op de thermistor: drempel %.2f in plaats "
+                    "van %.2f", _ap_thresh, APNEA_THRESHOLD)
+        apnea_raw    = flow_norm  < _ap_thresh
 
         # v0.2.5/v0.8.30: bandpass-filtered flow for breath boundary snapping
         # Only computed when USE_BREATH_SNAP is True (sensitive profile only)

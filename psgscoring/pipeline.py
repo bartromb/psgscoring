@@ -334,6 +334,16 @@ def run_pneumo_analysis(
     _precomp: dict = {}
     if apnea_flow is not None:
         resp = detect_respiratory_events(
+            # Draagt de thermistor de apneus? Dan mag een profiel er een
+            # eigen drempel voor zetten; zonder die verandert er niets.
+            #
+            # NIET `flow_therm_data is not None`: dat is het RUWE kanaal van
+            # vóór de poort. Keurt de poort de thermistor af, dan scoort
+            # `apnea_flow` op de neusdruk terwijl die test nog True zegt, en
+            # dan zou een thermistordrempel op een druksignaal worden losgelaten.
+            # `apnea_flow is flow_therm_data` is de vraag die er staat; dezelfde
+            # idioom als een paar regels verderop.
+            apnea_on_thermistor = apnea_flow is flow_therm_data,
             flow_data    = apnea_flow,
             hypop_flow   = hypop_flow,
             sf_hypop     = sf_hypop,

@@ -101,6 +101,28 @@ class HypopneaRules:
 class ApneaRules:
     """Apnea detection parameters."""
 
+    flow_reduction_threshold_thermistor: float | None = None
+    """Aparte apneudrempel wanneer de THERMISTOR de apneus draagt.
+
+    `None` = geen apart getal, dus `flow_reduction_threshold` voor beide
+    sensoren. Dat is het gedrag van vóór 22-08-2026 en blijft de default.
+
+    Waarom dit veld bestaat. De twee sensoren leven op verschillende schalen.
+    Gemeten op 597 door mensen gescoorde apneus (NSRR-annotatie, niet onze
+    detector): de neusdruk zakt mediaan 89,6 %, de thermistor 80,3 %, en van
+    diezelfde apneus haalt 50 % de drempel van 0,90 op de druk tegen 13 % op
+    de thermistor. De neusdruk vergroot de daling uit -- het signaal loopt
+    ongeveer met het kwadraat van de flow -- en de AASM schrijft de thermische
+    opnemer juist voor omdat de druk overdrijft.
+
+    Het is geen informatieverschil: de AUC apneu-vs-hypopneu is gelijk
+    (gepaard +0,009, binnen een vooraf vastgelegde band van 0,03). Eén drempel
+    kan alleen niet beide schalen lezen.
+
+    Zie docs/apneudrempel_sensorafhankelijk_bevinding.md en de bijbehorende
+    preregistratie.
+    """
+
     flow_reduction_threshold: float = 0.90
     sensor: str = "thermistor"
     min_duration_s: float = 10.0

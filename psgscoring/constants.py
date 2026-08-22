@@ -79,6 +79,12 @@ def _profile_to_legacy_dict(profile) -> dict:
         "PEAK_MIN_CONSECUTIVE_BREATHS": pp.peak_min_consecutive_breaths,
         "HYPOPNEA_MAX_DUR_S":     h.max_duration_s,
         "APNEA_MAX_DUR_S":        profile.apnea.max_duration_s,
+        # None = geen aparte drempel; de detector houdt dan APNEA_THRESHOLD
+        # aan. Als fractie-van-baseline opgeslagen, net als HYPOPNEA_THRESHOLD,
+        # zodat de detector niet hoeft te weten hoe het profiel het opschrijft.
+        "APNEA_THRESHOLD_THERMISTOR": (
+            None if profile.apnea.flow_reduction_threshold_thermistor is None
+            else round(1.0 - profile.apnea.flow_reduction_threshold_thermistor, 4)),
         # NEW in v0.4.0 — exposed for v1/CMS/Chicago profiles
         "DESAT_OR_AROUSAL":       h.desat_or_arousal,
         "DESAT_REQUIRED":         h.desat_required,
