@@ -14,7 +14,6 @@ artefactdetector juist de epochs kiest waar arousals zitten.
 Deze test legt de eigenschap vast: gaat iemand aan de basislijn sleutelen en
 begint uitsluiting wél te lekken, dan valt dit om.
 """
-import os
 
 import numpy as np
 import pytest
@@ -63,7 +62,7 @@ def test_the_fixture_can_show_an_effect(monkeypatch):
 @pytest.mark.parametrize("naam,blok", [
     ("vlak voor de arousals", list(range(1000 // 30, 1200 // 30))),
     ("ver weg",               list(range(120 // 30, 320 // 30))),
-    ("verspreid",             [e for e in range(0, SPLIT // 30) if e % 5 == 0]),
+    ("verspreid",             [e for e in range(SPLIT // 30) if e % 5 == 0]),
 ])
 def test_excluding_epochs_without_arousals_does_not_change_detection_elsewhere(
         naam, blok, monkeypatch):
