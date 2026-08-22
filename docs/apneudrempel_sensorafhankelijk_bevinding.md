@@ -84,3 +84,34 @@ De ontbrekende meting die er eerst bij hoort: de amplitudedaling op
 **niet-apneu**-momenten, op beide sensoren. Zonder die is niet te zeggen of
 een lagere drempel op de thermistor echte apneus terugwint of alleen ruis
 binnenlaat.
+
+---
+
+## Vervolgmeting, regel vastgelegd vóór de uitkomst
+
+De vraag die openstaat is niet "hoe diep zakt de thermistor" maar "**scheidt**
+de thermistor apneu van niet-apneu net zo goed". Een sensor die overal
+ondieper zakt verliest geen onderscheidend vermogen; een sensor die alleen
+tijdens apneus ondieper zakt wél.
+
+**Opzet.** Dezelfde zeven opnames en dezelfde maat (mediane amplitude tijdens
+het venster gedeeld door de mediane amplitude in de 60 s ervoor), maar nu ook
+op **controlevensters**: even lange vensters in slaap die geen enkel
+geannoteerd respiratoir event, geen desaturatie en geen arousal raken.
+
+**Maat: AUC** van apneu tegen controle, per sensor. Drempelvrij, dus er wordt
+niets geijkt en er is geen kalibratie/validatie-splitsing nodig.
+
+**Regel, vooraf:**
+
+- Ligt de AUC van de thermistor binnen **0,03** van die van de neusdruk, dan
+  scheidt hij even goed en is een **sensorafhankelijke drempel** de juiste
+  richting: dezelfde informatie, andere schaal.
+- Ligt de AUC van de thermistor **meer dan 0,03 lager**, dan draagt het kanaal
+  op dit cohort werkelijk minder informatie en is de huidige terugval op de
+  neusdruk op inhoudelijke gronden juist — dan stopt deze lijn hier.
+- Ligt hij hóger, dan is er meer aan de hand dan een schaalverschil en hoort
+  dat apart bekeken te worden.
+
+Dit blijft één cohort en één type thermistor; de uitkomst generaliseert niet
+zonder herhaling elders.
