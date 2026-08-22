@@ -524,6 +524,19 @@ def detect_respiratory_events(
         _ap_thresh = APNEA_THRESHOLD
         if apnea_on_thermistor:
             _t = (scoring_profile or {}).get("APNEA_THRESHOLD_THERMISTOR")
+            # Env-override voor metingen, zoals PSGSCORING_PLM_TIME_BASE en
+            # PSGSCORING_AROUSAL_LGBM. Uitgedrukt als DALING (0,72), net als
+            # het profielveld; intern is het een fractie van de basislijn.
+            # Onleesbaar -> profielwaarde, met waarschuwing: stil de verkeerde
+            # drempel hanteren maakt een meting ongeldig zonder dat het opvalt.
+            _env = os.environ.get("PSGSCORING_APNEA_REDUCTION_THERMISTOR")
+            if _env:
+                try:
+                    _t = round(1.0 - float(_env), 4)
+                except ValueError:
+                    logger.warning(
+                        "[resp] PSGSCORING_APNEA_REDUCTION_THERMISTOR=%r is "
+                        "geen getal; profielwaarde aangehouden", _env)
             if _t is not None:
                 _ap_thresh = float(_t)
                 logger.info(

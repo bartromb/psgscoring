@@ -95,3 +95,68 @@ def test_the_pipeline_asks_about_the_scored_channel_not_the_present_one():
     assert "apnea_flow is flow_therm_data" in regel, (
         "de pipeline bepaalt de sensor niet uit het GESCOORDE kanaal: "
         f"{regel.strip()!r}")
+
+
+def test_the_env_override_is_expressed_as_a_reduction(monkeypatch):
+    """0,72 in de env betekent een daling van 72 %, net als het profielveld."""
+    import numpy as np
+
+    from psgscoring.respiratory import detect_respiratory_events
+
+    sf, dur = 32.0, 600
+    t = np.arange(int(sf * dur)) / sf
+    rng = np.random.default_rng(5)
+    flow = np.sin(2 * np.pi * 0.25 * t) + rng.normal(0, 0.01, t.size)
+    for start in range(60, dur - 60, 90):
+        flow[int(start * sf):int((start + 15) * sf)] *= 0.15
+    gemeen = dict(thorax_data=None, abdomen_data=None,
+                  spo2_data=np.full(dur, 97.0), sf_flow=sf, sf_spo2=1.0,
+                  hypno=["N2"] * int(dur / 30), scoring_profile={})
+
+    def n_ap(r):
+        return sum(1 for e in r.get("events", [])
+                   if str(e.get("type")) in ("obstructive", "central",
+                                             "mixed", "uncertain"))
+
+    zonder = n_ap(detect_respiratory_events(flow_data=flow,
+                                            apnea_on_thermistor=True, **gemeen))
+    monkeypatch.setenv("PSGSCORING_APNEA_REDUCTION_THERMISTOR", "0.72")
+    met = n_ap(detect_respiratory_events(flow_data=flow,
+                                         apnea_on_thermistor=True, **gemeen))
+    assert met > zonder, (
+        f"env deed niets: zonder={zonder}, met={met}")
+
+    # Onleesbaar -> profielwaarde, niet stil iets anders.
+    monkeypatch.setenv("PSGSCORING_APNEA_REDUCTION_THERMISTOR", "kaas")
+    assert n_ap(detect_respiratory_events(flow_data=flow,
+                                          apnea_on_thermistor=True,
+                                          **gemeen)) == zonder
+
+
+def test_the_env_does_nothing_when_apnoeas_are_not_on_the_thermistor(monkeypatch):
+    """De override mag geen drukscoring raken."""
+    import numpy as np
+
+    from psgscoring.respiratory import detect_respiratory_events
+
+    sf, dur = 32.0, 600
+    t = np.arange(int(sf * dur)) / sf
+    rng = np.random.default_rng(5)
+    flow = np.sin(2 * np.pi * 0.25 * t) + rng.normal(0, 0.01, t.size)
+    for start in range(60, dur - 60, 90):
+        flow[int(start * sf):int((start + 15) * sf)] *= 0.15
+    gemeen = dict(thorax_data=None, abdomen_data=None,
+                  spo2_data=np.full(dur, 97.0), sf_flow=sf, sf_spo2=1.0,
+                  hypno=["N2"] * int(dur / 30), scoring_profile={})
+
+    def n_ap(r):
+        return sum(1 for e in r.get("events", [])
+                   if str(e.get("type")) in ("obstructive", "central",
+                                             "mixed", "uncertain"))
+
+    basis = n_ap(detect_respiratory_events(flow_data=flow,
+                                           apnea_on_thermistor=False, **gemeen))
+    monkeypatch.setenv("PSGSCORING_APNEA_REDUCTION_THERMISTOR", "0.72")
+    assert n_ap(detect_respiratory_events(flow_data=flow,
+                                          apnea_on_thermistor=False,
+                                          **gemeen)) == basis
