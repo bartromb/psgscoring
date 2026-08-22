@@ -95,3 +95,29 @@ Of `art_detect` met andere parameters beter zou zijn. `threshold=3` en
 afstellen op het meetcohort is precies de fout die deze validaties moeten
 vermijden. Blijkt de richting goed maar de instelling verkeerd, dan is dat een
 apart spoor met een eigen kalibratieset.
+
+---
+
+## Wijziging vóór de meting: `method="std"` in plaats van `"covar"`
+
+Bij het bouwen bleek `yasa.art_detect(method="covar")` `pyriemann` te vereisen
+— een optionele afhankelijkheid (`yasa[art]`) die niet in de omgeving zit en
+niet in `requirements.txt` staat.
+
+Ik wissel naar **`method="std"`**, en schrijf de reden op in plaats van het
+stil te doen:
+
+- een productie-afhankelijkheid toevoegen vóór er enig bewijs is dat de
+  richting deugt, is de verkeerde volgorde;
+- `"std"` is geen noodgreep maar een echte artefactdetector: z-scores van de
+  signaalstandaarddeviatie per venster, **per stadium** genormaliseerd als het
+  hypnogram meegaat. Het verschil met de huidige regel blijft daarmee intact —
+  relatief tegen de eigen nacht in plaats van een vaste drempel van 500 µV.
+
+**`"covar"` blijft ongetest.** Wint `"std"` niet, dan is dat geen uitspraak
+over `"covar"`; die vraagt een extra pakket in de image en hoort een eigen
+afweging te krijgen.
+
+Alle overige afspraken — drie armen, beide cohorten, ΔF1 ≥ +0,010 op MESA met
+replicatie op PSG-IPA, parameters op de YASA-defaults — blijven ongewijzigd.
+`threshold=3` is ook voor `"std"` de default.

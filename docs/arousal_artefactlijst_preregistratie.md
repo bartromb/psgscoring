@@ -72,3 +72,54 @@ gaat samen met spieractiviteit; de regel kan een échte
 artefactdetectie-methode zijn die hier alleen verkeerd wordt toegepast. Deze
 meting kiest tussen gebruiken en negeren, niet tussen goede en slechte
 artefactdetectie. Een betere regel is een apart spoor.
+
+---
+
+# Uitkomst — 23 augustus 2026
+
+**AANGENOMEN.** Beide vooraf vastgelegde criteria gehaald, en niet nipt.
+
+MESA, n=30, zaad 20260824, gepaard:
+
+| | F1 | precisie | recall |
+|---|---:|---:|---:|
+| lijst **negeren** | **0,421** | 0,364 | 0,597 |
+| lijst gebruiken (huidig) | 0,338 | 0,305 | 0,370 |
+
+Gepaarde ΔF1 (negeren − gebruiken): mediaan **+0,0685**, **beter op 30 van
+30**, Wilcoxon **p = 1,7·10⁻⁶**.
+
+| criterium | uitkomst |
+|---|---|
+| 1. mediane gepaarde ΔF1 ≥ +0,010 | +0,0685 → JA |
+| 2. teken repliceert op PSG-IPA (+0,084) | JA |
+
+Anders dan bij PSG-IPA verbetert hier **ook de precisie** (0,305 → 0,364),
+niet alleen de recall. Het onderdrukken kostte dus op MESA aan beide kanten.
+
+## Het getal dat het verklaart
+
+**Mediaan 19,9 % van de epochs wordt gevlagd** — tegen 6,9 % op PSG-IPA, met
+uitschieters tot 53,6 % op één opname. Een vijfde tot de helft van de nacht
+gaat weg.
+
+Dat is geen artefactpercentage, dat is een schaalprobleem. De regel vlagt op
+een **absolute** drempel van 500 µV piekamplitude, en die drempel betekent
+iets anders bij elke opname met een andere versterking of eenheid. Precies de
+fout die de RIP-poort maakte: daar mat een absolute MAD-drempel in feite de
+eenhedendeclaratie van het EDF, en het repareren ervan halveerde de MESA-bias
+bij identieke F1.
+
+## Reikwijdte
+
+Alleen de **arousalstap**. De artefactlijst blijft doen wat ze elders doet.
+Achter een profielvlag met het huidige gedrag als default; de gepinde
+reproductieprofielen (`mesa_shhs`, `chicago_1999`, `cms_medicare`,
+`aasm_v1_rec`, `aasm_v2_rec`) blijven daar hoe dan ook op staan.
+
+**Nog niet geïmplementeerd**, en bewust. Spoor 2 (`yasa.art_detect` in plaats
+van de eigen regel) draait op ditzelfde cohort. Blijkt daar dat een fatsoenlijke
+artefactdetector de arousals wél ongemoeid laat, dan is negeren de verkeerde
+reparatie — dan moet de regel weg, niet de lijst. Die uitkomst hoort eerst
+bekeken te worden; de bibliotheek wordt niet aangeraakt zolang die meting
+loopt.
