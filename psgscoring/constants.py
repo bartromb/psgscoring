@@ -106,6 +106,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "PLM_TIME_BASE": pp.plm_time_base,
         "PLM_EVENT_LIST_CAP": pp.plm_event_list_cap,
         "AROUSAL_LGBM": pp.arousal_lgbm,
+        "AROUSAL_USES_ARTIFACT_EPOCHS": pp.arousal_uses_artifact_epochs,
         "AROUSAL_EOG_REJECT": pp.arousal_eog_reject,
         "HYPOXIC_BURDEN_CAP_AT_NEXT_EVENT":
             pp.hypoxic_burden_cap_at_next_event,

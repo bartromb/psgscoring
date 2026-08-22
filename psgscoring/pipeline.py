@@ -761,6 +761,17 @@ def run_pneumo_analysis(
                 logger.info("[pneumo] multi-derivatie arousal over %s (eog_reject=%s)",
                             [n for n, _d, _s in _multi], _eog_reject)
         try:
+            # Profielvlag `arousal_uses_artifact_epochs`, env-override
+            # PSGSCORING_AROUSAL_USES_ARTIFACT_EPOCHS=0/1 om beide armen op
+            # één cohort te meten zonder de registry te muteren.
+            _ar_use_art = bool(profile.get("AROUSAL_USES_ARTIFACT_EPOCHS", True))
+            _env_art = os.environ.get("PSGSCORING_AROUSAL_USES_ARTIFACT_EPOCHS")
+            if _env_art is not None:
+                _ar_use_art = _env_art == "1"
+            if not _ar_use_art and artifact_epochs:
+                logger.info(
+                    "[pneumo] arousalstap negeert %d artefact-epochs "
+                    "(profielvlag)", len(artifact_epochs))
             output["arousal"] = run_arousal_respiratory_analysis(
                 eeg_data    = eeg_data,
                 sf_eeg      = sf_eeg,
@@ -770,7 +781,13 @@ def run_pneumo_analysis(
                 resp_events = resp.get("events", []),
                 hypno       = hypno,
                 emg_data    = emg_data,
-                artifact_epochs = artifact_epochs,
+                # Alleen de AROUSALSTAP; de lijst blijft elders doen wat ze
+                # doet (TST-noemers, andere stappen). Onderdrukken kost hier
+                # op MESA n=30 arousal-F1 0,421 -> 0,338, slechter op 30 van
+                # 30, en `yasa.art_detect` doet het met 2,1 % gevlagd niet
+                # beter dan de eigen regel met 19,9 %: het probleem is de
+                # onderdrukking, niet de detector.
+                artifact_epochs = (artifact_epochs if _ar_use_art else None),
                 hr_data     = hr_data,
                 sf_hr       = sf_hr or 1.0,
                 derivations = _derivations,

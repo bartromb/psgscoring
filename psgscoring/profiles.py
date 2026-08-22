@@ -423,6 +423,40 @@ class PostProcessingRules:
 
     Env-override: `PSGSCORING_AROUSAL_EOG_REJECT=1` zet hem terug aan."""
 
+    arousal_uses_artifact_epochs: bool = True
+    """Slaat de arousalstap de als artefact gevlagde epochs over?
+
+    `True` = huidig gedrag: de epochs uit `artifact_epochs` doen niet mee aan
+    arousaldetectie. `False` = de arousalstap negeert de lijst.
+
+    **Gemeten, en niet nipt.** MESA n=30 gepaard, drie armen op dezelfde
+    opnames (arousal-F1 tegen de NSRR-annotatie, IoU 0,20):
+
+    | | F1 | precisie | recall | gevlagd |
+    |---|---:|---:|---:|---:|
+    | geen lijst | **0,421** | 0,364 | 0,597 | 0 % |
+    | huidige regel (500 µV) | 0,338 | 0,305 | 0,370 | 19,9 % |
+    | `yasa.art_detect` | 0,356 | 0,304 | 0,484 | 2,1 % |
+
+    Geen lijst wint van beide op **30 van de 30** opnames (p = 1,7e-06), en op
+    PSG-IPA repliceert het teken (0,505 tegen 0,484).
+
+    Twee dingen maken dit meer dan een drempelkwestie. De huidige regel vlagt
+    op een ABSOLUTE 500 µV en gooit daarmee mediaan 19,9 % van de nacht weg,
+    tot 53,6 % op één opname -- dezelfde schaalfout als de RIP-poort, die met
+    een absolute MAD-drempel in feite de EDF-eenheid mat. En `art_detect`,
+    die maar 2,1 % weggooit, is even slecht: hij selecteert de epochs met de
+    grootste variantie, en dat zijn juist de epochs waar arousals zitten.
+
+    Onderdrukken is dus het probleem, niet de detector. Zie
+    docs/arousal_artefactlijst_preregistratie.md en
+    docs/artefactdetector_vervangen_preregistratie.md.
+
+    **Default blijft `True`** tot de gebruiker beslist: hem omzetten verandert
+    de arousal-index en via de RERA-koppeling de RDI op de vier
+    `arousal_limb_wired`-profielen.
+    """
+
     arousal_lgbm: bool = True
     """Filter arousal-kandidaten met het op MESA getrainde LightGBM-model.
 
