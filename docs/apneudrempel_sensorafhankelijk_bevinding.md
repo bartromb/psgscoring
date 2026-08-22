@@ -154,3 +154,53 @@ substring `"apnea"` zocht: `recording start time` draagt in de NSRR-annotatie
 een duur van de **hele nacht** (32400 s). Wie "alles wat geen slaapstadium is"
 als event behandelt, maakt daarmee elke seconde bezet. Een expliciete
 blokkeerlijst is de enige veilige aanpak.
+
+### Uitkomst — de thermistor scheidt even goed
+
+Acht MESA-opnames, **460 apneus tegen 2171 hypopneus**, allemaal uit de
+NSRR-annotatie.
+
+| | AUC apneu vs hypopneu |
+|---|---:|
+| neusdruk, mediaan | 0,918 |
+| thermistor, mediaan | 0,941 |
+
+| aggregatie | thermistor − neusdruk |
+|---|---:|
+| verschil van de medianen | +0,022 |
+| **mediaan van de gepaarde verschillen** | **+0,009** |
+| zonder de uitschieter `mesa-sleep-1759` (16 apneus) | +0,003 |
+| naar apneu-aantal gewogen gemiddelde | +0,015 |
+
+Alle vier binnen de vooraf vastgelegde band van 0,03. De thermistor is beter
+op 5 van 8, slechter op 3, en het grootste verschil (+0,350) komt van de
+opname met de mínste apneus — precies waar de AUC het onrustigst is.
+
+Ik noteer het gepaarde getal apart omdat het verschil van de medianen
+(+0,022) hier tweeënhalf keer zo groot is. Vanochtend bij de poortmeting was
+dat onderscheid het verschil tussen aannemen en verwerpen; hier verandert het
+de conclusie niet, maar de juiste maat blijft de gepaarde.
+
+**Uitkomst volgens de regel: even goed.** Het thermistorkanaal draagt hetzelfde
+onderscheid tussen apneu en hypopneu als de neusdruk; het verschil is de
+**schaal**, niet de informatie. Een sensorafhankelijke apneudrempel is daarmee
+de juiste richting, en de halvering van de apneutelling bij `respiratory_band`
+is een ijkfout, geen sensorprobleem.
+
+**Grenzen van deze uitkomst.** Acht opnames, één cohort, één type thermistor.
+De AUC is berekend op een benadering van wat de detector doet (mediane
+amplitudedaling over een Hilbert-omhullende), niet op de detector zelf; dat
+maakt het een richtingaanwijzer, geen vervanging voor een meting met de echte
+keten. En AUC is drempelvrij: dat de informatie er is, zegt niet welke drempel
+ze eruit haalt.
+
+**Wat hierna hoort te gebeuren**, in deze volgorde:
+
+1. Een preregistratie voor een sensorafhankelijke `flow_reduction_threshold`,
+   met een **kalibratiesteekproef die van de validatiesteekproef gescheiden
+   is** — de drempel afleiden op de ene, afrekenen op de andere.
+2. De vlag achter een profielschakelaar met het huidige gedrag als default, en
+   de gepinde reproductieprofielen ongemoeid.
+3. Pas daarna opnieuw kijken naar de poort. Werkt de drempel op de thermistor,
+   dan verandert de afweging bij `respiratory_band` volledig — die poort werd
+   vandaag afgerekend op een detector die zijn kanaal niet aankon.
