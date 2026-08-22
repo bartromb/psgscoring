@@ -357,6 +357,16 @@ def analyse_one(args):
                 for e in r.get("events", []) if e.get("onset_s") is not None]
         rec = {
             "ahi": float(summ.get("ahi_total") or summ.get("ahi") or 0.0),
+            # v0.24.0: RDI meeschrijven. De arousal-classifier verandert de
+            # arousallijst, en `_compute_rera_rdi()` leest die RECHTSTREEKS --
+            # niet via `arousal_limb_wired`. De RDI beweegt dus op elk profiel
+            # waar de classifier aan staat, terwijl dit harnas tot nu toe
+            # alleen de AHI vastlegde. Die leemte stond als openstaand punt in
+            # de v0.24.0-release; zonder dit veld is ze niet te dichten.
+            "rdi": (float(summ["rdi"]) if summ.get("rdi") is not None else None),
+            "n_arousals": len(((res.get("arousal") or {}).get("events")) or []),
+            "arousal_index": ((res.get("arousal") or {}).get("summary") or {})
+                             .get("arousal_index"),
             "n_events": len(algo),
             "n_hypopnea": sum(1 for e in algo if "hypopnea" in str(e[2])),
             "n_apnea": sum(1 for e in algo

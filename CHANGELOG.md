@@ -76,9 +76,22 @@ and off for `mesa_shhs` and `chicago_1999`, which reproduce paper v31/v37.
 
 ## What is NOT established
 
-**The RDI impact is unmeasured.** `_compute_rera_rdi()` reads the arousal list
-directly, not through `arousal_limb_wired`, so the RDI moves on every profile
-where this flag is on. The MESA measurement covered AHI and event-F1.
+**The RDI impact is unmeasured, and narrower than first stated.**
+
+*Corrected 22-08-2026, same day.* The release first claimed that
+`_compute_rera_rdi()` reads the arousal list directly and that RDI therefore
+moves on every profile where the classifier is on. That is wrong. It receives
+the same `arousals` variable that `arousal_limb_wired` gates, so on the
+seventeen profiles where that flag is off — `aasm_v3_rec` among them — the
+list is empty, no RERA is ever formed and **RDI equals AHI**. Verified on
+three MESA recordings: `aasm_v3_rec` gives RDI = AHI at 10.5, 5.3 and 18.5
+even with 9, 59 and 320 arousals detected.
+
+Where the flag IS on — `aasm_v3_breath`, `aasm_v3_prob` and the two dual
+variants — the RDI is heavily arousal-dependent: on the same three recordings
+`aasm_v3_breath` gives 13.6 → 14.5, 6.5 → 9.2 and 22.2 → **48.4**, so RERAs
+can more than double the index. The classifier change moves the RDI
+substantially there, and that remains unmeasured.
 
 **The multi-derivation behaviour is measured on n = 5.** On MESA
 `_pick_eeg_multi` finds one derivation (channels named `EEG1/2/3` match
