@@ -104,10 +104,16 @@ def test_an_unknown_gate_name_does_not_silently_become_the_default(monkeypatch):
     lg = logging.getLogger("psgscoring.pipeline")
     h = _Grab(level=logging.WARNING)
     lg.addHandler(h)
+    # Ook het niveau zetten: een andere test in de suite kan de logger op
+    # ERROR hebben gezet, en dan komt de waarschuwing hier nooit aan. Zonder
+    # dit slaagde deze test los en viel hij om in de volle suite.
+    old_level = lg.level
+    lg.setLevel(logging.WARNING)
     try:
         got = _thermistor_gate(prof)
     finally:
         lg.removeHandler(h)
+        lg.setLevel(old_level)
 
     assert got == "respiratory_band", "profielwaarde hoort te blijven staan"
     assert any("respiratory_bnad" in m for m in seen), (
