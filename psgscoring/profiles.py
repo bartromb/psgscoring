@@ -382,6 +382,25 @@ class PostProcessingRules:
     Default `False`: dit verzet een gerapporteerde grootheid. Zie
     docs/hypoxic_burden_venster_preregistratie.md."""
 
+    arousal_eog_reject: bool = False
+    """Verwerp occipitaal-only arousals die samenvallen met een oogbeweging.
+
+    Bedoeld als menselijke scoorder-heuristiek: een EOG-doorslag naar de
+    occipitale elektroden lijkt op een arousal maar is er geen. Alleen actief
+    in multi-derivatiemodus.
+
+    **Default False sinds 22-08-2026, na meting.** Op de vijf PSG-IPA
+    arousal-opnames, met de hybride aan: nul keer beter dan multi zonder
+    reject, twee keer identiek (SN1, SN2) en drie keer slechter (SN3 0,390 ->
+    0,371; SN4 0,568 -> 0,557; SN5 0,678 -> 0,665). De spreiding van de index
+    verslechtert van 1,97 naar 2,16, en op SN3 zakt de recall van 0,383 naar
+    0,350. Hij verwijdert dus echte events zonder er iets voor terug te geven.
+
+    Stond tot dan default AAN zodra er een EOG-kanaal was. Zie
+    docs/arousal_derivatie_preregistratie.md.
+
+    Env-override: `PSGSCORING_AROUSAL_EOG_REJECT=1` zet hem terug aan."""
+
     arousal_lgbm: bool = True
     """Filter arousal-kandidaten met het op MESA getrainde LightGBM-model.
 

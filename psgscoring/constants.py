@@ -99,6 +99,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "AROUSAL_HYSTERESIS": pp.arousal_hysteresis,
         "PLM_TIME_BASE": pp.plm_time_base,
         "AROUSAL_LGBM": pp.arousal_lgbm,
+        "AROUSAL_EOG_REJECT": pp.arousal_eog_reject,
         "HYPOXIC_BURDEN_CAP_AT_NEXT_EVENT":
             pp.hypoxic_burden_cap_at_next_event,
         "SINGLE_CHANNEL_RHYTHM": pp.single_channel_rhythm,
