@@ -121,3 +121,72 @@ afweging te krijgen.
 Alle overige afspraken — drie armen, beide cohorten, ΔF1 ≥ +0,010 op MESA met
 replicatie op PSG-IPA, parameters op de YASA-defaults — blijven ongewijzigd.
 `threshold=3` is ook voor `"std"` de default.
+
+---
+
+# Uitkomst — 23 augustus 2026
+
+**WEERLEGD.** `yasa.art_detect` vervangt de eigen regel niet. Maar de meting
+beantwoordt een grotere vraag dan ze stelde.
+
+MESA, n=30, zaad 20260824, alle drie de armen gepaard op dezelfde opnames:
+
+| arm | F1 | precisie | recall | gevlagde epochs |
+|---|---:|---:|---:|---:|
+| **A — geen lijst** | **0,421** | **0,364** | **0,597** | 0 % |
+| B — huidige regel (500 µV) | 0,338 | 0,305 | 0,370 | 19,9 % |
+| C — `yasa.art_detect` | 0,356 | 0,304 | 0,484 | **2,1 %** |
+
+Gepaarde verschillen:
+
+| | mediaan ΔF1 | beter | p |
+|---|---:|---:|---:|
+| C − B | **−0,0045** | 14/30 | 0,607 |
+| A − C | **+0,0520** | **30/30** | 1,7·10⁻⁶ |
+| A − B | +0,0685 | 30/30 | 1,7·10⁻⁶ |
+
+Criterium 1 (ΔF1 C−B ≥ +0,010) niet gehaald; criterium 2 daarmee niet meer aan
+de orde. **Weerlegd.**
+
+## Wat de meting wél uitwijst
+
+Niet dat de eigen regel goed genoeg is — die is aantoonbaar verkeerd geschaald
+(19,9 % gevlagd, tot 53,6 % op één opname, op een absolute drempel van 500 µV).
+Wat de meting uitwijst is dat **het vervangen van de regel het probleem niet
+raakt**. `art_detect` is duidelijk selectiever — 2,1 % tegen 19,9 % — en scoort
+tóch niet beter dan de regel die tien keer zoveel weggooit.
+
+**Het probleem is de onderdrukking zelf, niet de detector.** Arm A verslaat
+beide op **30 van 30** opnames.
+
+## Het cijfer dat het scherpst is
+
+`art_detect` gooit maar 2,1 % van de epochs weg en kost daarmee toch 0,052 F1,
+op elke opname. De recall zakt van 0,597 naar 0,484 — een relatieve daling van
+19 % door 2 % van de nacht te verwijderen, een verrijking van bijna een factor
+tien.
+
+Dat is coherent en oncomfortabel tegelijk: `art_detect` selecteert de
+epochs met de meest uitzonderlijke variantie, en **dat zijn precies de epochs
+waar arousals zitten**. Hoe beter een artefactdetector op variantie let, hoe
+gerichter hij arousals wegneemt. De eigen regel is slechter in artefacten
+vinden en daardoor mínder gericht schadelijk per weggegooide epoch.
+
+Een tweede verklaring is niet uitgesloten en niet gemeten: het uitsluiten van
+epochs onderbreekt de rollende basislijn in `detect_arousals`, en dan kan de
+schade verder reiken dan de uitgesloten epochs zelf. Dat is een hypothese, geen
+bevinding — wie het wil weten, moet de basislijn over uitgesloten epochs
+interpoleren en opnieuw meten.
+
+## Gevolg
+
+Spoor 1 (`docs/arousal_artefactlijst_preregistratie.md`) is aangenomen en staat
+nu steviger: arm A verslaat niet alleen de huidige regel maar ook een
+fatsoenlijke artefactdetector, beide op 30 van 30. De juiste ingreep is dat de
+**arousalstap geen artefactlijst gebruikt** — niet dat de lijst anders berekend
+wordt.
+
+De `yasa`-methode blijft als optie in YASAFlaskified staan, achter de
+schakelaar met `amplitude` als default. Ze is hier niet afgewezen als
+artefactdetector — daar is geen referentie voor — alleen als oplossing voor
+dit probleem.
