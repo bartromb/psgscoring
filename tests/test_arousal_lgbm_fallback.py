@@ -195,12 +195,17 @@ def test_low_sample_rate_falls_back_instead_of_rejecting_everything(monkeypatch)
             eeg[s:e] = (28.0 * np.sin(2 * np.pi * 10.0 * t[s:e])
                         + rng.normal(0.0, 1.0, e - s))
         out = detect_arousals(eeg * 1e-6, sf, ["N2"] * 30)
-        avail = out["summary"].get("lgbm_available")
+        reden = out["summary"].get("lgbm_skipped_reason")
+        sf_reden = f"sample_rate_below_{AROUSAL_LGBM_MIN_SF:.0f}"
+        # Toets de REDEN, niet de afwezigheid van de sleutel. Zonder lightgbm
+        # -- zoals in CI, dat `.[test]` installeert -- slaat het model-pad ook
+        # over, met reden "model_unavailable". Een test die alleen op
+        # afwezigheid toetst, meet dan de omgeving in plaats van de poort.
         if verwacht_hybride:
-            assert "lgbm_skipped_reason" not in out["summary"], (
-                f"sf={sf} hoort de classifier niet over te slaan")
+            assert reden != sf_reden, (
+                f"sf={sf} ligt boven {AROUSAL_LGBM_MIN_SF:.0f} Hz, de "
+                "samplefrequentie-poort hoort niet te vuren")
         else:
-            assert avail is False, f"sf={sf}: classifier had niet mogen draaien"
-            assert out["summary"].get("lgbm_skipped_reason") == \
-                f"sample_rate_below_{AROUSAL_LGBM_MIN_SF:.0f}", (
-                "de reden hoort in de samenvatting te staan")
+            assert out["summary"].get("lgbm_available") is False
+            assert reden == sf_reden, (
+                f"sf={sf}: verwacht {sf_reden!r}, kreeg {reden!r}")
