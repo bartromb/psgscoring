@@ -382,7 +382,7 @@ class PostProcessingRules:
     Default `False`: dit verzet een gerapporteerde grootheid. Zie
     docs/hypoxic_burden_venster_preregistratie.md."""
 
-    arousal_lgbm: bool = False
+    arousal_lgbm: bool = True
     """Filter arousal-kandidaten met het op MESA getrainde LightGBM-model.
 
     Het kandidaatstadium draait dan op ruime drempels (ratio 1,2 / abrupt 1,0)
@@ -391,11 +391,21 @@ class PostProcessingRules:
     eventduur 4,0 -> 6,2 s tegen 8,3 s menselijk, en de spreiding van
     index_algo/index_scoorder over vijf opnames 10,13 -> 2,10.
 
-    **Default False.** Arousals voeden Rule 1B-hypopneus en RERA's, dus dit
-    verandert de AHI; zie docs/arousal_lgbm_preregistratie.md voor de
-    voorwaarden die eerst gehaald moeten worden. Het profielveld bestaat zodat
-    die beslissing per profiel genomen kan worden in plaats van via een
-    env-variabele voor de hele installatie."""
+    **Default True sinds 22-08-2026** (gebruikersbeslissing, na de meting).
+    Op MESA n=150 gepaard: `aasm_v3_rec` identiek op alle 150 (dat profiel
+    gebruikt de arousals niet voor scoring), `aasm_v3_breath` bias
+    -5,13 -> -5,28 (+0,14, grens 1,00) en F1 0,510 -> 0,514 met 101 van 150
+    beter. Looptijd 1,03x.
+
+    UIT op de profielen die een externe regelset of een gepubliceerde
+    dataset-analyse reproduceren: `aasm_v2_rec`, `aasm_v1_rec`, `cms_medicare`,
+    `mesa_shhs` en `chicago_1999`. Een ML-classifier maakt geen deel uit van
+    AASM v1/v2 of de CMS-regels, en `mesa_shhs`/`chicago_1999` moeten paper
+    v31/v37 reproduceren.
+
+    LET OP: `_compute_rera_rdi()` leest de arousallijst RECHTSTREEKS, niet via
+    `arousal_limb_wired`. De RDI beweegt dus op elk profiel waar deze vlag aan
+    staat, ook waar de AHI onveranderd blijft."""
 
     plm_time_base: bool = True
     """Reken de tijd van een beenbeweging met de echte vensterlengte.
@@ -1298,7 +1308,11 @@ _aasm_v2_rec = Profile(
     ),
     post_processing=PostProcessingRules(
         # Ritmiek-as UIT: historisch/regulatoir dan wel bevroren.
-        single_channel_rhythm=False,summary_after_reclassification=True),
+        single_channel_rhythm=False,
+        # Arousal-classifier om dezelfde reden UIT: een ML-filter maakt geen
+        # deel uit van AASM v1/v2 of de CMS-regels, en de twee
+        # dataset-profielen moeten paper v31/v37 reproduceren.
+        arousal_lgbm=False,summary_after_reclassification=True),
 )
 
 # ---- AASM v1 RECOMMENDED (2007) ----
@@ -1329,7 +1343,11 @@ _aasm_v1_rec = Profile(
     ),
     post_processing=PostProcessingRules(
         # Ritmiek-as UIT: historisch/regulatoir dan wel bevroren.
-        single_channel_rhythm=False,summary_after_reclassification=True),
+        single_channel_rhythm=False,
+        # Arousal-classifier om dezelfde reden UIT: een ML-filter maakt geen
+        # deel uit van AASM v1/v2 of de CMS-regels, en de twee
+        # dataset-profielen moeten paper v31/v37 reproduceren.
+        arousal_lgbm=False,summary_after_reclassification=True),
 )
 
 # ---- CMS / Medicare (AASM v3 1B OPTIONAL) ----
@@ -1363,7 +1381,11 @@ _cms_medicare = Profile(
     ),
     post_processing=PostProcessingRules(
         # Ritmiek-as UIT: historisch/regulatoir dan wel bevroren.
-        single_channel_rhythm=False,summary_after_reclassification=True),
+        single_channel_rhythm=False,
+        # Arousal-classifier om dezelfde reden UIT: een ML-filter maakt geen
+        # deel uit van AASM v1/v2 of de CMS-regels, en de twee
+        # dataset-profielen moeten paper v31/v37 reproduceren.
+        arousal_lgbm=False,summary_after_reclassification=True),
 )
 
 # ---- MESA / NSRR convention ----
@@ -1410,6 +1432,10 @@ _mesa_shhs = Profile(
     post_processing=PostProcessingRules(
         # Ritmiek-as UIT: historisch/regulatoir dan wel bevroren.
         single_channel_rhythm=False,
+        # Arousal-classifier om dezelfde reden UIT: een ML-filter maakt geen
+        # deel uit van AASM v1/v2 of de CMS-regels, en de twee
+        # dataset-profielen moeten paper v31/v37 reproduceren.
+        arousal_lgbm=False,
         stability_filter_enabled=True,
         stability_filter_cv=0.45,
         csr_reclassification=True,
@@ -1430,6 +1456,8 @@ _mesa_shhs = Profile(
         # Idem voor de PLM-tijdbasis: die is per 21-08-2026 default aan omdat
         # het een rekenfout was, maar dit profiel moet reproduceerbaar blijven.
         plm_time_base=False,
+        # En de arousal-classifier: paper v31/v37 draaide op het
+        # regelgebaseerde pad.
         stability_filter_all_hypopnea_subtypes=False,
         local_baseline_cv_threshold=0.3,
         local_baseline_strict_reduction=25.0,
@@ -1497,6 +1525,10 @@ _chicago_1999 = Profile(
     post_processing=PostProcessingRules(
         # Ritmiek-as UIT: historisch/regulatoir dan wel bevroren.
         single_channel_rhythm=False,
+        # Arousal-classifier om dezelfde reden UIT: een ML-filter maakt geen
+        # deel uit van AASM v1/v2 of de CMS-regels, en de twee
+        # dataset-profielen moeten paper v31/v37 reproduceren.
+        arousal_lgbm=False,
         # GEPIND op het gedrag van vóór 13-08-2026: dit profiel reproduceert
         # de Chicago-criteria van 1999 en hoort niet mee te bewegen met
         # reparaties aan de sensorpoorten. Zie

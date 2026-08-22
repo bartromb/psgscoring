@@ -57,6 +57,19 @@ AROUSAL_LGBM_THRESHOLD = float(
     )
 )
 # Permissive candidate-stage thresholds used only in hybrid mode.
+# v0.23.1: minimale samplefrequentie voor het hybride pad.
+#
+# Het model gebruikt bandvermogens tot en met beta (16-30 Hz) en een spectrale
+# randfrequentie. Ligt Nyquist onder 30 Hz, dan bestaan die kenmerken niet in
+# het signaal en krijgt een model dat op 256 Hz getraind is een gedegenereerde
+# vector. Het verwerpt dan ALLES: op de golden-fixture met EEG op 32 Hz gingen
+# 23 kandidaten naar 0, met kansen van 0,012 tot 0,066 tegen een drempel van
+# 0,60. Op een profiel waar hypopneus alleen via een arousal kwalificeren
+# betekent dat AHI 0 -- stil, zonder fout.
+#
+# 64 Hz is de ondergrens waarbij de betaband nog volledig representeerbaar is.
+AROUSAL_LGBM_MIN_SF      = 64.0
+
 AROUSAL_LGBM_CAND_RATIO  = 1.2
 AROUSAL_LGBM_CAND_ABRUPT = 1.0
 
@@ -637,6 +650,17 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
     #   SN4  regels  94 ev (12,8/u) | met model  99 (13,5) | zonder model 979 (133,8)
     # tegen scoordermedianen van 8,5 en 14,3/u.
     _lgbm_ok = _hybrid_requested
+    _lgbm_reason = None
+    if _hybrid and sf < AROUSAL_LGBM_MIN_SF:
+        logger.warning(
+            "[arousal] EEG op %.0f Hz ligt onder %.0f Hz: de betaband "
+            "(16-30 Hz) is niet representeerbaar en de classifier zou alle "
+            "kandidaten verwerpen. Regelgebaseerd pad.",
+            sf, AROUSAL_LGBM_MIN_SF,
+        )
+        _hybrid = False
+        _lgbm_ok = False
+        _lgbm_reason = "sample_rate_below_%.0f" % AROUSAL_LGBM_MIN_SF
     if _hybrid:
         try:
             _load_arousal_lgbm_booster()
@@ -647,6 +671,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
             )
             _hybrid = False
             _lgbm_ok = False
+            _lgbm_reason = "model_unavailable"
     # v0.8.1: effective thresholds are LOCAL (concurrency-safe — no module-global
     # mutation, which was fragile under the 8 parallel workers + the multi-derivation
     # loop). Explicit caller values win; else LGBM-candidate values in hybrid mode;
@@ -1135,6 +1160,8 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
         # gedraaid heeft. Zonder dit is een regelgebaseerd resultaat niet te
         # onderscheiden van een gefilterd resultaat.
         result["summary"]["lgbm_available"] = _lgbm_ok
+        if _lgbm_reason:
+            result["summary"]["lgbm_skipped_reason"] = _lgbm_reason
     return result
 
 

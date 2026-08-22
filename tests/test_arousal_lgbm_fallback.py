@@ -145,9 +145,62 @@ def test_the_env_variable_still_wins(monkeypatch):
         "env=1 hoort het profielveld te overrulen")
 
 
-def test_no_profile_enables_it_by_default():
+def test_default_is_on_except_where_a_ruleset_is_reproduced():
+    """Default AAN sinds 22-08-2026, behalve waar een externe regelset of een
+    gepubliceerde dataset-analyse gereproduceerd wordt.
+
+    Een ML-classifier maakt geen deel uit van AASM v1/v2 of de CMS-regels, en
+    `mesa_shhs`/`chicago_1999` moeten paper v31/v37 reproduceren. Verandert
+    een van die vijf, dan verschuiven gepubliceerde of regulatoire cijfers en
+    hoort dit om te vallen.
+    """
     from psgscoring.constants import SCORING_PROFILES
     for name, d in SCORING_PROFILES.items():
         assert "AROUSAL_LGBM" in d, name
-    aan = [n for n, d in SCORING_PROFILES.items() if d["AROUSAL_LGBM"]]
-    assert not aan, f"vlag hoort nergens default aan te staan: {aan}"
+        assert isinstance(d["AROUSAL_LGBM"], bool), name
+    uit = {n for n, d in SCORING_PROFILES.items() if not d["AROUSAL_LGBM"]}
+    assert uit == {"aasm_v2_rec", "aasm_v1_rec", "cms_medicare",
+                   "mesa_shhs", "chicago_1999"}, (
+        f"verwacht alleen de vijf gepinde profielen uit, kreeg {sorted(uit)}")
+
+
+def test_low_sample_rate_falls_back_instead_of_rejecting_everything(monkeypatch):
+    """Onder 64 Hz draait de classifier niet, want hij zou alles verwerpen.
+
+    Het model gebruikt bandvermogens tot beta (16-30 Hz). Ligt Nyquist daar
+    onder, dan bestaan die kenmerken niet in het signaal en krijgt een op
+    256 Hz getraind model een gedegenereerde vector. Gemeten op de
+    golden-fixture met EEG op 32 Hz: 23 kandidaten, kansen 0,012 tot 0,066,
+    drempel 0,60, dus nul events. Op een profiel waar hypopneus alleen via een
+    arousal kwalificeren werd de AHI daarmee 18,9 -> 0,0.
+
+    Dit is dezelfde klasse als het ontbrekende model: een voorwaarde die vóór
+    de gedragswijziging getoetst moet worden, niet erna.
+    """
+    monkeypatch.setenv("PSGSCORING_AROUSAL_LGBM", "1")
+    import numpy as np
+
+    from psgscoring.arousal import AROUSAL_LGBM_MIN_SF
+
+    # zelfde signaal, twee samplefrequenties
+    for sf, verwacht_hybride in ((32.0, False), (128.0, True)):
+        n = int(900 * sf)
+        t = np.arange(n) / sf
+        rng = np.random.default_rng(4)
+        eeg = (60.0 * np.sin(2 * np.pi * 1.5 * t)
+               + 6.0 * np.sin(2 * np.pi * 6.0 * t)
+               + rng.normal(0.0, 1.0, t.size))
+        for at in (200.0, 400.0, 600.0):
+            s, e = int(at * sf), int((at + 6.0) * sf)
+            eeg[s:e] = (28.0 * np.sin(2 * np.pi * 10.0 * t[s:e])
+                        + rng.normal(0.0, 1.0, e - s))
+        out = detect_arousals(eeg * 1e-6, sf, ["N2"] * 30)
+        avail = out["summary"].get("lgbm_available")
+        if verwacht_hybride:
+            assert "lgbm_skipped_reason" not in out["summary"], (
+                f"sf={sf} hoort de classifier niet over te slaan")
+        else:
+            assert avail is False, f"sf={sf}: classifier had niet mogen draaien"
+            assert out["summary"].get("lgbm_skipped_reason") == \
+                f"sample_rate_below_{AROUSAL_LGBM_MIN_SF:.0f}", (
+                "de reden hoort in de samenvatting te staan")
