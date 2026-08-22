@@ -61,3 +61,54 @@ def test_a_real_thermistor_still_gets_a_number():
     out = assess_flow_sensor_agreement(press, SF, therm, SF)
     assert out["agreement"] is not None, (
         "een echt ademend kanaal hoort gewoon een getal te krijgen")
+
+
+# --------------------------------------------------------------------------
+# De poortkeuze moet te overrulen zijn om beide armen op één cohort te meten.
+# --------------------------------------------------------------------------
+
+def test_the_gate_can_be_overridden_for_a_measurement(monkeypatch):
+    from psgscoring.pipeline import _thermistor_gate
+
+    prof = {"THERMISTOR_GATE": "envelope_agreement"}
+    assert _thermistor_gate(prof) == "envelope_agreement"
+
+    monkeypatch.setenv("PSGSCORING_THERMISTOR_GATE", "respiratory_band")
+    assert _thermistor_gate(prof) == "respiratory_band"
+
+    monkeypatch.setenv("PSGSCORING_THERMISTOR_GATE", "breath_coherence")
+    assert _thermistor_gate(prof) == "breath_coherence"
+
+
+def test_an_unknown_gate_name_does_not_silently_become_the_default(monkeypatch):
+    """Een typefout mag geen meting ongeldig maken.
+
+    Deze poort heeft die fout al eens gemaakt: de drempel stond als
+    default-argument en werd bij functiedefinitie geevalueerd, waardoor beide
+    armen van een vergelijking op hetzelfde kanaal draaiden zonder dat iemand
+    het zag.
+    """
+    import logging
+
+    from psgscoring.pipeline import _thermistor_gate
+
+    prof = {"THERMISTOR_GATE": "respiratory_band"}
+    monkeypatch.setenv("PSGSCORING_THERMISTOR_GATE", "respiratory_bnad")
+
+    seen = []
+
+    class _Grab(logging.Handler):
+        def emit(self, record):
+            seen.append(record.getMessage())
+
+    lg = logging.getLogger("psgscoring.pipeline")
+    h = _Grab(level=logging.WARNING)
+    lg.addHandler(h)
+    try:
+        got = _thermistor_gate(prof)
+    finally:
+        lg.removeHandler(h)
+
+    assert got == "respiratory_band", "profielwaarde hoort te blijven staan"
+    assert any("respiratory_bnad" in m for m in seen), (
+        f"onbekende poortnaam bleef stil; gezien: {seen}")

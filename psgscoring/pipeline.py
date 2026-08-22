@@ -225,7 +225,7 @@ def run_pneumo_analysis(
         # Bij additief gebruik hoeft de kwaliteitstoets niet te blokkeren;
         # zie de toelichting bij _resolve_flow_channels.
         additive_thermistor=profile.get("DUAL_SENSOR_APNEA", False),
-        thermistor_gate=profile.get("THERMISTOR_GATE", "envelope_agreement"),
+        thermistor_gate=_thermistor_gate(profile),
     )
 
     # Dual-sensor gevraagd maar niet uitvoerbaar: terugvallen op een sensor en
@@ -1967,6 +1967,40 @@ def _annotate_csr_density(output: dict, hypno: list) -> None:
         csr["criteria_met"] = bool(csr.get("csr_detected") and density_ok)
     except Exception as e:  # noqa: BLE001
         logger.warning("[pneumo] CSR density annotation failed: %s", e)
+
+
+# De drie poorten die `_resolve_flow_channels` kent. Onbekende namen vallen
+# daar stil terug op `envelope_agreement`; hier worden ze geweigerd, zodat een
+# typefout in een meting niet als de default-arm doorgaat.
+_THERMISTOR_GATES = ("envelope_agreement", "respiratory_band",
+                     "breath_coherence")
+
+
+def _thermistor_gate(profile: dict) -> str:
+    """Welke poort beslist of apneus op de thermistor gescoord worden.
+
+    Profielvlag `thermistor_gate`, met env-override
+    `PSGSCORING_THERMISTOR_GATE` -- nodig om beide poorten op hetzelfde
+    cohort te vergelijken zonder de registry te muteren, net als bij
+    `PSGSCORING_PLM_TIME_BASE` en `PSGSCORING_AROUSAL_LGBM`.
+
+    Een onbekende waarde wordt genegeerd MET waarschuwing. Stil terugvallen
+    zou een meting ongeldig maken zonder dat iemand het ziet -- precies de
+    fout die de drempel van deze poort eerder al maakte, toen een default-
+    argument bij functiedefinitie werd geevalueerd en beide armen van een
+    vergelijking op hetzelfde kanaal draaiden.
+    """
+    gate = str(profile.get("THERMISTOR_GATE", "envelope_agreement"))
+    raw = os.environ.get("PSGSCORING_THERMISTOR_GATE")
+    if raw:
+        if raw in _THERMISTOR_GATES:
+            gate = raw
+        else:
+            logger.warning(
+                "[pneumo] PSGSCORING_THERMISTOR_GATE=%r is geen bekende poort "
+                "(%s); profielwaarde %r blijft staan",
+                raw, ", ".join(sorted(_THERMISTOR_GATES)), gate)
+    return gate
 
 
 def _plm_event_cap(profile: dict) -> int:
