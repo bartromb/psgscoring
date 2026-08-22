@@ -176,11 +176,21 @@ De apneudetectie **halveert**. Een deel schuift door naar hypopneu (+316),
 maar lang niet alles: netto verdwijnen er events, wat de AHI-bias negatiever
 maakt (−4,19 → −5,13).
 
-De thermistor is dus als apneusensor slechter dan de neusdruk op dit cohort —
-precies omgekeerd aan wat de AASM-voorkeur voor een thermische opnemer
-suggereert. Dat kan aan het MESA-`Therm`-kanaal liggen of aan een
-apneudetector die op druksignalen is afgesteld; dat is met deze meting niet
-te scheiden.
+Ik schreef hier eerst dat de thermistor "als apneusensor slechter is dan de
+neusdruk op dit cohort". **Dat is diezelfde dag nagemeten en het klopt niet
+zo.** Zie `apneudrempel_sensorafhankelijk_bevinding.md`: op 597 door mensen
+gescoorde apneus zakt de neusdruk mediaan 89,6 % en de thermistor 80,3 %, en
+het aandeel dat de drempel van 90 % haalt is 50 % tegen 13 %.
+
+Het profiel hanteert **één** `flow_reduction_threshold` van 0,9, ongeacht de
+sensor. Die drempel is in de praktijk voor de neusdruk geijkt, want de poort
+keurt de thermistor op ⅔ van de opnames af. De neusdruk vergroot de daling uit
+— het signaal loopt ongeveer met het kwadraat van de flow — en de AASM
+schrijft de thermische opnemer juist vóór omdat de neusdruk overdrijft.
+
+De juiste formulering is dus: de neusdruk is de betere sensor **voor deze
+drempel**. Dat is een andere uitspraak, en ze wijst naar de detector in plaats
+van naar de sensor.
 
 ## Wat dit NIET zegt
 
