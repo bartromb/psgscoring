@@ -43,7 +43,7 @@ from .spo2 import analyze_spo2, compute_hypoxic_burden
 from .ancillary import (
     analyze_position, analyze_heart_rate, analyze_snore, detect_cheyne_stokes,
 )
-from .plm import analyze_plm
+from .plm import EVENT_LIST_CAP, analyze_plm
 from .ventilation import compute_ventilatory_burden
 
 # Arousal & RERA detection — in-package as of v0.8.0 (ported from YASAFlaskified).
@@ -673,6 +673,10 @@ def run_pneumo_analysis(
             resp_events=resp.get("events", []),
             artifact_epochs=artifact_epochs,
             time_base_fix=_plm_tb,
+            # Niet hier afkappen: `plm_arousal_index` moet over de hele nacht
+            # rekenen. De payloadgrens gaat er in _cap_plm_event_list() af,
+            # na _compute_arousal_etiology().
+            event_list_cap=None,
         ))
     else:
         output["plm"] = {"success": False, "error": "No leg-EMG channels", "summary": {}}
@@ -1265,6 +1269,7 @@ def run_pneumo_analysis(
     _compute_dual_ahi(output, profile)                 # A1: Rule 1A vs 1B (4%) AHI
     _annotate_csr_density(output, hypno)               # A2: CSR density criterion G.1(b)
     _compute_arousal_etiology(output, hypno)           # A3: resp/spont/PLM arousal indices
+    _cap_plm_event_list(output, _plm_event_cap(profile))  # payloadgrens, NA A3
     _flag_apneas_at_cap(output, profile)               # A4: possible long-central-apnea truncation
     _mark_hypoventilation_not_assessed(output)         # A6: explicit scope statement
 
@@ -1964,6 +1969,58 @@ def _annotate_csr_density(output: dict, hypno: list) -> None:
         logger.warning("[pneumo] CSR density annotation failed: %s", e)
 
 
+def _plm_event_cap(profile: dict) -> int:
+    """Payloadgrens voor `plm["events"]`: profielvlag, env wint.
+
+    `PSGSCORING_PLM_EVENT_LIST_CAP=0` of een negatieve waarde betekent geen
+    grens. Onleesbare waarden vallen terug op het profiel, met een
+    waarschuwing -- stil de verkeerde grens hanteren is erger dan hem negeren.
+    """
+    cap = int(profile.get("PLM_EVENT_LIST_CAP", EVENT_LIST_CAP) or 0)
+    raw = os.environ.get("PSGSCORING_PLM_EVENT_LIST_CAP")
+    if raw is not None:
+        try:
+            cap = int(raw)
+        except ValueError:
+            logger.warning(
+                "[pneumo] PSGSCORING_PLM_EVENT_LIST_CAP=%r is geen getal; "
+                "profielwaarde %d blijft staan", raw, cap)
+    return cap if cap > 0 else 10**9
+
+
+def _cap_plm_event_list(output: dict, cap: int = EVENT_LIST_CAP) -> None:
+    """Kap `plm["events"]` af op de payloadgrens -- als laatste stap.
+
+    De grens is een transportbeperking, geen scoringsregel, en mag daarom geen
+    enkel afgeleid getal raken. Tot 22-08-2026 kapte `analyze_plm` zelf af,
+    vóór `_compute_arousal_etiology`, en dan telde `plm_arousal_index` alleen
+    de eerste `EVENT_LIST_CAP` bewegingen van de nacht: op PSG-IPA SN1 200 van
+    660, dus een index over het eerste deel van de nacht die als getal over de
+    hele nacht in het rapport kwam.
+
+    `plm_index` en `n_plm` waren nooit geraakt -- die komen uit `plm_eligible`
+    vóór het afkappen. Alleen wat de pipeline uit `events[]` naderhand
+    afleidde, en de EDF+-export, zagen de afgekapte lijst.
+    """
+    plm = output.get("plm")
+    if not isinstance(plm, dict):
+        return
+    events = plm.get("events")
+    if not isinstance(events, list):
+        return
+    n_trunc = max(0, len(events) - cap)
+    if n_trunc:
+        logger.warning(
+            "[pneumo] PLM: %d van %d bewegingen niet in events[] (grens %d); "
+            "afgeleide indices zijn wel over alle %d berekend",
+            n_trunc, len(events), cap, len(events),
+        )
+        plm["events"] = events[:cap]
+    summ = plm.get("summary")
+    if isinstance(summ, dict):
+        summ["n_events_truncated"] = n_trunc
+
+
 def _compute_arousal_etiology(output: dict, hypno: list) -> None:
     """A3: surface arousal aetiology as per-hour indices (AASM V.A Note 4):
     respiratory-, spontaneous- and PLM-related arousal indices. Output-additive;
@@ -1996,7 +2053,20 @@ def _compute_arousal_etiology(output: dict, hypno: list) -> None:
         summ["spontaneous_arousal_index"] = round(ai * n_spont / n_total, 1)
         # PLMS arousal index (subset of spontaneous): a PLM with an arousal onset
         # within -0.5 .. +3 s of the movement, expressed on the same denominator.
-        plm_events = (output.get("plm", {}) or {}).get("events", []) or []
+        plm_block = output.get("plm", {}) or {}
+        plm_events = plm_block.get("events", []) or []
+        # Deze index moet over de HELE nacht rekenen. Staat de payloadgrens er
+        # al af, dan is dit stap A3 ná _cap_plm_event_list() en telt hij alleen
+        # het begin van de nacht -- de bug van vóór 22-08-2026. Stil mag dat
+        # niet zijn.
+        _already_capped = (plm_block.get("summary") or {}).get(
+            "n_events_truncated") or 0
+        if _already_capped:
+            logger.warning(
+                "[pneumo] plm_arousal_index wordt over een AFGEKAPTE lijst "
+                "berekend (%d bewegingen weggelaten): _cap_plm_event_list() "
+                "draaide vóór _compute_arousal_etiology()", _already_capped,
+            )
         arousals = ar.get("events", []) or []
         if plm_events and arousals:
             a_onsets = sorted(float(a.get("onset_s", 0)) for a in arousals)

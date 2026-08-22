@@ -416,15 +416,50 @@ class PostProcessingRules:
     -5,13 -> -5,28 (+0,14, grens 1,00) en F1 0,510 -> 0,514 met 101 van 150
     beter. Looptijd 1,03x.
 
-    UIT op de profielen die een externe regelset of een gepubliceerde
-    dataset-analyse reproduceren: `aasm_v2_rec`, `aasm_v1_rec`, `cms_medicare`,
-    `mesa_shhs` en `chicago_1999`. Een ML-classifier maakt geen deel uit van
-    AASM v1/v2 of de CMS-regels, en `mesa_shhs`/`chicago_1999` moeten paper
-    v31/v37 reproduceren.
+    UIT op twee groepen profielen:
 
-    LET OP: `_compute_rera_rdi()` leest de arousallijst RECHTSTREEKS, niet via
-    `arousal_limb_wired`. De RDI beweegt dus op elk profiel waar deze vlag aan
-    staat, ook waar de AHI onveranderd blijft."""
+    1. Die een externe regelset of gepubliceerde dataset-analyse reproduceren:
+       `aasm_v2_rec`, `aasm_v1_rec`, `cms_medicare`, `mesa_shhs`,
+       `chicago_1999`. Een ML-classifier maakt geen deel uit van AASM v1/v2 of
+       de CMS-regels, en `mesa_shhs`/`chicago_1999` moeten paper v31/v37
+       reproduceren.
+    2. Waar arousals doorwerken in de RDI, dus waar `arousal_limb_wired` aan
+       staat: `aasm_v3_breath`, `aasm_v3_prob` en hun `_dual`-varianten.
+       Op MESA n=50 verschoof de classifier daar de RDI-ernstklasse op 14/50
+       opnames (28 %) tegen 5/50 voor de AHI, en er is geen RERA-referentie om
+       te bepalen welke RDI juister is: MESA annoteert er geen en PSG-IPA
+       bevat er 3 in de hele manuele set, hoewel `^RERA$` in de scoringsfilter
+       stond. Zie test_profiles.py voor de invariant.
+
+    LET OP (gecorrigeerd 22-08-2026): eerder stond hier dat
+    `_compute_rera_rdi()` de arousallijst RECHTSTREEKS leest en dat de RDI dus
+    op ELK profiel met deze vlag beweegt. Dat klopt niet. De functie krijgt de
+    GEFILTERDE lijst door: de poort in `pipeline.py` levert arousals alleen
+    door als `arousal_limb_wired` en de limb-stap aan staan. Daarom is
+    `aasm_v3_rec` aantoonbaar onbewogen -- daar is RDI gelijk aan AHI."""
+
+    plm_event_list_cap: int = 200
+    """Hoeveel beenbewegingen er hoogstens in `plm["events"]` meegaan.
+
+    Een transportgrens, geen scoringsregel. Geen enkele index hangt er nog van
+    af: `plm_index` en `n_plm` komen uit de volledige lijst, en sinds
+    22-08-2026 rekent ook `plm_arousal_index` over de hele nacht (de pipeline
+    vraagt `analyze_plm` om de ongekapte lijst en kapt pas na de afgeleide
+    indices af). Wat de grens nog raakt is wat een lezer ZIET: de EDF+-export
+    in YASAFlaskified schrijft `events[]` als annotaties, dus in een viewer
+    stoppen de markeringen midden in de nacht.
+
+    **200 is laag.** Menselijke scoorders markeren op PSG-IPA tot 1033
+    bewegingen in een nacht (SN4, hoogste van 60 scoorder-opnames), en onze
+    detector vindt er 660 op SN1. Bij 200 valt dus het merendeel van de
+    markeringen uit de export.
+
+    Toch blijft 200 de default: hem verhogen vergroot de opgeslagen
+    jobpayload, en die afweging hoort bij wie de opslag beheert. Zet hem
+    hoger op een profiel, of via `PSGSCORING_PLM_EVENT_LIST_CAP`, als de
+    export compleet moet zijn. `n_events_truncated` in de samenvatting zegt
+    altijd hoeveel er wegviel.
+    """
 
     plm_time_base: bool = True
     """Reken de tijd van een beenbeweging met de echte vensterlengte.

@@ -52,6 +52,7 @@ def analyze_plm(
     artifact_epochs: list | None = None,
     leg_unit: str = "auto",
     time_base_fix: bool = True,
+    event_list_cap: int | None = EVENT_LIST_CAP,
 ) -> dict:
     """
     Detect PLMs on left and/or right tibialis anterior EMG channels.
@@ -138,21 +139,32 @@ def analyze_plm(
         plmi = per_hour(plm_count, total_sleep_h)
         lmi  = per_hour(len(sleep_lms), total_sleep_h)
 
-        # De lijst is afgekapt op 200. Dat is geen inhoudelijke keuze maar een
-        # payloadgrens, en ze was tot 21-08-2026 onzichtbaar: op PSG-IPA SN1
-        # zijn dat 200 van 660 bewegingen, en alles wat verderop
-        # `output["plm"]["events"]` leest -- `plm_arousal_index` in het
-        # PDF-rapport, de EDF+-export -- ziet dus hooguit de eerste 200 van de
-        # nacht. De grens zelf blijft staan; wat er wegvalt hoort afleesbaar te
-        # zijn uit de samenvatting.
-        n_truncated = max(0, len(plm_eligible) - EVENT_LIST_CAP)
-        if n_truncated:
-            _log_plm.warning(
-                "PLM: %d van %d geschikte bewegingen niet in events[] "
-                "(grens %d); n_events_truncated staat in de samenvatting",
-                n_truncated, len(plm_eligible), EVENT_LIST_CAP,
-            )
-        result["events"]  = plm_eligible[:EVENT_LIST_CAP]
+        # De lijst wordt afgekapt op `event_list_cap`. Dat is een payloadgrens,
+        # geen scoringsregel, en ze was tot 21-08-2026 onzichtbaar: op PSG-IPA
+        # SN1 zijn dat 200 van 660 bewegingen.
+        #
+        # `event_list_cap=None` kapt niet af. De pipeline gebruikt dat: die
+        # rekent eerst `plm_arousal_index` over de VOLLEDIGE lijst en kapt pas
+        # daarna af (zie pipeline.py, na `_compute_arousal_etiology`). Tot
+        # 22-08-2026 gebeurde dat andersom, en dan telde een afgeleide index
+        # alleen de eerste 200 bewegingen van de nacht -- een klinisch getal
+        # dat van een payloadgrens afhing.
+        #
+        # De index zelf (`plm_index`, `n_plm`) is nooit geraakt: die wordt
+        # hierboven uit `plm_eligible` en `plm_series` berekend, vóór het
+        # afkappen.
+        if event_list_cap is None:
+            n_truncated = 0
+            result["events"] = plm_eligible
+        else:
+            n_truncated = max(0, len(plm_eligible) - event_list_cap)
+            if n_truncated:
+                _log_plm.warning(
+                    "PLM: %d van %d geschikte bewegingen niet in events[] "
+                    "(grens %d); n_events_truncated staat in de samenvatting",
+                    n_truncated, len(plm_eligible), event_list_cap,
+                )
+            result["events"] = plm_eligible[:event_list_cap]
         result["series"]  = plm_series
         result["summary"] = {
             "n_events_truncated": n_truncated,

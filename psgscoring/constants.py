@@ -98,6 +98,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "AROUSAL_SPECTRAL_SHIFT": pp.arousal_spectral_shift,
         "AROUSAL_HYSTERESIS": pp.arousal_hysteresis,
         "PLM_TIME_BASE": pp.plm_time_base,
+        "PLM_EVENT_LIST_CAP": pp.plm_event_list_cap,
         "AROUSAL_LGBM": pp.arousal_lgbm,
         "AROUSAL_EOG_REJECT": pp.arousal_eog_reject,
         "HYPOXIC_BURDEN_CAP_AT_NEXT_EVENT":
