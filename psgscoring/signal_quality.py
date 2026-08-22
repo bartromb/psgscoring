@@ -1053,6 +1053,31 @@ def assess_flow_sensor_agreement(
                          f"({sf_pressure:g} vs {sf_thermistor:g} Hz)")
         return out
 
+    # Vlakke kanalen eruit VOOR de envelope. De bewaking hieronder testte
+    # `np.std(envelope) == 0`, maar `filtfilt` op een constante geeft
+    # numerieke ruis, en op een kanaal met eenheden-dither (+-1 LSB) is de std
+    # sowieso niet nul. Dan werd er een correlatie over ruis berekend en als
+    # "de thermistor volgt de ademhaling niet" gerapporteerd -- een uitspraak
+    # over de ademhaling, over een kanaal dat niets meet. Op `artefacten.edf`
+    # gaf dat agreement 0,026; dat het onder de drempel viel was toeval.
+    #
+    # De toets is een numerieke-ruisvloertoets, geen fysiologische: een kanaal
+    # waarvan de variatie op de resolutie van zijn eigen waarden ligt, draagt
+    # geen signaal. Schaalvrij, dus onafhankelijk van de EDF-eenheid -- zie de
+    # RIP-poort, waar een absolute drempel in feite de eenhedendeclaratie mat.
+    for _naam, _x in (("neusdruk", pressure), ("thermistor", thermistor)):
+        _x = np.asarray(_x, dtype=float)
+        if _x.size == 0:
+            out["reason"] = f"{_naam}: leeg kanaal"
+            return out
+        _sd = float(np.std(_x))
+        _mx = float(np.max(np.abs(_x))) if _x.size else 0.0
+        if _sd <= max(1e-9 * _mx, 0.0) or _sd == 0.0:
+            out["reason"] = (
+                f"{_naam}: kanaal is vlak (std {_sd:.3g} op amplitude "
+                f"{_mx:.3g}); geen signaal om te vergelijken")
+            return out
+
     ep = _breath_envelope(pressure, sf_pressure)
     et = _breath_envelope(thermistor, sf_thermistor)
     if ep.size == 0 or et.size == 0:
