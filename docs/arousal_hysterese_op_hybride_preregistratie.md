@@ -76,3 +76,71 @@ binnen de 0,61–1,29 die de hybride alleen haalt.
 **Randvoorwaarde.** Ook bij succes gaat er niets default zonder een meting van
 de respiratoire gevolgen op MESA n=150, zoals bij de hybride zelf. Arousals
 voeden Rule 1B en de RDI.
+
+---
+
+# Uitkomst — 22 augustus 2026
+
+**Primair gefaald op elke waarde. Hysterese is definitief van tafel — en het
+mechanisme-criterium legt uit waarom dat ertoe doet.**
+
+| | spreiding | mediane F1 | mediane duur | q-bereik |
+|---|---:|---:|---:|---|
+| exit 0,72 *(preregistratie)* | 3,74 | **0,302** | 12,0 s | 0,18–0,69 |
+| exit 0,80 | 2,80 | 0,384 | 11,7 s | 0,35–0,99 |
+| exit 0,90 | 2,14 | **0,404** | 9,4 s | 0,55–1,18 |
+| exit 1,00 | 1,96 | 0,395 | 7,5 s | 0,69–1,35 |
+| **hybride alleen** | 2,10 | **0,463** | 6,2 s | 0,61–1,29 |
+| *mensen* | — | *0,692* | *8,3 s* | — |
+
+- **Primair (F1 > 0,463): NIET GEHAALD** op alle vier de waarden. De beste
+  komt op 0,404.
+- **Secundair (duur in [7,0–10,0] s): GEHAALD** bij exit 0,90 (9,4 s) en
+  exit 1,00 (7,5 s).
+- **Bewaking (spreiding ≤ 2,10): GEHAALD** bij exit 0,90 en 1,00.
+
+## Wat dit weerlegt
+
+Niet alleen de ingreep, maar de aanname eronder.
+
+De hele dag droeg ik de gedachte mee dat de versnipperde fase-1 mask de reden
+was voor de lage overeenstemming: 1897 ruwe regio's waarvan er 65 de 3 s-eis
+halen, mediane eventduur 3,6 s tegen 8,6 s menselijk. Repareer de morfologie,
+zo luidde de redenering, en de F1 volgt.
+
+**Bij exit 1,00 klopt de morfologie en zakt de F1 toch.** De duur landt op
+7,5 s tegen 8,3 s menselijk, het aantal ligt binnen 0,69–1,35 van de
+scoordermediaan, de spreiding is met 1,96 béter dan de hybride alleen — en de
+overeenstemming daalt van 0,463 naar 0,395.
+
+De events hebben dus de juiste lengte, het juiste aantal en de juiste
+verdeling over opnames, en vallen nog steeds niet samen met wat mensen
+markeren. **Morfologie en lokalisatie zijn onafhankelijke problemen, en alleen
+het tweede bepaalt de overeenstemming.**
+
+Waarom samenvoegen actief schaadt, is ook zichtbaar: op SN4 gaat de duur netjes
+van 5,8 naar 9,6 s (mens 10,3) terwijl het aantal instort van 13,5 naar 4,2
+(scoorder 14,3). Vijf korte kandidaten worden één lange, de classifier ziet er
+één in plaats van vijf, en gooit daar vervolgens ook nog van weg. Je wint
+morfologie en verliest dekking.
+
+En het duurprobleem is niet eens uniform: de hybride zit op SN2 al op 8,3 s
+(mens 7,9) maar op SN3 op 5,6 s (mens 8,3). Een correctie die op elke opname
+hetzelfde doet, kan een probleem dat per opname verschilt niet oplossen.
+
+## Waar dit naartoe wijst
+
+De resterende kloof — 0,463 tegen 0,692 — is een LOKALISATIEprobleem. Twee
+richtingen blijven over, en de eerste is meetbaar zonder nieuw werk:
+
+1. **Single versus multi-derivatie tegen dezelfde referentie** (punt A2 uit
+   `docs/PAPER_REVISIE_v40.md`). Klinische profielen draaien default multi,
+   maar die keuze is nooit tegen een referentie gemeten. Menselijke scoorders
+   zien de volle montage; wij meten hier op één centraal kanaal.
+2. **De montage die de scoorder zag.** EOG en kin-EMG zitten in de
+   kenmerkvector van de classifier, maar niet in het kandidaatstadium. Een
+   arousal die op O2 zichtbaar is en op C4 niet, bestaat voor ons niet.
+
+Wat NIET meer geprobeerd hoeft te worden: drempels en eventmorfologie in het
+regelpad. Dat is nu driemaal gemeten — spectrale verschuiving, hysterese
+alleen, hysterese mét filter — en driemaal weerlegd.
