@@ -172,11 +172,39 @@ waar arousals zitten**. Hoe beter een artefactdetector op variantie let, hoe
 gerichter hij arousals wegneemt. De eigen regel is slechter in artefacten
 vinden en daardoor mínder gericht schadelijk per weggegooide epoch.
 
-Een tweede verklaring is niet uitgesloten en niet gemeten: het uitsluiten van
-epochs onderbreekt de rollende basislijn in `detect_arousals`, en dan kan de
-schade verder reiken dan de uitgesloten epochs zelf. Dat is een hypothese, geen
-bevinding — wie het wil weten, moet de basislijn over uitgesloten epochs
-interpoleren en opnieuw meten.
+### De alternatieve verklaring is nagemeten en WEERLEGD
+
+Ik hield open dat het uitsluiten van epochs de rollende basislijn onderbreekt
+— die kijkt 120 s terug over het slaapmasker, en dat masker sluit
+artefact-epochs uit — zodat de schade verder zou reiken dan de uitgesloten
+epochs. Dan was er een derde weg geweest: basislijn interpoleren over
+uitgesloten epochs, onderdrukking behouden, arousals terugwinnen.
+
+Die weg bestaat niet. Gemeten op een niet-stationair signaal (achtergrond­
+vermogen verdrievoudigt over de nacht, zodat een uitgehongerd venster op een
+verkeerde waarde zou landen), met arousals uitsluitend in de tweede helft en
+uitsluitingen uitsluitend in de eerste:
+
+| uitgesloten blok | epochs | telling na de splitsing |
+|---|---:|---:|
+| vlak vóór de arousals (1000–1200 s) | 7 | ongewijzigd |
+| ver weg (120–320 s) | 6 | ongewijzigd |
+| verspreid, 20 % van de eerste helft | 8 | ongewijzigd |
+| **controle:** 10 epochs MÉT arousals | 10 | **12 → 8** |
+
+De controle laat zien dat de fixture wel degelijk een effect kan tonen. Het
+effect van uitsluiting is dus **lokaal**: precies de arousals in de uitgesloten
+epochs gaan verloren, niets meer.
+
+Daarmee staat de eerste verklaring alleen overeind. De verrijking van bijna een
+factor tien betekent dan letterlijk dat een variantie-gebaseerde
+artefactdetector de arousal-dichtste epochs uitkiest. Vastgelegd in
+`tests/test_artifact_exclusion_is_local.py`, zodat een latere wijziging aan de
+basislijn niet stil alsnog gaat lekken.
+
+(De verrijking zelf blijft afgeleid, niet direct gemeten: ik heb niet per
+opname geteld welk aandeel van de referentie-arousals in de gevlagde epochs
+valt.)
 
 ## Gevolg
 
