@@ -115,3 +115,42 @@ niets geijkt en er is geen kalibratie/validatie-splitsing nodig.
 
 Dit blijft één cohort en één type thermistor; de uitkomst generaliseert niet
 zonder herhaling elders.
+
+### Correctie op de opzet hierboven, vóór enige uitkomst
+
+De controlevensters-opzet deugt niet, om twee redenen die pas bij het uitvoeren
+bleken. Ik vervang hem, en schrijf op waarom in plaats van hem stilzwijgend te
+wisselen.
+
+**1. Hij meet het verkeerde contrast.** De maat is de amplitudedaling ten
+opzichte van de 60 s ervoor. In een controlevenster met stabiele ademhaling is
+die daling per constructie ongeveer nul, op beide sensoren. Apneu tegen rustige
+ademhaling is dus op allebei triviaal scheidbaar en de AUC zou voor beide bijna
+1,0 worden — een getal dat niets beslist. De drempel van 90 % doet zijn werk
+niet daar, maar op de grens tussen **apneu en hypopneu**: beide zijn
+flowdalingen, en het criterium moet ze uit elkaar houden.
+
+**2. Er is bij ernstige OSA geen ruimte voor.** Op `mesa-sleep-0033` (AHI 47)
+blijven na uitsluiting van alle events **99 seconden** event-vrije slaap over,
+bij een mediane apneuduur van 33 s. Juist de opnames waar het om gaat leveren
+geen controlevensters.
+
+**Nieuwe opzet.** Zelfde maat, maar apneus tegen **hypopneus** — in NSRR de
+labels `Hypopnea` en `Unsure`, die allebei een flowdaling van ≥ 30 % zijn (zie
+de moduledocstring van `validate_mesa.py`). AUC per sensor, drempelvrij.
+
+**Regel, ongewijzigd van vorm:**
+
+- AUC thermistor binnen **0,03** van die van de neusdruk → hij scheidt apneu
+  van hypopneu even goed en het verschil is louter schaal: een
+  **sensorafhankelijke drempel** is de juiste richting.
+- Meer dan 0,03 **lager** → het kanaal draagt op dit cohort werkelijk minder
+  onderscheid en de terugval op de neusdruk is inhoudelijk juist; deze lijn
+  stopt dan.
+- Hóger → apart bekijken.
+
+Ook een bevinding op zichzelf, en van dezelfde soort als de teller die op de
+substring `"apnea"` zocht: `recording start time` draagt in de NSRR-annotatie
+een duur van de **hele nacht** (32400 s). Wie "alles wat geen slaapstadium is"
+als event behandelt, maakt daarmee elke seconde bezet. Een expliciete
+blokkeerlijst is de enige veilige aanpak.
