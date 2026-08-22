@@ -79,6 +79,12 @@ from validate_psgipa import (  # noqa: E402
     severity,
 )
 
+APNEA_TYPES = frozenset({"obstructive", "central", "mixed", "uncertain"})
+"""Apneutypen zoals de bibliotheek ze schrijft. `uncertain` is een apneu die
+niet in obstructief/centraal/gemengd onderverdeeld kon worden; die valt buiten
+`ahi_total` maar is wel een gedetecteerde apneu, dus voor een telling hoort
+hij mee."""
+
 EPOCH_S = 30.0
 
 STAGE_MAP = {
@@ -358,19 +364,33 @@ def analyse_one(args):
         rec = {
             "ahi": float(summ.get("ahi_total") or summ.get("ahi") or 0.0),
             # v0.24.0: RDI meeschrijven. De arousal-classifier verandert de
-            # arousallijst, en `_compute_rera_rdi()` leest die RECHTSTREEKS --
-            # niet via `arousal_limb_wired`. De RDI beweegt dus op elk profiel
-            # waar de classifier aan staat, terwijl dit harnas tot nu toe
-            # alleen de AHI vastlegde. Die leemte stond als openstaand punt in
+            # arousallijst. GECORRIGEERD 22-08-2026: hier stond dat
+            # `_compute_rera_rdi()` die lijst RECHTSTREEKS leest en dat de RDI
+            # dus op elk profiel met de classifier beweegt. Onjuist -- de
+            # functie krijgt de lijst door die `arousal_limb_wired` afknijpt,
+            # dus alleen de vier profielen met die vlag bewegen; op de rest is
+            # RDI gelijk aan AHI. Het harnas legde tot v0.24.0 alleen de AHI
+            # vast. Die leemte stond als openstaand punt in
             # de v0.24.0-release; zonder dit veld is ze niet te dichten.
             "rdi": (float(summ["rdi"]) if summ.get("rdi") is not None else None),
             "n_arousals": len(((res.get("arousal") or {}).get("events")) or []),
             "arousal_index": ((res.get("arousal") or {}).get("summary") or {})
                              .get("arousal_index"),
             "n_events": len(algo),
+            # De typewoordenschat van de bibliotheek bevat het woord "apnea"
+            # NIET: apneus heten "obstructive", "central", "mixed" en
+            # (niet-onderverdeeld) "uncertain" -- zie respiratory.py:2008,
+            # waar dezelfde drie namen de apneus selecteren. Deze teller zocht
+            # op de substring "apnea" en stond daardoor op NUL, ook op opnames
+            # met een AHI van 47. Over 50 MESA-opnames: 0 gerapporteerd tegen
+            # 2223 werkelijk gedetecteerd.
+            #
+            # Alleen boekhouding: `match`, `ahi` en `n_events` komen niet
+            # langs deze twee velden, dus eerdere F1- en bias-cijfers zijn
+            # ongemoeid. Wat wel fout was, is elke uitspraak over
+            # apneu-aantallen uit dit harnas.
             "n_hypopnea": sum(1 for e in algo if "hypopnea" in str(e[2])),
-            "n_apnea": sum(1 for e in algo
-                           if "apnea" in str(e[2]) and "hypo" not in str(e[2])),
+            "n_apnea": sum(1 for e in algo if str(e[2]) in APNEA_TYPES),
             "match": {},
         }
         for name, ref in refs.items():
