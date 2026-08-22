@@ -127,3 +127,40 @@ overdetectie van de index is een aparte, klinische afweging.
 
 Wat wél vaststaat: de eerdere conclusie dat multi "sensitiviteit koopt zonder
 accuraatheid" gold voor het REGELgebaseerde pad en geldt niet meer.
+
+
+---
+
+# Wat de uitrol van 21 augustus werkelijk deed
+
+Alle metingen hierboven vergelijken armen binnen dezelfde derivatiemodus. De
+vraag die daarnaast beantwoord moest worden: wat deed de overgang van
+regelgebaseerd naar hybride in de configuratie die ECHT draait — multi?
+
+| | F1 | recall | precisie | q mediaan | q bereik | spreiding |
+|---|---:|---:|---:|---:|---|---:|
+| multi + regels *(oude productie)* | 0,326 | 0,460 | 0,248 | 1,59 | 0,95–6,47 | 6,78 |
+| **multi + hybride** *(nu)* | **0,505** | 0,649 | 0,425 | 1,47 | 0,94–1,85 | **1,97** |
+| *scoorder-onderling* | *0,692* | | | | | |
+
+Per opname (F1, oud → nieuw): SN1 0,334 → 0,505 · SN2 0,149 → 0,355 ·
+SN3 0,152 → 0,390 · SN4 0,326 → 0,568 · SN5 0,508 → 0,678. **Vijf van vijf.**
+
+De precisie is de plek waar de winst zit: 0,248 → 0,425.
+
+**De uitschieter verdwijnt.** In de oude stand rapporteerde SN2 een
+arousal-index van 55,1 per uur tegen een scoordermediaan van 8,5 — een factor
+6,47 — met een precisie van 0,090. Dat is nu 15,7 en 0,273.
+
+En SN3 laat zien waarom de index als maat niet volstaat: daar rapporteerde de
+oude stand 17,2 tegen een scoorder van 18,0, wat er perfect uitzag, terwijl de
+event-F1 op 0,152 lag met een precisie van 0,159. Het juiste aantal op de
+verkeerde momenten — hetzelfde patroon als de PLM-tijdbasisfout.
+
+**Perspectief op de overdetectie.** Hierboven noemde ik de mediane `q` van
+1,47 een bezwaar. Dat blijft staan als openstaand punt, maar het is een
+verbetering: van 1,59 mét een staart tot 6,47 naar 1,47 met een maximum van
+1,85. De overdetectie is niet nieuw en niet verergerd — ze is gehalveerd in
+mediaan en met een factor 3,5 in spreiding.
+
+Meetscript: `docs/meet_arousal_derivatie_psgipa.py`.
