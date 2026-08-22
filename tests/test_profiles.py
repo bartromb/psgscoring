@@ -505,3 +505,44 @@ if __name__ == "__main__":
     import sys
     # Allow running as `python test_profiles.py`
     sys.exit(pytest.main([__file__, "-v"]))
+
+
+def test_arousal_classifier_is_off_wherever_arousals_reach_the_rdi():
+    """Geen profiel mag de arousal-classifier EN de arousal->RDI-koppeling aan
+    hebben staan.
+
+    Waarom dit een test is en geen afspraak: de combinatie verschoof op MESA
+    n=50 de RDI-ernstklasse op 14/50 opnames (28 %), tegen 5/50 voor de AHI,
+    en er is geen RERA-referentie om uit te maken welke van de twee RDI's
+    juister is -- MESA annoteert geen RERA's, en PSG-IPA bevat er 3 in de hele
+    manuele set. Een profiel dat beide vlaggen aanzet verandert dus een
+    klinische index zonder dat iemand kan nagaan of het een verbetering is.
+
+    De classifier zelf is niet omstreden (PSG-IPA F1 0,326 -> 0,505); alleen
+    het doorwerken ervan in de RDI is dat.
+    """
+    from psgscoring.profiles import get_profile, list_profiles
+
+    both = [
+        n for n in list_profiles()
+        if get_profile(n).post_processing.arousal_limb_wired
+        and get_profile(n).post_processing.arousal_lgbm
+    ]
+    assert not both, (
+        "profielen met arousal_limb_wired EN arousal_lgbm: %s -- dit verschuift "
+        "de RDI-ernstklasse op ~28 %% van de opnames zonder RERA-referentie" % both
+    )
+
+
+def test_arousal_classifier_stays_on_where_arousals_do_not_reach_the_rdi():
+    """De keerzijde: de RDI-beslissing mag de classifier niet overal uitzetten.
+
+    Zonder deze test zou `arousal_lgbm=False` overal het bovenstaande ook
+    laten slagen, en dan is de PSG-IPA-winst stilzwijgend weggegooid.
+    """
+    from psgscoring.profiles import get_profile
+
+    for name in ("aasm_v3_rec", "aasm_v3_pressure", "aasm_v3_amplitude"):
+        pp = get_profile(name).post_processing
+        assert pp.arousal_lgbm is True, name
+        assert pp.arousal_limb_wired is False, name

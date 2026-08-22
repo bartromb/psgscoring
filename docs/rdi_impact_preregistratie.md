@@ -103,9 +103,44 @@ RDI = AHI, aantoonbaar onbewogen.
 De terugweg is één vlag: `arousal_lgbm=False` op die profielen zet de oude RDI
 terug zonder de arousalverbetering elders op te geven.
 
+## Nagegaan: PSG-IPA heeft ook geen RERA-referentie
+
+De goedkoopste volgende stap was nagaan of PSG-IPA `Resp_events/` RERA's
+bevat. Dat is gedaan, en het antwoord is nee.
+
+| arm | RERA's | apneus + hypopneus |
+|---|---:|---:|
+| manual (5 opnames x 12 scoorders) | **3** | 5616 |
+| semiauto | 0 | 6303 |
+| auto | 0 | 574 |
+
+De drie zitten in twee bestanden: `SN3_..._scorer1` (2, naast 21 hypopneus)
+en `SN5_..._scorer8` (1, naast 52 hypopneus). **58 van de 60
+scoorder-opnames scoorden er nul.**
+
+Dat is geen protocolbeperking. Het label stond expliciet toe: de scoringsfilter
+in `PSG_IPA_db_quickcheck_with_scoring.xml` is
+
+    (^(Obstructive|Central|Mixed) apnea$|^Apnea$|
+     ^(Obstructive|Central) hypopnea$|^Hypopnea$|^RERA$)
+
+RERA staat erin. De scoorders mochten het gebruiken en deden het vrijwel niet.
+
+**Wat dit wel en niet zegt.** Het sluit de goedkope route af: er is op geen van
+beide datasets een RERA-referentie, dus welke van de twee RDI's juister is,
+blijft onbeslist en de bestaande uitkomst gaat voor.
+
+Het is verleidelijk hieruit te lezen dat ons RERA-aandeel van ~46 % veel te
+hoog is. Die stap zet ik **niet**, om een mechanische reden: wij scoren
+hypopneus desat-gestuurd (`rule1a_arousal_enabled=False` op alle profielen,
+weerlegd op 2026-08-22). Een scoorder die de aanbevolen regel volgt, telt een
+flow-beperking met arousal als HYPOPNEU; bij ons valt diezelfde gebeurtenis
+door naar de RERA-detector. Een laag menselijk RERA-aantal naast een hoog
+menselijk hypopneu-aantal is daarmee precies wat je verwacht, en zegt niets
+over of het totaal klopt. Wat je zou willen vergelijken is de RDI, en die
+publiceert PSG-IPA niet.
+
 ## Openstaand
 
-Een RERA-referentie. Zonder die is elke RDI-uitspraak een uitspraak over
-verschuiving, niet over juistheid. PSG-IPA `Resp_events/` bevat twaalf
-onafhankelijke respiratoire scoringen — of daar RERA's in zitten is niet
-onderzocht en is de goedkoopste volgende stap.
+Een RERA-referentie, uit een bron die er wel een heeft. Zonder die is elke
+RDI-uitspraak een uitspraak over verschuiving, niet over juistheid.

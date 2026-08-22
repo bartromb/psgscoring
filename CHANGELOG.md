@@ -1,3 +1,58 @@
+# v0.25.0 — 2026-08-22 — the classifier steps back from the RDI
+
+**Scored values change back** on four profiles: `aasm_v3_breath`,
+`aasm_v3_prob` and their `_dual` variants get `arousal_lgbm=False`. Their RDI
+returns to the v0.23.0 value. The other twelve v3 profiles are untouched and
+keep the classifier.
+
+## Why
+
+v0.24.0 turned the arousal classifier on everywhere. On the four profiles
+where `arousal_limb_wired=True` the arousals feed the RERA detector, and a
+paired measurement on MESA n=50 (seed 20260801) showed what that costs:
+
+| | classifier off | on | delta |
+|---|---:|---:|---:|
+| AHI median | 16.4 | 15.9 | −0.4 |
+| **RDI median** | **37.2** | **30.0** | **−7.2** |
+| arousals median | 225.5 | 179.0 | −46.5 |
+| RERA index median | 17.0 | 11.1 | −5.9 |
+
+Paired ΔRDI: median −5.8/h, 10th −17.0, 90th +5.3; down on 34 of 50. The
+**RDI severity class moves on 14 of 50 recordings (28 %)**, against 5 of 50
+for AHI.
+
+The mechanism is not in doubt. The classifier rejects about a fifth of the
+arousals, every RERA requires an arousal within 15 s, and RERAs made up ~46 %
+of the RDI on these profiles.
+
+## Why this is not booked as an improvement
+
+There is no RERA reference to test against. MESA annotates none. PSG-IPA does
+allow the label — `^RERA$` is in the scoring filter, so the scorers were free
+to use it — and the entire manual set contains **3 RERAs, from 2 of 60
+scorer-recordings**. Neither dataset can say which RDI is closer to truth.
+
+Without a reference, a shift that reclassifies a quarter of patients is not a
+correction but an unproven recalibration, and the existing clinical output
+wins. This is an index decision, not a detection decision: the classifier
+remains on the twelve profiles where arousals do not reach the RDI, and there
+the gain is established (PSG-IPA event-F1 0.326 → 0.505, precision 0.248 →
+0.425).
+
+## Guarded
+
+Two tests pin it, and the first fails on the v0.24.0 configuration naming all
+four profiles: no profile may have `arousal_limb_wired` and `arousal_lgbm`
+both set, and the classifier must stay on where arousals do not reach the RDI.
+The second exists so that turning it off everywhere cannot make the first
+pass.
+
+## Still open
+
+A RERA reference. Until one exists, every RDI statement here is a statement
+about shift, not about correctness.
+
 # v0.24.0 — 2026-08-22 — the arousal classifier becomes the default
 
 **Scored values change** on the sixteen v3 profiles: arousal detection moves

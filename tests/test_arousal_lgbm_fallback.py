@@ -146,13 +146,20 @@ def test_the_env_variable_still_wins(monkeypatch):
 
 
 def test_default_is_on_except_where_a_ruleset_is_reproduced():
-    """Default AAN sinds 22-08-2026, behalve waar een externe regelset of een
-    gepubliceerde dataset-analyse gereproduceerd wordt.
+    """Default AAN sinds 22-08-2026, met twee soorten uitzonderingen.
 
-    Een ML-classifier maakt geen deel uit van AASM v1/v2 of de CMS-regels, en
-    `mesa_shhs`/`chicago_1999` moeten paper v31/v37 reproduceren. Verandert
-    een van die vijf, dan verschuiven gepubliceerde of regulatoire cijfers en
-    hoort dit om te vallen.
+    (1) Waar een externe regelset of een gepubliceerde dataset-analyse
+    gereproduceerd wordt. Een ML-classifier maakt geen deel uit van AASM v1/v2
+    of de CMS-regels, en `mesa_shhs`/`chicago_1999` moeten paper v31/v37
+    reproduceren.
+
+    (2) Waar arousals doorwerken in de RDI -- de vier `arousal_limb_wired`
+    profielen. Daar verschoof de classifier op MESA n=50 de RDI-ernstklasse op
+    14/50 opnames (28 %) en is er geen RERA-referentie om te bepalen welke RDI
+    juister is. Zie test_profiles.py voor de invariant zelf.
+
+    Verandert een van deze negen, dan verschuiven gepubliceerde, regulatoire
+    of klinische cijfers en hoort dit om te vallen.
     """
     from psgscoring.constants import SCORING_PROFILES
     for name, d in SCORING_PROFILES.items():
@@ -160,8 +167,11 @@ def test_default_is_on_except_where_a_ruleset_is_reproduced():
         assert isinstance(d["AROUSAL_LGBM"], bool), name
     uit = {n for n, d in SCORING_PROFILES.items() if not d["AROUSAL_LGBM"]}
     assert uit == {"aasm_v2_rec", "aasm_v1_rec", "cms_medicare",
-                   "mesa_shhs", "chicago_1999"}, (
-        f"verwacht alleen de vijf gepinde profielen uit, kreeg {sorted(uit)}")
+                   "mesa_shhs", "chicago_1999",
+                   "aasm_v3_breath", "aasm_v3_breath_dual",
+                   "aasm_v3_prob", "aasm_v3_prob_dual"}, (
+        f"verwacht de vijf gepinde plus de vier RDI-dragende profielen uit, "
+        f"kreeg {sorted(uit)}")
 
 
 def test_low_sample_rate_falls_back_instead_of_rejecting_everything(monkeypatch):

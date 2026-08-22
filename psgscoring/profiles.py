@@ -1194,6 +1194,28 @@ _aasm_v3_breath = Profile(
         # (issue #16). Dat kan hier veilig, want het profiel is nieuw: er is
         # geen bestaande uitkomst om te breken. Zie arousal_limb_wired.
         arousal_limb_wired=True,
+        # De arousal-classifier staat UIT op de vier profielen waar arousals
+        # doorwerken in de RDI. Gemeten op MESA n=50 (gepaard, seed 20260801):
+        # met classifier daalt de RDI-mediaan 37,2 -> 30,0, gepaarde mediaan
+        # -5,8/u, en de RDI-ERNSTKLASSE verschuift op 14/50 opnames (28 %) --
+        # tegen 5/50 voor de AHI. De oorzaak is niet omstreden: de classifier
+        # verwerpt ~een vijfde van de arousals (225 -> 179 mediaan) en elke
+        # RERA hangt aan een arousal binnen 15 s, dus de RERA-index zakt mee
+        # (17,0 -> 11,1) terwijl RERA's ~46 % van de RDI uitmaken.
+        #
+        # Waarom dat NIET als verbetering geboekt wordt: er is geen
+        # RERA-referentie om tegen te toetsen. MESA annoteert er geen, en
+        # PSG-IPA -- waar RERA WEL in de toegestane labelset zat
+        # (`^RERA$` in de scoringsfilter) -- bevat er 3 in de hele manuele
+        # set, uit 2 van de 60 scoorder-opnames. Zonder referentie is een
+        # verschuiving van deze omvang geen correctie maar een onbewezen
+        # herijking, en dan gaat de bestaande uitkomst voor.
+        #
+        # Dit is een index-beslissing, geen detectiebeslissing: de classifier
+        # blijft AAN op de veertien profielen waar arousals de RDI niet raken,
+        # want daar staat de winst wel vast (PSG-IPA F1 0,326 -> 0,505,
+        # precisie 0,248 -> 0,425).
+        arousal_lgbm=False,
         # Operatiepunt, met de herkomst erbij omdat die het cijfer weegt:
         #
         #   0,50 kwam uit een VOORAF vastgelegde regel op PSG-IPA — de
@@ -1271,6 +1293,28 @@ _aasm_v3_prob = Profile(
         hypopnea_detector="breath_graded",
         summary_after_reclassification=True,
         arousal_limb_wired=True,
+        # De arousal-classifier staat UIT op de vier profielen waar arousals
+        # doorwerken in de RDI. Gemeten op MESA n=50 (gepaard, seed 20260801):
+        # met classifier daalt de RDI-mediaan 37,2 -> 30,0, gepaarde mediaan
+        # -5,8/u, en de RDI-ERNSTKLASSE verschuift op 14/50 opnames (28 %) --
+        # tegen 5/50 voor de AHI. De oorzaak is niet omstreden: de classifier
+        # verwerpt ~een vijfde van de arousals (225 -> 179 mediaan) en elke
+        # RERA hangt aan een arousal binnen 15 s, dus de RERA-index zakt mee
+        # (17,0 -> 11,1) terwijl RERA's ~46 % van de RDI uitmaken.
+        #
+        # Waarom dat NIET als verbetering geboekt wordt: er is geen
+        # RERA-referentie om tegen te toetsen. MESA annoteert er geen, en
+        # PSG-IPA -- waar RERA WEL in de toegestane labelset zat
+        # (`^RERA$` in de scoringsfilter) -- bevat er 3 in de hele manuele
+        # set, uit 2 van de 60 scoorder-opnames. Zonder referentie is een
+        # verschuiving van deze omvang geen correctie maar een onbewezen
+        # herijking, en dan gaat de bestaande uitkomst voor.
+        #
+        # Dit is een index-beslissing, geen detectiebeslissing: de classifier
+        # blijft AAN op de veertien profielen waar arousals de RDI niet raken,
+        # want daar staat de winst wel vast (PSG-IPA F1 0,326 -> 0,505,
+        # precisie 0,248 -> 0,425).
+        arousal_lgbm=False,
         hypopnea_strictness=0.50,
         # De twee assen die dit profiel onderscheiden.
         #
