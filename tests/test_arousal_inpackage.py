@@ -123,3 +123,51 @@ def test_profile_default_arousal_mode():
     assert SCORING_PROFILES["aasm_v3_rec"]["AROUSAL_DERIVATION_MODE"] == "multi"
     assert SCORING_PROFILES["aasm_v3_strict"]["AROUSAL_DERIVATION_MODE"] == "multi"
     assert SCORING_PROFILES["mesa_shhs"]["AROUSAL_DERIVATION_MODE"] == "single"
+
+
+# ══════════════════════════════════════════════════════════════
+# `arousal_eog_reject` — default UIT sinds 22-08-2026
+# ══════════════════════════════════════════════════════════════
+
+def test_eog_reject_is_off_by_default_everywhere():
+    """De EOG-verwerping stond default AAN zodra er een EOG-kanaal was.
+
+    Gemeten op vijf PSG-IPA arousal-opnames met de hybride aan: nul keer beter
+    dan multi zonder reject, twee keer identiek en drie keer slechter (SN3
+    0,390 -> 0,371, SN4 0,568 -> 0,557, SN5 0,678 -> 0,665). Op SN3 zakte de
+    recall van 0,383 naar 0,350. Hij haalde echte events weg zonder iets terug
+    te geven, en de spreiding van de index verslechterde van 1,97 naar 2,16.
+
+    Zet iemand hem terug default aan, dan hoort daar een meting bij.
+    """
+    from psgscoring.constants import SCORING_PROFILES
+    for name, d in SCORING_PROFILES.items():
+        assert "AROUSAL_EOG_REJECT" in d, name
+        assert isinstance(d["AROUSAL_EOG_REJECT"], bool), name
+    aan = [n for n, d in SCORING_PROFILES.items() if d["AROUSAL_EOG_REJECT"]]
+    assert not aan, f"EOG-reject hoort nergens default aan te staan: {aan}"
+
+
+def test_the_eog_reject_still_works_when_asked_for():
+    """Uitzetten is geen weghalen: de tak moet blijven werken.
+
+    `_eog_reject_occipital` verwerpt occipitaal-only events die samenvallen
+    met een grote oogbeweging. Hier een event dat aan beide voorwaarden
+    voldoet, zodat de functie zelf gedekt blijft nu geen enkel profiel hem nog
+    aanroept.
+    """
+    import numpy as np
+
+    from psgscoring.arousal import _eog_reject_occipital
+
+    sf = 100.0
+    eog = np.random.default_rng(2).normal(0.0, 1.0, int(600 * sf))
+    # grote oogbeweging rond t=100 s
+    eog[int(100 * sf):int(104 * sf)] += np.random.default_rng(3).normal(
+        0.0, 50.0, int(4 * sf))
+    occ_only = {"onset_s": 100.5, "duration_s": 3.0, "derivations": ["EEG O2-M1"]}
+    centraal = {"onset_s": 100.5, "duration_s": 3.0,
+                "derivations": ["EEG O2-M1", "EEG C4-M1"]}
+    kept, dropped = _eog_reject_occipital([occ_only, centraal], eog, sf)
+    assert dropped == 1, "occipitaal-only event bij een oogbeweging niet verworpen"
+    assert kept == [centraal], "cross-kanaal bevestigd event mag niet sneuvelen"

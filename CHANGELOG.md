@@ -1,3 +1,104 @@
+# v0.24.0 — 2026-08-22 — the arousal classifier becomes the default
+
+**Scored values change** on the sixteen v3 profiles: arousal detection moves
+from the rule-based path to the MESA-trained LightGBM hybrid. The arousal
+index moves, and so does the RDI. AHI moves only where a profile uses arousals
+for hypopnoea confirmation.
+
+## What changed and why
+
+The rule-based detector reaches event-F1 **0.182** against twelve scorers on
+PSG-IPA, where the scorers reach **0.692** among themselves. The failure is not
+an offset but a localisation problem: on one MESA recording a detected event
+sits a median 184 s from the nearest scored one, and the phase-1 mask produces
+1897 raw regions of which 65 survive the 3 s duration filter.
+
+Three interventions were pre-registered and measured against that, and all
+three were refuted:
+
+| intervention | median F1 | verdict |
+|---|---|---|
+| scale-free spectral criterion | 0.146 | refuted |
+| hysteresis, rule path | 0.111 | refuted |
+| hysteresis on the hybrid | 0.404 | refuted |
+| *rule-based baseline* | *0.182* | |
+| **LGBM hybrid** | **0.463** | adopted |
+
+The third is the informative one. At `exit_ratio` 1.00 the morphology is
+right — duration 7.5 s against a human 8.3 s, index within 0.69–1.35 of the
+scorer median, spread better than the hybrid's own — and F1 still falls.
+Morphology and localisation are independent problems and only the second
+drives agreement. Thresholds and event shape in the rule path have now been
+measured three times and refuted three times.
+
+## Evidence for the hybrid
+
+The model is trained on MESA (653 subjects, 562k candidates), so PSG-IPA is an
+external cohort. Only the arousal *index* had ever been validated (Pearson
+r 0.84); event level, never.
+
+- **PSG-IPA, single derivation:** F1 0.182 → 0.463, duration 4.0 → 6.2 s
+  (human 8.3 s), and the index/scorer ratio narrows from 0.43–4.36 to
+  0.61–1.29.
+- **PSG-IPA, multi derivation** (what the profiles actually run): 0.334 →
+  0.505, better on 5 of 5 recordings.
+- **MESA n=150, paired, reference aasm15:** `aasm_v3_rec` identical on all 150
+  (it does not use arousals for scoring); `aasm_v3_breath` bias −5.13 → −5.28
+  (+0.14, limit 1.00) and F1 0.510 → 0.514, 101 of 150 better, Wilcoxon
+  p = 1.8e-10. Severity class shifts on 13 of 150.
+- **Runtime** 1.03×.
+
+## A guard the cohort measurement could not have found
+
+Enabling the flag turned two golden cases to zero across the board — arousal
+index 25.3 → 0.0, AHI 18.9 → 0.0, RDI 37.8 → 0.0 — because those fixtures
+carry EEG at 32 Hz. Nyquist then sits at 16 Hz, the beta band (16–30 Hz) does
+not exist in the signal, and a model trained at 256 Hz receives a degenerate
+feature vector: 23 candidates scored 0.012–0.066 against a threshold of 0.60,
+so all were rejected. On a profile where hypopnoeas qualify on arousal alone
+that is AHI 0, silently.
+
+`AROUSAL_LGBM_MIN_SF = 64.0` now gates the hybrid, with the reason in
+`summary["lgbm_skipped_reason"]`.
+
+## The EOG reject goes off
+
+It was on whenever an EOG channel existed. Measured with the hybrid enabled:
+never better, identical twice, worse three times (SN3 0.390 → 0.371, SN4
+0.568 → 0.557, SN5 0.678 → 0.665), recall on SN3 from 0.383 to 0.350. Now
+`arousal_eog_reject`, default False.
+
+## Scope and pins
+
+On for the sixteen v3 profiles. Off for `aasm_v2_rec`, `aasm_v1_rec` and
+`cms_medicare` — an ML classifier is no part of AASM v1/v2 or the CMS rules —
+and off for `mesa_shhs` and `chicago_1999`, which reproduce paper v31/v37.
+
+## What is NOT established
+
+**The RDI impact is unmeasured.** `_compute_rera_rdi()` reads the arousal list
+directly, not through `arousal_limb_wired`, so the RDI moves on every profile
+where this flag is on. The MESA measurement covered AHI and event-F1.
+
+**The multi-derivation behaviour is measured on n = 5.** On MESA
+`_pick_eeg_multi` finds one derivation (channels named `EEG1/2/3` match
+neither the occipital nor the frontal patterns), so multi degrades to single
+and the n=150 figures are single-derivation. The multi evidence is PSG-IPA
+only.
+
+**Golden no longer exercises the hybrid.** The sampling-rate guard routes its
+32 Hz fixtures to the rule path, and their EEG cannot be higher.
+
+## Also in this release
+
+- `PSGSCORING_AROUSAL_LIMB_WIRED` as an env override, so the Rule 1A 2×2 can
+  be measured without mutating the profile registry.
+- The Rule 1A arousal limb was measured and **refuted**: enabling it moves the
+  MESA bias from −5.26 to +8.01 h⁻¹, lowers F1 0.438 → 0.382 and shifts the
+  severity class on 94 of 150 recordings. It does not fall short, it
+  overshoots — it multiplies the error in its input once per rejected
+  candidate. Both flags stay off.
+
 > **Language policy.** Entries before 2026-08-14 are partly in Dutch; from
 > here on, English. The v0.17.0 entry carries an English translation below the
 > original because it underpins the MESA figures in the paper; earlier entries

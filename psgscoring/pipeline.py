@@ -733,11 +733,17 @@ def run_pneumo_analysis(
             if len(_multi) > 1:
                 _derivations = _multi
                 _eog_arousal = _pick_eog(raw, ch)
-                # Human-like: drop occipital-only events coinciding with an eye
-                # movement (EOG-doorslag). On by default in multi mode when EOG is
-                # available; disable with PSGSCORING_AROUSAL_EOG_REJECT=0.
-                _eog_reject = (os.environ.get("PSGSCORING_AROUSAL_EOG_REJECT", "1") == "1"
-                               and _eog_arousal is not None)
+                # v0.23.1: default UIT, na meting. Op vijf PSG-IPA-opnames met
+                # de hybride aan was deze verwerping nul keer beter, twee keer
+                # identiek en drie keer slechter; op SN3 zakte de recall van
+                # 0,383 naar 0,350. Hij haalde echte events weg zonder iets
+                # terug te geven. Profielvlag `arousal_eog_reject`, met
+                # PSGSCORING_AROUSAL_EOG_REJECT als override in beide
+                # richtingen.
+                _eog_env = os.environ.get("PSGSCORING_AROUSAL_EOG_REJECT")
+                _eog_want = (_eog_env == "1" if _eog_env is not None
+                             else bool(profile.get("AROUSAL_EOG_REJECT", False)))
+                _eog_reject = _eog_want and _eog_arousal is not None
                 logger.info("[pneumo] multi-derivatie arousal over %s (eog_reject=%s)",
                             [n for n, _d, _s in _multi], _eog_reject)
         try:
