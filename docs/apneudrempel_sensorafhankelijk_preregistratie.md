@@ -93,3 +93,74 @@ de ijking komt. Dat is bewust — de twee zijn niet los van elkaar zinvol — ma
 het betekent dat een winst niet als bewijs voor de poort afzonderlijk mag
 gelden. De poortmeting van vandaag blijft staan: bij een drempel van 0,90 is
 `respiratory_band` weerlegd.
+
+---
+
+# Uitkomst — 22 augustus 2026
+
+**WEERLEGD.** Arm B wordt geen default. De vlag blijft bestaan met
+`None` als default, dus er verandert niets aan uitgeleverd gedrag.
+
+Gepaard over 50 MESA-opnames, `aasm_v3_breath`, seed 20260801, psgscoring
+0.25.0. Kalibratie: 26 opnames, disjunct (overlap 0).
+
+| | arm A (nu) | arm B | verschil |
+|---|---:|---:|---:|
+| F1 mediaan | 0,499 | 0,492 | −0,007 |
+| **gepaarde ΔF1, mediaan** | | | **−0,0010** |
+| AHI-bias mediaan | −4,19 | −1,86 | **+2,33** |
+| \|AHI-bias\| mediaan | 6,67 | 6,30 | −0,37 |
+| apneus totaal | 2223 | 2393 | +170 |
+
+Gepaard: beter op 12, slechter op 26, gelijk op 12. Wilcoxon p = 0,009.
+AHI-ernstklasse verschuift op 10/50 (20 %), onder de meldgrens.
+
+Beslisregel: mediane gepaarde ΔF1 ≤ 0 → **weerlegd**.
+
+## De ijking deed precies wat ze moest doen
+
+Drie configuraties naast elkaar, dezelfde 50 opnames:
+
+| | apneus | F1 med | bias med | \|bias\| med |
+|---|---:|---:|---:|---:|
+| envelope + 0,90 (huidige default) | 2223 | 0,499 | −4,19 | 6,67 |
+| band + 0,90 (poortmeting vanochtend) | **1223** | 0,510 | −5,13 | 6,81 |
+| band + 0,72 (arm B) | **2393** | 0,492 | **−1,86** | **6,30** |
+
+Het zuivere drempeleffect (band 0,90 → band 0,72) herstelt de apneus die de
+poort had verloren: **1223 → 2393**, met een gepaarde ΔF1 van precies 0,0000
+(beter op 15, slechter op 17) en een |bias| die van 6,81 naar 6,30 zakt. De
+voorspelling uit de kalibratie klopt dus: de thermistor mist bij 0,90 het
+merendeel van de apneus, en 0,72 haalt ze terug.
+
+## Wat dit oplevert en wat niet
+
+**De AHI-bias verbetert fors** — mediaan −4,19 → −1,86, meer dan een halvering
+van de systematische onderschatting. Voor een klinische index is dat niet
+niks.
+
+**De event-F1 verslechtert licht maar consistent** — gepaard −0,0010, slechter
+op 26 van 50, p = 0,009. De extra apneus vallen dus niet allemaal op de
+plaatsen waar de referentie er ook een heeft.
+
+De vooraf vastgelegde regel is F1-primair, en die regel gold vóór ik deze
+cijfers zag. **Ik verschuif hem niet achteraf naar de bias.** Dat is precies
+waar preregistratie voor bestaat: een uitkomst die op één as wint en op de
+gekozen as verliest, is een verwerping, geen aanleiding om de as te wisselen.
+
+## Wat ik hieruit wél meeneem
+
+De richting is niet dood, de **maat** is de vraag. Dat de bias meer dan
+halveert terwijl de F1 nauwelijks beweegt, wijst erop dat de teruggewonnen
+apneus grotendeels echt zijn maar net anders liggen dan de referentie ze legt
+— plausibel bij een IoU-drempel van 0,20 op events die op een andere sensor
+zijn afgebakend.
+
+Wie dit wil vervolgen, hoort **vooraf** te kiezen of de AHI-bias of de
+event-F1 de uitkomstmaat is, en die keuze te verdedigen vóór de meting. Beide
+zijn verdedigbaar; ze samen achteraf wegen is dat niet.
+
+Een tweede spoor dat deze meting openlaat: de 0,72 komt uit een benadering van
+de detector (mediane daling over een Hilbert-omhullende), niet uit de keten
+zelf. Een ijking op de werkelijke `flow_norm` van de detector kan een andere
+waarde geven.
