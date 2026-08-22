@@ -33,6 +33,28 @@ suggereert dat betere eventmorfologie hem beter voer geeft.
 `hysteresis=True` én `lgbm=True` samen, tegen de hybride alleen. Beide
 bestaan al; er verandert niets aan de code.
 
+## Correctie op de opzet, vóór de meting
+
+De eerste opname legde een fout in mijn meetopzet bloot: hysterese gaf exact
+hetzelfde als de hybride alleen (SN1: index 26,6, duur 6,2 s, F1 0,463 in
+beide armen).
+
+Oorzaak: in hybride modus zet `detect_arousals` de instapdrempel op
+`AROUSAL_LGBM_CAND_RATIO = 1.2`. Een `exit_ratio` van 1,2 is daar gelijk aan,
+dus de doorloop-mask is identiek aan de instap-mask en de ingreep is een
+no-op. Waarden BOVEN 1,2 zijn erger: dan is de doorloop-mask smaller dan de
+instap-mask en keert de logica om.
+
+Hysterese betekent per definitie een LAGERE uitstap dan instap. Op het
+regelpad was dat 1,2 tegen een instap van 2,0 — een verhouding van 0,60. De
+overeenkomstige waarden op het hybride pad zijn dus **onder de 1,2**. De veeg
+wordt `0,7 · 0,8 · 0,9 · 1,0`, met **0,72** als vooraf vastgelegde waarde:
+dezelfde verhouding tot de instap (0,60 × 1,2) als de 1,2 die op het regelpad
+was vastgelegd.
+
+De criteria hieronder blijven ongewijzigd; alleen de as waarop gemeten wordt
+is gecorrigeerd.
+
 ## Acceptatiecriterium (vastgelegd vóór de meting)
 
 Vijf PSG-IPA arousal-opnames, twaalf scoorders, event-F1 bij IoU 0,20,
