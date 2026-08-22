@@ -125,3 +125,73 @@ augustus haalden hem al van −11,20 naar −5,30 zonder dat de F1 meebewoog,
 en dat bleek boekhouding te zijn in plaats van detectie. Het kan hier
 opnieuw zo liggen. Daarom staat de F1-eis erbij, en daarom is het
 primaire criterium een drempel en geen richting.
+
+---
+
+# Uitkomst — 22 augustus 2026
+
+**Weerlegd, en niet nipt. Beide criteria falen, in de tegenovergestelde
+richting van wat verwacht werd.**
+
+Gepaard over 150 MESA-opnames, seed 20260801, referentie `aasm15`, sha
+`fed3786`. Twee armen: beide vlaggen uit tegen beide vlaggen aan.
+
+| | `aasm_v3_rec` | `aasm_v3_breath` |
+|---|---|---|
+| AHI-bias | −5,26 → **+8,01**/u | −5,13 → **+8,13**/u |
+| \|bias\| | verslechtert 2,75 | verslechtert 3,00 |
+| event-F1 | 0,438 → **0,382** (−0,056) | 0,510 → **0,418** (−0,092) |
+| F1 per opname | 37 beter, 106 slechter | 12 beter, 132 slechter |
+| events | **+79,4** per opname | +79,4 per opname |
+| ernstklasse verschuift | **94/150** | 94/150 |
+
+- **Primair (|bias| daalt ≥ 1,5/u): NIET GEHAALD** — hij stijgt met 2,75.
+- **Secundair (F1 daalt ≤ 0,01): NIET GEHAALD** — hij daalt met 0,056.
+
+De tak schiet niet tekort maar ver door: van onderdetectie (−5,26) naar
+overdetectie (+8,01), met bijna tachtig extra events per opname.
+
+## De controle-arm bevestigde de opzet
+
+De arm met beide vlaggen uit reproduceert de eerdere baseline exact — 150 van
+150 identiek op béide profielen. Dat bevestigt en passant wat de correctie van
+21 augustus stelde: `arousal_limb_wired` in zijn eentje doet niets, want zonder
+`rule1a_arousal_enabled` wordt de arousallijst nooit gebruikt. De
+"uit"-arm is dus het productiegedrag, en het contrast is schoon.
+
+## Waarom de verwachting mis was
+
+`docs/koppelvenster_bevinding.md` stelde de verwachting bij naar "1 tot 3/u
+van het gat". Dat getal kwam uit de vaststelling dat slechts ~20 procentpunt
+van de hypopneus boven toeval aan een arousal koppelt.
+
+**Die 20 % is gemeten op MENSELIJK gescoorde hypopneus tegen MENSELIJK
+gescoorde arousals.** De tak werkt op ONZE afgewezen kandidaten tegen ONZE
+gedetecteerde arousals — allebei veel talrijker en veel slechter
+gelokaliseerd. Een koppelpercentage uit een menselijke annotatie begrenst dus
+niet het effect van een regel die op algoritmische kandidaten draait. De
+schatting had nooit uit de ene naar de andere populatie overgezet mogen
+worden.
+
+## Wat dit wél zegt
+
+De tak is niet fout; de invoer is het. De regelgebaseerde arousaldetector
+haalt op PSG-IPA event-F1 **0,182** tegen 0,692 scoorder-onderling en
+lokaliseert slecht (mediaan 184 s van het dichtstbijzijnde referentie-event op
+een MESA-opname). Die als tweede bevestigingsroute gebruiken voegt ruis toe in
+plaats van signaal — en Rule 1A vermenigvuldigt die ruis met het aantal
+afgewezen kandidaten.
+
+Daarmee is het uitstel in de CHANGELOG bij issue #16 achteraf terecht
+gebleken, en krijgt het een concreet getal: aanzetten kost 0,056 F1 en
+verschuift de ernstklasse op 63 % van de opnames.
+
+## Volgorde die hieruit volgt
+
+Rule 1A kan pas opnieuw beoordeeld worden **nadat** de arousaldetectie zelf op
+orde is. De hybride haalde op 21 augustus zijn criteria (event-F1 0,182 →
+0,463, index binnen ±40 % van de scoorder op elke opname); zou die default
+gaan, dan is Rule 1A daarbovenop een zinnige hermeting. Nu niet.
+
+Beide vlaggen blijven uit. `PSGSCORING_AROUSAL_LIMB_WIRED` blijft bestaan als
+meetinstrument.
