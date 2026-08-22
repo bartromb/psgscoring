@@ -91,3 +91,43 @@ verschillend oordelen, niet wie gelijk heeft.
 blijft hier buiten beschouwing: twee armen tegelijk vergelijken met één
 beslisregel maakt de regel dubbelzinnig. Het doorlaatpercentage wordt wel
 gerapporteerd.
+
+---
+
+## Addendum, vastgelegd vóór de uitkomst: de drempel van `respiratory_band`
+## reproduceert zijn eigen onderbouwing niet op MESA
+
+`THERMISTOR_BAND_POWER_MIN = 0,70` is niet gekozen maar afgeleid, en de code
+zegt er netjes bij hoe: op negen lokale Somnomedics-montages lagen de waarden
+in twee klassen met een leeg gat van 0,53 ertussen —
+
+    0,982  0,981  0,977  0,970   |   0,441  0,396  0,318  0,036  0,000
+
+en 0,70 ligt op het midden daarvan. Dat is precies de methode die deze
+codebase elders ook gebruikt: leg de drempel in het gat, niet op een rond
+getal.
+
+**Op MESA is dat gat er niet.** Twaalf willekeurige opnames (seed 20260822):
+
+    0,506  0,636  0,687 | 0,703  0,717  0,774  0,802  0,816  0,874  0,913
+    0,966  0,985
+
+Het grootste gat is 0,130 (tussen 0,506 en 0,636). De drempel valt tussen
+**0,687 en 0,703** — een opening van 0,016 — en **3 van de 12** opnames liggen
+binnen 0,05 van de drempel.
+
+**Wat dat betekent voor deze meting.** Voor ongeveer een kwart van de MESA-
+opnames is de beslissing van `respiratory_band` effectief willekeurig: een
+verwaarloosbare verschuiving van de drempel draait ze om. De poort kan dus
+winnen of verliezen op opnames waar hij eigenlijk niets beslist. Dat maakt de
+meting niet ongeldig — de vraag is welke poort tot betere scoring leidt, en dat
+blijft meetbaar — maar het bepaalt hoe hard de uitkomst mag worden gelezen.
+
+**Wat ik hier bewust NIET doe:** de drempel op MESA herijken. Het grootste
+MESA-gat ligt bij ~0,57 en zou 11 van de 12 doorlaten, wat er aantrekkelijk
+uitziet. Maar dan zou ik de drempel afstellen op hetzelfde cohort waarop ik
+hem vervolgens meet, en dat is een fit die zich als validatie voordoet —
+dezelfde fout die `hypopnea_strictness` op PSG-IPA maakte en waarvoor deze
+MESA-validatie juist bestaat. Als de drempel herijkt moet worden, hoort dat op
+een steekproef die van de meetopnames gescheiden is, met een eigen
+preregistratie.
