@@ -51,3 +51,61 @@ groot de verschuiving is.
 de opnames, dan leg ik dat als apart punt voor in plaats van het in een
 verslag te vermelden. Dat is een grens voor de MELDING, niet voor de
 aanvaarding.
+
+---
+
+# Uitkomst — 22 augustus 2026
+
+**De meldgrens is gehaald: de RDI-ernstklasse verschuift op 28 % van de
+opnames. Apart voorgelegd aan de gebruiker.**
+
+Gepaard over 50 MESA-opnames, `aasm_v3_breath`, seed 20260801.
+
+| | classifier uit | classifier aan | verschil |
+|---|---:|---:|---:|
+| AHI mediaan | 16,4 | 15,9 | −0,4 |
+| **RDI mediaan** | **37,2** | **30,0** | **−7,2** |
+| arousals mediaan | 225,5 | 179,0 | −46,5 |
+| RERA-index mediaan | 17,0 | 11,1 | −5,9 |
+| RERA-aandeel van RDI | 47 % | 45 % | |
+
+Gepaarde ΔRDI: mediaan **−5,8/u**, 10e percentiel −17,0, 90e +5,3. Omlaag op
+34 van 50, omhoog op 16.
+
+| | verschuift |
+|---|---|
+| **RDI-ernstklasse** | **14/50 (28 %)** |
+| AHI-ernstklasse | 5/50 (10 %) |
+
+## Het mechanisme is consistent met de rest van de dag
+
+De classifier verwerpt ongeveer een vijfde van de arousals (225 → 179), en dat
+slaat door naar de RERA's (17,0 → 11,1). Bijna de helft van de RDI bestond uit
+RERA's, en elke RERA vereist een arousal binnen 15 s. Op PSG-IPA ging de
+precisie van 0,248 naar 0,425 — grofweg de helft van wat het regelpad
+markeerde bleek geen arousal — en die vallen nu uit de RERA-telling.
+
+## Wat hier NIET mee bewezen is
+
+Dat de nieuwe RDI juister is. **MESA annoteert geen RERA's**, dus er is geen
+waarheid om tegen te toetsen. Dat de verdwenen arousals precies degene zijn
+die tegen twaalf scoorders niet standhielden, is een redenering — geen meting.
+
+Wat wél vaststaat is de omvang: op ruim een kwart van de patiënten valt de RDI
+in een andere categorie dan voorheen.
+
+## Reikwijdte en terugweg
+
+Het raakt de vier profielen met `arousal_limb_wired=True` — `aasm_v3_breath`,
+`aasm_v3_prob` en hun duale varianten. **Niet** `aasm_v3_rec`: daar is
+RDI = AHI, aantoonbaar onbewogen.
+
+De terugweg is één vlag: `arousal_lgbm=False` op die profielen zet de oude RDI
+terug zonder de arousalverbetering elders op te geven.
+
+## Openstaand
+
+Een RERA-referentie. Zonder die is elke RDI-uitspraak een uitspraak over
+verschuiving, niet over juistheid. PSG-IPA `Resp_events/` bevat twaalf
+onafhankelijke respiratoire scoringen — of daar RERA's in zitten is niet
+onderzocht en is de goedkoopste volgende stap.
