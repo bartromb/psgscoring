@@ -60,3 +60,70 @@ Op grond van de eerdere meting op het regelpad: recall omhoog, F1 vlak of
 lager. Als dat zich herhaalt mét classifier, is de conclusie dat de union
 dekking koopt met precisie — en dat de huidige default die afruil maakt zonder
 dat iemand hem gemeten heeft.
+
+---
+
+# Uitkomst — 22 augustus 2026
+
+**Beide criteria gehaald. Multi is gerechtvaardigd; de EOG-reject niet.**
+
+| opname | scoorder-index | single | multi | multi+eog | q(multi) |
+|---|---:|---:|---:|---:|---:|
+| SN1 | 24,2 | 0,463 | **0,505** | 0,505 | 1,48 |
+| SN2 | 8,5 | 0,347 | **0,355** | 0,355 | 1,85 |
+| SN3 | 18,0 | 0,340 | **0,390** | 0,371 | 0,94 |
+| SN4 | 14,3 | 0,505 | **0,568** | 0,557 | 1,33 |
+| SN5 | 27,7 | 0,666 | **0,678** | 0,665 | 1,47 |
+
+| | F1 | recall | precisie | q-bereik |
+|---|---:|---:|---:|---|
+| single | 0,463 | 0,496 | 0,455 | 0,61–1,29 |
+| **multi** | **0,505** | **0,649** | 0,425 | 0,94–1,85 |
+| multi + EOG-reject | 0,505 | 0,649 | 0,425 | 0,86–1,85 |
+
+- **Primair (F1 multi > single): GEHAALD** — 0,505 tegen 0,463, en beter op
+  **5 van 5** opnames.
+- **Secundair (recall stijgt): GEHAALD** — 0,496 → 0,649. De winst komt van
+  dekking en overtreft het precisieverlies (0,455 → 0,425). Op het regelpad
+  bleef de F1 bij diezelfde afruil vlak; de classifier maakt het verschil.
+
+## De bewaking was dubbelzinnig geformuleerd
+
+Ik schreef: "de spreiding blijft binnen de 0,61–1,29 van single." Dat laat twee
+lezingen toe, en ze wijzen verschillende kanten op:
+
+- als **spreidingsfactor** (max/min): 1,97 tegen 2,10 — verbeterd, gehaald;
+- als **bereik**: multi ligt op 0,94–1,85, dus buiten [0,61–1,29] — niet
+  gehaald.
+
+Het inhoudelijke feit weegt zwaarder dan de formulering: **multi overdetecteert
+systematisch.** De mediane `q` gaat van 1,10 naar 1,47 en op geen enkele
+opname zit multi ónder de scoordermediaan, terwijl single nog aan beide kanten
+lag. Voor de event-F1 is dat gunstig; voor een GERAPPORTEERDE arousal-index
+betekent het structureel ongeveer anderhalf maal de menselijke waarde.
+
+Die twee dingen — welke detectie beter overeenkomt, en welk getal je afdrukt —
+had ik in één bewaking samengevat, en dat had ik niet moeten doen. Ze vragen
+een aparte afweging.
+
+## De EOG-reject moet uit
+
+Nul keer beter, twee keer identiek (SN1, SN2), drie keer slechter (SN3, SN4,
+SN5), en de spreiding verslechtert van 1,97 naar 2,16. Op SN3 haalt hij de
+recall van 0,383 naar 0,350.
+
+Hij staat in productie default AAN zodra er een EOG-kanaal is
+(`PSGSCORING_AROUSAL_EOG_REJECT` default "1" in `pipeline.py`). Hij verwijdert
+daar dus aantoonbaar echte events zonder er iets voor terug te geven. Dat hij
+op twee opnames niets deed is op zichzelf al een signaal: een tak die vaak
+niet vuurt en, als hij vuurt, schaadt.
+
+## Wat hier NIET uit volgt
+
+Geen enkele default verandert op deze meting alleen. Arousals voeden Rule 1B
+en de RDI, dus zowel het aanhouden van multi als het uitzetten van de
+EOG-reject vraagt een meting van de respiratoire gevolgen — en de
+overdetectie van de index is een aparte, klinische afweging.
+
+Wat wél vaststaat: de eerdere conclusie dat multi "sensitiviteit koopt zonder
+accuraatheid" gold voor het REGELgebaseerde pad en geldt niet meer.
