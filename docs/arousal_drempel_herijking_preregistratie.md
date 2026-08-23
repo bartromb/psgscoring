@@ -109,3 +109,40 @@ boven 0,90 moet de F1 omslaan, want bij een drempel van 1,0 blijven er nul
 events over. Ligt het optimum ook na uitbreiding op de rand (0,99), dan is er
 iets anders aan de hand dan een werkpunt — dan produceert het model kansen die
 niet kalibreren, en is de conclusie een andere.
+
+### Uitkomst van de uitgebreide veeg
+
+Zelfde 15 kalibratieopnames:
+
+| drempel | F1 | precisie | recall | events |
+|---:|---:|---:|---:|---:|
+| 0,50 | 0,459 | 0,351 | 0,679 | 314 |
+| 0,60 | 0,493 | 0,402 | 0,667 | 267 |
+| 0,70 | 0,527 | 0,486 | 0,654 | 229 |
+| 0,80 | 0,562 | 0,571 | 0,629 | 194 |
+| **0,90** | **0,607** | 0,710 | 0,513 | 133 |
+| 0,93 | 0,543 | 0,760 | 0,449 | 106 |
+| 0,95 | 0,507 | 0,832 | 0,365 | 79 |
+| 0,97 | 0,386 | 0,851 | 0,250 | 55 |
+| 0,99 | 0,059 | 0,846 | 0,030 | 4 |
+
+**Eén duidelijk maximum, binnen het grid.** De curve slaat om na 0,90, zoals
+vooraf opgeschreven dat hij moest. Het optimum lag dus niet op de rand omdat de
+kansen niet kalibreren, maar omdat mijn eerste grid te kort was.
+
+**GEKOZEN: 0,90.** Het verschil met de tweede (0,93 bij 0,543) is 0,064, ruim
+boven de 0,005 waar de tie-breakregel voor bestond.
+
+Ter oriëntatie op de omvang: bij 0,60 produceert de detector mediaan **267**
+events tegen een referentie rond de 130; bij 0,90 zijn dat er **133**. De
+huidige default overdetecteert met ongeveer een factor twee, en dat is precies
+wat de diagnose op PSG-IPA liet zien — 16 % van onze events werd door geen
+enkele van de twaalf scoorders gedekt.
+
+Het script viel na de tabel om op een `KeyError` in de slotregel (die verwees
+naar 0,60, dat in de tweede veeg niet meer in het grid zat). De tabel is
+volledig; alleen de JSON van de tweede ronde is niet weggeschreven.
+
+**Nog niets besloten.** 0,90 is gekozen op de kalibratieset. De validatie op
+de 30 ongeziene opnames moet nog, en die beslist — mediane gepaarde ΔF1 ≥
++0,010 én tekencontrole op PSG-IPA.
