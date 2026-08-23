@@ -105,6 +105,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "AROUSAL_HYSTERESIS": pp.arousal_hysteresis,
         "PLM_TIME_BASE": pp.plm_time_base,
         "PLM_EVENT_LIST_CAP": pp.plm_event_list_cap,
+        "FLOW_GAP_SCALE_FREE": pp.flow_gap_scale_free,
         "AROUSAL_LGBM": pp.arousal_lgbm,
         "AROUSAL_USES_ARTIFACT_EPOCHS": pp.arousal_uses_artifact_epochs,
         "AROUSAL_LGBM_THRESHOLD": pp.arousal_lgbm_threshold,

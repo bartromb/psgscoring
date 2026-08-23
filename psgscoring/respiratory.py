@@ -55,6 +55,8 @@ def _detect_signal_gaps(
     min_gap_s: float = 10.0,
     postgap_excl_s: float = 15.0,
     flatline_thresh: float = 1e-5,
+    scale_free: bool = False,
+    scale_free_frac: float = 0.10,
 ) -> tuple[np.ndarray, int]:
     """
     Fix 5 — Artefact-flanken.
@@ -75,10 +77,33 @@ def _detect_signal_gaps(
     min_samp = int(min_gap_s * sf)
     post_samp = int(postgap_excl_s * sf)
 
-    is_flat   = np.abs(flow_data) < flatline_thresh
-    diff      = np.diff(flow_data, prepend=flow_data[0] - 1)
-    is_frozen = diff == 0
-    flat_reg  = is_flat | is_frozen
+    if scale_free:
+        # `flatline_thresh` is ABSOLUUT en wordt op het RUWE signaal toegepast,
+        # dus hij betekent iets anders bij elke montage en elke eenheid.
+        # Gemeten op mesa-sleep-0001: 1e-5 vuurt op 0,00 % van de `Pres`-samples
+        # en 6,44 % van de `Therm`-samples -- dezelfde opname, alleen een andere
+        # amplitudeschaal. Voor het kanaal waarop apneus gescoord worden is het
+        # mechanisme daarmee dood, terwijl een LOSGERAAKTE CANULE juist ruist
+        # en dus ook `diff == 0` niet haalt.
+        #
+        # Schaalvrij: vergelijk de LOKALE activiteit met de eigen typische
+        # activiteit van het kanaal. Een dode sensor zakt naar zijn ruisvloer,
+        # ordes onder de mediaan; ademhaling niet. Zelfde reparatiepatroon als
+        # bij de RIP-poort.
+        _win = max(1, int(2.0 * sf))
+        _c = np.cumsum(np.insert(np.abs(np.diff(flow_data, prepend=flow_data[0])), 0, 0.0))
+        _act = (_c[_win:] - _c[:-_win]) / _win
+        _act = np.concatenate([np.full(len(flow_data) - len(_act), _act[0] if _act.size else 0.0), _act])
+        _typ = float(np.median(_act[_act > 0])) if np.any(_act > 0) else 0.0
+        if _typ <= 0:
+            flat_reg = np.ones(n, dtype=bool)
+        else:
+            flat_reg = _act < scale_free_frac * _typ
+    else:
+        is_flat   = np.abs(flow_data) < flatline_thresh
+        diff      = np.diff(flow_data, prepend=flow_data[0] - 1)
+        is_frozen = diff == 0
+        flat_reg  = is_flat | is_frozen
 
     labeled, n_gaps = label(flat_reg)
     for i, sl in enumerate(find_objects(labeled)):
@@ -370,9 +395,16 @@ def detect_respiratory_events(
                 _pc[_key] = _fn()
             return _pc[_key]
 
+        # Schaalvrije uitvaldetectie: profielvlag, default uit. De absolute
+        # variant is op de neusdruk aantoonbaar dood (0,00 % van de samples op
+        # mesa-sleep-0001) terwijl een losgeraakte canule ruist en dus als
+        # aaneengesloten apneus scoort.
+        _gap_sf = bool((scoring_profile or {}).get("FLOW_GAP_SCALE_FREE", False))
+
         # ── Fix 5: Artefact-flanken — post-gap exclusiemasker ─────────────
         gap_mask_ap, n_gaps = _cache(
-            "gap_resp", lambda: _detect_signal_gaps(flow_data, sf_flow))
+            "gap_resp", lambda: _detect_signal_gaps(
+                flow_data, sf_flow, scale_free=_gap_sf))
         result["n_gap_excluded"] = n_gaps
         if n_gaps > 0:
             logger.info("Fix5: %d signaaluitvalgaten gedetecteerd → post-gap masker actief", n_gaps)
@@ -509,7 +541,8 @@ def detect_respiratory_events(
         if hypop_flow is None:
             gap_mask_hy = gap_mask_ap  # zelfde signaal, geen herberekening
         else:
-            gap_mask_hy, _ = _detect_signal_gaps(hypop_flow, sf_hy)
+            gap_mask_hy, _ = _detect_signal_gaps(hypop_flow, sf_hy,
+                                                 scale_free=_gap_sf)
         sleep_mask_hy = sleep_mask_hy & ~gap_mask_hy
 
         # De apneudrempel hangt af van WELKE sensor de apneus draagt. De

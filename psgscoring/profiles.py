@@ -524,6 +524,36 @@ class PostProcessingRules:
     door als `arousal_limb_wired` en de limb-stap aan staan. Daarom is
     `aasm_v3_rec` aantoonbaar onbewogen -- daar is RDI gelijk aan AHI."""
 
+    flow_gap_scale_free: bool = False
+    """Beoordeel signaaluitval op de flow schaalvrij in plaats van absoluut.
+
+    `_detect_signal_gaps` markeert uitval bij `|x| < 1e-5` of `diff == 0`.
+    Beide falen op echte data. De eerste is ABSOLUUT en wordt op het RUWE
+    signaal toegepast: gemeten op `mesa-sleep-0001` vuurt hij op **0,00 %** van
+    de `Pres`-samples en **6,44 %** van de `Therm`-samples — dezelfde opname,
+    alleen een andere amplitudeschaal. De tweede vuurt nergens, want echte
+    ADC-data heeft geen exact gelijke opeenvolgende samples.
+
+    Voor het kanaal waarop apneus gescoord worden is het mechanisme daarmee
+    dood. Dat is niet onschuldig: een **losgeraakte of verschoven canule**
+    ruist rond nul, en dan ís er per definitie geen ademhaling — dus scoort de
+    detector aaneengesloten apneus. De maximumduur van 90 s begrenst het losse
+    event, niet het aantal.
+
+    Schaalvrij vergelijkt de LOKALE activiteit met de eigen typische activiteit
+    van het kanaal. Zelfde reparatiepatroon als bij de RIP-poort, die met een
+    absolute MAD-drempel in feite de EDF-eenheid mat.
+
+    Op een gesimuleerde losgeraakte canule (ruisend bijna-nul, 60 s) vangt de
+    absolute regel **0 %** en de schaalvrije **96,7 %**, bij nul vals-positieven
+    daarbuiten; het blijft schoon van fractie 0,10 tot 0,30.
+
+    **Default `False`.** De fractie 0,10 komt van een synthetische fixture en
+    is dus VOORLOPIG: hij hoort op echte opnames geijkt te worden met het gat
+    tussen aantoonbaar dode en werkende kanalen, met gescheiden steekproeven.
+    Aanzetten neemt bovendien events weg, en dat verlaagt de AHI.
+    """
+
     plm_event_list_cap: int = 200
     """Hoeveel beenbewegingen er hoogstens in `plm["events"]` meegaan.
 
