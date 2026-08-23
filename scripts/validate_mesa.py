@@ -125,6 +125,40 @@ PROFILES = ("aasm_v3_rec", "aasm_v3_breath")
 #  NSRR-annotatie
 # ─────────────────────────────────────────────────────────────────
 
+def _artifact_epochs_like_production(raw, epoch_s=EPOCH_S):
+    """Artefact-epochs volgens exact de YASAFlaskified-regel.
+
+    `yasa_analysis.py:run_artifact_detection`: een epoch is artefact bij een
+    piek boven 500 uV of een vlak signaal (< 0,5 uV maximale stap), berekend op
+    de EEG-kanalen.
+
+    Dit harnas gaf tot 23-08-2026 HELEMAAL GEEN artefact-epochs door, terwijl
+    productie ze wel doorgeeft. Elke meting hier draaide dus op een pipeline
+    die op dat punt niet was wat er draait -- en een meting van de
+    artefactvlaggen gaf daardoor stil nul verschil.
+
+    Let op de reikwijdte van de productieregel: hij wordt op het EEG berekend
+    en sluit vervolgens epochs uit voor ALLE stappen, dus ook voor de
+    apneu- en hypopneudetectie op de neusdruk en de saturatiemeter.
+    """
+    import numpy as _np
+    namen = [n for n in raw.ch_names
+             if n.upper().startswith("EEG") or n in ("EEG1", "EEG2", "EEG3")]
+    if not namen:
+        return []
+    dat = raw.get_data(picks=namen, units="uV")
+    sf = float(raw.info["sfreq"])
+    epl = int(epoch_s * sf)
+    n_ep = dat.shape[1] // epl if epl else 0
+    uit = []
+    for ep in range(n_ep):
+        seg = dat[:, ep * epl:(ep + 1) * epl]
+        if float(_np.max(_np.abs(seg))) > 500 or bool(
+                _np.max(_np.abs(_np.diff(seg, axis=1))) < 0.5):
+            uit.append(ep)
+    return uit
+
+
 def parse_nsrr(xml_path, signal_duration_s,
                link_window_s=DESAT_LINK_WINDOW_S):
     """(hypno, events_per_referentie, tst_h) uit een NSRR-annotatiebestand.
@@ -346,12 +380,19 @@ def analyse_one(args):
            "ahi_ref": {k: len(v) / tst_h for k, v in refs.items()},
            "profiles": {}}
 
+    # Default LEEG, zodat alle eerdere metingen vergelijkbaar blijven; met
+    # --artifact-epochs draait het harnas zoals productie draait.
+    _art_eps = (_artifact_epochs_like_production(raw)
+                if os.environ.get("PSGSCORING_HARNESS_ARTIFACT_EPOCHS") == "1"
+                else [])
+
     for label, prof, strict in _configs(strictness_values, profiles):
         try:
             if strict is not None:
                 _apply_strictness(strict)
             res = psgscoring.run_pneumo_analysis(
-                raw, hypno=hypno, scoring_profile=prof)
+                raw, hypno=hypno, scoring_profile=prof,
+                artifact_epochs=_art_eps)
         except Exception as e:  # noqa: BLE001
             out["profiles"][label] = {"error": str(e)}
             continue
