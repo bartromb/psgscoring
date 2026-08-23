@@ -80,3 +80,58 @@ scheef verdeeld.
 Een ingreep hoort dezelfde discipline te krijgen als de arousaldrempel:
 vooraf vastgelegde uitkomstmaat, kalibratie- en validatiesteekproef
 gescheiden, en replicatie op een tweede cohort.
+
+---
+
+# CORRECTIE — 24 augustus 2026, dezelfde nacht
+
+**De diagnose hierboven overdrijft de onderdetectie, door een fout van mij in
+de vergelijking.**
+
+`result["events"]` is `plm_eligible`: alle bewegingen **minus waak** en minus
+respiratoir-geassocieerde. De PSG-IPA-scoorders annoteren **alle**
+beenbewegingen, ook in waak. Ik heb dus een deelverzameling naast een superset
+gelegd, en het verschil dat ik als onderdetectie las is voor een groot deel het
+waakaandeel.
+
+Zelfde soort fout als de harnasteller die op de substring `"apnea"` zocht:
+twee dingen vergeleken die niet hetzelfde zijn.
+
+## De gecorrigeerde vergelijking
+
+Beide kanten op slaap gefilterd, met hetzelfde hypnogram:
+
+| | scoorder totaal | scoorder in slaap | onze | F1 | precisie | recall |
+|---|---:|---:|---:|---:|---:|---:|
+| SN1 | 420 | 221 | 202 | 0,670 | 0,710 | 0,640 |
+| SN2 | 204 | 162 | 135 | 0,706 | 0,785 | 0,625 |
+| SN3 | 430 | 139 | \phantom{0}97 | 0,581 | 0,722 | 0,458 |
+| SN4 | 921 | 669 | 558 | 0,799 | 0,869 | 0,730 |
+| **SN5** | 584 | 254 | \phantom{0}**36** | **0,197** | 0,833 | **0,112** |
+
+Mediane F1 **0,670** — vier van de vijf opnames zitten op 0,58–0,80. Er is dus
+**geen systemische ongevoeligheid**; die conclusie was een artefact van mijn
+vergelijking.
+
+## Wat er wél staat: SN5
+
+Op SN5 vindt de detector **479** bewegingen in totaal tegen 594 bij scoorder 1
+— vergelijkbaar. Maar in slaap: **36 tegen 217**. Terwijl 37 % van de
+scoorder-events in slaap valt, valt maar 8 % van de onze daar.
+
+Onze detecties zitten dus onevenredig in **waak**. De voor de hand liggende
+verklaring is amplitude: in slaap, en zeker in REM-atonie, zijn bewegingen
+kleiner, en de drempel is `10e percentiel van de RUMS over de HELE nacht + 8 µV`
+— één globaal getal voor een grootheid die per stadium verschilt.
+
+Een rollende basislijn over 120 s geeft over de hele nacht mínder events
+(0,83–0,98×) en is dus niet de oplossing; wat niet gemeten is, is een
+**stadium-afhankelijke** rustwaarde. Dat is de volgende toets, niet een
+conclusie.
+
+## Wat hiervan blijft staan
+
+Dat de **precisie hoog is** (0,71–0,87) en dat vrijwel elk event dat wij
+markeren door een scoorder gedekt wordt. Dat deel van de eerste diagnose is
+niet geraakt door de fout: het rekende met onze events als noemer, niet met de
+hunne.
