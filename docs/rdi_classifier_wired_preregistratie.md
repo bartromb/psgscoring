@@ -65,3 +65,66 @@ Dat maakt dit géén zuivere RDI-vraag, en dat hoort vooraf te staan.
 
 Welke arm de betere RDI geeft. Alleen hoe groot het verschil is, zodat de
 beslissing met dat cijfer erbij genomen wordt in plaats van erna.
+
+---
+
+# Uitkomst — 23 augustus 2026
+
+**De meldgrens is gehaald: de RDI-ernstklasse verschuift op 37 % van de
+opnames.** Apart voorgelegd.
+
+Gepaard over 30 MESA-opnames, `aasm_v3_breath`, drempel 0,80, artefact-epochs
+meegegeven zoals productie.
+
+| | A: classifier uit (huidig) | B: aan | verschil |
+|---|---:|---:|---:|
+| AHI mediaan | 19,45 | 19,05 | −0,40 |
+| **RDI mediaan** | **34,25** | **28,70** | **−5,55** |
+| arousals mediaan | 212 | 107 | −105 |
+| arousal-index mediaan | 35,60 | 19,50 | −16,10 |
+| RERA-index mediaan | 14,85 | 6,80 | −8,05 |
+| **event-F1 mediaan** | **0,44** | **0,48** | **+0,04** |
+| AHI-bias mediaan | −2,09 | −3,28 | −1,18 |
+
+Gepaarde ΔRDI: mediaan **−9,25/u**, omlaag op 26/30. Gepaarde ΔF1 **+0,0090**,
+beter op 23/30, Wilcoxon **p = 5,5·10⁻⁴**.
+
+| | verschuift |
+|---|---|
+| **RDI-ernstklasse** | **11/30 = 37 %** |
+| AHI-ernstklasse | 4/30 = 13 % |
+
+## De arousaltelling heeft hier WEL een referentie
+
+Anders dan de RDI. Tegen de MESA-annotatie op dezelfde 30 opnames:
+
+| | mediaan | ratio t.o.v. referentie |
+|---|---:|---:|
+| MESA-referentie (menselijk) | 128 | 1,00 |
+| A: classifier uit (huidig) | 212 | **1,47** |
+| B: classifier aan (0,80) | 107 | **0,83** |
+
+Afwijking van een zuivere telling: **0,58 → 0,26**. B ligt dichter bij de
+referentie op **22 van 30** opnames.
+
+Dat is het beslissende gegeven dat bij de vorige RDI-karakterisering ontbrak.
+De huidige stand overdetecteert arousals met bijna de helft; met de classifier
+telt hij 17 % te weinig. Beide zijn scheef, maar B minder dan half zo scheef.
+
+## Wat dit wel en niet zegt
+
+**Wel:** de arousaltelling wordt aantoonbaar beter, en de respiratoire event-F1
+ook (+0,009, p = 5,5e-04, 23/30).
+
+**Niet:** dat de resulterende RDI juister is. Er is geen RERA-referentie, dus
+een RDI die 9,25/u lager uitkomt is niet als correctie te boeken — alleen als
+verschuiving. En de AHI-bias verslechtert licht (−2,09 → −3,28), want op dit
+profiel bevestigen arousals ook hypopneus.
+
+## Waarom de vorige poging niets mat
+
+`aasm_v3_breath` heeft `arousal_lgbm=False`, én de pipeline las `AROUSAL_LGBM`
+als enige arousalvlag zonder env-override. De armen waren niet te scheiden:
+30/30 identiek, wat eruitzag als "geen effect". Override toegevoegd met een
+test die faalt als de armen gelijk uitkomen, en een pre-flight op één echte
+opname gedaan vóór deze run startte.
