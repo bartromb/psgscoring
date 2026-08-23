@@ -185,6 +185,13 @@ def run_pneumo_analysis(
 
     output: dict = {
         "meta": {
+            # Welke versie deze uitslag heeft geproduceerd. Zonder dit stempel
+            # kan een rapport dat later gerenderd wordt niet zeggen wat er
+            # gescoord heeft -- en dat is precies wat er misging: YASAFlaskified
+            # legde de versie alleen vast in een `comparison`-blok, dat bij een
+            # gewone run met EEN profiel niet eens bestaat, dus stond er
+            # permanent een onzekerheidsteken in het klinische rapport.
+            "psgscoring_version": _psgscoring_version(),
             "channels_used": ch,
             "all_channels":  raw.ch_names,
             "sfreq":         raw.info["sfreq"],
@@ -2020,6 +2027,15 @@ def _annotate_csr_density(output: dict, hypno: list) -> None:
 # typefout in een meting niet als de default-arm doorgaat.
 _THERMISTOR_GATES = ("envelope_agreement", "respiratory_band",
                      "breath_coherence")
+
+
+def _psgscoring_version() -> str:
+    """De eigen versie, lui opgehaald om een circulaire import te vermijden."""
+    try:
+        from . import __version__
+        return str(__version__)
+    except Exception:  # pragma: no cover - defensief
+        return "onbekend"
 
 
 def _thermistor_gate(profile: dict) -> str:

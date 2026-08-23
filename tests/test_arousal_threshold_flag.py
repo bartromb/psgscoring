@@ -131,3 +131,35 @@ def test_the_classifier_can_be_switched_per_run(monkeypatch):
     assert uit != aan, (
         f"de env schakelt de classifier niet: uit={uit}, aan={aan} -- een "
         "vergelijking van beide armen zou nul verschil meten")
+
+
+def test_the_pipeline_stamps_its_own_version_in_the_output():
+    """Zonder dit stempel kan een later gerenderd rapport niet zeggen wat er
+    gescoord heeft.
+
+    YASAFlaskified legde de versie alleen vast in een `comparison`-blok, en dat
+    bestaat bij een gewone klinische run met EEN profiel niet eens. Gevolg: het
+    rapport toonde permanent een onzekerheidsteken.
+    """
+    import numpy as np
+    import pytest
+    mne = pytest.importorskip("mne")
+    import psgscoring
+
+    sf = 32.0
+    n = int(sf * 60 * 8)
+    t = np.arange(n) / sf
+    rng = np.random.default_rng(2)
+    info = mne.create_info(["Resp nasal", "SaO2", "EEG C4-M1", "EMG chin"],
+                           sf, ["misc", "misc", "eeg", "emg"])
+    raw = mne.io.RawArray(
+        np.vstack([np.sin(2 * np.pi * 0.25 * t), np.full(n, 97.0),
+                   rng.normal(0, 20e-6, n), rng.normal(0, 5e-6, n)]),
+        info, verbose=False)
+    out = psgscoring.run_pneumo_analysis(
+        raw, hypno=["N2"] * int(np.ceil(raw.times[-1] / 30.0)),
+        scoring_profile="aasm_v3_rec")
+
+    got = (out.get("meta") or {}).get("psgscoring_version")
+    assert got == psgscoring.__version__, (
+        f"meta draagt {got!r} in plaats van {psgscoring.__version__!r}")
