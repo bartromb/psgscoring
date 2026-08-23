@@ -1,3 +1,71 @@
+# v0.27.0 — 2026-08-23 — the classifier now runs where the RDI lives
+
+**Scored values change** on the four `arousal_limb_wired` profiles
+(`aasm_v3_breath`, `aasm_v3_prob`, and their `_dual` variants): the arousal
+classifier runs there too, at operating point 0.80. The arousal index and the
+RDI move; the AHI barely does. The other twelve v3 profiles are unchanged, and
+the five reproduction profiles remain byte-identical (golden 9/9).
+
+## What was measured before deciding
+
+The classifier was switched off on these four on 22-08 because its RDI impact
+was unmeasured. It is measured now — paired, MESA n=30, threshold 0.80, with
+artefact epochs supplied as production supplies them:
+
+| | classifier off | on | delta |
+|---|---:|---:|---:|
+| AHI median | 19.45 | 19.05 | −0.40 |
+| **RDI median** | **34.25** | **28.70** | **−5.55** |
+| arousals median | 212 | 107 | −105 |
+| arousal index median | 35.60 | 19.50 | −16.10 |
+| **event-F1 median** | **0.44** | **0.48** | **+0.04** |
+
+Paired ΔRDI −9.25/h, down on 26 of 30. Paired ΔF1 +0.0090, better on 23 of 30,
+p = 5.5e-04. The RDI severity class moves on **11 of 30 (37 %)**, the AHI class
+on 4 of 30.
+
+## The number that decided it
+
+Unlike the RDI, the arousal count **has** a reference. Against the MESA
+annotations on the same thirty recordings:
+
+| | median | ratio to reference |
+|---|---:|---:|
+| MESA reference (human) | 128 | 1.00 |
+| classifier off | 212 | **1.47** |
+| classifier on | 107 | **0.83** |
+
+Deviation from a clean count falls 0.58 → 0.26, closer to the reference on 22
+of 30. The previous setting over-counted arousals by nearly half; the
+classifier under-counts by 17 %. Both are skewed, the classifier less than half
+as much.
+
+So two measurable things improve — the arousal count and the respiratory
+event-F1 — against one unmeasurable thing that shifts. At the previous decision
+only the last of those existed.
+
+## What is explicitly not claimed
+
+That the resulting RDI is more correct. There is no RERA reference, so a RDI
+9.25/h lower is a shift, not a correction. The AHI bias worsens slightly
+(−2.09 → −3.28), because arousals also confirm hypopnoeas on these profiles.
+
+## Also in this release
+
+`output["meta"]["psgscoring_version"]` now carries the version that produced
+the result. A report can be rendered later than the analysis ran, and
+YASAFlaskified captured this only inside a `comparison` block — which a normal
+clinical run with one profile never creates — so reports showed a permanent
+uncertainty marker instead of a version.
+
+## Repaired along the way
+
+`AROUSAL_LGBM` was the only arousal flag the pipeline read without an
+environment override, so the two arms of this very measurement could not be
+separated. A first attempt returned 30 of 30 identical, which looked like a
+result. The override now exists, with a test that fails when the arms come out
+equal.
+
 # v0.26.0 — 2026-08-23 — the arousal step stops discarding a fifth of the night
 
 **Scored values change** on the sixteen v3 profiles: the arousal step no longer

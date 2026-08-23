@@ -167,11 +167,8 @@ def test_default_is_on_except_where_a_ruleset_is_reproduced():
         assert isinstance(d["AROUSAL_LGBM"], bool), name
     uit = {n for n, d in SCORING_PROFILES.items() if not d["AROUSAL_LGBM"]}
     assert uit == {"aasm_v2_rec", "aasm_v1_rec", "cms_medicare",
-                   "mesa_shhs", "chicago_1999",
-                   "aasm_v3_breath", "aasm_v3_breath_dual",
-                   "aasm_v3_prob", "aasm_v3_prob_dual"}, (
-        f"verwacht de vijf gepinde plus de vier RDI-dragende profielen uit, "
-        f"kreeg {sorted(uit)}")
+                   "mesa_shhs", "chicago_1999"}, (
+        f"verwacht alleen de vijf gepinde profielen uit, kreeg {sorted(uit)}")
 
 
 def test_low_sample_rate_falls_back_instead_of_rejecting_everything(monkeypatch):

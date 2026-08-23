@@ -507,31 +507,38 @@ if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
 
 
-def test_arousal_classifier_is_off_wherever_arousals_reach_the_rdi():
-    """Geen profiel mag de arousal-classifier EN de arousal->RDI-koppeling aan
-    hebben staan.
+def test_the_classifier_runs_on_every_v3_profile_including_the_wired_ones():
+    """Sinds 23-08-2026 draait de classifier ook waar arousals de RDI dragen.
 
-    Waarom dit een test is en geen afspraak: de combinatie verschoof op MESA
-    n=50 de RDI-ernstklasse op 14/50 opnames (28 %), tegen 5/50 voor de AHI,
-    en er is geen RERA-referentie om uit te maken welke van de twee RDI's
-    juister is -- MESA annoteert geen RERA's, en PSG-IPA bevat er 3 in de hele
-    manuele set. Een profiel dat beide vlaggen aanzet verandert dus een
-    klinische index zonder dat iemand kan nagaan of het een verbetering is.
+    Hij stond daar een dag uit omdat de RDI-impact ongemeten was. Die meting is
+    gedaan -- gepaard, MESA n=30, werkpunt 0,80, artefact-epochs zoals productie:
 
-    De classifier zelf is niet omstreden (PSG-IPA F1 0,326 -> 0,505); alleen
-    het doorwerken ervan in de RDI is dat.
+      arousals 212 -> 107 tegen een MENSELIJKE referentie van 128, dus de ratio
+      gaat van 1,47 naar 0,83 en de afwijking van een zuivere telling van 0,58
+      naar 0,26 (dichter bij de referentie op 22/30);
+      respiratoire event-F1 0,44 -> 0,48 (+0,009 gepaard, p = 5,5e-04, 23/30).
+
+    De prijs staat er ook: RDI mediaan -9,25/u en de RDI-ernstklasse verschuift
+    op 37 % van de opnames. Dat is geen correctie -- zonder RERA-referentie is
+    het een verschuiving -- maar twee meetbare verbeteringen wogen zwaarder dan
+    een onmeetbare verschuiving.
+
+    Verandert dit terug, dan verschuiven arousal-index en RDI in de kliniek.
     """
     from psgscoring.profiles import get_profile, list_profiles
 
-    both = [
-        n for n in list_profiles()
-        if get_profile(n).post_processing.arousal_limb_wired
-        and get_profile(n).post_processing.arousal_lgbm
-    ]
-    assert not both, (
-        "profielen met arousal_limb_wired EN arousal_lgbm: %s -- dit verschuift "
-        "de RDI-ernstklasse op ~28 %% van de opnames zonder RERA-referentie" % both
-    )
+    gepind = {"mesa_shhs", "chicago_1999", "cms_medicare", "aasm_v1_rec",
+              "aasm_v2_rec"}
+    uit = {n for n in list_profiles()
+           if not get_profile(n).post_processing.arousal_lgbm}
+    assert uit == gepind, (
+        f"classifier uit op {sorted(uit)}; verwacht alleen de vijf "
+        "reproductieprofielen")
+
+    for n in list_profiles():
+        pp = get_profile(n).post_processing
+        if pp.arousal_limb_wired:
+            assert pp.arousal_lgbm is True, f"{n} draagt RERA's maar filtert niet"
 
 
 def test_arousal_classifier_stays_on_where_arousals_do_not_reach_the_rdi():

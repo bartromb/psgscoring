@@ -1345,28 +1345,26 @@ _aasm_v3_breath = Profile(
         # (issue #16). Dat kan hier veilig, want het profiel is nieuw: er is
         # geen bestaande uitkomst om te breken. Zie arousal_limb_wired.
         arousal_limb_wired=True,
-        # De arousal-classifier staat UIT op de vier profielen waar arousals
-        # doorwerken in de RDI. Gemeten op MESA n=50 (gepaard, seed 20260801):
-        # met classifier daalt de RDI-mediaan 37,2 -> 30,0, gepaarde mediaan
-        # -5,8/u, en de RDI-ERNSTKLASSE verschuift op 14/50 opnames (28 %) --
-        # tegen 5/50 voor de AHI. De oorzaak is niet omstreden: de classifier
-        # verwerpt ~een vijfde van de arousals (225 -> 179 mediaan) en elke
-        # RERA hangt aan een arousal binnen 15 s, dus de RERA-index zakt mee
-        # (17,0 -> 11,1) terwijl RERA's ~46 % van de RDI uitmaken.
+        # De arousal-classifier staat sinds 23-08-2026 AAN op deze profielen
+        # (gebruikersbeslissing). Hij stond hier een dag uit omdat de
+        # RDI-impact ongemeten was; die meting is nu gedaan, gepaard op MESA
+        # n=30 met werkpunt 0,80 en artefact-epochs zoals productie:
         #
-        # Waarom dat NIET als verbetering geboekt wordt: er is geen
-        # RERA-referentie om tegen te toetsen. MESA annoteert er geen, en
-        # PSG-IPA -- waar RERA WEL in de toegestane labelset zat
-        # (`^RERA$` in de scoringsfilter) -- bevat er 3 in de hele manuele
-        # set, uit 2 van de 60 scoorder-opnames. Zonder referentie is een
-        # verschuiving van deze omvang geen correctie maar een onbewezen
-        # herijking, en dan gaat de bestaande uitkomst voor.
+        #   arousals 212 -> 107, tegen een MENSELIJKE referentie van 128:
+        #   de ratio gaat van 1,47 naar 0,83 en de afwijking van een zuivere
+        #   telling van 0,58 naar 0,26, dichter bij de referentie op 22/30.
+        #   Respiratoire event-F1 0,44 -> 0,48 (+0,009 gepaard, p = 5,5e-04,
+        #   beter op 23/30).
         #
-        # Dit is een index-beslissing, geen detectiebeslissing: de classifier
-        # blijft AAN op de veertien profielen waar arousals de RDI niet raken,
-        # want daar staat de winst wel vast (PSG-IPA F1 0,326 -> 0,505,
-        # precisie 0,248 -> 0,425).
-        arousal_lgbm=False,
+        # De prijs: de RDI zakt mediaan 9,25/u en de RDI-ernstklasse verschuift
+        # op 11/30 = 37 % van de opnames. Dat is NIET als correctie geboekt --
+        # er is geen RERA-referentie (zie reference_no_rera_reference), dus het
+        # is een verschuiving. De AHI-bias verslechtert licht (-2,09 -> -3,28)
+        # omdat arousals op dit profiel ook hypopneus bevestigen.
+        #
+        # De afweging die de doorslag gaf: twee MEETBARE dingen worden beter
+        # (arousaltelling, event-F1) tegen één onmeetbaar ding dat verschuift.
+        # Bij de vorige beslissing lag er alleen dat laatste.
         # Operatiepunt, met de herkomst erbij omdat die het cijfer weegt:
         #
         #   0,50 kwam uit een VOORAF vastgelegde regel op PSG-IPA — de
@@ -1461,11 +1459,13 @@ _aasm_v3_prob = Profile(
         # verschuiving van deze omvang geen correctie maar een onbewezen
         # herijking, en dan gaat de bestaande uitkomst voor.
         #
-        # Dit is een index-beslissing, geen detectiebeslissing: de classifier
-        # blijft AAN op de veertien profielen waar arousals de RDI niet raken,
-        # want daar staat de winst wel vast (PSG-IPA F1 0,326 -> 0,505,
-        # precisie 0,248 -> 0,425).
-        arousal_lgbm=False,
+        # OMGEZET 23-08-2026 (gebruikersbeslissing): de classifier staat nu ook
+        # hier AAN. De RDI-impact was toen ongemeten en is dat niet meer -- zie
+        # de toelichting bij `aasm_v3_breath`. Kort: de arousaltelling gaat van
+        # 47 % te veel naar 17 % te weinig tegen de menselijke MESA-referentie
+        # en de event-F1 stijgt, tegen een RDI die mediaan 9,25/u zakt met
+        # 37 % herklassering. Twee meetbare verbeteringen tegen een
+        # onmeetbare verschuiving.
         hypopnea_strictness=0.50,
         # De twee assen die dit profiel onderscheiden.
         #
