@@ -423,6 +423,36 @@ class PostProcessingRules:
 
     Env-override: `PSGSCORING_AROUSAL_EOG_REJECT=1` zet hem terug aan."""
 
+    arousal_lgbm_threshold: float | None = None
+    """Werkpunt van de arousal-classifier. `None` = de moduleconstante (0,60).
+
+    **0,60 is gedomineerd.** De waarde is nooit onafhankelijk geijkt: de veeg
+    die hem bevestigde liep op dezelfde vijf PSG-IPA-opnames waarop
+    gerapporteerd werd, in de single-derivatie configuratie die niet meer
+    draait.
+
+    Herijkt op 23-08-2026 met gescheiden steekproeven (kalibratie MESA n=15,
+    validatie MESA n=30, overlap 0), multi + hybride, artefactlijst genegeerd:
+
+    | | MESA-kal. F1 | MESA-val. F1 | PSG-IPA F1 | telling/referentie |
+    |---|---:|---:|---:|---|
+    | 0,60 | 0,493 | 0,421 | 0,505 | 1,52 / 1,47 |
+    | 0,80 | 0,562 | — | 0,514 (5/5 beter) | **1,07 / 1,01** |
+    | 0,90 | **0,607** | **0,543** | 0,478 (3/5) | 0,60–0,81 |
+
+    Op de validatieset gaat 0,90 van 0,421 naar 0,543 (gepaard +0,091, 24/30,
+    p = 1,5e-06) — meer winst dan de classifier zelf opleverde.
+
+    De keuze tussen 0,80 en 0,90 is klinisch, niet statistisch. 0,90 wint op
+    event-F1; 0,80 wint op beide cohorten tegen 0,60 én geeft een **zuivere
+    arousal-index**, terwijl 0,90 er ruim een derde te weinig telt — en die
+    index staat in het rapport.
+
+    **Default blijft `None`** tot die keuze gemaakt is. Voorwaardelijk op
+    `arousal_uses_artifact_epochs`: wordt de lijst tóch gebruikt, dan moet de
+    ijking over. Zie docs/arousal_drempel_herijking_preregistratie.md.
+    """
+
     arousal_uses_artifact_epochs: bool = True
     """Slaat de arousalstap de als artefact gevlagde epochs over?
 

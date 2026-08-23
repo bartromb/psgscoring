@@ -588,6 +588,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                     hysteresis: bool = False,
                     exit_ratio: float | None = None,
                     lgbm: bool | None = None,
+                    lgbm_threshold: float | None = None,
                     _no_hybrid: bool = False) -> dict:
     """
     Detecteer EEG-arousals conform AASM, Sectie 5.
@@ -1114,10 +1115,14 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                     emg_uv_for_lgbm = emg_data[:n_samples].copy()
                     if np.max(np.abs(emg_uv_for_lgbm)) < 0.01:
                         emg_uv_for_lgbm = emg_uv_for_lgbm * 1e6
+                # Werkpunt: profielwaarde als die er is, anders de
+                # moduleconstante (die zelf al een env-override kent).
+                _thr = (float(lgbm_threshold) if lgbm_threshold is not None
+                        else AROUSAL_LGBM_THRESHOLD)
                 kept, proba = _filter_candidates_with_lgbm(
                     result["events"], eeg_uv_for_lgbm, sf,
                     emg_uv_for_lgbm, len(hypno),
-                    threshold=AROUSAL_LGBM_THRESHOLD,
+                    threshold=_thr,
                 )
                 n_pre = len(result["events"])
                 result["pre_lgbm_n_arousals"] = n_pre
@@ -1125,12 +1130,12 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                 result["summary"] = _recompute_arousal_summary(
                     kept, hypno, set(artifact_epochs or []),
                 )
-                result["summary"]["lgbm_threshold"] = AROUSAL_LGBM_THRESHOLD
+                result["summary"]["lgbm_threshold"] = _thr
                 result["summary"]["lgbm_n_pre"]     = n_pre
                 result["summary"]["lgbm_n_post"]    = len(kept)
                 logger.info(
                     "[arousal] LGBM filter: %d candidates → %d kept "
-                    "(threshold %.2f)", n_pre, len(kept), AROUSAL_LGBM_THRESHOLD,
+                    "(threshold %.2f)", n_pre, len(kept), _thr,
                 )
             except Exception as e:  # noqa: BLE001
                 # De drempels staan hier al ruim, dus teruggeven wat er ligt
@@ -1259,7 +1264,8 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                           eog_reject: bool = False,
                           spectral_shift: bool = False,
                           hysteresis: bool = False,
-                          lgbm: bool | None = None) -> dict:
+                          lgbm: bool | None = None,
+                          lgbm_threshold: float | None = None) -> dict:
     """Multi-derivatie arousal-detectie via event-level union.
 
     ``derivations``: geordende lijst ``[(naam, eeg_data[, sf]), ...]`` — element 0
@@ -1282,7 +1288,8 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                               hr_data=hr_data, sf_hr=sf_hr,
                               ratio_thresh=rt, abrupt_thresh=at,
                               spectral_shift=spectral_shift,
-                              hysteresis=hysteresis, lgbm=lgbm)
+                              hysteresis=hysteresis, lgbm=lgbm,
+                              lgbm_threshold=lgbm_threshold)
         if res.get("success"):
             per.append((name, res))
     if not per:
@@ -1792,6 +1799,7 @@ def run_arousal_respiratory_analysis(
     spectral_shift: bool = False,
     hysteresis:  bool = False,
     lgbm:        bool | None = None,
+    lgbm_threshold: float | None = None,
 ) -> dict:
     """
     Master-functie: detecteer arousals, RERAs en koppel aan respiratoire events.
@@ -1827,13 +1835,15 @@ def run_arousal_respiratory_analysis(
                                           per_channel_thresh=per_channel_thresh,
                                           eog_data=eog_data, eog_reject=eog_reject,
                                           spectral_shift=spectral_shift,
-                                          hysteresis=hysteresis, lgbm=lgbm)
+                                          hysteresis=hysteresis, lgbm=lgbm,
+                                          lgbm_threshold=lgbm_threshold)
     else:
         ar_result = detect_arousals(eeg_data, sf_eeg, hypno, emg_data=emg_data,
                                     artifact_epochs=artifact_epochs,
                                     hr_data=hr_data, sf_hr=sf_hr,
                                     spectral_shift=spectral_shift,
-                                    hysteresis=hysteresis, lgbm=lgbm)
+                                    hysteresis=hysteresis, lgbm=lgbm,
+                                    lgbm_threshold=lgbm_threshold)
     output["arousals"] = ar_result
 
     arousals = ar_result.get("events", [])

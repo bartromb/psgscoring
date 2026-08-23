@@ -764,6 +764,15 @@ def run_pneumo_analysis(
             # Profielvlag `arousal_uses_artifact_epochs`, env-override
             # PSGSCORING_AROUSAL_USES_ARTIFACT_EPOCHS=0/1 om beide armen op
             # één cohort te meten zonder de registry te muteren.
+            _ar_thr = profile.get("AROUSAL_LGBM_THRESHOLD")
+            _env_thr = os.environ.get("PSGSCORING_AROUSAL_LGBM_THRESHOLD")
+            if _env_thr:
+                try:
+                    _ar_thr = float(_env_thr)
+                except ValueError:
+                    logger.warning(
+                        "[pneumo] PSGSCORING_AROUSAL_LGBM_THRESHOLD=%r is geen "
+                        "getal; profielwaarde aangehouden", _env_thr)
             _ar_use_art = bool(profile.get("AROUSAL_USES_ARTIFACT_EPOCHS", True))
             _env_art = os.environ.get("PSGSCORING_AROUSAL_USES_ARTIFACT_EPOCHS")
             if _env_art is not None:
@@ -796,6 +805,7 @@ def run_pneumo_analysis(
                 spectral_shift = _ar_shift,
                 hysteresis  = _ar_hyst,
                 lgbm        = _ar_lgbm,
+                lgbm_threshold = _ar_thr,
             )
         except Exception as e:  # noqa: BLE001 — arousal failure must not abort the run
             logger.warning("[pneumo] arousal analysis failed, continuing: %s", e)
