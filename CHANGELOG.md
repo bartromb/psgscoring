@@ -1,3 +1,82 @@
+# v0.26.0 — 2026-08-23 — the arousal step stops discarding a fifth of the night
+
+**Scored values change** on the sixteen v3 profiles: the arousal step no longer
+uses the artefact list, and the classifier runs at 0.80 instead of 0.60. The
+arousal index moves on all sixteen; the RDI moves on the four
+`arousal_limb_wired` profiles. AHI is untouched. The five profiles reproducing
+an external rule set or a published dataset analysis are byte-identical
+(golden 9/9).
+
+## Two things were wrong, and neither was the algorithm
+
+**The artefact list was removing the arousals.** YASAFlaskified flags an epoch
+at a peak above 500 µV — an absolute threshold — and the arousal step skipped
+those epochs entirely. On MESA that discards a median **19.9 %** of the night,
+up to 53.6 % on one recording. Ignoring the list gives:
+
+| | F1 | precision | recall |
+|---|---:|---:|---:|
+| ignore the list | **0.421** | 0.364 | 0.597 |
+| use it (previous) | 0.338 | 0.305 | 0.370 |
+
+Better on **30 of 30** recordings, p = 1.7e-06, and the sign replicates on
+PSG-IPA. It also beats `yasa.art_detect`, which discards 2.1 % instead of 19.9
+and still does not do better — so the problem is suppression itself, not which
+detector picks the epochs. A variance-based artefact detector selects the
+highest-variance epochs, and that is exactly where arousals are.
+
+**The operating point had never been validated.** 0.60 was confirmed by a
+sweep over the same five PSG-IPA recordings the result was reported on, in the
+single-derivation configuration we no longer ship. Re-derived with separated
+samples (calibration MESA n=15, validation MESA n=30, overlap 0):
+
+| threshold | validation F1 | detected/reference |
+|---:|---:|---:|
+| 0.60 | 0.421 | 1.52 |
+| **0.80** | — | **1.07** |
+| 0.90 | 0.543 | 0.64 |
+
+Paired +0.091 on 24 of 30 at 0.90, p = 1.5e-05. **0.80 was chosen over 0.90**:
+it beats 0.60 on both cohorts and keeps the event count unbiased, where 0.90
+wins on event-F1 but puts the arousal index — the number that reaches the
+report — a third too low.
+
+Combined, arousal F1 on MESA goes **0.338 → 0.543**. That is more than the
+classifier itself gained.
+
+## Also in this release
+
+- `plm_arousal_index` counted only the start of the night: the 200-event cap
+  was applied before the coupling, so on a recording with 660 movements the
+  index came from the first 200. The cap is now a profile flag applied after
+  the derived indices.
+- A dead flow channel is reported as dead rather than as disagreeing with the
+  nasal pressure; the guard now runs on the raw channels and is scale-free.
+- `flow_gap_scale_free` (default off): the flow dropout detector thresholds at
+  an absolute 1e-5, which fires on 0.00 % of `Pres` samples and 6.44 % of
+  `Therm` samples in the same recording. A detached cannula noises around zero
+  and is missed, scoring as back-to-back apnoeas.
+- `apnea.flow_reduction_threshold_thermistor` (default off): nasal pressure
+  drops a median 89.6 % during human-scored apnoeas against 80.3 % on the
+  thermistor, so one threshold cannot read both sensors.
+- The MESA harness counted zero apnoeas on every recording — it searched for
+  the substring "apnea" and the library writes `obstructive`, `central`,
+  `mixed`, `uncertain`. Bookkeeping only; F1 and bias figures were unaffected.
+
+## Refuted this cycle, and recorded as such
+
+The sensor-dependent apnoea threshold (paired ΔF1 −0.0010), replacing the
+artefact detector with `yasa.art_detect` (−0.0045, p = 0.61), and excluding
+artefact epochs from the respiratory step (+0.0084, under the pre-registered
+bar). Each had a rule fixed before the numbers, and each rule was followed.
+
+## Known gap
+
+The RDI consequence on the four `arousal_limb_wired` profiles is not measured.
+The run intended to measure it was void — `aasm_v3_breath` has the classifier
+off, and the harness passed no artefact epochs — and the corrected measurement
+has not been done. RDI = AHI on the other twelve, so only those four move.
+
 # v0.25.0 — 2026-08-22 — the classifier steps back from the RDI
 
 **Scored values change back** on four profiles: `aasm_v3_breath`,
