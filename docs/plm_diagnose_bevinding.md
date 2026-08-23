@@ -135,3 +135,47 @@ Dat de **precisie hoog is** (0,71–0,87) en dat vrijwel elk event dat wij
 markeren door een scoorder gedekt wordt. Dat deel van de eerste diagnose is
 niet geraakt door de fout: het rekende met onze events als noemer, niet met de
 hunne.
+
+---
+
+## Twee hypotheses getoetst en beide WEERLEGD (24-08-2026, nacht)
+
+**1. Rollende basislijn.** De arousaldetector gebruikt er sinds v0.8.11 één,
+met de motivering dat een nachtgemiddelde bij gefragmenteerde slaap misleidt;
+de PLM-detector gebruikt één globaal 10e percentiel. Getoetst over 120 s
+vensters: de rollende variant geeft **minder** events (0,83–0,98×), niet meer.
+Niet de verklaring.
+
+**2. Stadium-afhankelijke rustwaarde.** Als de rust-EMG in slaap lager ligt dan
+nachtbreed, staat de drempel daar te hoog. Gemeten per stadium:
+
+| | W | N1 | N2 | N3 | R |
+|---|---:|---:|---:|---:|---:|
+| SN5 p10 (µV) | 3,11 | 3,26 | 3,46 | 3,78 | 3,74 |
+| SN4 p10 (µV) | 5,65 | 5,38 | 5,42 | 5,69 | 5,55 |
+| SN1 p10 (µV) | 2,08 | 1,29 | 1,28 | 1,16 | 1,40 |
+
+De rustwaarde is vrijwel stadium-onafhankelijk, en een stadium-lokale drempel
+verschuift de telling met enkele procenten. Niet de verklaring.
+
+## Wat er nu precies openstaat op SN5
+
+Op één been telt het ruwe criterium **411** bursts in waak en **136** in
+slaapstadia — dus 25 % in slaap. Maar `analyze_plm` rapporteert voor SN5
+`n_lm_total` 479 en `n_lm_sleep` **36**, ofwel 8 %.
+
+Die twee cijfers zijn niet met elkaar te rijmen: bilaterale samenvoeging kan de
+telling verlagen, maar niet de slaap/waak-**verhouding** van 25 % naar 8 %
+duwen. Er gaat dus iets mis tussen burstdetectie en stadiumtoewijzing dat noch
+de basislijn noch het stadium is.
+
+**Dat is de volgende plek om te kijken**, en het is een gerichte vraag in
+plaats van een vermoeden: reconstrueer voor SN5 de `all_lms`-lijst met hun
+`onset_s`, en vergelijk hun stadiumverdeling met die van de ruwe bursts. Wijkt
+die af, dan zit de fout in de tijd-naar-epoch-omzetting van `analyze_plm` en
+niet in de detectie.
+
+**Wat ik hieruit NIET concludeer:** dat er een defect is. Twee van mijn
+verklaringen zijn vannacht al gesneuveld, en de derde is een discrepantie die
+ik nog niet heb kunnen narekenen. De vier andere opnames halen F1 0,58–0,80 en
+geven geen aanleiding tot zorg.
