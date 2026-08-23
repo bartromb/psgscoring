@@ -735,6 +735,15 @@ def run_pneumo_analysis(
         # gebruiken. De env blijft werken en wint, zodat een meting kan
         # aantonen dat hij niet actief was.
         _ar_lgbm = bool(profile.get("AROUSAL_LGBM", False))
+        # Env-override, zoals bij hysterese en de PLM-tijdbasis. Die ontbrak
+        # hier als enige arousalvlag, en daardoor was de classifier niet per
+        # run te schakelen: een meting die de classifier op een RERA-dragend
+        # profiel wilde vergelijken, mat op 23-08-2026 stil NUL verschil op
+        # 30/30 opnames. `arousal.py` kent de env wel, maar de pipeline geeft
+        # een expliciete bool door en dan komt die code niet aan bod.
+        _ar_lgbm_env = os.environ.get("PSGSCORING_AROUSAL_LGBM")
+        if _ar_lgbm_env is not None:
+            _ar_lgbm = _ar_lgbm_env == "1"
         _ar_hyst = bool(profile.get("AROUSAL_HYSTERESIS", False))
         _ar_hyst_env = os.environ.get("PSGSCORING_AROUSAL_HYSTERESIS")
         if _ar_hyst_env is not None:

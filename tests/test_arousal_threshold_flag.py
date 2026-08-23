@@ -88,3 +88,46 @@ def test_the_summary_reports_the_threshold_that_was_used():
     out = detect_arousals(eeg, sf, hypno, lgbm=True, lgbm_threshold=0.77)
     if "lgbm_threshold" in out.get("summary", {}):
         assert out["summary"]["lgbm_threshold"] == 0.77
+
+
+def test_the_classifier_can_be_switched_per_run(monkeypatch):
+    """Zonder deze override is een arm niet van de andere te scheiden.
+
+    De pipeline gaf `AROUSAL_LGBM` als expliciete bool door, dus de env die
+    `arousal.py` kent kwam nooit aan bod. Een meting die de classifier op een
+    RERA-dragend profiel wilde vergelijken mat daardoor nul verschil op 30 van
+    30 opnames -- en dat zag eruit als een uitkomst.
+    """
+    import numpy as np
+    import pytest
+    pytest.importorskip("mne")
+    import psgscoring
+    import mne
+
+    sf, minutes = 64.0, 25
+    n = int(sf * 60 * minutes)
+    t = np.arange(n) / sf
+    rng = np.random.default_rng(6)
+    eeg = rng.normal(0, 20e-6, n)
+    for s0 in range(60, 60 * minutes - 60, 70):
+        a, b = int(s0 * sf), int((s0 + 5) * sf)
+        eeg[a:b] += 70e-6 * np.sin(2 * np.pi * 10.0 * t[a:b])
+    info = mne.create_info(["Resp nasal", "SaO2", "EEG C4-M1", "EMG chin"],
+                           sf, ["misc", "misc", "eeg", "emg"])
+    raw = mne.io.RawArray(
+        np.vstack([np.sin(2 * np.pi * 0.25 * t), np.full(n, 97.0), eeg,
+                   rng.normal(0, 5e-6, n)]), info, verbose=False)
+    hypno = ["N2"] * int(np.ceil(raw.times[-1] / 30.0))
+
+    def n_ar():
+        out = psgscoring.run_pneumo_analysis(
+            raw.copy(), hypno=hypno, scoring_profile="aasm_v3_breath")
+        return len(out["arousal"].get("events", []))
+
+    monkeypatch.setenv("PSGSCORING_AROUSAL_LGBM", "0")
+    uit = n_ar()
+    monkeypatch.setenv("PSGSCORING_AROUSAL_LGBM", "1")
+    aan = n_ar()
+    assert uit != aan, (
+        f"de env schakelt de classifier niet: uit={uit}, aan={aan} -- een "
+        "vergelijking van beide armen zou nul verschil meten")
