@@ -69,3 +69,43 @@ trainingsreferentie (MESA, één scoorder per opname) en niet in het werkpunt.
 
 Evenmin: of de twaalf-scoorder-fractie als trainingsdoel beter zou werken. Dat
 is een apart spoor en het vereist hertrainen, niet herijken.
+
+---
+
+## Kalibratie-uitkomst en een amendement, vóór de validatie
+
+Kalibratie op 15 MESA-opnames (zaad 20260825, overlap met validatie 0):
+
+| drempel | F1 | precisie | recall | events (mediaan) |
+|---:|---:|---:|---:|---:|
+| 0,50 | 0,459 | 0,351 | 0,679 | 314 |
+| 0,60 | 0,493 | 0,402 | 0,667 | 267 |
+| 0,70 | 0,527 | 0,486 | 0,654 | 229 |
+| 0,80 | 0,562 | 0,571 | 0,629 | 194 |
+| **0,90** | **0,607** | **0,710** | 0,513 | 133 |
+
+Monotoon stijgend over de hele veeg. De precisie verdubbelt bijna (0,351 →
+0,710) terwijl de recall maar van 0,679 naar 0,513 zakt — precies het profiel
+dat de diagnose voorspelde: er zaten veel events in die niemand markeerde.
+
+**Het probleem: het optimum ligt op de RAND van mijn eigen veeg.** De
+vooraf vastgelegde keuzeregel wijst 0,90 aan, maar een grid dat op zijn
+grenspunt eindigt heeft het optimum niet gevonden — het is er alleen tegenaan
+gelopen.
+
+**Amendement, vastgelegd vóór enige validatiemeting:** de veeg wordt op
+**dezelfde kalibratieopnames** uitgebreid met **0,93 · 0,95 · 0,97 · 0,99**.
+
+Waarom dit geen p-hacking is: de kalibratieset bestaat om het werkpunt te
+kiezen, en de validatieset is er niet bij betrokken en blijft ongezien. Wat wél
+fout zou zijn, is het grid uitbreiden nádat de validatie is gedraaid, of het
+uitbreiden op de validatieset. Geen van beide gebeurt.
+
+De keuzeregel blijft ongewijzigd: hoogste mediane F1 op de kalibratieset,
+en bij een verschil onder 0,005 wint de hogere drempel.
+
+**Wat ik verwacht en waarom het ertoe doet dat ik het opschrijf:** ergens
+boven 0,90 moet de F1 omslaan, want bij een drempel van 1,0 blijven er nul
+events over. Ligt het optimum ook na uitbreiding op de rand (0,99), dan is er
+iets anders aan de hand dan een werkpunt — dan produceert het model kansen die
+niet kalibreren, en is de conclusie een andere.
