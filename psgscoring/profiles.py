@@ -423,7 +423,7 @@ class PostProcessingRules:
 
     Env-override: `PSGSCORING_AROUSAL_EOG_REJECT=1` zet hem terug aan."""
 
-    arousal_lgbm_threshold: float | None = None
+    arousal_lgbm_threshold: float | None = 0.80
     """Werkpunt van de arousal-classifier. `None` = de moduleconstante (0,60).
 
     **0,60 is gedomineerd.** De waarde is nooit onafhankelijk geijkt: de veeg
@@ -453,7 +453,7 @@ class PostProcessingRules:
     ijking over. Zie docs/arousal_drempel_herijking_preregistratie.md.
     """
 
-    arousal_uses_artifact_epochs: bool = True
+    arousal_uses_artifact_epochs: bool = False
     """Slaat de arousalstap de als artefact gevlagde epochs over?
 
     `True` = huidig gedrag: de epochs uit `artifact_epochs` doen niet mee aan
@@ -1496,7 +1496,12 @@ _aasm_v2_rec = Profile(
         # Arousal-classifier om dezelfde reden UIT: een ML-filter maakt geen
         # deel uit van AASM v1/v2 of de CMS-regels, en de twee
         # dataset-profielen moeten paper v31/v37 reproduceren.
-        arousal_lgbm=False,summary_after_reclassification=True),
+        arousal_lgbm=False,
+        # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
+        # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
+        # MESA), maar dat verschuift de arousaldetectie en dus de uitkomst van
+        # een gereproduceerde regelset.
+        arousal_uses_artifact_epochs=True,summary_after_reclassification=True),
 )
 
 # ---- AASM v1 RECOMMENDED (2007) ----
@@ -1531,7 +1536,12 @@ _aasm_v1_rec = Profile(
         # Arousal-classifier om dezelfde reden UIT: een ML-filter maakt geen
         # deel uit van AASM v1/v2 of de CMS-regels, en de twee
         # dataset-profielen moeten paper v31/v37 reproduceren.
-        arousal_lgbm=False,summary_after_reclassification=True),
+        arousal_lgbm=False,
+        # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
+        # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
+        # MESA), maar dat verschuift de arousaldetectie en dus de uitkomst van
+        # een gereproduceerde regelset.
+        arousal_uses_artifact_epochs=True,summary_after_reclassification=True),
 )
 
 # ---- CMS / Medicare (AASM v3 1B OPTIONAL) ----
@@ -1569,7 +1579,12 @@ _cms_medicare = Profile(
         # Arousal-classifier om dezelfde reden UIT: een ML-filter maakt geen
         # deel uit van AASM v1/v2 of de CMS-regels, en de twee
         # dataset-profielen moeten paper v31/v37 reproduceren.
-        arousal_lgbm=False,summary_after_reclassification=True),
+        arousal_lgbm=False,
+        # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
+        # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
+        # MESA), maar dat verschuift de arousaldetectie en dus de uitkomst van
+        # een gereproduceerde regelset.
+        arousal_uses_artifact_epochs=True,summary_after_reclassification=True),
 )
 
 # ---- MESA / NSRR convention ----
@@ -1620,6 +1635,11 @@ _mesa_shhs = Profile(
         # deel uit van AASM v1/v2 of de CMS-regels, en de twee
         # dataset-profielen moeten paper v31/v37 reproduceren.
         arousal_lgbm=False,
+        # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
+        # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
+        # MESA), maar dat verschuift de arousaldetectie en dus de uitkomst van
+        # een gereproduceerde regelset.
+        arousal_uses_artifact_epochs=True,
         stability_filter_enabled=True,
         stability_filter_cv=0.45,
         csr_reclassification=True,
@@ -1713,6 +1733,11 @@ _chicago_1999 = Profile(
         # deel uit van AASM v1/v2 of de CMS-regels, en de twee
         # dataset-profielen moeten paper v31/v37 reproduceren.
         arousal_lgbm=False,
+        # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
+        # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
+        # MESA), maar dat verschuift de arousaldetectie en dus de uitkomst van
+        # een gereproduceerde regelset.
+        arousal_uses_artifact_epochs=True,
         # GEPIND op het gedrag van vóór 13-08-2026: dit profiel reproduceert
         # de Chicago-criteria van 1999 en hoort niet mee te bewegen met
         # reparaties aan de sensorpoorten. Zie

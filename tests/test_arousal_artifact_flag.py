@@ -18,13 +18,22 @@ import numpy as np
 import pytest
 
 
-def test_the_default_is_still_to_use_the_list():
+def test_the_list_is_ignored_everywhere_except_on_the_pinned_profiles():
+    """Sinds 23-08-2026 (gebruikersbeslissing) negeert de arousalstap de lijst.
+
+    Behalve op de vijf profielen die een externe regelset of een gepubliceerde
+    dataset-analyse reproduceren: daar zou het de gereproduceerde uitkomst
+    verschuiven.
+    """
     from psgscoring.profiles import get_profile, list_profiles
 
+    gepind = {"mesa_shhs", "chicago_1999", "cms_medicare", "aasm_v1_rec",
+           "aasm_v2_rec"}
     for name in list_profiles():
-        assert get_profile(name).post_processing.arousal_uses_artifact_epochs is True, (
-            f"{name} negeert de artefactlijst; dat verschuift de arousal-index "
-            "en de RDI zonder dat het besloten is")
+        got = get_profile(name).post_processing.arousal_uses_artifact_epochs
+        verwacht = name in gepind
+        assert got is verwacht, (
+            f"{name}: artefactlijst gebruiken={got}, verwacht {verwacht}")
 
 
 def test_the_registry_carries_the_flag():

@@ -13,12 +13,33 @@ import numpy as np
 import pytest
 
 
-def test_no_profile_overrides_the_threshold_yet():
+def test_the_operating_point_is_0_80_everywhere_it_is_read():
+    """0,80 sinds 23-08-2026 (gebruikersbeslissing).
+
+    Gekozen boven 0,90 omdat 0,80 op beide cohorten van 0,60 wint en de
+    eventtelling zuiver houdt (1,07 / 1,01 tegen 1,52 / 1,47), terwijl 0,90
+    de arousal-index ruim een derde te laag zou zetten.
+
+    Op de vijf gepinde profielen staat de classifier uit, dus daar wordt de
+    waarde nooit gelezen; die worden hier niet gepind op een getal maar op het
+    feit dat hij niet gelezen wordt.
+    """
     from psgscoring.profiles import get_profile, list_profiles
 
     for name in list_profiles():
-        v = get_profile(name).post_processing.arousal_lgbm_threshold
-        assert v is None, f"{name} zet een eigen drempel: {v}"
+        pp = get_profile(name).post_processing
+        if not pp.arousal_lgbm:
+            continue                      # classifier uit: drempel irrelevant
+        assert pp.arousal_lgbm_threshold == 0.80, (
+            f"{name} draait de classifier op {pp.arousal_lgbm_threshold}")
+
+
+def test_the_pinned_profiles_do_not_run_the_classifier_at_all():
+    from psgscoring.profiles import get_profile
+
+    for name in ("mesa_shhs", "chicago_1999", "cms_medicare",
+                 "aasm_v1_rec", "aasm_v2_rec"):
+        assert get_profile(name).post_processing.arousal_lgbm is False, name
 
 
 def test_the_registry_carries_it():
