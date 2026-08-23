@@ -142,10 +142,26 @@ def _artifact_epochs_like_production(raw, epoch_s=EPOCH_S):
     apneu- en hypopneudetectie op de neusdruk en de saturatiemeter.
     """
     import numpy as _np
+    # GEEN `startswith("EEG")`: MESA heeft naast EEG1/2/3 ook EEG1_Off..EEG3_Off,
+    # de offsetkanalen, met pieken van MILJOENEN uV. Die haalden de 500 uV-regel
+    # op elk epoch, waardoor 100 % van de nacht als artefact gold en de AHI op
+    # nul uitkwam. Productie krijgt `all_eeg_channels` uit de kanaaldetectie en
+    # heeft dat probleem niet; alleen deze replicatie had het.
     namen = [n for n in raw.ch_names
-             if n.upper().startswith("EEG") or n in ("EEG1", "EEG2", "EEG3")]
+             if n.upper().startswith("EEG") and not n.upper().endswith("_OFF")]
     if not namen:
         return []
+    # Een kanaal waarvan de amplitude buiten elk fysiologisch bereik ligt, is
+    # geen EEG maar een hulpkanaal; meenemen zou de hele nacht vlaggen.
+    import numpy as _np2
+    _keep = []
+    for _n in namen:
+        _x = raw.get_data(picks=[_n], units="uV")[0]
+        if float(_np2.std(_x)) < 1e5:
+            _keep.append(_n)
+    if not _keep:
+        return []
+    namen = _keep
     dat = raw.get_data(picks=namen, units="uV")
     sf = float(raw.info["sfreq"])
     epl = int(epoch_s * sf)
