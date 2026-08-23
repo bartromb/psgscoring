@@ -146,3 +146,70 @@ volledig; alleen de JSON van de tweede ronde is niet weggeschreven.
 **Nog niets besloten.** 0,90 is gekozen op de kalibratieset. De validatie op
 de 30 ongeziene opnames moet nog, en die beslist — mediane gepaarde ΔF1 ≥
 +0,010 én tekencontrole op PSG-IPA.
+
+---
+
+# Uitkomst — 23 augustus 2026
+
+## Validatie, MESA n=30 (ongezien)
+
+| drempel | F1 | precisie | recall | events | referentie |
+|---:|---:|---:|---:|---:|---:|
+| 0,60 (huidig) | 0,421 | 0,364 | 0,597 | 228 | 128 |
+| **0,90** | **0,543** | 0,673 | 0,443 | 85 | |
+
+Gepaarde ΔF1 **+0,0910**, beter op **24/30**, Wilcoxon **p = 1,5·10⁻⁵**.
+Criterium 1 ruim gehaald.
+
+## Tekencontrole, PSG-IPA n=5 (twaalf scoorders)
+
+| drempel | F1 | precisie | recall | ratio |
+|---:|---:|---:|---:|---:|
+| 0,60 | 0,505 | 0,425 | 0,649 | 1,47 |
+| **0,80** | **0,514** | 0,599 | 0,520 | **1,01** |
+| 0,90 | 0,478 | 0,653 | 0,398 | 0,60 |
+
+| tegen 0,60 | gepaarde mediaan | beter op | teken |
+|---|---:|---:|---|
+| 0,80 | **+0,0300** | **5/5** | repliceert |
+| 0,90 | +0,0070 | 3/5 | repliceert |
+
+**Formeel haalt 0,90 beide criteria** — ΔF1 +0,091 op MESA, teken repliceert op
+PSG-IPA. Volgens de vooraf vastgelegde regel is 0,90 dus de uitkomst, en dat
+laat ik staan.
+
+## Maar het volledige beeld stelt die uitkomst ter discussie
+
+Drie dingen die de regel niet ving:
+
+1. **Het optimum verschilt per cohort.** MESA wijst 0,90 aan, PSG-IPA 0,80.
+   Op PSG-IPA is 0,90 op de marginale F1 zelfs *slechter* dan 0,60 (0,478
+   tegen 0,505), en de gepaarde winst leunt op 3 van 5 opnames.
+2. **0,80 wint overtuigender waar het meeste bewijs per opname zit.** Vijf van
+   vijf tegen drie van vijf, +0,030 tegen +0,007.
+3. **De eventtelling.** Bij 0,80 is de verhouding gedetecteerd/referentie 1,01
+   op PSG-IPA en 1,07 op de MESA-kalibratie — zuiver op beide. Bij 0,90 is dat
+   0,60 respectievelijk 0,64–0,81: een arousal-index die een derde te laag
+   uitkomt.
+
+**Wat hoe dan ook vaststaat: 0,60 is gedomineerd.** 0,80 verbetert de F1 op
+beide cohorten (MESA-kalibratie 0,493 → 0,562; PSG-IPA 0,505 → 0,514, 5/5) én
+maakt de telling zuiver. Welk gewicht je ook aan F1 tegen index-zuiverheid
+geeft, het huidige werkpunt is niet de juiste keuze.
+
+## Wat ik hiervan wel en niet maak
+
+Ik verschuif de uitkomstmaat **niet** achteraf van F1 naar de eventtelling. De
+regel wees 0,90 aan en dat staat er.
+
+Maar de keuze tussen 0,80 en 0,90 is klinisch, niet statistisch: de
+arousal-index belandt in het rapport, en 36 % te laag is een ander soort fout
+dan 47 % te hoog. Die weging is niet van mij.
+
+**Beperking van deze meting:** PSG-IPA is n=5, dus de cohortverschillen kunnen
+ruis zijn. Wie het wil beslechten, meet 0,80 tegen 0,90 gepaard op een tweede
+MESA-steekproef, disjunct van beide gebruikte sets, met de eventtelling als
+vooraf gekozen uitkomstmaat.
+
+**Niets geïmplementeerd.** De drempel is nog steeds 0,60; er bestaat al een
+env-override `PSGSCORING_AROUSAL_LGBM_THRESHOLD`.
