@@ -77,3 +77,69 @@ alleen langs een bestaande curve. En het blijft één vaste waarde voor alle
 opnames — terwijl de arousalmeting van vandaag liet zien dat de fout per
 opname in beide richtingen loopt. Een werkpunt dat per opname meebeweegt is
 een andere en grotere vraag; die staat hier expliciet buiten.
+
+---
+
+# Uitkomst — 24 augustus 2026
+
+**Alle drie de criteria gehaald. 0,50 is aantoonbaar niet het juiste
+werkpunt.**
+
+## Kalibratie (MESA n=15, zaad 20260826, disjunct)
+
+| strictness | F1 | AHI-bias | events |
+|---:|---:|---:|---:|
+| 0,20 | 0,578 | +3,30 | 95 |
+| **0,30** | **0,588** | **+0,40** | 78 |
+| 0,40 | 0,556 | −0,82 | 73 |
+| 0,50 (huidig) | 0,534 | −3,50 | 63 |
+| 0,60 | 0,500 | −3,50 | 54 |
+| 0,70 | 0,481 | −5,26 | 48 |
+| 0,80 | 0,424 | −5,96 | 38 |
+
+Binnenoptimum, geen randgeval — het ruime grid van de les van gisteren werkte.
+
+## Validatie (MESA n=30, zaad 20260824, ongezien)
+
+| | 0,50 | 0,30 | verschil |
+|---|---:|---:|---:|
+| event-F1 mediaan | 0,481 | **0,539** | +0,057 |
+| AHI-bias mediaan | −3,28 | **−0,05** | +3,23 |
+| \|AHI-bias\| mediaan | 7,20 | **4,50** | −2,71 |
+| events mediaan | 89 | 117,5 | +28,5 |
+
+Gepaarde ΔF1 **+0,0346**, beter op **26 van 30**, Wilcoxon **p = 2,6·10⁻⁷**.
+AHI-ernstklasse verschuift op 7/30 = **23 %**, onder de meldgrens.
+
+Dit is een **beide-kanten-winst**: de events kloppen beter én de systematische
+onderschatting van de AHI verdwijnt vrijwel.
+
+## Replicatie (PSG-IPA n=5, twaalf scoorders)
+
+| | scoorder | F1 0,50 → 0,30 | events | AHI |
+|---|---:|---|---|---|
+| SN1 | 34 | 0,667 → 0,621 | 29 → 40 | 5,0 → 6,9 |
+| SN2 | 21 | 0,388 → 0,413 | 24 → 42 | 4,9 → 8,7 |
+| SN3 | 327 | 0,898 → 0,891 | 323 → 338 | 53,3 → 55,8 |
+| SN4 | 23 | 0,252 → 0,333 | 12 → 25 | 2,0 → 4,2 |
+| SN5 | 70 | 0,461 → 0,470 | 69 → 101 | 9,8 → 14,4 |
+
+Gepaarde ΔF1 **+0,0090**, beter op **3 van 5**. Het teken repliceert, dus
+criterium 3 is gehaald.
+
+**Maar zwak, en dat hoort erbij.** Op MESA is de winst +0,035 op 26 van 30; op
+PSG-IPA +0,009 op 3 van 5, met SN1 en SN3 licht slechter. Waar 0,50 al goed
+zat — SN5 telde 69 tegen een scoordermediaan van 70 — schiet 0,30 door naar
+101.
+
+Dat is hetzelfde patroon als bij de arousaldrempel: de winst is groot waar het
+werkpunt verkeerd stond en licht negatief waar het al klopte. Een vaste
+drempel kan dat niet oplossen.
+
+## Uitkomst volgens de regel
+
+Aangenomen. Maar het is een klinische verschuiving — de AHI stijgt en de
+ernstklasse beweegt op 23 % van de opnames — en dat is geen beslissing die uit
+een regel volgt.
+
+**Niet geïmplementeerd, niet uitgerold.** Ligt voor.
