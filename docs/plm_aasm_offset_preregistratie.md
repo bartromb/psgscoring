@@ -98,3 +98,58 @@ Een replicatie. Vijf opnames, één montagetype, één cohort. MESA annoteert
 beenbewegingen en is de aangewezen tweede toets; die staat nog open.
 
 **Vlag blijft default UIT** tot dat gebeurd is of tot de gebruiker beslist.
+
+---
+
+# Replicatie op MESA — 24 augustus 2026
+
+**Het teken repliceert, en sterker dan op PSG-IPA.**
+
+16 opnames (zaad 20260827; vier overgeslagen wegens te weinig geannoteerde
+bewegingen in slaap):
+
+| | F1 |
+|---|---:|
+| A: huidig | 0,379 |
+| **B: AASM-einde** | **0,543** |
+
+Gepaarde ΔF1 **+0,1091**, beter op **13 van 16**. Op PSG-IPA was dat +0,0516
+op 4 van 5.
+
+## Het mechanisme is niet "meer events" — het is herstructurering
+
+Op PSG-IPA vóégde de regel events toe (SN5: 36 → 258). Op MESA **verwijdert**
+hij er juist: `mesa-sleep-0010` gaat van 448 naar 152. De regel telt niet op of
+af maar **hergroepeert**: losse bursts binnen één beweging smelten samen tot
+één langere, en marginale bewegingen die eerst wegvielen blijven behouden.
+
+Dat verklaart waarom hij op twee cohorten met **tegengestelde** foutrichtingen
+allebei wint.
+
+## De tellingsmaat is op MESA NIET te beoordelen
+
+De afwijking van een zuivere telling gaat daar van 0,71 naar 0,90 — schijnbaar
+slechter. Maar die maat is hier ongeldig, om twee redenen die vooraf gecheckt
+hadden moeten worden:
+
+1. MESA annoteert **alleen het linkerbeen** (`periodic leg movement - left`,
+   `limb movement - left`; over 25 opnames staat er geen enkele rechts).
+2. Het merendeel is **`periodic leg movement`** (1474 tegen 428 losse), dus de
+   referentie bestaat overwegend uit bewegingen die deel uitmaken van een
+   PLM-reeks — terwijl `plm_eligible` álle in aanmerking komende bewegingen
+   bevat. Een superset tegen een deelverzameling, opnieuw.
+
+De **gepaarde** F1 blijft wél geldig: beide armen dragen exact dezelfde
+handicap, dus het verschil ertussen is zuiver.
+
+## Wat hiermee vaststaat
+
+De AASM-einde-regel verbetert de overeenstemming met menselijke scoring op
+**twee onafhankelijke cohorten**, met verschillende referenties, verschillende
+montages en tegengestelde foutrichtingen: +0,0516 (4/5) en +0,1091 (13/16).
+
+Op PSG-IPA — waar de tellingsmaat wél geldig is — verbetert die ook, van 0,17
+naar 0,05 afwijking.
+
+**De vlag staat nog steeds default UIT.** Aanzetten verandert de PLM-index en
+is een klinische beslissing.
