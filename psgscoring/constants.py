@@ -250,6 +250,21 @@ CHANNEL_PATTERNS: dict[str, list[str]] = {
                  "bein r", "bein re", "jambe d", "tib ant r",
                  "emg tib r", "emg tibant r", "plm r", "plm-r", "plmr",
                  "emg ra", "ta r", "ta re"],
+    # ONGEZIJDERD beenkanaal. MESA-EDF's dragen één kaal kanaal `Leg`, dat
+    # geen enkel patroon in leg_l/leg_r matcht -- die noemen allemaal een
+    # zijde. De pijplijn nam dus de tak "No leg-EMG channels" en de PLM-stap
+    # draaide op MESA helemaal niet: geen fout, geen waarschuwing, lege
+    # samenvatting. Elke PLM-wijziging was daardoor op dat cohort onmeetbaar.
+    #
+    # Een DERDE rol, en niet een kaal "leg" in `leg_l`: dat zou van een
+    # ongezijderd kanaal het linkerbeen maken, en dat is niet waar. Het
+    # verschil is klinisch -- `_merge_bilateral` ontdubbelt bewegingen die
+    # beide benen zien, en die regel kan niet draaien op één kanaal.
+    #
+    # Staat ACHTER leg_l/leg_r en wordt door _ROLE_MAY_NOT_TAKE geblokkeerd
+    # voor een kanaal dat een van die twee al heeft opgeeist, zodat "Leg L"
+    # het linkerbeen blijft en niet alsnog als ongezijderd wordt gelezen.
+    "leg":      ["leg", "tibial", "tib", "plm", "jambe", "bein", "been"],
     # Kin-EMG. Stond hier NIET, en dat was geen omissie zonder gevolg: de
     # arousal-classifier splitst 486 keer op een EMG-feature, en de enige
     # manier waarop het kanaal hem bereikte was een handmatige "emg" in de

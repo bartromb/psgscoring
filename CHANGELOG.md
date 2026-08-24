@@ -1,3 +1,42 @@
+# v0.27.3 — 2026-08-24 — één ongezijderd beenkanaal is nog steeds een beenkanaal
+
+**Output changes** op montages met precies één beenkanaal zonder zijde-aanduiding:
+de PLM-stap draait daar nu, terwijl ze stil werd overgeslagen. Montages met een
+linker- én rechterkanaal zijn onveranderd; golden 9/9.
+
+## Wat er misging
+
+MESA-EDF's dragen één kaal kanaal `Leg`. Alle patronen in `leg_l` en `leg_r`
+noemen een zijde ("leg l", "lleg", "emg tib l", ...), dus `detect_channels`
+leverde niets, `_pick` gaf `None`, en de pijplijn nam de tak
+`"No leg-EMG channels"` — **geen fout, geen waarschuwing, lege samenvatting**.
+
+De PLM-stap draaide daardoor op MESA **helemaal niet**. Dat is geen
+cosmetisch verlies: het maakte elke PLM-wijziging op dat cohort onmeetbaar.
+`plm_offset_aasm` moest op een handgeschreven `channel_map` gemeten worden, en
+de gecombineerde-impactvraag kon niet beantwoord worden. Klinisch valt hetzelfde
+gat waar een montage één tibialiskanaal exporteert.
+
+## Waarom een DERDE rol en niet een kaal "leg" in `leg_l`
+
+Dat zou van een ongezijderd kanaal het linkerbeen maken, en dat is niet waar.
+Het verschil is klinisch: `_merge_bilateral` ontdubbelt bewegingen die beide
+benen zien, en die regel kan op één kanaal niet draaien. Een LM-telling uit één
+kanaal is dus niet zonder meer vergelijkbaar met een telling uit twee.
+
+- `CHANNEL_PATTERNS["leg"]`, geplaatst ná `leg_l`/`leg_r` en geblokkeerd via
+  `_ROLE_MAY_NOT_TAKE["leg"] = ("leg_l", "leg_r")`, zodat "Leg L" het
+  linkerbeen blijft en niet alsnog als ongezijderd gelezen wordt.
+- De pijplijn gebruikt de rol **alleen** als `leg_l` én `leg_r` ontbreken —
+  waar links en rechts apart bestaan is de bilaterale ontdubbeling de betere
+  informatie.
+- `meta["plm_channels"]` noemt de gebruikte kanalen en zegt met
+  `bilateral: true/false` of de ontdubbeling gedraaid heeft. Dat is precies wat
+  een telling uit één kanaal onvergelijkbaar maakt met een telling uit twee, en
+  het hoort in de provenance in plaats van verzwegen.
+
+---
+
 # v0.27.2 — 2026-08-24 — een index met twee noemers, en een houding van een halve minuut
 
 **Scored values change** op twee plekken, allebei omdat er een getal stond waar

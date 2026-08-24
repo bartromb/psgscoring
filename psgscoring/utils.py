@@ -112,10 +112,11 @@ _ROLE_MAY_NOT_TAKE: dict[str, tuple[str, ...]] = {
     # emg_var_ratio zou dan op beenbewegingen draaien in plaats van op de
     # kin. Dat is geen ontbrekend EMG maar een fout EMG -- niet herkenbaar
     # als fout in de output.
-    "emg":   ("leg_l", "leg_r"),
+    "leg":   ("leg_l", "leg_r"),
+    "emg":   ("leg_l", "leg_r", "leg"),
     "eeg":   ("flow_pressure", "flow_thermistor", "flow", "thorax", "abdomen",
               "spo2", "pulse", "ecg", "position", "snore", "leg_l", "leg_r",
-              "emg"),
+              "leg", "emg"),
 }
 
 

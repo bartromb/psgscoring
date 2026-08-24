@@ -286,6 +286,24 @@ def run_pneumo_analysis(
     snore_data,   sf_snore = get("snore")
     leg_l_data,   sf_leg   = get("leg_l")
     leg_r_data,   _        = get("leg_r")
+    # Ongezijderd beenkanaal (MESA's kale `Leg`). Alleen gebruiken als er geen
+    # gezijderde kanalen zijn: waar links en rechts apart bestaan is de
+    # bilaterale ontdubbeling van _merge_bilateral de betere informatie.
+    leg_uni_data, sf_leg_uni = (None, None)
+    if leg_l_data is None and leg_r_data is None:
+        leg_uni_data, sf_leg_uni = get("leg")
+        if leg_uni_data is not None:
+            sf_leg = sf_leg_uni
+    # Welke beenkanalen de PLM-stap gebruikt heeft, en of het er twee waren.
+    # Een LM-telling uit één kanaal is niet zonder meer vergelijkbaar met een
+    # telling uit twee -- `_merge_bilateral` kan op één kanaal niet draaien --
+    # en dat hoort in de provenance te staan in plaats van verzwegen.
+    output["meta"]["plm_channels"] = {
+        "leg_l":     ch.get("leg_l") if leg_l_data is not None else None,
+        "leg_r":     ch.get("leg_r") if leg_r_data is not None else None,
+        "unsided":   ch.get("leg") if leg_uni_data is not None else None,
+        "bilateral": leg_l_data is not None and leg_r_data is not None,
+    }
 
     # v0.5.1: optional RIPsum fallback for hypopnea channel when nasal
     # pressure is degraded (mesa_shhs profile). Clinical profiles default
@@ -692,15 +710,20 @@ def run_pneumo_analysis(
 
     # ── Step 6: PLM ────────────────────────────────────────────────────────
     logger.info("[pneumo 6/9] PLM detection...")
-    if leg_l_data is not None or leg_r_data is not None:
+    if (leg_l_data is not None or leg_r_data is not None
+            or leg_uni_data is not None):
         # v0.23.0: tijdbasis van de RMS-vensters. Profielvlag `plm_time_base`,
         # env-override PSGSCORING_PLM_TIME_BASE=0/1.
         _plm_tb = bool(profile.get("PLM_TIME_BASE", False))
         _plm_tb_env = os.environ.get("PSGSCORING_PLM_TIME_BASE")
         if _plm_tb_env is not None:
             _plm_tb = _plm_tb_env == "1"
+        # Het ongezijderde kanaal gaat door de linkertak -- die is niet
+        # links-specifiek, ze is gewoon de eerste van de twee. De provenance
+        # in meta["plm_channels"] zegt wat het werkelijk was.
         output["plm"] = _run_step("plm", lambda: analyze_plm(
-            leg_l_data, leg_r_data,
+            leg_l_data if leg_l_data is not None else leg_uni_data,
+            leg_r_data,
             sf_leg or raw.info["sfreq"], hypno,
             resp_events=resp.get("events", []),
             artifact_epochs=artifact_epochs,
