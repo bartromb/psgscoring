@@ -30,6 +30,17 @@ from .utils import safe_r
 LM_MIN_DUR_S       = 0.5
 LM_MAX_DUR_S       = 10.0
 LM_AMPLITUDE_UV    = 8.0     # µV above resting EMG
+LM_OFFSET_UV       = 2.0
+"""Einde-drempel van AASM regel 4.A, in µV boven rust.
+
+De regel legt onset en einde op VERSCHILLENDE drempels: onset bij een stijging
+van 8 µV, einde bij het begin van een periode van >= LM_MIN_DUR_S waarin het
+EMG niet boven 2 µV boven rust komt. Deze module gebruikte 8 µV voor allebei,
+waardoor de gemeten duur de tijd BOVEN 8 µV was -- stelselmatig korter, zodat
+een beweging die net boven de drempel uitkomt onder het minimum van 0,5 s zakt.
+
+Alleen actief met `offset_aasm=True`; zie de profielvlag `plm_offset_aasm`.
+"""
 
 # Hoeveel events er hoogstens in `result["events"]` gaan. Een payloadgrens,
 # geen scoringsregel: `summary["n_events_truncated"]` zegt hoeveel er wegviel.
@@ -53,6 +64,7 @@ def analyze_plm(
     leg_unit: str = "auto",
     time_base_fix: bool = True,
     event_list_cap: int | None = EVENT_LIST_CAP,
+    offset_aasm: bool = False,
 ) -> dict:
     """
     Detect PLMs on left and/or right tibialis anterior EMG channels.
@@ -92,10 +104,12 @@ def analyze_plm(
             return result
 
         lms_l = (_detect_lm_channel(leg_l, sf, unit=leg_unit,
-                                    time_base_fix=time_base_fix)
+                                    time_base_fix=time_base_fix,
+                                  offset_aasm=offset_aasm)
                  if leg_l is not None else [])
         lms_r = (_detect_lm_channel(leg_r, sf, unit=leg_unit,
-                                    time_base_fix=time_base_fix)
+                                    time_base_fix=time_base_fix,
+                                  offset_aasm=offset_aasm)
                  if leg_r is not None else [])
         all_lms = _merge_bilateral(lms_l, lms_r)
         all_lms.sort(key=lambda x: x["onset_s"])
@@ -196,6 +210,7 @@ def _detect_lm_channel(
     sf: float,
     unit: str = "auto",
     time_base_fix: bool = True,
+    offset_aasm: bool = False,
 ) -> list[dict]:
     """Detect LM events on a single EMG channel (AASM).
 
@@ -283,6 +298,12 @@ def _detect_lm_channel(
     resting   = float(np.percentile(rms, 10))
     threshold = resting + LM_AMPLITUDE_UV
 
+    if offset_aasm:
+        # AASM regel 4.A: onset bij +8 µV, EINDE bij het begin van een periode
+        # van >= LM_MIN_DUR_S waarin het EMG niet boven +2 µV komt. De duur is
+        # dus de tijd tot het signaal tot rust komt, niet de tijd boven 8 µV.
+        return _lm_events_aasm_offset(rms, step_s, resting)
+
     labeled, n_bursts = label(rms > threshold)
     lms: list[dict] = []
     for i in range(1, n_bursts + 1):
@@ -295,6 +316,40 @@ def _detect_lm_channel(
                 "amplitude_uv": round(float(np.max(rms[idx])), 1),
             })
     return lms
+
+
+def _lm_events_aasm_offset(rms, step_s: float, resting: float) -> list[dict]:
+    """Bewegingen volgens de twee-drempelregel van AASM 4.A."""
+    hoog = rms > resting + LM_AMPLITUDE_UV
+    laag = rms <= resting + LM_OFFSET_UV
+    n_min = max(1, int(round(LM_MIN_DUR_S / step_s)))
+    out: list[dict] = []
+    i, N = 0, len(rms)
+    while i < N:
+        if not hoog[i]:
+            i += 1
+            continue
+        start = i
+        j = i
+        while j < N:
+            if laag[j]:
+                k = j
+                while k < N and laag[k]:
+                    k += 1
+                if (k - j) >= n_min:
+                    break          # rustperiode lang genoeg: hier eindigt hij
+                j = k
+            else:
+                j += 1
+        dur_s = (j - start) * step_s
+        if LM_MIN_DUR_S <= dur_s <= LM_MAX_DUR_S:
+            out.append({
+                "onset_s":      start * step_s,
+                "duration_s":   round(dur_s, 2),
+                "amplitude_uv": round(float(np.max(rms[start:max(j, start + 1)])), 1),
+            })
+        i = max(j, start + 1)
+    return out
 
 
 def _merge_bilateral(

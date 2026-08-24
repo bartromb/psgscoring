@@ -694,6 +694,7 @@ def run_pneumo_analysis(
             # rekenen. De payloadgrens gaat er in _cap_plm_event_list() af,
             # na _compute_arousal_etiology().
             event_list_cap=None,
+            offset_aasm=bool(profile.get("PLM_OFFSET_AASM", False)),
         ))
     else:
         output["plm"] = {"success": False, "error": "No leg-EMG channels", "summary": {}}

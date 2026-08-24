@@ -554,6 +554,30 @@ class PostProcessingRules:
     Aanzetten neemt bovendien events weg, en dat verlaagt de AHI.
     """
 
+    plm_offset_aasm: bool = False
+    """Bepaal het EINDE van een beenbeweging volgens AASM regel 4.A.
+
+    De regel legt onset en einde op VERSCHILLENDE drempels: onset bij een
+    stijging van 8 µV boven rust, einde bij het begin van een periode van
+    >= 0,5 s waarin het EMG niet boven **2 µV** komt. `plm.py` gebruikte 8 µV
+    voor allebei en mat de duur als de tijd bóven 8 µV -- stelselmatig korter,
+    waardoor een beweging die net boven de drempel uitkomt onder het minimum
+    van 0,5 s zakt en verdwijnt.
+
+    Gevonden via PSG-IPA SN5, waar de scoorders 217 bewegingen in slaap zien en
+    de detector 36. Geen amplitudeprobleem: 90 % van die 217 haalt de drempel
+    wel, met een mediane piek van 12,6 µV boven rust tegen 45,0 µV op SN4 waar
+    de detectie wél werkt. Marginale bewegingen dus.
+
+    **Default False**, en dat is geen formaliteit: per been in slaap
+    vermenigvuldigt de regel de telling met 9,22x op SN5, 1,40x op SN4 en
+    1,79x op SN3 -- op de laatste twee telt de huidige regel al méér dan de
+    scoorders. Conform maken is op zichzelf verdedigbaar, maar of het de
+    overeenstemming verbetert is niet gemeten.
+
+    Zie docs/plm_aasm_offset_bevinding.md.
+    """
+
     plm_event_list_cap: int = 200
     """Hoeveel beenbewegingen er hoogstens in `plm["events"]` meegaan.
 
