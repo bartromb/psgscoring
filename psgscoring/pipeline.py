@@ -694,7 +694,7 @@ def run_pneumo_analysis(
             # rekenen. De payloadgrens gaat er in _cap_plm_event_list() af,
             # na _compute_arousal_etiology().
             event_list_cap=None,
-            offset_aasm=bool(profile.get("PLM_OFFSET_AASM", False)),
+            offset_aasm=_plm_offset_aasm(profile),
         ))
     else:
         output["plm"] = {"success": False, "error": "No leg-EMG channels", "summary": {}}
@@ -2064,6 +2064,20 @@ def _thermistor_gate(profile: dict) -> str:
                 "(%s); profielwaarde %r blijft staan",
                 raw, ", ".join(sorted(_THERMISTOR_GATES)), gate)
     return gate
+
+
+def _plm_offset_aasm(profile: dict) -> bool:
+    """AASM-einde-regel voor beenbewegingen: profielvlag, env wint.
+
+    `PSGSCORING_PLM_OFFSET_AASM=0/1`, zoals bij de andere meetvlaggen. Zonder
+    override was een arm niet van de andere te scheiden -- exact het gat dat de
+    RDI-meting van 23-08-2026 stil nul liet meten.
+    """
+    v = bool(profile.get("PLM_OFFSET_AASM", False))
+    env = os.environ.get("PSGSCORING_PLM_OFFSET_AASM")
+    if env is not None:
+        v = env == "1"
+    return v
 
 
 def _plm_event_cap(profile: dict) -> int:

@@ -79,3 +79,20 @@ def test_the_flag_defaults_to_the_old_behaviour():
     from psgscoring.plm import analyze_plm
     import inspect
     assert inspect.signature(analyze_plm).parameters["offset_aasm"].default is False
+
+
+def test_the_env_override_exists_so_arms_can_be_separated(monkeypatch):
+    """Zonder override meet een vergelijking van beide armen nul verschil.
+
+    Dat is op 23-08-2026 al een keer gebeurd met AROUSAL_LGBM: de pipeline gaf
+    een expliciete bool door, de env kwam nooit aan bod, en 30/30 kwam
+    identiek uit -- wat eruitzag als een resultaat.
+    """
+    from psgscoring.pipeline import _plm_offset_aasm
+
+    prof = {"PLM_OFFSET_AASM": False}
+    assert _plm_offset_aasm(prof) is False
+    monkeypatch.setenv("PSGSCORING_PLM_OFFSET_AASM", "1")
+    assert _plm_offset_aasm(prof) is True
+    monkeypatch.setenv("PSGSCORING_PLM_OFFSET_AASM", "0")
+    assert _plm_offset_aasm({"PLM_OFFSET_AASM": True}) is False
