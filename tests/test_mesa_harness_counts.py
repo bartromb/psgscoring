@@ -61,3 +61,19 @@ def test_hypopnea_subtypes_are_not_counted_as_apnea():
     for t in ("hypopnea", "hypopnea_central", "hypopnea_mixed",
               "hypopnea_uncertain"):
         assert t not in APNEA_TYPES, f"{t} wordt als apneu geteld"
+
+
+def test_the_harness_records_plm_so_plm_claims_are_verifiable():
+    """Zonder PLM-velden is een meting die de PLM-vlag meeneemt niet te controleren.
+
+    Dat gebeurde op 24-08-2026: de env stond aan, maar de uitvoer bevatte
+    geen enkel PLM-veld, dus of de vlag had gewerkt was uit het resultaat niet
+    af te lezen. Hetzelfde soort blindheid als de apneuteller die nul gaf.
+    """
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parent.parent
+           / "scripts" / "validate_mesa.py").read_text(encoding="utf-8")
+    assert '"plm"' in src, "het harnas schrijft geen PLM-blok weg"
+    for veld in ("n_lm_sleep", "n_plm_eligible", "plm_index"):
+        assert veld in src, f"PLM-veld {veld} ontbreekt in de uitvoer"

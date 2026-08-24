@@ -448,6 +448,14 @@ def analyse_one(args):
             # apneu-aantallen uit dit harnas.
             "n_hypopnea": sum(1 for e in algo if "hypopnea" in str(e[2])),
             "n_apnea": sum(1 for e in algo if str(e[2]) in APNEA_TYPES),
+            # PLM meeschrijven. Het harnas legde er niets van vast, waardoor een
+            # meting die de PLM-vlag meenam op 24-08-2026 niet te controleren
+            # was: de env stond aan, maar het effect was in de uitvoer
+            # onzichtbaar. Zonder deze velden is elke uitspraak over PLM uit dit
+            # harnas onverifieerbaar.
+            "plm": {k: ((res.get("plm") or {}).get("summary") or {}).get(k)
+                    for k in ("n_lm_total", "n_lm_sleep", "n_plm_eligible",
+                              "n_plm", "plm_index", "n_events_truncated")},
             "match": {},
         }
         for name, ref in refs.items():

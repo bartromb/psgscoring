@@ -47,3 +47,45 @@ de opnames, dan leg ik dat apart voor.
 Of de combinatie beter is dan elk apart. Daarvoor zouden alle vier de hoeken
 gemeten moeten worden, en de vraag die voorligt is niet "welke combinatie" maar
 "wat gebeurt er als ik ja zeg".
+
+---
+
+# Uitkomst — 24 augustus 2026, 03:55
+
+## Wat de meting wél laat zien
+
+Gepaard over 30 opnames, A = huidige uitgerolde stand, D = beide wijzigingen
+aan:
+
+| | A (nu) | D | verschil |
+|---|---:|---:|---:|
+| event-F1 mediaan | 0,48 | 0,54 | +0,06 |
+| AHI mediaan | 19,05 | 22,85 | +3,80 |
+| RDI mediaan | 28,70 | 31,70 | +3,00 |
+| arousal-index mediaan | 19,50 | 19,50 | 0,00 |
+| AHI-bias mediaan | −3,28 | −0,05 | +3,23 |
+
+Gepaarde ΔF1 **+0,0346**, beter op 26/30, p = 2,6·10⁻⁷. AHI-ernstklasse
+verschuift op 7/30 = **23 %**, RDI op 3/30 = 10 %. Beide onder de meldgrens.
+
+Dat is **exact** de strictness-uitkomst, tot op het cijfer. De arousal-index
+beweegt niet.
+
+## Wat de meting NIET laat zien, en dat is mijn fout
+
+Ik kan hieruit **niet** concluderen dat de twee wijzigingen onafhankelijk zijn.
+`validate_mesa.py` legt geen enkel PLM-veld vast — geen `n_lm_sleep`, geen
+`plm_index`, niets. De env-vlag stond aan, maar of hij effect had is uit de
+uitvoer niet af te lezen.
+
+Dezelfde soort blindheid als de apneuteller die nul gaf: het harnas kon een
+uitspraak niet dragen die ik er wel uit wilde halen.
+
+Wat er dus feitelijk staat: **de strictness-validatie reproduceert exact** op
+een onafhankelijke run met dezelfde seed — op zichzelf een geslaagde
+reproductiecontrole — en over de PLM-kant zegt deze meting niets.
+
+**Gerepareerd**: het harnas schrijft nu `n_lm_total`, `n_lm_sleep`,
+`n_plm_eligible`, `n_plm`, `plm_index` en `n_events_truncated` mee, met een
+test die faalt als die velden verdwijnen. De gecombineerde vraag is daarmee
+beantwoordbaar geworden, maar nog niet beantwoord.
