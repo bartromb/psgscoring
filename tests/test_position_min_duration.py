@@ -25,7 +25,7 @@ def _run(minuten_per_code: dict, events_per_code: dict):
     """Bouw een nacht met een opgegeven aantal minuten per positiecode."""
     hypno, pos_epochs = [], []
     for code, minuten in minuten_per_code.items():
-        n_ep = int(round(minuten * 60 / EPOCH_S))
+        n_ep = round(minuten * 60 / EPOCH_S)
         hypno += ["N2"] * n_ep
         pos_epochs += [code] * n_ep
     pos_data = np.repeat(np.array(pos_epochs, dtype=float),
