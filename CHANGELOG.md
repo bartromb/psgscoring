@@ -1,3 +1,110 @@
+# v0.27.1 — 2026-08-24 — de kin-EMG bereikte de classifier nooit
+
+**Scored values change** op de zestien v3-profielen die de arousalclassifier
+gebruiken, en alleen op opnames **zonder bruikbaar kin-EMG**: daar valt de
+arousaldetectie terug op het regelgebaseerde pad in plaats van door een model
+te gaan dat op een constant-nul feature draait. De vijf reproductieprofielen
+hebben `arousal_lgbm=False` en zijn onaangeroerd; golden 9/9.
+
+## Wat er misging
+
+Het werkpunt 0,80 uit v0.27.0 is gekozen op MESA-runs die het EDF **volledig**
+inlezen — met chin-EMG. De klinische keten van YASAFlaskified leverde dat
+kanaal **nooit** aan, langs drie onafhankelijke wegen: de kin-EMG stond niet in
+de kanalenlijst van de pneumo-raw, de sleutel `"emg"` zat niet in de
+channel_map, en `CHANNEL_PATTERNS` kende geen `"emg"`-rol zodat autodetectie
+het gat niet kon vullen. In `_pick_emg` blokkeerde bovendien een
+geconfigureerde-maar-afwezige naam de patroonzoektocht volledig.
+
+Twee klinische AZORG-opnames gingen van v0.22.0 naar v0.27.0 van AI 23,0 naar
+4,9 en van 11,0 naar 3,5 /u — die laatste bij AHI 42 met 217 respiratoire
+events. Een arousal-index van 3,5/u bij ernstig OSAS kan fysiologisch niet.
+
+## Waarom het model hier zo gevoelig voor is (geïnspecteerd, niet aangenomen)
+
+`arousal_classifier_v3.txt`, 500 bomen:
+
+| | |
+|---|---|
+| splits op `emg_var_ratio` | **486**, in 279 van de 500 bomen |
+| drempels | min 0,0157 · mediaan 1,86 · max 884 — **alle > 0** |
+| gain-rangorde | **4** van 50 |
+| splits op `emg_confirmed` | **0** |
+
+Zonder EMG staat `emg_var_ratio` constant op 0,0 en gaat elke kandidaat in alle
+486 splits dezelfde kant op. De combinatie die dan ontstaat — `emg_confirmed`
+gezet, `emg_var_ratio` nul — komt in de trainingsdata niet voor. Dezelfde
+faalwijze als de lage-samplefrequentie-degeneratie die `AROUSAL_LGBM_MIN_SF`
+afvangt; op de EMG-as ontbrak de guard.
+
+## Wat het werkelijk kost — gemeten
+
+MESA n=10, dezelfde kandidatenlijst tweemaal door het model op werkpunt 0,80,
+met en zonder chin-EMG:
+
+| | mediane AI |
+|---|---:|
+| met kin-EMG | 16,65 /u |
+| zonder kin-EMG | 14,30 /u |
+
+Ongeveer **−14 %**, lager op 7 van de 10 opnames, hoger op 3. De richting
+klopt, de grootte niet: dit verklaart de klinische −80 % **niet**. Dat verschil
+blijft open en hoort bij de twee AZORG-opnames zelf te worden uitgezocht, niet
+bij dit mechanisme. Zie `docs/arousal_emg_transport_bevinding.md` voor de
+volledige tabel.
+
+De guard komt er niet vanwege de grootte maar vanwege de aard: het werkpunt is
+gekalibreerd op runs mét EMG, dus zonder EMG is de uitkomst ongekalibreerd.
+Terugvallen op het regelgebaseerde pad herstelt een gemeten gedrag (v0.22) in
+plaats van een ongemeten gedrag te laten staan.
+
+## Wat er verandert
+
+- **Guard** (`arousal.py`): is de hybride gevraagd maar ontbreekt een bruikbaar
+  kin-EMG — geen kanaal, korter dan het EEG, of zonder variantie — dan wordt
+  het hybride pad uitgeschakeld **vóór** de permissieve kandidaatdrempels
+  actief worden. `summary["lgbm_available"]=False` en
+  `summary["lgbm_skipped_reason"]` beginnend met `no_emg_channel`.
+- **`emg_confirmed`** (`arousal.py`) is niet langer `True` als default. Het veld
+  betekent nu wat het zegt: de door de AASM geëiste EMG-stijging in REM heeft
+  daadwerkelijk plaatsgevonden. `n_emg_confirmed` in de samenvatting telde
+  voorheen élke arousal mee als bevestigd, ook op NREM-events en op montages
+  zonder EMG. **De acceptatie verandert niet** en het model splitst nergens op
+  dit feature, dus geen enkele voorspelling beweegt.
+- **`_pick_emg` / `_pick_eog`** (`pipeline.py`) vallen door naar de
+  patroonzoektocht wanneer de geconfigureerde naam niet in de raw zit, met een
+  waarschuwing in het log. `_pick_emg` sluit been-labels nu expliciet uit
+  (TIB/LEG/PLM/GASTRO/BEEN/JAMBE/LAT): een tibialissignaal als kin-EMG lezen is
+  erger dan geen EMG, want het is als fout niet herkenbaar.
+- **`"emg"`-rol in `CHANNEL_PATTERNS`** (`constants.py`), geplaatst ná
+  `leg_l`/`leg_r` en met `_ROLE_MAY_NOT_TAKE["emg"] = ("leg_l", "leg_r")` zodat
+  een reeds geclaimd beenkanaal nooit als kin wordt ingepikt.
+- **Provenance:** `meta["arousal_emg_channel"]` noemt het kanaal dat de
+  arousalstap werkelijk gebruikt heeft, of `None`.
+- **`detect_arousals_multi`** bouwde de samenvatting van nul op en liet
+  `lgbm_available`, `lgbm_skipped_reason` en de voor/na-tellingen vallen — en
+  multi is de **default** op de klinische profielen. Op precies het pad waar de
+  classifier draait was dus niet af te lezen óf hij gedraaid had. Die sleutels
+  worden nu doorgegeven, ook naar de platte `arousal["summary"]` die de
+  rapportlaag leest.
+
+## Golden
+
+9/9. De twee `arousal_autodetect`-cases kregen één additieve regel: door de
+nieuwe `"emg"`-rol verschijnt `quality.channels["EMG chin"]` in de
+kanaalkwaliteitstabel. **Geen enkel gescoord getal beweegt** — die fixtures
+hadden hun kin-EMG al via de substringfallback. Baseline opnieuw gezegend met
+alleen die twee toevoegingen (10 regels, puur additief).
+
+## Nog open
+
+- **T5** — drempelsweep op een EMG-loze simulatie, om een apart werkpunt af te
+  leiden in plaats van de classifier over te slaan.
+- **T7** — v4-model met EMG-dropout-augmentatie en een `emg_present`-feature.
+- De klinische −80 %, die dit mechanisme niet verklaart.
+
+---
+
 # v0.27.0 — 2026-08-23 — the classifier now runs where the RDI lives
 
 **Scored values change** on the four `arousal_limb_wired` profiles

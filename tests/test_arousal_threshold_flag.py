@@ -63,9 +63,16 @@ def test_the_detector_accepts_a_threshold_and_it_changes_the_outcome():
         a, b = int(start * sf), int((start + 4) * sf)
         eeg[a:b] += 60e-6 * np.sin(2 * np.pi * 10.0 * t[a:b])
     hypno = ["N2"] * int(np.ceil(n / sf / 30))
+    # v0.27.1: zonder bruikbaar kin-EMG slaat de detector het hybride pad
+    # over (emg_var_ratio zou constant 0 zijn en de kansverdeling
+    # degenereert). Deze test gaat over het WERKPUNT, dus moet het hybride
+    # pad ook echt kunnen draaien.
+    emg = rng.normal(0, 10e-6, n)
 
-    laag = detect_arousals(eeg, sf, hypno, lgbm=True, lgbm_threshold=0.30)
-    hoog = detect_arousals(eeg, sf, hypno, lgbm=True, lgbm_threshold=0.95)
+    laag = detect_arousals(eeg, sf, hypno, emg_data=emg,
+                           lgbm=True, lgbm_threshold=0.30)
+    hoog = detect_arousals(eeg, sf, hypno, emg_data=emg,
+                           lgbm=True, lgbm_threshold=0.95)
     n_laag = len(laag.get("events") or [])
     n_hoog = len(hoog.get("events") or [])
     assert n_laag > 0, "fixture levert geen kandidaten; meet niets"
@@ -84,8 +91,10 @@ def test_the_summary_reports_the_threshold_that_was_used():
     n = int(sf * 60 * 12)
     rng = np.random.default_rng(8)
     eeg = rng.normal(0, 20e-6, n)
+    emg = rng.normal(0, 10e-6, n)   # zie de opmerking hierboven
     hypno = ["N2"] * int(np.ceil(n / sf / 30))
-    out = detect_arousals(eeg, sf, hypno, lgbm=True, lgbm_threshold=0.77)
+    out = detect_arousals(eeg, sf, hypno, emg_data=emg,
+                          lgbm=True, lgbm_threshold=0.77)
     if "lgbm_threshold" in out.get("summary", {}):
         assert out["summary"]["lgbm_threshold"] == 0.77
 

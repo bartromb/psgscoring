@@ -112,9 +112,13 @@ def test_the_profile_field_reaches_the_detector(monkeypatch):
     monkeypatch.delenv("PSGSCORING_AROUSAL_LGBM", raising=False)
     monkeypatch.delenv("YASAFLASKIFIED_AROUSAL_LGBM", raising=False)
     eeg, hypno = _recording()
+    # v0.27.1: het hybride pad eist een bruikbaar kin-EMG -- zonder dat
+    # feature splitst het model 486 keer op een constante 0. Deze test gaat
+    # over het bereiken van de VLAG, dus krijgt hij een EMG mee.
+    emg = np.random.default_rng(21).normal(0.0, 5e-6, eeg.size)
 
-    uit = detect_arousals(eeg, SF, hypno)
-    aan = detect_arousals(eeg, SF, hypno, lgbm=True)
+    uit = detect_arousals(eeg, SF, hypno, emg_data=emg)
+    aan = detect_arousals(eeg, SF, hypno, emg_data=emg, lgbm=True)
 
     assert "lgbm_available" not in uit["summary"], (
         "zonder de vlag hoort er geen lgbm-sleutel in de samenvatting te staan")

@@ -107,8 +107,15 @@ def build_sleep_mask(
 # hetzelfde kanaal.
 _ROLE_MAY_NOT_TAKE: dict[str, tuple[str, ...]] = {
     "pulse": ("flow_pressure", "flow_thermistor", "flow"),
+    # "emg" draagt een kaal "emg", substring van "EMG Tib L"/"EMG La": op een
+    # montage zonder kin-EMG kreeg de rol anders het beenkanaal, en
+    # emg_var_ratio zou dan op beenbewegingen draaien in plaats van op de
+    # kin. Dat is geen ontbrekend EMG maar een fout EMG -- niet herkenbaar
+    # als fout in de output.
+    "emg":   ("leg_l", "leg_r"),
     "eeg":   ("flow_pressure", "flow_thermistor", "flow", "thorax", "abdomen",
-              "spo2", "pulse", "ecg", "position", "snore", "leg_l", "leg_r"),
+              "spo2", "pulse", "ecg", "position", "snore", "leg_l", "leg_r",
+              "emg"),
 }
 
 

@@ -109,6 +109,11 @@
           "flat_pct": 0.0,
           "grade": "good"
         },
+        "EMG chin": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
         "FLOW": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
@@ -184,6 +189,11 @@
           "grade": "good"
         },
         "EEG C4-M1": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "EMG chin": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"

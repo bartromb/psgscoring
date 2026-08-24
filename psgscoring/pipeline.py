@@ -298,7 +298,22 @@ def run_pneumo_analysis(
     )
 
     eeg_data, sf_eeg = _pick_eeg(raw, ch)
-    emg_data         = _pick_emg(raw, ch)
+    # Eén keer oplossen, twee keer gebruiken: _pick_emg() zou dezelfde
+    # zoektocht (en dezelfde waarschuwing) nog eens doen.
+    _emg_name        = _resolve_emg_name(raw, ch)
+    emg_data         = (raw.get_data(picks=[_emg_name])[0]
+                        if _emg_name else None)
+    # Welk kin-EMG de arousalstap werkelijk gebruikt, of dat er geen is. Zonder
+    # dit veld is een arousal-index niet te lezen: de LGBM-classifier draait
+    # met en zonder EMG-kanaal, maar niet met dezelfde betekenis, en het
+    # rapport kon het verschil niet tonen. Zie ook
+    # summary["lgbm_skipped_reason"] in de arousalstap.
+    output["meta"]["arousal_emg_channel"] = _emg_name
+    if _emg_name is None:
+        logger.warning(
+            "[pneumo] geen kin-EMG gevonden in %s -- REM-arousals zijn per "
+            "AASM niet conform scoorbaar en de LGBM-classifier wordt "
+            "overgeslagen", raw.ch_names)
 
     # v0.3.001 BUG2 MARKER: RIP pair quality gate (moved BEFORE event detection)
     # Detects failed thorax or abdomen RIP sensors before classification.
@@ -1623,24 +1638,68 @@ def _pick_eeg_multi(raw, ch) -> list:
     return out
 
 
-def _pick_emg(raw, ch) -> np.ndarray | None:
-    """Selecteer het beste EMG-kanaal (kin-EMG) uit de beschikbare kanalen."""
+# Labels die NOOIT een kin-EMG aanwijzen, ook al bevatten ze "EMG".
+# "EMG Tib L" haalde de oude kin-zoektocht zonder meer, en een tibialissignaal
+# als kin-EMG lezen is erger dan geen EMG: het vult emg_var_ratio met
+# beenbewegingen en is als fout niet herkenbaar. "leg" dekt ook het
+# ongezijderde MESA-kanaal `Leg`.
+_LEG_LABEL_TOKENS = ("TIB", "LEG", "PLM", "GASTRO", "BEEN", "JAMBE", "LAT")
+
+
+def _resolve_emg_name(raw, ch) -> str | None:
+    """Welk kanaal wordt als kin-EMG gebruikt -- of None, met een reden in het log.
+
+    Apart van _pick_emg zodat de PROVENANCE dezelfde keuze kan melden als de
+    analyse maakt. Twee bronnen die elk hun eigen kanaal zoeken zouden een
+    rapport opleveren dat een ander kanaal noemt dan er gescoord is.
+    """
     name = ch.get("emg")
+    if name and name not in raw.ch_names:
+        logger.warning(
+            "[channels] geconfigureerd EMG-kanaal %r zit niet in deze raw "
+            "(aanwezig: %s); patroonzoektocht als terugval",
+            name, raw.ch_names)
+        name = None
     if not name:
         for c in raw.ch_names:
-            if any(p in c.upper() for p in ("EMG", "CHIN", "MENT")):
+            u = c.upper()
+            if any(_tok in u for _tok in _LEG_LABEL_TOKENS):
+                continue
+            if any(p in u for p in ("CHIN", "MENT", "KIN", "EMG")):
                 name = c
                 break
-    if name and name in raw.ch_names:
+    return name if (name and name in raw.ch_names) else None
+
+
+def _pick_emg(raw, ch) -> np.ndarray | None:
+    """Selecteer het beste EMG-kanaal (kin-EMG) uit de beschikbare kanalen.
+
+    v0.27.1: een geconfigureerde-maar-AFWEZIGE naam blokkeerde de
+    patroonzoektocht. De functie gaf dan None terwijl er verderop in dezelfde
+    raw een "Chin1-Chin2" stond. Een jobconfig met een default "EMG1" uit een
+    andere montage was genoeg om de LGBM-arousalclassifier EMG-loos -- en dus
+    degenererend -- te laten draaien.
+    """
+    name = _resolve_emg_name(raw, ch)
+    if name:
         return raw.get_data(picks=[name])[0]
     return None
 
 
 def _pick_eog(raw, ch) -> np.ndarray | None:
-    """Selecteer een EOG-kanaal (voor de occipitaal-EOG-reject in multi-modus)."""
+    """Selecteer een EOG-kanaal (voor de occipitaal-EOG-reject in multi-modus).
+
+    Zelfde fall-through als _pick_emg: een afwezige geconfigureerde naam mag
+    de patroonzoektocht niet overslaan.
+    """
     name = ch.get("eog")
     if isinstance(name, (list, tuple)):
         name = name[0] if name else None
+    if name and name not in raw.ch_names:
+        logger.warning(
+            "[channels] geconfigureerd EOG-kanaal %r zit niet in deze raw; "
+            "patroonzoektocht als terugval", name)
+        name = None
     if not name:
         for c in raw.ch_names:
             if any(p in c.upper() for p in ("EOG", "E1-", "E2-", "LOC", "ROC")):

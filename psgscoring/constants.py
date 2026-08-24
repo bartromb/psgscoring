@@ -250,6 +250,18 @@ CHANNEL_PATTERNS: dict[str, list[str]] = {
                  "bein r", "bein re", "jambe d", "tib ant r",
                  "emg tib r", "emg tibant r", "plm r", "plm-r", "plmr",
                  "emg ra", "ta r", "ta re"],
+    # Kin-EMG. Stond hier NIET, en dat was geen omissie zonder gevolg: de
+    # arousal-classifier splitst 486 keer op een EMG-feature, en de enige
+    # manier waarop het kanaal hem bereikte was een handmatige "emg" in de
+    # channel_map. De YASAFlaskified-keten zette die sleutel nooit, dus in
+    # productie draaide de classifier structureel EMG-loos.
+    #
+    # Staat ACHTER leg_l/leg_r en wordt door _ROLE_MAY_NOT_TAKE geblokkeerd
+    # voor een kanaal dat een van die twee al heeft opgeeist: "EMG Tib L"
+    # bevat "emg", en een tibialissignaal als kin lezen is erger dan geen
+    # EMG. Het kale "emg" staat achteraan zodat elk specifieker kin-label
+    # wint.
+    "emg":      ["chin", "ment", "kin", "emg1", "emg2", "emg"],
     "eeg":      ["eeg", "c3", "c4", "f3", "f4", "o1", "o2"],
 }
 

@@ -94,6 +94,34 @@ _AROUSAL_LGBM_FEATURE_ORDER: list[str] = [
 _AROUSAL_LGBM_BOOSTER = None  # cached after first use
 
 
+def _emg_usable_for_lgbm(emg_data, n_eeg: int) -> bool:
+    """Kan het model iets met dit EMG-kanaal, of degenereert het?
+
+    Het gebundelde model splitst 486 keer op ``emg_var_ratio``, verdeeld over
+    279 van de 500 bomen, en ALLE drempels liggen boven nul (min 0,0157,
+    mediaan 1,86, max 884). Op gain is het feature nummer vier.
+
+    ``_arousal_lgbm_features()`` zet dat feature op een constante 0,0 zodra
+    het EMG ontbreekt, korter is dan het EEG, of geen variantie heeft. Elke
+    kandidaat gaat dan in alle 486 splits dezelfde kant op; de kansverdeling
+    schuift als geheel omlaag en op een VAST werkpunt blijft er een fractie
+    over van wat er met EMG overblijft. De combinatie die daarbij ontstaat --
+    ``emg_confirmed`` gezet, ``emg_var_ratio`` nul -- komt in de trainingsdata
+    niet voor.
+
+    Dit is dezelfde faalwijze als de lage-samplefrequentie-degeneratie die
+    ``AROUSAL_LGBM_MIN_SF`` afvangt; op de EMG-as ontbrak de guard.
+    """
+    if emg_data is None:
+        return False
+    arr = np.asarray(emg_data)
+    if arr.size < n_eeg:
+        # _arousal_lgbm_features() eist emg_uv.size >= eeg_uv.size en valt
+        # anders terug op 0.0 -- een kort kanaal is hier geen kanaal.
+        return False
+    return float(np.var(arr)) > 0.0
+
+
 def _is_arousal_lgbm_enabled() -> bool:
     return (
         os.environ.get(
@@ -662,6 +690,25 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
         _hybrid = False
         _lgbm_ok = False
         _lgbm_reason = "sample_rate_below_%.0f" % AROUSAL_LGBM_MIN_SF
+    if _hybrid and not _emg_usable_for_lgbm(emg_data, len(eeg_data)):
+        # v0.27.1. Het werkpunt 0,80 is gekozen op MESA-runs waar de chin-EMG
+        # WEL werd meegeladen; de klinische keten leverde het kanaal nooit aan.
+        # Zonder guard is het gevolg niet "iets minder gevoelig" maar een
+        # arousal-index die de klinische werkelijkheid tegenspreekt: twee
+        # AZORG-opnames gingen van 23,0 naar 4,9 en van 11,0 naar 3,5 /u, die
+        # laatste bij AHI 42 en 217 respiratoire events.
+        logger.warning(
+            "[arousal] geen bruikbaar kin-EMG: het model splitst 486 keer op "
+            "emg_var_ratio en dat feature is dan constant 0. Regelgebaseerd "
+            "pad; kandidaatdrempels NIET verruimd.",
+        )
+        _hybrid = False
+        _lgbm_ok = False
+        _lgbm_reason = (
+            "no_emg_channel: model v3 leunt op emg_var_ratio (486 splits, "
+            "alle drempels > 0); zonder EMG is het feature constant 0 en "
+            "degenereert de kansverdeling"
+        )
     if _hybrid:
         try:
             _load_arousal_lgbm_booster()
@@ -1017,7 +1064,20 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                     continue
 
             # Check D: REM EMG
-            emg_confirmed = True
+            #
+            # `emg_confirmed` beschrijft precies één ding: heeft de door de
+            # AASM geeiste EMG-stijging in REM daadwerkelijk plaatsgevonden.
+            # Het stond hier als DEFAULT op True -- ook op NREM-events, waar
+            # de test niet van toepassing is, en op montages zonder kin-EMG,
+            # waar hij niet kan draaien. `n_emg_confirmed` in de samenvatting
+            # telde daardoor elke arousal mee als bevestigd. Dat is geen
+            # conservatieve default maar een onwaarheid in een rapportveld.
+            #
+            # De ACCEPTATIE verandert hier niet: zonder EMG blijft het event
+            # staan op alleen alpha+abrupt, precies zoals hiervoor. Het model
+            # splitst nergens op dit feature (0 splits in alle 500 bomen), dus
+            # de classifier ziet het verschil niet.
+            emg_confirmed = False
             if _is_rem(stage):
                 if emg_rms is not None and emg_bl_rem:
                     emg_seg = emg_rms[indices[0]:indices[-1]+1]
@@ -1309,7 +1369,28 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
     summ["derivations"] = [n for n, _ in per]
     summ["n_per_derivation"] = {n: len(res.get("events", [])) for n, res in per}
     summ["n_eog_rejected"] = n_eog_rejected
-    return {"success": True, "events": merged, "summary": summ, "error": None}
+    # LGBM-provenance overnemen uit de per-afleiding-resultaten. Deze functie
+    # bouwde de samenvatting van nul op en liet `lgbm_available`,
+    # `lgbm_skipped_reason` en de voor/na-tellingen achter -- en multi is de
+    # DEFAULT op de klinische profielen. Op precies het pad waar de classifier
+    # draait was dus niet af te lezen OF hij gedraaid had. Alle afleidingen
+    # krijgen dezelfde emg_data en dezelfde vlaggen, dus de status is uniform;
+    # de tellingen zijn per afleiding en worden opgeteld.
+    _first = per[0][1].get("summary", {}) or {}
+    for _k in ("lgbm_available", "lgbm_skipped_reason", "lgbm_threshold"):
+        if _k in _first:
+            summ[_k] = _first[_k]
+    if any("lgbm_n_pre" in (r.get("summary") or {}) for _, r in per):
+        summ["lgbm_n_pre"] = sum((r.get("summary") or {}).get("lgbm_n_pre", 0)
+                                 for _, r in per)
+        summ["lgbm_n_post"] = sum((r.get("summary") or {}).get("lgbm_n_post", 0)
+                                  for _, r in per)
+    out = {"success": True, "events": merged, "summary": summ, "error": None}
+    _pre = [r["pre_lgbm_n_arousals"] for _, r in per
+            if r.get("pre_lgbm_n_arousals") is not None]
+    if _pre:
+        out["pre_lgbm_n_arousals"] = sum(_pre)
+    return out
 
 
 def _classify_arousal_index(ai: float) -> str:
@@ -1900,6 +1981,17 @@ def run_arousal_respiratory_analysis(
         # Klinische interpretatie
         "clinical_interpretation":    cor_sum.get("clinical_interpretation", []),
     }
+
+    # Herkomst van de arousal-index zelf. Dit stond alleen in de GENESTE
+    # samenvatting (`output["arousals"]["summary"]`), en de rapportlaag leest
+    # de platte. Gevolg: een index uit het regelgebaseerde pad en een index
+    # uit het gefilterde pad zagen er in het rapport identiek uit, terwijl ze
+    # een factor kunnen schelen. Alleen doorgeven wat er is -- op een profiel
+    # zonder classifier blijven de sleutels weg.
+    for _k in ("lgbm_available", "lgbm_skipped_reason", "lgbm_threshold",
+               "lgbm_n_pre", "lgbm_n_post"):
+        if _k in ar_sum:
+            output["summary"][_k] = ar_sum[_k]
 
     output["success"] = True
     logger.info("Arousal-analyse voltooid.")

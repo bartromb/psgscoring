@@ -216,3 +216,47 @@ def test_the_somnomedics_montage_still_maps_completely_with_eeg():
     assert ch.get("eeg") in ("C3:A2", "C4:A1")
     assert ch.get("spo2") == "SpO2"
     assert ch.get("pulse") == "Pulse"
+
+
+# ══════════════════════════════════════════════════════════════
+# De kin-EMG-rol (v0.27.1)
+# ══════════════════════════════════════════════════════════════
+#
+# CHANNEL_PATTERNS kende geen "emg"-rol. Autodetectie kon het gat dus niet
+# vullen wanneer de aanroeper geen `"emg"` in de channel_map zette — en de
+# YASAFlaskified-keten zette hem nooit. Er bleef één pad over: de
+# substringfallback in `_pick_emg`, die in de uitgeklede pneumo-raw zocht waar
+# het kanaal per constructie niet in zat.
+
+def test_the_chin_emg_gets_its_own_role():
+    ch = detect_channels(["C3:A2", "Chin EMG", "Pres", "SpO2"])
+    assert ch.get("emg") == "Chin EMG"
+
+
+def test_a_leg_channel_is_never_claimed_as_chin_emg():
+    """"EMG Tib L" bevat "emg". Zonder blokkade eist de kin-rol het
+    beenkanaal op en draait emg_var_ratio op beenbewegingen."""
+    ch = detect_channels(["C3:A2", "EMG Tib L", "EMG Tib R", "Pres"])
+    assert ch.get("leg_l") == "EMG Tib L"
+    assert ch.get("leg_r") == "EMG Tib R"
+    assert ch.get("emg") is None
+
+
+def test_the_chin_wins_from_a_leg_channel_when_both_are_there():
+    ch = detect_channels(["C3:A2", "EMG Tib L", "Chin EMG", "EMG Tib R"])
+    assert ch.get("emg") == "Chin EMG"
+    assert ch.get("leg_l") == "EMG Tib L"
+
+
+@pytest.mark.parametrize("naam", ["EMG", "EMG1", "Chin1-Chin2", "Kin",
+                                  "Menton", "EMG Chin"])
+def test_the_usual_chin_labels_are_all_found(naam):
+    assert detect_channels(["C4:A1", naam, "SpO2"]).get("emg") == naam
+
+
+def test_the_mesa_montage_maps_the_chin_emg():
+    ch = detect_channels(["EKG", "EOG-L", "EOG-R", "EMG", "EEG1", "EEG2",
+                          "EEG3", "Pres", "Flow", "Snore", "Thor", "Abdo",
+                          "Leg", "Therm", "Pos", "SpO2"])
+    assert ch.get("emg") == "EMG"
+    assert ch.get("eeg") == "EEG1"
