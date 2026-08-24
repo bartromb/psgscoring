@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 from scipy import signal as sp_signal
 
-from .constants import EPOCH_LEN_S
+from .constants import EPOCH_LEN_S, POSITION_MIN_MINUTES
 from .utils import (
     build_sleep_mask, fmt_time, hypno_to_numeric,
     is_nrem, is_rem, safe_r,
@@ -41,12 +41,13 @@ def analyze_position(
         spe           = int(sf * EPOCH_LEN_S)
         n_epochs      = len(hypno)
         # v0.8.12: auto-map raw ADC/voltage to 0-4 codes
-        pos_mapped    = _map_position_signal(pos_data)
+        pos_mapped, pos_method = _map_position_signal(pos_data)
         pos_per_epoch = [_modal_position(pos_mapped, ep, spe) for ep in range(n_epochs)]
 
         pos_names = {0: "Prone", 1: "Left", 2: "Supine", 3: "Right", 4: "Upright"}
         sleep_time: dict[str, float | None] = {}
         ahi_pos:    dict[str, float | None] = {}
+        n_events:   dict[str, int] = {}
 
         for code, name in pos_names.items():
             sleep_epochs = [
@@ -60,8 +61,15 @@ def analyze_position(
                 if 0 <= ev.get("epoch", 0) < len(pos_per_epoch)
                 and pos_per_epoch[ev.get("epoch", 0)] == code
             )
+            n_events[name] = n_ev
             dur_h         = dur_min / 60
-            ahi_pos[name] = safe_r(n_ev / dur_h) if dur_h > 0 else 0
+            # Twee onwaarheden kwamen uit de oude regel. Onder de ondergrens
+            # was het een opgeblazen index (1 event in 0,5 min = 120/u); bij
+            # nul minuten was het `0`, wat leest als "geen events in die
+            # houding" terwijl de patiënt er niet gelegen heeft. Allebei None:
+            # de index bestaat niet, en dat is een uitspraak.
+            ahi_pos[name] = (safe_r(n_ev / dur_h)
+                             if dur_min >= POSITION_MIN_MINUTES else None)
 
         total_sleep_min = sum(v for v in sleep_time.values() if v)
         pct = {
@@ -73,6 +81,15 @@ def analyze_position(
             "sleep_time_min": sleep_time,
             "sleep_pct":      pct,
             "ahi_per_pos":    ahi_pos,
+            # De TELLING erbij. `_compute_phenotypes` reconstrueerde het aantal
+            # events uit index x uren -- een omweg langs een afronding die
+            # bovendien breekt zodra de index None kan zijn.
+            "n_events_per_pos": n_events,
+            "min_minutes_for_index": POSITION_MIN_MINUTES,
+            # "coded" = de codering van de recorder; "levels"/"percentile" =
+            # een gok op de rangorde van de ruwe waarden. Zie
+            # _map_position_signal.
+            "position_mapping_method": pos_method,
         }
         result["pos_per_epoch"] = pos_per_epoch
         result["success"]       = True
@@ -81,28 +98,111 @@ def analyze_position(
     return result
 
 
-def _map_position_signal(pos_data: np.ndarray) -> np.ndarray:
+# Een houdingssignaal is bijna altijd DISCREET: de recorder schrijft een code
+# of een vast spanningsniveau per houding. Zoveel van het signaal moet in een
+# handvol niveaus zitten voordat we het als discreet behandelen.
+_POSITION_LEVEL_COVERAGE = 0.90   # zoveel van de nacht moet in de niveaus zitten
+_POSITION_LEVEL_MIN_FRAC = 0.005  # kleiner dan dit is ruis, geen houding
+_POSITION_MAX_LEVELS     = 8
+_POSITION_LEVEL_TOL      = 0.02   # clustertolerantie als fractie van het bereik
+_POSITION_LEVEL_SPREAD   = 3.0    # een plateau mag zoveel maal de tolerantie breed zijn
+
+
+def _position_levels(valid: np.ndarray) -> list[float] | None:
+    """De discrete niveaus in een houdingssignaal, of None als het continu is.
+
+    Een houdingssignaal is bijna altijd discreet: de recorder schrijft per
+    houding een code of een vast spanningsniveau. Groeperen gebeurt op WAARDE,
+    met een tolerantie die met het bereik meeschaalt, zodat de uitkomst niet
+    verandert als de recorder in mV of in ADC-eenheden exporteert.
+
+    Twee dingen die deze functie NIET mag doen, want allebei zijn ze de bug die
+    hij vervangt:
+
+    * stoppen zodra de dekking gehaald is. Ligt de patiënt 340 van de 420
+      minuten in één houding, dan haalt dat ene plateau in zijn eentje al 80 %
+      en zouden de overige houdingen wegvallen -- precies de duurafhankelijkheid
+      die we kwijt willen. Elk niveau dat groot genoeg is telt mee.
+    * een continu signaal als discreet behandelen. Een dichte verdeling heeft
+      geen gaten groter dan de tolerantie en levert dus ÉÉN cluster over het
+      hele bereik. Vandaar de eis dat een niveau ook echt smal is.
+    """
+    span = float(np.max(valid) - np.min(valid))
+    if span <= 0:
+        return [float(valid[0])]
+    tol  = span * _POSITION_LEVEL_TOL
+    orde = np.sort(valid)
+    stukken = np.split(orde, np.flatnonzero(np.diff(orde) > tol) + 1)
+
+    min_n = max(1, int(len(orde) * _POSITION_LEVEL_MIN_FRAC))
+    niveaus, gedekt = [], 0
+    for stuk in stukken:
+        if len(stuk) < min_n:
+            continue
+        if float(stuk[-1] - stuk[0]) > tol * _POSITION_LEVEL_SPREAD:
+            return None          # geen plateau maar een continuüm
+        niveaus.append(float(np.median(stuk)))
+        gedekt += len(stuk)
+    if len(niveaus) < 2 or len(niveaus) > _POSITION_MAX_LEVELS:
+        return None
+    if gedekt / len(orde) < _POSITION_LEVEL_COVERAGE:
+        return None
+    return sorted(niveaus)
+
+
+def _map_position_signal(pos_data: np.ndarray) -> tuple[np.ndarray, str]:
     """Map raw position signal to 0-4 codes (Prone/Left/Supine/Right/Upright).
 
-    Handles both pre-coded (0-4) and raw ADC/voltage signals.
+    Geeft ``(codes, methode)`` terug. De methode hoort in de provenance: zonder
+    dat is achteraf niet te zien of een positielabel uit de codering van de
+    recorder komt of uit een gok op de rangorde.
+
+    WAT HIER MIS WAS
+    ----------------
+    De ruwe tak quantiseerde op PERCENTIELEN van de nachtverdeling
+    (``np.percentile(valid, [0,20,40,60,80,100])``). De bingrenzen schoven dus
+    mee met hoe lang de patiënt in elke houding lag. Vier vaste
+    plateauwaarden kregen drie verschillende labelsets, afhankelijk van de
+    duurverdeling, en twee onderscheiden houdingen vielen samen op één code --
+    waarna hun events en minuten op één hoop kwamen. De positie-AHI, het
+    POSA-fenotype en de therapieaanbeveling hangen daaraan.
+
+    WAT DIT NIET OPLOST
+    -------------------
+    Welke houding een niveau IS. Zowel de oude als de nieuwe tak nemen aan dat
+    oplopende ruwe waarden overeenkomen met de volgorde van ``POSITION_MAP``.
+    Dat is een aanname over de recorder, geen meting. Alleen een
+    fabrikantspecifieke codetabel kan dat beslissen; tot die er is meldt de
+    methode eerlijk dat het een rangorde-gok is (``"levels"``/``"percentile"``)
+    en niet de codering van het apparaat (``"coded"``).
     """
     rounded = np.round(pos_data).astype(int)
     unique_vals = np.unique(rounded)
 
     # Already coded 0-4 → use as-is
     if len(unique_vals) <= 6 and np.all((unique_vals >= 0) & (unique_vals <= 5)):
-        return np.clip(rounded, 0, 4)
+        return np.clip(rounded, 0, 4), "coded"
 
-    # Raw ADC/voltage signal → map clusters to 0-4 by rank order
-    # Use percentile-based quantization
     valid = pos_data[~np.isnan(pos_data)]
     if len(valid) == 0:
-        return np.zeros(len(pos_data), dtype=int)
+        return np.zeros(len(pos_data), dtype=int), "empty"
 
-    # Assign 5 bins based on signal range
+    niveaus = _position_levels(valid)
+    if niveaus:
+        # Rangorde op WAARDE, niet op duur. Elk niveau krijgt het volgende
+        # codenummer; een nacht met drie houdingen krijgt er drie, geen vijf.
+        # Grenzen halverwege twee niveaus, zodat ruis rond een plateau bij dat
+        # plateau blijft.
+        edges = [(a + b) / 2 for a, b in zip(niveaus, niveaus[1:])]
+        mapped = np.digitize(pos_data, edges)
+        return np.clip(mapped, 0, 4), "levels"
+
+    # Continu signaal (bv. een hoek uit een accelerometer): er is geen
+    # discreet niveau om op te rangschikken. Laatste redmiddel, en het blijft
+    # duurafhankelijk -- vandaar dat de methode meegegeven wordt.
     edges = np.percentile(valid, [0, 20, 40, 60, 80, 100])
     mapped = np.digitize(pos_data, edges[1:-1])  # 0-4
-    return np.clip(mapped, 0, 4)
+    return np.clip(mapped, 0, 4), "percentile"
 
 
 def _modal_position(pos_data: np.ndarray, ep: int, spe: int) -> int:

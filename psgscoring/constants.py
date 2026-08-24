@@ -265,6 +265,16 @@ CHANNEL_PATTERNS: dict[str, list[str]] = {
     "eeg":      ["eeg", "c3", "c4", "f3", "f4", "o1", "o2"],
 }
 
+# Minimale slaaptijd in een houding voordat er een index over gerapporteerd
+# wordt. Eén klinisch rapport toonde "AHI Supine 120,0/u": één event in 0,5 min
+# ruglig. Die deling is rekenkundig correct en klinisch onbruikbaar -- ze staat
+# in dezelfde tabel als de echte indices.
+#
+# 15 min, niet de 30 die `_compute_phenotypes` voor POSA hanteert: dat is de
+# drempel om een FENOTYPE te durven stellen, een zwaardere uitspraak dan een
+# index tonen. Twee vragen, twee drempels, allebei genoemd.
+POSITION_MIN_MINUTES: float = 15.0
+
 POSITION_MAP: dict[int, str] = {
     0: "Prone", 1: "Left", 2: "Supine", 3: "Right", 4: "Upright",
 }

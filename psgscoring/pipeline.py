@@ -1751,10 +1751,25 @@ def _compute_phenotypes(output: dict, hypno: list) -> None:
         st_min = pos.get("sleep_time_min", {}) or {}
         sup_ahi = ahi_pos.get("Supine")
         sup_min = st_min.get("Supine") or 0.0
+        # Onder POSITION_MIN_MINUTES geeft analyze_position geen index meer.
+        # De POSA-eis van 30 min ruglig is strenger, dus dat blokkeert het
+        # fenotype toch al -- maar dan om de juiste reden en niet door een
+        # None die verderop als 0 gelezen wordt.
         ns_keys = ("Left", "Right", "Prone")
         ns_min = sum((st_min.get(k) or 0.0) for k in ns_keys)
-        ns_events = sum((ahi_pos.get(k) or 0.0) * ((st_min.get(k) or 0.0) / 60.0)
-                        for k in ns_keys)
+        # Uit de TELLING, niet uit index x uren. Die omweg liep langs een
+        # afronding, en sinds v0.27.1 heeft een houding onder
+        # POSITION_MIN_MINUTES helemaal geen index meer: haar events vielen dan
+        # weg terwijl haar minuten in de noemer bleven staan. De
+        # niet-ruglig-AHI werd te laag, de verhouding te hoog, en het
+        # POSA-fenotype kon omslaan van afwezig naar aanwezig -- een
+        # klinische uitspraak uit een boekhoudfout.
+        n_ev_pos = pos.get("n_events_per_pos") or {}
+        if n_ev_pos:
+            ns_events = sum((n_ev_pos.get(k) or 0) for k in ns_keys)
+        else:   # resultaten van vóór dat veld
+            ns_events = sum((ahi_pos.get(k) or 0.0) * ((st_min.get(k) or 0.0) / 60.0)
+                            for k in ns_keys)
         ns_ahi = round(ns_events / (ns_min / 60.0), 1) if ns_min > 0 else None
         if (ahi is not None and ahi >= 5 and sup_ahi is not None and ns_ahi is not None
                 and sup_min >= 30 and ns_min >= 30):
@@ -1909,6 +1924,18 @@ def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
     resp["summary"]["rera_index"]      = rera_index
     resp["summary"]["rdi"]             = rdi
     resp["summary"]["n_fri"]           = len(fri_events) - fri_rera_count
+    # De FRI-INDEX hoort hier, niet in de rapportlaag. Eén klinisch rapport
+    # toonde 44,3/u in de RERA-sectie en 43,2/u in sectie 8d, over dezelfde
+    # nacht en dezelfde teller: de ene sectie leidde de uren af uit
+    # n_rera/rera_index, de andere deelde door de TST uit de
+    # YASA-slaapstatistiek. Twee definities van slaaptijd onder één label.
+    #
+    # `index_denominator_h` staat erbij zodat een consument die tóch zelf iets
+    # per uur wil uitrekenen geen derde definitie hoeft te verzinnen. Dit is
+    # dezelfde noemer als rera_index, rdi en ahi_total.
+    resp["summary"]["fri_index"]       = per_hour(
+        resp["summary"]["n_fri"], tst_h)
+    resp["summary"]["index_denominator_h"] = round(tst_h, 4)
 
     # REM vs NREM AHI (v0.8.16)
     rem_events  = [e for e in events if e.get("stage") == "R"]

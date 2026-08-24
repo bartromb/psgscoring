@@ -1,3 +1,82 @@
+# v0.27.2 — 2026-08-24 — een index met twee noemers, en een houding van een halve minuut
+
+**Scored values change** op twee plekken, allebei omdat er een getal stond waar
+er geen hoorde. Golden 9/9.
+
+## De positie-AHI had geen ondergrens
+
+`analyze_position` deelde het aantal events door de uren in die houding, zonder
+minimum. Eén klinisch rapport toonde **"AHI Supine 120,0/u"**: één event in
+0,5 min ruglig. Dat getal staat in dezelfde tabel als de echte indices en leest
+als een meting. Bij nul minuten gaf dezelfde regel **0** terug — wat leest als
+"geen events op de rug" terwijl de patiënt er niet gelegen heeft. Twee
+verschillende onwaarheden uit één regel.
+
+`POSITION_MIN_MINUTES = 15.0` (nieuw in `constants.py`). Onder die grens is
+`ahi_per_pos[naam]` nu `None`. Bewust níét de 30 min die `_compute_phenotypes`
+voor POSA hanteert: dat is de drempel om een fenotype te durven stellen, een
+zwaardere uitspraak dan een index tonen.
+
+**De valkuil van die reparatie zelf**, en waarom er een test op staat:
+`_compute_phenotypes` telde de niet-rugligevents op als `index × uren`. Zodra
+een korte houding géén index meer heeft, valt haar bijdrage weg terwijl haar
+MINUTEN in de noemer blijven — de niet-ruglig-AHI wordt te laag, de verhouding
+te hoog, en het POSA-fenotype kan omslaan van afwezig naar aanwezig. Een
+reparatie die een klinische uitspraak verzint. De samenvatting publiceert
+daarom `n_events_per_pos` en de fenotypering telt.
+
+## Het positielabel hing af van hoe lang de patiënt ergens lag
+
+`_map_position_signal` quantiseerde een ruw ADC-signaal op **percentielen van
+de nachtverdeling**. De bingrenzen schoven dus mee met de duurverdeling.
+Gemeten op vijf vaste plateauwaarden:
+
+| duurverdeling | 120 | 400 | 680 | 950 |
+|---|---|---|---|---|
+| gelijk verdeeld | Left | Supine | Right | Upright |
+| veel op de rug | Prone | **Prone** | Upright | **Upright** |
+| veel op links | Prone | Upright | **Upright** | **Upright** |
+
+Twee nachten van dezelfde recorder met hetzelfde sensorsignaal kregen andere
+labels, en twee onderscheiden houdingen vielen samen op één code — waarna hun
+events en minuten op één hoop kwamen. De positie-AHI, het POSA-fenotype en de
+therapieaanbeveling hangen daaraan.
+
+Nu: detectie van de discrete NIVEAUS in het signaal (clustering op waarde met
+een tolerantie die met het bereik meeschaalt), rangorde op waarde, grenzen
+halverwege twee niveaus. Een nacht met drie houdingen krijgt er drie, geen
+vijf. Percentielen blijven als laatste redmiddel voor een werkelijk continu
+signaal (bv. een accelerometerhoek).
+
+**Wat dit niet oplost:** wélke houding een niveau is. Zowel de oude als de
+nieuwe tak nemen aan dat oplopende ruwe waarden overeenkomen met de volgorde
+van `POSITION_MAP`. Dat is een aanname over de recorder, geen meting. Alleen
+een fabrikantspecifieke codetabel kan dat beslissen. Zolang die er niet is
+meldt `summary["position_mapping_method"]` eerlijk of het de codering van het
+apparaat was (`"coded"`) of een rangorde-gok (`"levels"` / `"percentile"`).
+
+## De FRI-index had twee noemers
+
+Eén rapport toonde **FRI 44,3/u** in de RERA-sectie en **43,2/u** in sectie 8d,
+over dezelfde nacht en dezelfde teller. De ene sectie leidde de uren af uit
+`n_rera / rera_index`, de andere deelde door de TST uit de
+YASA-slaapstatistiek — twee definities van slaaptijd onder één label.
+
+De index hoort in de bibliotheek, naast de andere indices en met dezelfde
+noemer: `summary["fri_index"]`, plus `summary["index_denominator_h"]` zodat een
+consument die tóch zelf iets per uur wil uitrekenen geen derde definitie hoeft
+te verzinnen.
+
+## Niet gedaan, en waarom
+
+De roadmap vroeg dezelfde ondergrens voor de stadium-AHI (REM-AHI bij < 15 min
+REM). Die **bestaat al**, op 30 min, met een andere en bewuste keuze:
+`ahi_rem_reliable` / `ahi_rem_caveat` kwalificeren de index in plaats van hem
+weg te laten, omdat hij wél bestaat en alleen niet te vertrouwen is. Er is geen
+tweede mechanisme met een afwijkende drempel bijgezet.
+
+---
+
 # v0.27.1 — 2026-08-24 — de kin-EMG bereikte de classifier nooit
 
 **Scored values change** op de zestien v3-profielen die de arousalclassifier
