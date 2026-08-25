@@ -861,6 +861,7 @@ def run_pneumo_analysis(
                 hysteresis  = _ar_hyst,
                 lgbm        = _ar_lgbm,
                 lgbm_threshold = _ar_thr,
+                event_locked_threshold = _arousal_event_locked_threshold(profile),
             )
         except Exception as e:  # noqa: BLE001 — arousal failure must not abort the run
             logger.warning("[pneumo] arousal analysis failed, continuing: %s", e)
@@ -1693,6 +1694,26 @@ def _pick_eeg_multi(raw, ch) -> list:
 # beenbewegingen en is als fout niet herkenbaar. "leg" dekt ook het
 # ongezijderde MESA-kanaal `Leg`.
 _LEG_LABEL_TOKENS = ("TIB", "LEG", "PLM", "GASTRO", "BEEN", "JAMBE", "LAT")
+
+
+def _arousal_event_locked_threshold(profile) -> float | None:
+    """Het event-locked werkpunt, met env-override in BEIDE richtingen.
+
+    Een lege string zet hem UIT op een profiel dat hem aan heeft; dat is nodig
+    om beide armen op één cohort te meten zonder de registry te muteren.
+    """
+    val = profile.get("AROUSAL_EVENT_LOCKED_THRESHOLD")
+    env = os.environ.get("PSGSCORING_AROUSAL_EVENT_LOCKED_THRESHOLD")
+    if env is not None:
+        if env.strip() == "":
+            return None
+        try:
+            return float(env)
+        except ValueError:
+            logger.warning(
+                "[pneumo] PSGSCORING_AROUSAL_EVENT_LOCKED_THRESHOLD=%r is geen "
+                "getal; profielwaarde aangehouden", env)
+    return float(val) if val is not None else None
 
 
 def _resolve_emg_name(raw, ch) -> str | None:

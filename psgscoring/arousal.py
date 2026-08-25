@@ -314,9 +314,16 @@ def _filter_candidates_with_lgbm(
     emg_uv: np.ndarray | None,
     n_epochs: int,
     threshold: float = AROUSAL_LGBM_THRESHOLD,
+    thresholds: list[float] | None = None,
 ) -> tuple[list[dict], list[float]]:
     """Score each candidate with the LGBM model and return the events
-    with `proba >= threshold`, plus the per-candidate probabilities."""
+    with ``proba >= threshold``, plus the per-candidate probabilities.
+
+    ``thresholds`` geeft een drempel PER kandidaat en wint van ``threshold``.
+    Dat is wat het event-locked werkpunt nodig heeft: het model levert een
+    kans, en de drempel waarop je die afkapt hoort van de prior af te hangen.
+    Vlak na een respiratoir event-einde is die prior aantoonbaar anders.
+    """
     if not events:
         return [], []
     booster = _load_arousal_lgbm_booster()
@@ -324,11 +331,14 @@ def _filter_candidates_with_lgbm(
     X = np.array([[r[c] for c in _AROUSAL_LGBM_FEATURE_ORDER] for r in feat_rows],
                  dtype=float)
     proba = booster.predict(X)
+    thr_per = thresholds if thresholds is not None else [threshold] * len(events)
     kept = []
-    for ev, p in zip(events, proba):
-        if p >= threshold:
+    for ev, p, thr in zip(events, proba, thr_per):
+        if p >= thr:
             ev = dict(ev)
             ev["lgbm_proba"] = round(float(p), 4)
+            ev["lgbm_threshold_used"] = round(float(thr), 4)
+            ev["event_locked"] = bool(thr < threshold)
             kept.append(ev)
     return kept, [float(p) for p in proba]
 
@@ -377,6 +387,11 @@ AROUSAL_MIN_DUR_S     = 3.0     # ≥3s EEG-frequentieverandering
 AROUSAL_MAX_DUR_S     = 30.0    # >30s = waarschijnlijk wakker
 PRESLEEP_MIN_S        = 10.0    # ≥10s slaap vóór arousal vereist
 POST_RESP_WINDOW_S    = 15.0    # arousal binnen 15s na resp. event = respiratoir
+# Zoveel VOOR het einde van een event begint het koppelvenster. Komt uit
+# correlate_arousals_to_respiratory (window_pre_s); staat hier als constante
+# zodat het event-locked werkpunt dezelfde geometrie gebruikt in plaats van
+# een eigen getal.
+AROUSAL_PRE_RESP_WINDOW_S = 5.0
 RERA_FLOW_LIMIT_THR   = 0.80    # flow 80–100% = flow-limitatie (plateau)
 RERA_MIN_DUR_S        = 10.0    # ≥10s flow-limitatie voor RERA
 
@@ -617,6 +632,8 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                     exit_ratio: float | None = None,
                     lgbm: bool | None = None,
                     lgbm_threshold: float | None = None,
+                    resp_event_ends: list | None = None,
+                    event_locked_threshold: float | None = None,
                     _no_hybrid: bool = False) -> dict:
     """
     Detecteer EEG-arousals conform AASM, Sectie 5.
@@ -668,6 +685,15 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
         _want = _env == "1"
     else:
         _want = bool(lgbm) if lgbm is not None else False
+    if event_locked_threshold is not None:
+        _base = (float(lgbm_threshold) if lgbm_threshold is not None
+                 else AROUSAL_LGBM_THRESHOLD)
+        if float(event_locked_threshold) > _base:
+            raise ValueError(
+                f"event_locked_threshold ({event_locked_threshold}) is "
+                f"strenger dan het gewone werkpunt ({_base}); het venster mag "
+                f"alleen versoepelen -- een hogere drempel daar past de prior "
+                f"omgekeerd toe. Kies een lager getal.")
     _hybrid_requested = _want and not _no_hybrid
     _hybrid = _hybrid_requested
     # v0.23.0: verruim de kandidaatdrempels alleen als de classifier ook
@@ -1179,10 +1205,26 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                 # moduleconstante (die zelf al een env-override kent).
                 _thr = (float(lgbm_threshold) if lgbm_threshold is not None
                         else AROUSAL_LGBM_THRESHOLD)
+                # Event-locked werkpunt. Het venster is EXACT dat van
+                # correlate_arousals_to_respiratory (event-onset tot
+                # POST_RESP_WINDOW_S na het einde), zodat detectie en koppeling
+                # dezelfde geometrie delen -- een event dat het venster toelaat
+                # maar de koppeling niet erkent, komt nergens in terug.
+                _thr_per = None
+                if event_locked_threshold is not None and resp_event_ends:
+                    _lo = float(event_locked_threshold)
+                    _ends = [float(x) for x in resp_event_ends]
+                    _thr_per = [
+                        _lo if any(
+                            (e - AROUSAL_PRE_RESP_WINDOW_S) <= c["onset_s"]
+                            <= (e + POST_RESP_WINDOW_S) for e in _ends
+                        ) else _thr
+                        for c in result["events"]
+                    ]
                 kept, proba = _filter_candidates_with_lgbm(
                     result["events"], eeg_uv_for_lgbm, sf,
                     emg_uv_for_lgbm, len(hypno),
-                    threshold=_thr,
+                    threshold=_thr, thresholds=_thr_per,
                 )
                 n_pre = len(result["events"])
                 result["pre_lgbm_n_arousals"] = n_pre
@@ -1193,6 +1235,11 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                 result["summary"]["lgbm_threshold"] = _thr
                 result["summary"]["lgbm_n_pre"]     = n_pre
                 result["summary"]["lgbm_n_post"]    = len(kept)
+                if _thr_per is not None:
+                    result["summary"]["n_event_locked"] = sum(
+                        1 for e in kept if e.get("event_locked"))
+                    result["summary"]["event_locked_threshold"] = float(
+                        event_locked_threshold)
                 logger.info(
                     "[arousal] LGBM filter: %d candidates → %d kept "
                     "(threshold %.2f)", n_pre, len(kept), _thr,
@@ -1325,7 +1372,9 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                           spectral_shift: bool = False,
                           hysteresis: bool = False,
                           lgbm: bool | None = None,
-                          lgbm_threshold: float | None = None) -> dict:
+                          lgbm_threshold: float | None = None,
+                          resp_event_ends: list | None = None,
+                          event_locked_threshold: float | None = None) -> dict:
     """Multi-derivatie arousal-detectie via event-level union.
 
     ``derivations``: geordende lijst ``[(naam, eeg_data[, sf]), ...]`` — element 0
@@ -1349,7 +1398,9 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                               ratio_thresh=rt, abrupt_thresh=at,
                               spectral_shift=spectral_shift,
                               hysteresis=hysteresis, lgbm=lgbm,
-                              lgbm_threshold=lgbm_threshold)
+                              lgbm_threshold=lgbm_threshold,
+                              resp_event_ends=resp_event_ends,
+                              event_locked_threshold=event_locked_threshold)
         if res.get("success"):
             per.append((name, res))
     if not per:
@@ -1377,7 +1428,8 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
     # krijgen dezelfde emg_data en dezelfde vlaggen, dus de status is uniform;
     # de tellingen zijn per afleiding en worden opgeteld.
     _first = per[0][1].get("summary", {}) or {}
-    for _k in ("lgbm_available", "lgbm_skipped_reason", "lgbm_threshold"):
+    for _k in ("lgbm_available", "lgbm_skipped_reason", "lgbm_threshold",
+               "event_locked_threshold"):
         if _k in _first:
             summ[_k] = _first[_k]
     if any("lgbm_n_pre" in (r.get("summary") or {}) for _, r in per):
@@ -1385,6 +1437,10 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                                  for _, r in per)
         summ["lgbm_n_post"] = sum((r.get("summary") or {}).get("lgbm_n_post", 0)
                                   for _, r in per)
+    if any("n_event_locked" in (r.get("summary") or {}) for _, r in per):
+        # Na de union is een telling per afleiding niet meer wat de lezer
+        # wil; tellen op de samengevoegde lijst.
+        summ["n_event_locked"] = sum(1 for e in merged if e.get("event_locked"))
     out = {"success": True, "events": merged, "summary": summ, "error": None}
     _pre = [r["pre_lgbm_n_arousals"] for _, r in per
             if r.get("pre_lgbm_n_arousals") is not None]
@@ -1881,6 +1937,7 @@ def run_arousal_respiratory_analysis(
     hysteresis:  bool = False,
     lgbm:        bool | None = None,
     lgbm_threshold: float | None = None,
+    event_locked_threshold: float | None = None,
 ) -> dict:
     """
     Master-functie: detecteer arousals, RERAs en koppel aan respiratoire events.
@@ -1909,6 +1966,20 @@ def run_arousal_respiratory_analysis(
 
     # ── Stap 1: Arousals detecteren ──────────────────────────────
     logger.info("[arousal 1/3] EEG-arousal detectie...")
+    # De event-eindes komen uit de respiratoire scoring die HIERVOOR gedraaid
+    # heeft -- `resp_events` staat al in de signatuur. Het diagnosedocument
+    # ging uit van de omgekeerde volgorde en stelde een two-pass voor; dat is
+    # niet nodig, de events zijn er al.
+    _ends = None
+    if event_locked_threshold is not None:
+        _ends = [float(e["onset_s"]) + float(e["duration_s"])
+                 for e in (resp_events or [])
+                 if e.get("onset_s") is not None
+                 and e.get("duration_s") is not None]
+        if _ends:
+            logger.info("[arousal] event-locked werkpunt %.2f rond %d "
+                        "respiratoire event-eindes",
+                        event_locked_threshold, len(_ends))
     if derivations:
         ar_result = detect_arousals_multi(derivations, sf_eeg, hypno, emg_data=emg_data,
                                           artifact_epochs=artifact_epochs,
@@ -1917,14 +1988,18 @@ def run_arousal_respiratory_analysis(
                                           eog_data=eog_data, eog_reject=eog_reject,
                                           spectral_shift=spectral_shift,
                                           hysteresis=hysteresis, lgbm=lgbm,
-                                          lgbm_threshold=lgbm_threshold)
+                                          lgbm_threshold=lgbm_threshold,
+                                          resp_event_ends=_ends,
+                                          event_locked_threshold=event_locked_threshold)
     else:
         ar_result = detect_arousals(eeg_data, sf_eeg, hypno, emg_data=emg_data,
                                     artifact_epochs=artifact_epochs,
                                     hr_data=hr_data, sf_hr=sf_hr,
                                     spectral_shift=spectral_shift,
                                     hysteresis=hysteresis, lgbm=lgbm,
-                                    lgbm_threshold=lgbm_threshold)
+                                    lgbm_threshold=lgbm_threshold,
+                                    resp_event_ends=_ends,
+                                    event_locked_threshold=event_locked_threshold)
     output["arousals"] = ar_result
 
     arousals = ar_result.get("events", [])
@@ -1989,7 +2064,8 @@ def run_arousal_respiratory_analysis(
     # een factor kunnen schelen. Alleen doorgeven wat er is -- op een profiel
     # zonder classifier blijven de sleutels weg.
     for _k in ("lgbm_available", "lgbm_skipped_reason", "lgbm_threshold",
-               "lgbm_n_pre", "lgbm_n_post"):
+               "lgbm_n_pre", "lgbm_n_post", "n_event_locked",
+               "event_locked_threshold"):
         if _k in ar_sum:
             output["summary"][_k] = ar_sum[_k]
 

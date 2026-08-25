@@ -1,3 +1,69 @@
+# v0.27.5 — 2026-08-25 — event-locked werkpunt: gebouwd, gemeten, niet aangezet
+
+**Geen enkele gescoorde waarde verandert.** Nieuwe profielvlag
+`arousal_event_locked_threshold`, **default `None` op alle profielen**; golden
+9/9, 1126 tests.
+
+## Wat de vlag doet
+
+Een LAGERE LGBM-cutoff binnen het koppelvenster rond een respiratoir
+event-einde (event-onset tot 15 s na het einde — exact de geometrie van
+`correlate_arousals_to_respiratory`). Het model levert een kans, geen
+beslissing; de drempel waarop je die afkapt hoort van de prior af te hangen, en
+die is vlak na een event-einde aantoonbaar anders.
+
+Niet bij de KANDIDAATgeneratie, waar `docs/arousal-recall-diagnose.md` hem
+zocht. Gemeten op PSG-IPA SN3 (327 menselijke events): bij 283 ligt al een
+kandidaat, 89 overleven de filter. Events zonder énige kandidaat: 44. Events
+met kandidaat die weggefilterd wordt: **194**. Het filterverlies is ruim vier
+keer zo groot.
+
+## De meting, en waarom hij uit blijft
+
+Beslisregel vooraf: de koppelingsfractie moet stijgen ÉN de telling mag niet
+boven ratio 1,10 uitkomen.
+
+| vensterdrempel | koppeling `ons x mens` | telling / referentie |
+|---|---:|---:|
+| **uit** | **36,4 %** | **0,99** |
+| 0,60 | 44,4 % | 1,11 |
+| 0,50 | 47,4 % | 1,15 |
+| 0,40 | 51,6 % | 1,20 |
+| 0,30 | 54,2 % | 1,25 |
+| *mens x mens* | *60,4 %* | *1,00* |
+
+Het mechanisme werkt — de koppeling dicht driekwart van het gat naar de mens.
+De bewaking faalt: zelfs de mildste stand komt op 1,11. **Geen enkele stand
+haalt beide regels.** De afruil (8 procentpunt koppeling voor 11 % meer
+arousals) is een gebruikersbeslissing, geen meetuitkomst; gaat die ooit door,
+dan hoort er een MESA-replicatie vóór de default-flip.
+
+## Volgordebeperking, expliciet vastgelegd
+
+Op de `breath_graded`-profielen vervangt stap 7b de hypopneeën ná de
+arousalstap, dus het venster ziet daar alleen de apneus — op de motiverende
+opname 235 van de 377 events. Een tweede pas ná stap 7b zou dat oplossen, maar
+de breath-detector gebruikt de arousals zelf: een echte cyclische
+afhankelijkheid. Een test faalt zodra die volgorde verandert.
+
+## Correctie op de 0.27.4-changelog
+
+Daar stond "mediaan over 60 scoorder-nachten" bij de menselijke
+koppelingsfractie. Onjuist: de arousals in de `Resp_events`-subtree zijn een
+GEDEELDE referentie-annotatie — 12 bestanden, **3 unieke arousalsets**
+(241/242/242…). In `EEG_arousals` zijn het er 12 van 12. Het gaat dus om 12
+verschillende EVENTsets tegen in feite één arousalset.
+
+De vergelijking mens-tegen-ons blijft geldig (zelfde arousalbron, zelfde
+eventsets), maar de spreiding die erbij genoemd werd was die van de events.
+Tweede val, ook nieuw: de subtrees zijn andere exports met andere duur (SN3:
+6,57 u tegen 8,13 u), dus tellingen uit het ene naast spreidingen uit het
+andere leggen is betekenisloos.
+
+Zie `docs/arousal_event_locked_bevinding.md`.
+
+---
+
 # v0.27.4 — 2026-08-25 — de tweede EEG-afleiding was de saturatiecurve
 
 **Scored values change** op de v3-profielen in multi-modus (de klinische

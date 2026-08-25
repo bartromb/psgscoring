@@ -424,6 +424,20 @@ class PostProcessingRules:
     Env-override: `PSGSCORING_AROUSAL_EOG_REJECT=1` zet hem terug aan."""
 
     arousal_lgbm_threshold: float | None = 0.80
+    # Event-locked werkpunt: een LAGERE cutoff binnen het koppelvenster rond
+    # een respiratoir event-einde. None = uit (huidig gedrag).
+    #
+    # Waarom bij de FILTER en niet bij de kandidaatgeneratie, waar het
+    # diagnosedocument hem zocht: op PSG-IPA SN3 (327 menselijke events) ligt
+    # bij 283 van de events al een kandidaat, en er overleven er 89. Events
+    # zonder enige kandidaat: 44. Events met kandidaat die weggefilterd wordt:
+    # 194. Het filterverlies is ruim vier keer zo groot.
+    #
+    # Waarom het verdedigbaar is: het model levert een kans, geen beslissing.
+    # De drempel waarop je die afkapt hoort van de prior af te hangen, en die
+    # is vlak na een event-einde aantoonbaar anders -- mensen koppelen daar
+    # 60,4 % van hun events aan een arousal (gepoold over PSG-IPA).
+    arousal_event_locked_threshold: float | None = None
     """Werkpunt van de arousal-classifier. `None` = de moduleconstante (0,60).
 
     **0,60 is gedomineerd.** De waarde is nooit onafhankelijk geijkt: de veeg
