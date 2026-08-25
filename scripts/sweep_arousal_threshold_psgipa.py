@@ -40,7 +40,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 mne.set_log_level("ERROR")
 
-from psgscoring.arousal import detect_arousals
+from psgscoring.arousal import detect_arousals, detect_arousals_multi
+from psgscoring.pipeline import _pick_eeg_multi
 
 RECS = ["SN1", "SN2", "SN3", "SN4", "SN5"]
 EPOCH_S = 30.0
@@ -111,6 +112,12 @@ def main():
     # waarop gemeten is.
     ap.add_argument("--eeg-prefer", default="C4,Cz,C3,CZ")
     ap.add_argument("--emg", default="EMG chin")
+    ap.add_argument(
+        "--multi", action="store_true",
+        help="Draai de PRODUCTIECONFIGURATIE: de afleidingsset zoals "
+             "_pick_eeg_multi hem kiest, door detect_arousals_multi. De "
+             "single-arm meet een configuratie die de klinische profielen "
+             "niet draaien.")
     ap.add_argument("--sweep", default="0.50,0.60,0.70,0.80,0.90")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
@@ -138,32 +145,51 @@ def main():
             stem = [h[i] for h in hypnos]
             hypno.append(max(set(stem), key=stem.count))
 
-        eeg_naam = None
-        for voorkeur in a.eeg_prefer.split(","):
-            eeg_naam = next((c for c in hdr.ch_names
-                             if voorkeur.upper() in c.upper()), None)
-            if eeg_naam:
-                break
-        if eeg_naam is None:
-            raise SystemExit(f"{sn}: geen centrale afleiding gevonden in "
-                             f"{hdr.ch_names}")
+        if a.multi:
+            # Alle EEG-kanalen meeladen; de picker kiest zelf, precies zoals
+            # de pijplijn dat doet.
+            houden = {c for c in hdr.ch_names if "EEG" in c.upper()} | {a.emg}
+        else:
+            eeg_naam0 = None
+            for voorkeur in a.eeg_prefer.split(","):
+                eeg_naam0 = next((c for c in hdr.ch_names
+                                  if voorkeur.upper() in c.upper()), None)
+                if eeg_naam0:
+                    break
+            if eeg_naam0 is None:
+                raise SystemExit(f"{sn}: geen centrale afleiding in "
+                                 f"{hdr.ch_names}")
+            houden = {eeg_naam0, a.emg}
         raw = mne.io.read_raw_edf(
-            psg, exclude=[c for c in hdr.ch_names
-                          if c not in {eeg_naam, a.emg}],
+            psg, exclude=[c for c in hdr.ch_names if c not in houden],
             preload=True, verbose=False)
         sf = raw.info["sfreq"]
-        eeg = raw.get_data(picks=[eeg_naam])[0]
         emg = raw.get_data(picks=[a.emg])[0]
+        derivs = None
+        if a.multi:
+            derivs = _pick_eeg_multi(raw, {})
+            if not derivs:
+                raise SystemExit(f"{sn}: geen EEG-afleiding gevonden")
+            eeg_naam = " u ".join(n for n, _d, _s in derivs)
+            eeg = derivs[0][1]
+        else:
+            eeg_naam = eeg_naam0
+            eeg = raw.get_data(picks=[eeg_naam0])[0]
 
         rij = {"mens": sorted(tellingen), "mens_med": median(tellingen),
                "tst_h": round(median(tsts), 2), "eeg": eeg_naam, "armen": {}}
-        regels = len(detect_arousals(eeg, sf, hypno,
-                                     emg_data=emg).get("events") or [])
-        rij["armen"]["regels"] = regels
+        def _n(lgbm, thr, _d=derivs, _e=eeg, _m=emg, _h=hypno, _s=sf):
+            if _d is not None:
+                r = detect_arousals_multi(_d, _s, _h, emg_data=_m,
+                                          lgbm=lgbm, lgbm_threshold=thr)
+            else:
+                r = detect_arousals(_e, _s, _h, emg_data=_m,
+                                    lgbm=lgbm, lgbm_threshold=thr)
+            return len(r.get("events") or [])
+
+        rij["armen"]["regels"] = _n(False, None)
         for t in drempels:
-            n = len(detect_arousals(eeg, sf, hypno, emg_data=emg, lgbm=True,
-                                    lgbm_threshold=t).get("events") or [])
-            rij["armen"][f"{t:.2f}"] = n
+            rij["armen"][f"{t:.2f}"] = _n(True, t)
         resultaat[sn] = rij
         lo, hi = min(tellingen), max(tellingen)
         binnen = [k for k, v in rij["armen"].items() if lo <= v <= hi]

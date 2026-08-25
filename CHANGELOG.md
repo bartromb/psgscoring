@@ -34,6 +34,50 @@ Gemeten op de opname die dit blootlegde (AHI 64, exact de productiekanalen):
 
 Kandidatenpool 1020 → 2020, beide afleidingen dragen bij.
 
+## Het werkpunt is opnieuw gemeten en blijft 0,80
+
+Een gerepareerde derivatiekeuze verandert de tellingen, dus de drempel is
+opnieuw geijkt op de PRODUCTIECONFIGURATIE (multi, gerepareerde picker) op
+twee cohorten. Beslisregel vooraf: op MESA mag de mediane count-ratio niet
+boven 1,10 uitkomen (grens uit `docs/arousal-recall-diagnose.md`, gezet om niet
+terug te vallen in de 1,47x-overtelling van vóór v0.26); op PSG-IPA telt op
+hoeveel van de vijf opnames de telling binnen het bereik van de twaalf
+scoorders valt.
+
+| werkpunt | PSG-IPA ratio (12 scoorders) | binnen spreiding | MESA ratio (n=20) |
+|---|---:|---:|---:|
+| regelgebaseerd | 1,60 | 1/5 | 1,11 |
+| 0,50 | 1,61 | 1/5 | 1,41 |
+| 0,60 | 1,47 | 3/5 | 1,20 |
+| 0,70 | 1,21 | 4/5 | **1,01** |
+| **0,80 (huidig)** | **1,01** | **4/5** | 0,78 |
+| 0,90 | 0,60 | 3/5 | 0,45 |
+
+De cohorten wijzen elk hun eigen optimum aan en de afwijking is symmetrisch:
+0,70 telt 21 % te veel tegen twaalf scoorders, 0,80 telt 22 % te weinig tegen
+één. Beide halen de vooraf vastgelegde grens. **0,80 blijft**, op grond van de
+referentiekwaliteit -- twaalf scoorders boven één -- en omdat een klinische
+default verzetten een duidelijke winst vraagt, niet een gelijkspel.
+
+Let op wat dit weerlegt: een sweep op ÉÉN afleiding zette datzelfde 0,80 op
+ratio 0,68 en wees 0,50 aan met 5/5. Op de gerepareerde configuratie is 0,50
+juist de slechtste optie (1/5, ratio 1,61). De drempel stond goed; hij kreeg de
+verkeerde invoer.
+
+## Wat hiermee NIET opgelost is
+
+Het aantal klopt, de plaats niet. Op PSG-IPA koppelen dezelfde twaalf
+scoorders 49,2 % van hun respiratoire events aan een eigen arousal (mediaan
+over 60 scoorder-nachten), en op de opname met de zwaarste eventlast -- SN3,
+327 events -- 68,2 % [66-80 %]. Op de klinische opname halen wij ná deze
+reparatie 25,7 %.
+
+Wij vinden dus het juiste AANTAL arousals (ratio 1,01) maar niet op dezelfde
+momenten. Dat is een localisatieprobleem, en een drempel verplaatst geen
+events -- die maakt er alleen meer of minder. Onze eigen koppelingsfractie op
+PSG-IPA is nog niet gemeten; zonder dat getal is niet te zeggen of die 25,7 %
+opnamespecifiek is of systematisch.
+
 **Niet opgelost:** het regelgebaseerde pad haalt op dezelfde opname 0,893. De
 filter verwijdert nog steeds het merendeel. Zie
 `docs/arousal_derivatie_spo2_bevinding.md`, en let op de consequentie voor het
