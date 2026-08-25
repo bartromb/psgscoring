@@ -70,6 +70,41 @@ De afruil is echt en is een gebruikersbeslissing, geen meetuitkomst: op 0,60
 win je 8 procentpunt koppeling voor 11 % meer arousals. Gaat die keuze ooit
 door, dan hoort er een MESA-replicatie vóór de default-flip.
 
+## De volledige meting, mét F1 (25-08, beide cohorten)
+
+De tabel hierboven mist de maat die er het meest toe doet. Koppeling vraagt
+"volgt er een arousal op een respiratoir event"; **F1 vraagt of onze arousals
+staan waar de MENSELIJKE staan**. Een vlag die arousals bij event-eindes zet
+kan de eerste optillen zonder de tweede te raken -- en dat is precies wat er
+gebeurt.
+
+| cohort | arm | koppeling | **F1** | telling / ref |
+|---|---|---:|---:|---:|
+| PSG-IPA (n=5) | uit | 36,4 % | **0,546** | 0,99 |
+| | 0,75 | 39,5 % | 0,546 | 1,02 |
+| | 0,70 | 41,2 % | 0,554 | 1,04 |
+| | 0,65 | 43,6 % | **0,564** | 1,09 |
+| | 0,60 | 44,4 % | 0,559 | 1,11 |
+| MESA (n=20) | uit | 24,2 % | **0,409** | 0,71 |
+| | 0,75 | 25,1 % | 0,406 | 0,73 |
+| | 0,70 | 25,6 % | 0,414 | 0,74 |
+| | 0,65 | 26,2 % | **0,420** | 0,76 |
+| | 0,60 | 26,6 % | 0,420 | 0,77 |
+
+**+0,018 F1 op PSG-IPA, +0,011 op MESA.** De koppeling steeg met 7,2
+respectievelijk 2,4 procentpunt. Het verschil tussen die twee getallen ís de
+bevinding: de toegelaten arousals landen bij event-eindes waar de mens een
+EVENT had, niet waar hij een AROUSAL scoorde.
+
+Per opname is het bovendien inconsistent: op PSG-IPA SN2 gaat F1 achteruit
+(0,51 → 0,50), op SN4 verandert niets (het venster laat er vijf toe), en op
+MESA 0002/0014/0028/0035/0054 beweegt niets.
+
+Tegen het menselijk plafond van **0,679** (zie `arousal_menselijk_plafond.md`)
+dicht de vlag 13 % van het resterende gat op PSG-IPA en 8 % op MESA.
+
+**Blijft uit, nu op drie maten gemeten in plaats van twee.**
+
 ## Correctie op eerdere formuleringen
 
 De arousals in de `Resp_events`-subtree zijn een **gedeelde
