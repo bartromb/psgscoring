@@ -1,3 +1,47 @@
+# v0.27.4 — 2026-08-25 — de tweede EEG-afleiding was de saturatiecurve
+
+**Scored values change** op de v3-profielen in multi-modus (de klinische
+default) wanneer de montage een SpO2-kanaal draagt en een tweede centrale
+afleiding: de arousal-union draait nu op EEG in plaats van op saturatie.
+Golden 9/9.
+
+`_pick_eeg_multi` zocht de occipitale afleiding met onder meer een kaal
+`"O2"`, en `"SPO2"` bevat `"O2"`. Op een klinische opname leverde dat:
+
+```
+derivations: ['C3', 'SpO2']   n_per_derivation: {'C3': 142, 'SpO2': 0}
+```
+
+Dat het daar nul events gaf is geluk, geen ontwerp — een saturatiecurve met
+dalingen levert "arousals" die als onzin niet herkenbaar zijn. Dezelfde val die
+`_ROLE_MAY_NOT_TAKE["eeg"]` in `detect_channels` al afvangt; deze functie had
+haar eigen zoektocht zonder guard.
+
+Erger dan de bogus afleiding: **`C4` stond in dezelfde raw en werd nooit
+overwogen.** De picker zocht alleen occipitaal en frontaal, nooit een tweede
+CENTRALE afleiding — de gangbaarste klinische montage (C3 + C4) kreeg dus geen
+union, terwijl de provenance `n_derivations: 2` meldde alsof multi werkte.
+
+**Twee wijzigingen:** een expliciete niet-EEG-lijst (SPO2/SAO2/SAT/PLETH/OXIM/
+OXY) en C3/C4/Cz vooraan in de zoekvolgorde, vóór occipitaal en frontaal.
+
+Gemeten op de opname die dit blootlegde (AHI 64, exact de productiekanalen):
+
+| | afleidingen | AI | koppelingsfractie |
+|---|---|---:|---:|
+| vóór | C3 + SpO2 | 19,5 | 0,204 |
+| ná | **C3 + C4** | **24,5** | **0,257** |
+
+Kandidatenpool 1020 → 2020, beide afleidingen dragen bij.
+
+**Niet opgelost:** het regelgebaseerde pad haalt op dezelfde opname 0,893. De
+filter verwijdert nog steeds het merendeel. Zie
+`docs/arousal_derivatie_spo2_bevinding.md`, en let op de consequentie voor het
+werkpunt: de PSG-IPA-sweep die 0,80 op 3/5 zette draaide op één afleiding en
+moet over op de multi-configuratie voordat er een drempel gekozen wordt.
+
+---
+
 # v0.27.3 — 2026-08-24 — één ongezijderd beenkanaal is nog steeds een beenkanaal
 
 **Output changes** op montages met precies één beenkanaal zonder zijde-aanduiding:

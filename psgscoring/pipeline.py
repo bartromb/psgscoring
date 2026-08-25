@@ -1628,6 +1628,23 @@ def _pick_eeg(raw, ch) -> tuple:
     return None, None
 
 
+# Kanalen die nooit een EEG-afleiding zijn, hoe hun naam ook toevallig
+# overlapt. "SPO2" bevat "O2", en het kale "O2" in de occipitale zoeklijst
+# pikte daardoor de saturatiecurve op: op een klinische opname draaide de
+# arousaldetectie een volledige analyse op SpO2 en meldde de provenance
+# `n_derivations: 2` alsof multi gewerkt had. Dat het daar nul events gaf is
+# geluk, geen ontwerp -- een saturatiecurve met dalingen levert "arousals" die
+# als onzin niet herkenbaar zijn.
+#
+# Zelfde val als in detect_channels, waar _ROLE_MAY_NOT_TAKE["eeg"] hem al
+# afvangt; deze functie had haar eigen zoektocht en die guard ontbrak.
+_NOT_EEG_TOKENS = ("SPO2", "SAO2", "SAT", "PLETH", "OXIM", "OXY")
+
+
+def _is_not_eeg(upper_name: str) -> bool:
+    return any(t in upper_name for t in _NOT_EEG_TOKENS)
+
+
 def _pick_eeg_multi(raw, ch) -> list:
     """Geordende [(naam, data, sf), ...] voor de arousal-afleidingsset in ``raw``:
     centraal (== ``_pick_eeg``) + occipitaal + frontaal — enkel wat aanwezig is.
@@ -1648,12 +1665,21 @@ def _pick_eeg_multi(raw, ch) -> list:
     def _find(keys):
         for k in keys:
             for c in raw.ch_names:
-                if k in c.upper() and c not in used:
+                u = c.upper()
+                if k in u and c not in used and not _is_not_eeg(u):
                     return c
         return None
 
-    for keys in (("O2-M1", "O1-M2", "O2-A1", "O1-A2", "O2", "O1", "OZ"),   # occipitaal
-                 ("F4-M1", "F3-M2", "F4-A1", "F3-A2", "F4", "F3")):         # frontaal
+    # Volgorde: eerst de tweede CENTRALE afleiding, dan occipitaal, dan
+    # frontaal.
+    #
+    # C3/C4 stond hier NIET, en dat maakte multi-modus een lege huls op de
+    # gangbaarste klinische montage: een nacht met C3 en C4 kreeg geen tweede
+    # afleiding, want er werd alleen occipitaal en frontaal gezocht. Op de
+    # opname die dit blootlegde stond C4 gewoon in dezelfde raw.
+    for keys in (("C4-M1", "C3-M2", "C4-A1", "C3-A2", "C4", "C3", "CZ"),   # centraal
+                 ("O2-M1", "O1-M2", "O2-A1", "O1-A2", "O2", "O1", "OZ"),   # occipitaal
+                 ("F4-M1", "F3-M2", "F4-A1", "F3-A2", "F4", "F3")):        # frontaal
         nm = _find(keys)
         if nm:
             out.append((nm, raw.get_data(picks=[nm])[0], sf0))
