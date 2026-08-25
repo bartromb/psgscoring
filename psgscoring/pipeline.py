@@ -1646,46 +1646,82 @@ def _is_not_eeg(upper_name: str) -> bool:
     return any(t in upper_name for t in _NOT_EEG_TOKENS)
 
 
+# Zoekvolgorde per regio, na de element-0-pick. AASM V.A Note 1 schrijft
+# frontale, centrale EN occipitale informatie voor, en de meting laat zien
+# waarom: op PSG-IPA (n=5, 12 scoorders) haalt de union van drie regio's
+# F1 0,514 tegen 0,439-0,442 voor de beste enkele, en GEEN regio wint overal --
+# op SN4 is occipitaal de sterkste (0,59) waar hij gemiddeld de zwakste is.
+_EEG_REGION_ORDER = (
+    ("C4-M1", "C3-M2", "C4-A1", "C3-A2", "C4", "C3", "CZ"),   # centraal
+    ("O2-M1", "O1-M2", "O2-A1", "O1-A2", "O2", "O1", "OZ"),   # occipitaal
+    ("F4-M1", "F3-M2", "F4-A1", "F3-A2", "F4", "F3"),         # frontaal
+)
+
+
+def arousal_derivation_channels(ch_names: list, channel_map: dict | None = None
+                                ) -> list[str]:
+    """De EEG-kanalen die de arousalstap als afleidingen zou kiezen.
+
+    Publiek, en met opzet op NAMEN in plaats van op een geladen ``raw``: een
+    aanroeper moet kunnen bepalen welke kanalen hij moet inlezen VOORDAT hij
+    ze inleest.
+
+    YASAFlaskified bouwt zijn pneumo-raw uit ``detect_channels``, dat één
+    kanaal per rol teruggeeft. Op een klinische opname stonden daar C3 en C4 in
+    -- twee kanalen uit DEZELFDE regio -- terwijl het EDF ook O1/O2 en F3/F4
+    droeg. De arousalstap kiest uit wat er is, dus die zag nooit een frontale
+    of occipitale afleiding.
+
+    De kennis hoort hier en niet bij de aanroeper: laat die raden welke kanalen
+    de picker straks kiest, en het loopt mis zodra de picker verandert.
+    """
+    namen = [c for c in (ch_names or []) if c]
+    ch = channel_map or {}
+    naam0 = ch.get("eeg")
+    if naam0 not in namen:
+        naam0 = None
+    if not naam0:
+        for c in namen:
+            u = c.upper()
+            if _is_not_eeg(u):
+                continue
+            if any(p in u for p in ("EEG", "C3", "C4", "F3", "F4", "CZ")):
+                naam0 = c
+                break
+    if not naam0:
+        return []
+    uit, gebruikt = [naam0], {naam0}
+    for keys in _EEG_REGION_ORDER:
+        for k in keys:
+            m = next((c for c in namen
+                      if k in c.upper() and c not in gebruikt
+                      and not _is_not_eeg(c.upper())), None)
+            if m:
+                uit.append(m)
+                gebruikt.add(m)
+                break
+    return uit
+
+
 def _pick_eeg_multi(raw, ch) -> list:
-    """Geordende [(naam, data, sf), ...] voor de arousal-afleidingsset in ``raw``:
-    centraal (== ``_pick_eeg``) + occipitaal + frontaal — enkel wat aanwezig is.
-    Element 0 is de single-channel pick, zodat single-modus een strikte subset is;
-    ontdubbeld op kanaalnaam."""
+    """Geordende [(naam, data, sf), ...] voor de arousal-afleidingsset in ``raw``.
+
+    Element 0 is de single-channel pick, zodat single-modus een strikte subset
+    is; daarna één afleiding per regio. Welke kanalen dat zijn bepaalt
+    ``arousal_derivation_channels`` -- één bron, zodat een aanroeper die vooraf
+    kanalen opvraagt exact dezelfde set krijgt als de detector gebruikt.
+    """
     data0, sf0 = _pick_eeg(raw, ch)
     if data0 is None:
         return []
-    name0 = ch.get("eeg")
-    if not name0:
-        for c in raw.ch_names:
-            if any(p in c.upper() for p in ("EEG", "C3", "C4", "F3", "F4", "CZ")):
-                name0 = c
-                break
-    out = [(name0, data0, sf0)]
-    used = {name0}
-
-    def _find(keys):
-        for k in keys:
-            for c in raw.ch_names:
-                u = c.upper()
-                if k in u and c not in used and not _is_not_eeg(u):
-                    return c
-        return None
-
-    # Volgorde: eerst de tweede CENTRALE afleiding, dan occipitaal, dan
-    # frontaal.
-    #
-    # C3/C4 stond hier NIET, en dat maakte multi-modus een lege huls op de
-    # gangbaarste klinische montage: een nacht met C3 en C4 kreeg geen tweede
-    # afleiding, want er werd alleen occipitaal en frontaal gezocht. Op de
-    # opname die dit blootlegde stond C4 gewoon in dezelfde raw.
-    for keys in (("C4-M1", "C3-M2", "C4-A1", "C3-A2", "C4", "C3", "CZ"),   # centraal
-                 ("O2-M1", "O1-M2", "O2-A1", "O1-A2", "O2", "O1", "OZ"),   # occipitaal
-                 ("F4-M1", "F3-M2", "F4-A1", "F3-A2", "F4", "F3")):        # frontaal
-        nm = _find(keys)
-        if nm:
-            out.append((nm, raw.get_data(picks=[nm])[0], sf0))
-            used.add(nm)
+    namen = arousal_derivation_channels(raw.ch_names, ch)
+    if not namen:
+        return []
+    out = [(namen[0], data0, sf0)]
+    for nm in namen[1:]:
+        out.append((nm, raw.get_data(picks=[nm])[0], sf0))
     return out
+
 
 
 # Labels die NOOIT een kin-EMG aanwijzen, ook al bevatten ze "EMG".

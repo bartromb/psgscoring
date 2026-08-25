@@ -1,3 +1,56 @@
+# v0.27.6 — 2026-08-25 — drie hersenregio's, niet twee kanalen uit dezelfde
+
+**Scored values change** op montages die meer EEG-afleidingen dragen dan er tot
+nu toe werden ingelezen: de arousal-union krijgt nu een frontale en occipitale
+afleiding naast de centrale. Golden 9/9, 1134 tests.
+
+## Wat er misging
+
+De pneumo-raw wordt gebouwd uit `detect_channels`, dat ÉÉN kanaal per rol
+teruggeeft. Op de klinische montage stonden daar `C3` en `C4` in — twee kanalen
+uit DEZELFDE regio — terwijl hetzelfde EDF ook `O1`/`O2` en `F3`/`F4` droeg. De
+arousalstap kiest uit wat er is, dus frontaal en occipitaal bereikten hem
+nooit. AASM V.A Note 1 schrijft alle drie voor.
+
+## De meting (PSG-IPA, n=5, 12 scoorders, arousal-F1 bij IoU 0,20)
+
+| combinatie | regio's | F1 |
+|---|---:|---:|
+| **F+C+O** | 3 | **0,514** |
+| F+C | 2 | 0,501 |
+| F+O | 2 | 0,485 |
+| C+O | 2 | 0,460 |
+| F | 1 | 0,442 |
+| C | 1 | 0,439 |
+| O | 1 | 0,316 |
+
+Eén → twee regio's: **+0,06**; de derde nog **+0,013**. Menselijk plafond
+0,679.
+
+Het argument staat in de spreiding, niet in de mediaan: op SN4 wint occipitaal
+(0,59) waar hij gemiddeld de zwakste is, op SN5 centraal, op SN2 frontaal.
+**Geen regio wint overal**, en occipitaal voegt in élke combinatie waarde toe.
+
+## Wat er verandert
+
+`arousal_derivation_channels(ch_names, channel_map)` is nieuw en **publiek**,
+en werkt op NAMEN in plaats van op een geladen `raw`: een aanroeper moet kunnen
+bepalen welke kanalen hij moet inlezen vóórdat hij ze inleest. `_pick_eeg_multi`
+gebruikt diezelfde functie, zodat de opgevraagde set per constructie gelijk is
+aan wat de detector gebruikt — met een test die faalt zodra ze uiteenlopen.
+
+## Weerlegd onderweg
+
+Scoorders koppelen 78 % van hun arousals aan `Cz-O2` en `Fpz-Cz`, twee lange
+bipolaire ketens die niet in de EDF zitten. Gereconstrueerd door aftrekken
+detecteren ze **niet** beter: `C4-O2` komt exact uit op `C4-M1` (0,400),
+`F4-C4` is slechter (0,369) met twee keer zoveel events. Waar een scoorder
+markeert zegt niets over waar het signaal het beste te zien is.
+
+Zie `docs/arousal_afleidingsregios_bevinding.md`.
+
+---
+
 # v0.27.5 — 2026-08-25 — event-locked werkpunt: gebouwd, gemeten, niet aangezet
 
 **Geen enkele gescoorde waarde verandert.** Nieuwe profielvlag
