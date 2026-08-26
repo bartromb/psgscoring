@@ -502,52 +502,6 @@ def run_pneumo_analysis(
 
     output["respiratory"] = resp
 
-    # ── Split-night ───────────────────────────────────────────────
-    # Bij een split-night wordt de eerste helft diagnostisch geregistreerd en
-    # gaat de patiënt daarna aan CPAP. Eén AHI over die hele nacht verdunt de
-    # diagnose: op de casus die dit aanleiding gaf las het rapport "Mild SAS,
-    # AHI 10,1/u" terwijl het diagnostische deel ODI3 ~60/u had.
-    #
-    # De nacht-AHI blijft staan zoals AASM hem voorschrijft; de segmentindices
-    # komen ERNAAST. Een detector die stilzwijgend de hoofdindex herdefinieert
-    # lost één fout op door een tweede te maken.
-    if split_night and split_night != "off":
-        try:
-            from .split_night import detect_split_night, segment_indices
-            _sn = detect_split_night(
-                flow=ref_flow, sf_flow=sf_ref,
-                spo2=spo2_data, sf_spo2=(sf_spo2 or sf_ref or 1.0),
-                manual_breakpoint_s=(split_night_breakpoint_s
-                                     if split_night == "manual" else None),
-            )
-            if _sn.get("detected") and hypno:
-                _ev = resp.get("events") or []
-                _bp = _sn["breakpoint_s"]
-                _sn["segments"] = segment_indices(
-                    _ev, hypno, _bp, artifact_epochs=artifact_epochs)
-                # De VOLLEDIGE indexfamilie per deel. Bij een split-night is
-                # het diagnostische deel de meting waarop de diagnose rust; dan
-                # hoort daar alles bij wat een diagnose draagt -- OAHI,
-                # stadium-AHI's, de uncertain-boekhouding -- en niet één los
-                # getal naast een nacht-AHI die iets anders telt.
-                from .split_night import segment_spo2, segment_summaries
-                _sn["summaries"] = segment_summaries(
-                    _ev, hypno, _bp, artifact_epochs=artifact_epochs)
-                # En de saturatie op hetzelfde venster, anders staat er een
-                # diagnostische AHI naast een ODI over de hele nacht.
-                _sn["spo2"] = segment_spo2(
-                    spo2_data, sf_spo2, hypno, _bp,
-                    artifact_epochs=artifact_epochs)
-                _d = _sn["segments"]["diagnostic"]; _t = _sn["segments"]["therapeutic"]
-                logger.warning(
-                    "[pneumo] split-night op %.0f s (%s): diagnostisch AHI %s/u "
-                    "(%.1f u), onder therapie %s/u (%.1f u)",
-                    _sn["breakpoint_s"], _sn["method"], _d["ahi"], _d["sleep_h"],
-                    _t["ahi"], _t["sleep_h"])
-            output["split_night"] = _sn
-        except Exception as e:  # noqa: BLE001 — mag de run nooit breken
-            logger.warning("[pneumo] split-night-detectie mislukt: %s", e)
-            output["split_night"] = {"detected": False, "error": str(e)}
 
 
     # `dual_sensor` betekent: apneus en hypopneeën zijn op VERSCHILLENDE
@@ -1405,6 +1359,62 @@ def run_pneumo_analysis(
         except Exception as e:
             logger.warning("Post-processing failed: %s", e)
             output["postprocess"] = {"error": str(e)}
+
+    # ── Split-night ───────────────────────────────────────────────
+    # Bij een split-night wordt de eerste helft diagnostisch geregistreerd en
+    # gaat de patiënt daarna aan CPAP. Eén AHI over die hele nacht verdunt de
+    # diagnose: op de casus die dit aanleiding gaf las het rapport "Mild SAS,
+    # AHI 10,1/u" terwijl het diagnostische deel ODI3 ~60/u had.
+    #
+    # De nacht-AHI blijft staan zoals AASM hem voorschrijft; de segmentindices
+    # komen ERNAAST. Een detector die stilzwijgend de hoofdindex herdefinieert
+    # lost één fout op door een tweede te maken.
+    #
+    # STAAT HIER EN NIET EERDER. In 0.29.0 draaide dit blok vlak na de
+    # eventdetectie, dus vóór Rule 1A-herstel, CSR-herklassificatie en de
+    # post-processing. Op de aanleidende opname zag het 71 events in het
+    # diagnostische venster waar er uiteindelijk 108 gerapporteerd werden:
+    # een segment-AHI van 83,5/u naast een eventlijst die 127,1/u draagt.
+    # Precies de fout die de stadium-AHI-reparatie moest wegnemen -- een
+    # index op een andere eventset dan er getoond wordt -- en ik maakte hem
+    # opnieuw, twee bestanden verderop.
+    if split_night and split_night != "off":
+        try:
+            from .split_night import detect_split_night, segment_indices
+            _sn = detect_split_night(
+                flow=ref_flow, sf_flow=sf_ref,
+                spo2=spo2_data, sf_spo2=(sf_spo2 or sf_ref or 1.0),
+                manual_breakpoint_s=(split_night_breakpoint_s
+                                     if split_night == "manual" else None),
+            )
+            if _sn.get("detected") and hypno:
+                _ev = output["respiratory"].get("events") or []
+                _bp = _sn["breakpoint_s"]
+                _sn["segments"] = segment_indices(
+                    _ev, hypno, _bp, artifact_epochs=artifact_epochs)
+                # De VOLLEDIGE indexfamilie per deel. Bij een split-night is
+                # het diagnostische deel de meting waarop de diagnose rust; dan
+                # hoort daar alles bij wat een diagnose draagt -- OAHI,
+                # stadium-AHI's, de uncertain-boekhouding -- en niet één los
+                # getal naast een nacht-AHI die iets anders telt.
+                from .split_night import segment_spo2, segment_summaries
+                _sn["summaries"] = segment_summaries(
+                    _ev, hypno, _bp, artifact_epochs=artifact_epochs)
+                # En de saturatie op hetzelfde venster, anders staat er een
+                # diagnostische AHI naast een ODI over de hele nacht.
+                _sn["spo2"] = segment_spo2(
+                    spo2_data, sf_spo2, hypno, _bp,
+                    artifact_epochs=artifact_epochs)
+                _d = _sn["segments"]["diagnostic"]; _t = _sn["segments"]["therapeutic"]
+                logger.warning(
+                    "[pneumo] split-night op %.0f s (%s): diagnostisch AHI %s/u "
+                    "(%.1f u), onder therapie %s/u (%.1f u)",
+                    _sn["breakpoint_s"], _sn["method"], _d["ahi"], _d["sleep_h"],
+                    _t["ahi"], _t["sleep_h"])
+            output["split_night"] = _sn
+        except Exception as e:  # noqa: BLE001 — mag de run nooit breken
+            logger.warning("[pneumo] split-night-detectie mislukt: %s", e)
+            output["split_night"] = {"detected": False, "error": str(e)}
 
     # ── Step 12 (v0.11.0): AASM v3 clinical enrichments (output-additive) ──
     # Run last, after every summary recompute + central/CSR reclassification, so

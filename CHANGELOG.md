@@ -1,3 +1,65 @@
+# v0.30.0 — 2026-08-26 — poortmaten geaudit, segmentindices samengevoegd, golden scherper
+
+Gedragswijziging op één punt: de split-nightsegmenten tellen nu de DEFINITIEVE
+eventlijst. Golden 9/9 (nu ook werkelijk gedraaid), 1185 tests.
+
+## De split-nightsegmenten telden de verkeerde events
+
+In 0.29.0 stond het split-nightblok vlak na de eventdetectie — dus vóór Rule
+1A-herstel, CSR-herklassificatie en de post-processing. Op de aanleidende
+opname zag het **71** events in het diagnostische venster waar er uiteindelijk
+**108** gerapporteerd werden: een segment-AHI van 83,5/u naast een eventlijst
+die 127,1/u draagt.
+
+Dat is precies de fout die de stadium-AHI-reparatie van 0.28.0 moest wegnemen —
+een index op een andere eventset dan er getoond wordt — en hij is twee bestanden
+verderop opnieuw gemaakt. Het blok staat nu bij Step 12, waar al stond dat het
+"last, after every summary recompute" hoort te draaien. Een test leest die
+volgorde in de bron.
+
+## `segment_indices` is een dunne laag geworden
+
+Er stonden twee implementaties van dezelfde grootheid naast elkaar. Ze kwamen
+numeriek overeen toen ik het naliep, maar dat is een momentopname en geen
+eigenschap. `segment_indices()` roept nu `segment_summaries()` aan en herschikt
+alleen de velden.
+
+## Alle poortmaten geaudit op bestandsafhankelijkheid
+
+Twee keer heeft een schaalvrij bedoelde maat een eigenschap van het bestand
+gemeten: de MAD-drempel de eenhedendeclaratie (0.19), `flat_fraction` de
+bemonsteringsfrequentie (0.29.0). Twee keer is een patroon.
+
+Alle zeven poortmaten zijn nu gevoed met dezelfde fysiologie bij 32, 64, 128,
+250 en 512 Hz, met drie kwantisatiestappen en amplitudes die 1000× verschillen:
+
+| maat | spreiding |
+|---|---:|
+| `breath_fraction` | 0,0003 |
+| `flat_fraction` (gerepareerd) | 0,054 |
+| `respiratory_band_power` | 0,0000 |
+| `thermistor_band_power` | 0,0000 |
+| `flow_sensor_agreement` | 0,0010 |
+| `breath_coherence` | 0,0000 |
+| RIP `energy_ratio` | 0,0014 |
+
+Allemaal stabiel. `tests/test_gate_metrics_are_file_invariant.py` houdt dat zo,
+en valt om zodra iemand de oude `flat_fraction` terugzet.
+
+## De golden-digest zag te weinig
+
+`GOLDEN_DECIMALS` van 1 naar 3. Op één decimaal was de digest blind voor precies
+de wijzigingen die hier routine zijn — de onsetverschuiving bewoog de AHI met
+0,01/u — terwijl "golden 9/9" wél als geruststelling werd opgeschreven. Acht
+velden dragen nu meer informatie, waaronder hypoxic burden (0,2 → 0,17 en 0,08).
+
+En in `tests/golden/README.md` staat nu dat de test **niet meedraait** zonder
+`PSGSCORING_GOLDEN=1`. Op 26-08 stond "Golden 9/9" in twee changelogs zonder dat
+de test die dag gedraaid had; ze bleken te kloppen, maar dat is geluk en geen
+verificatie.
+
+---
+
 # v0.29.0 — 2026-08-26 — de RIP-poort keurde goede banden af
 
 **Scored values change** op opnames met hoog bemonsterde effort-banden: apneus

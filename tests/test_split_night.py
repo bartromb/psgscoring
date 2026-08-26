@@ -104,10 +104,18 @@ def test_zonder_signaal_geen_bewering():
 
 
 def _events(n_voor, n_na, breuk_s):
-    ev = [{"onset_s": 60.0 + 120 * i, "type": "obstructive", "stage": "N2"}
-          for i in range(n_voor)]
-    ev += [{"onset_s": breuk_s + 60.0 + 120 * i, "type": "hypopnea", "stage": "N2"}
-           for i in range(n_na)]
+    """Events zoals de detector ze levert -- MET duur.
+
+    De fixture droeg die eerst niet, en `segment_indices` had hem toen ook niet
+    nodig omdat het zijn eigen telling deed. Sinds die functie een laag op
+    `segment_summaries` is, loopt alles via `_compute_summary`, en die eist
+    `duration_s` -- terecht, want een respiratoir event zonder duur bestaat
+    niet. Een fixture die dat wegliet, toetste een vorm die nooit voorkomt.
+    """
+    ev = [{"onset_s": 60.0 + 120 * i, "duration_s": 15.0,
+           "type": "obstructive", "stage": "N2"} for i in range(n_voor)]
+    ev += [{"onset_s": breuk_s + 60.0 + 120 * i, "duration_s": 15.0,
+            "type": "hypopnea", "stage": "N2"} for i in range(n_na)]
     return ev
 
 
@@ -126,9 +134,34 @@ def test_segmentindices_tellen_uncertain_apart():
     """Bij een falende effort-band bepalen juist die het beeld."""
     breuk = 2 * 3600.0
     ev = _events(10, 2, breuk)
-    ev += [{"onset_s": 100.0 + 60 * i, "type": "uncertain", "stage": "N2"}
-           for i in range(20)]
+    ev += [{"onset_s": 100.0 + 60 * i, "duration_s": 12.0,
+            "type": "uncertain", "stage": "N2"} for i in range(20)]
     s = segment_indices(ev, ["N2"] * (7 * 120), breuk)
     assert s["diagnostic"]["n_uncertain"] == 20
     assert s["diagnostic"]["ahi"] == pytest.approx(5.0, abs=0.3)
     assert s["diagnostic"]["ahi_incl_uncertain"] == pytest.approx(15.0, abs=0.3)
+
+
+def test_de_segmenten_rekenen_op_de_DEFINITIEVE_eventlijst():
+    """Regressie: het blok stond in 0.29.0 vóór de post-processing.
+
+    Rule 1A-herstel, CSR-herklassificatie en de post-processing veranderen de
+    eventlijst NA de detectie. Op de aanleidende opname zag het split-nightblok
+    71 events in het diagnostische venster waar er uiteindelijk 108
+    gerapporteerd werden — een segment-AHI van 83,5/u naast een lijst die
+    127,1/u draagt. Dat is dezelfde fout als de stadium-AHI's die over een
+    andere eventset telden dan `ahi_total`.
+
+    Deze test leest de volgorde in de bron: het split-nightblok moet ná de
+    laatste toewijzing aan `output["respiratory"]["events"]` staan.
+    """
+    import inspect
+
+    from psgscoring import pipeline
+
+    bron = inspect.getsource(pipeline)
+    i_split = bron.index("# ── Split-night ─")
+    laatste_events = bron.rindex('output["respiratory"]["events"] =')
+    assert i_split > laatste_events, (
+        "het split-nightblok staat vóór de laatste wijziging van de "
+        "eventlijst; de segmenten tellen dan iets anders dan het rapport toont")

@@ -81,7 +81,7 @@
       "success": true
     },
     "spo2": {
-      "hypoxic_burden": 0.2,
+      "hypoxic_burden": 0.22,
       "min_spo2": 91.0,
       "n_desaturations": 5,
       "odi_3pct": 31.6,
@@ -163,20 +163,20 @@
     "events": [
       {
         "conf": 0.79,
-        "d": 27.9,
-        "t": 58.0,
+        "d": 27.91,
+        "t": 58.03,
         "type": "hypopnea"
       },
       {
         "conf": 0.83,
-        "d": 15.5,
+        "d": 15.53,
         "t": 118.0,
         "type": "hypopnea"
       },
       {
         "conf": 0.84,
-        "d": 27.9,
-        "t": 362.1,
+        "d": 27.88,
+        "t": 362.06,
         "type": "hypopnea"
       }
     ],
@@ -241,7 +241,7 @@
   },
   "cms_arousal": {
     "arousal": {
-      "arousal_index": 31.6,
+      "arousal_index": 31.58,
       "n_flat": 5,
       "n_nested": 0,
       "rera_index": null
@@ -315,7 +315,7 @@
       "success": true
     },
     "spo2": {
-      "hypoxic_burden": 6.3,
+      "hypoxic_burden": 6.33,
       "min_spo2": 91.0,
       "n_desaturations": 5,
       "odi_3pct": 31.6,
@@ -398,7 +398,7 @@
       "success": true
     },
     "spo2": {
-      "hypoxic_burden": 0.2,
+      "hypoxic_burden": 0.17,
       "min_spo2": 91.0,
       "n_desaturations": 5,
       "odi_3pct": 31.6,
@@ -481,7 +481,7 @@
       "success": true
     },
     "spo2": {
-      "hypoxic_burden": 6.3,
+      "hypoxic_burden": 6.33,
       "min_spo2": 91.0,
       "n_desaturations": 5,
       "odi_3pct": 31.6,
@@ -570,7 +570,7 @@
       "success": true
     },
     "spo2": {
-      "hypoxic_burden": 0.2,
+      "hypoxic_burden": 0.22,
       "min_spo2": 91.0,
       "n_desaturations": 5,
       "odi_3pct": 31.6,
@@ -640,7 +640,7 @@
       "success": true
     },
     "spo2": {
-      "hypoxic_burden": 0.1,
+      "hypoxic_burden": 0.08,
       "min_spo2": 91.0,
       "n_desaturations": 5,
       "odi_3pct": 31.6,

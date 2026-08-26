@@ -236,7 +236,21 @@ CASES = {
 # Run one case and reduce its output to a stable digest
 # ─────────────────────────────────────────────────────────────────────────
 
-def _r(x, nd=1):
+#: Aantal decimalen in de digest.
+#:
+#: Stond op 1, en dat maakte de digest blind voor precies de wijzigingen die we
+#: routinematig maken. De onsetverschuiving van +2 s bewoog de arousal-F1 met
+#: 0,012 en de AHI met 0,01/u; de digest zag daar niets van, terwijl
+#: "golden 9/9" wél als geruststelling werd gerapporteerd. Een regressieharnas
+#: dat een verandering niet kan zien, bevestigt alleen zijn eigen resolutie.
+#:
+#: Op 3 decimalen ziet hij een AHI-verschil van 0,001/u. Dat is fijner dan
+#: klinisch betekenisvol -- met opzet: het harnas moet ONBEDOELDE verandering
+#: vangen, en die is klein voordat ze groot wordt.
+GOLDEN_DECIMALS = 3
+
+
+def _r(x, nd=GOLDEN_DECIMALS):
     """Round, propagating None/NaN to None."""
     if x is None:
         return None

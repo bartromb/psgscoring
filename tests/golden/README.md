@@ -7,6 +7,24 @@ an unintended shift in AHI must never slip through unnoticed.
 
 There are two layers.
 
+## Twee dingen om te weten voordat je "golden 9/9" opschrijft
+
+**De test draait niet vanzelf.** Hij staat achter `PSGSCORING_GOLDEN=1`; zonder
+die variabele meldt pytest hem als *skipped*, en een gewone `pytest -q` telt
+negen skips waar je ze niet ziet. Op 26-08-2026 stond "Golden 9/9" in twee
+changelogs zonder dat de test die dag één keer gedraaid had. Ze bleken achteraf
+te kloppen, maar dat is geluk en geen verificatie. Draai:
+
+```bash
+PSGSCORING_GOLDEN=1 pytest tests/test_golden_output.py -q
+```
+
+**De digest rondde af op één decimaal**, en was daarmee blind voor precies de
+wijzigingen die hier routine zijn: de onsetverschuiving van +2 s bewoog de AHI
+met 0,01/u en de arousal-F1 met 0,012. Sinds 0.30.0 staat `GOLDEN_DECIMALS` op
+3. Een regressieharnas dat een verandering niet kan zien, bevestigt alleen zijn
+eigen resolutie.
+
 ## 1. Synthetic harness (committed, runs in CI)
 
 `tests/test_golden_output.py` builds six tiny, deterministic, PHI-free

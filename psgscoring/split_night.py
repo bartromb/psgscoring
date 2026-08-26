@@ -165,48 +165,42 @@ def detect_split_night(flow=None, sf_flow=None, spo2=None, sf_spo2=None,
 
 def segment_indices(events, hypno, breakpoint_s, epoch_len_s=30.0,
                     artifact_epochs=None) -> dict:
-    """AHI vóór en ná het breekpunt, elk op zijn eigen slaaptijd.
+    """AHI vóór en ná het breekpunt, in de compacte vorm die het rapport leest.
 
-    Dezelfde eventfilter als `ahi_total`: apneus (getypeerd) + hypopneus. De
-    ongetypeerde `uncertain`-apneus staan er apart bij, want juist bij een
-    falende effort-band bepalen die het beeld.
+    Dit is een DUNNE LAAG op `segment_summaries()`, niet een tweede berekening.
+    Tot 0.29.0 stonden hier twee implementaties naast elkaar die dezelfde
+    grootheid uitrekenden; ze kwamen numeriek overeen toen ik het naliep, maar
+    dat is een momentopname en geen eigenschap. Twee implementaties van
+    hetzelfde getal is precies waar de stadium-AHI-reparatie over ging.
+
+    Geeft per segment: slaaptijd, de eventtellingen, de twee AHI-varianten, of
+    er genoeg slaap onder ligt, en welk deel van de events niet getypeerd kon
+    worden.
     """
-    art = set(artifact_epochs or [])
-    grens_ep = breakpoint_s / epoch_len_s
-
-    def slaap_h(lo, hi):
-        return sum(epoch_len_s for i, s in enumerate(hypno)
-                   if lo <= i < hi and s != "W" and i not in art) / 3600.0
-
-    n_ep = len(hypno)
+    sam = segment_summaries(events, hypno, breakpoint_s, epoch_len_s,
+                            artifact_epochs)
     uit = {}
-    for naam, lo, hi in (("diagnostic", 0, grens_ep), ("therapeutic", grens_ep, n_ep)):
-        h = slaap_h(lo, hi)
-        in_seg = [e for e in events
-                  if lo * epoch_len_s <= float(e.get("onset_s", 0)) < hi * epoch_len_s]
-        tel = sum(1 for e in in_seg if e.get("type") in
-                  ("obstructive", "central", "mixed") or "hypopnea" in str(e.get("type")))
-        onzeker = sum(1 for e in in_seg if e.get("type") == "uncertain")
+    for naam, s in sam.items():
+        if "error" in s:
+            uit[naam] = {"error": s["error"]}
+            continue
+        h = s.get("index_denominator_h") or 0.0
+        n_ah = s.get("n_ah_total") or 0
+        n_unc = s.get("n_uncertain_apnea") or 0
         uit[naam] = {
-            "sleep_h": round(h, 3),
-            "n_events": tel,
-            "n_uncertain": onzeker,
-            "ahi": round(tel / h, 1) if h > 0 else None,
-            "ahi_incl_uncertain": round((tel + onzeker) / h, 1) if h > 0 else None,
+            "sleep_h": round(float(h), 3),
+            "n_events": int(n_ah),
+            "n_uncertain": int(n_unc),
+            "ahi": s.get("ahi_total"),
+            "ahi_incl_uncertain": s.get("ahi_incl_uncertain"),
             # Een half uur slaap draagt geen index: één event is dan al 2/u.
-            # Hetzelfde onderscheid als `ahi_rem_reliable` -- de index BESTAAT,
-            # hij is alleen niet te vertrouwen, dus hij wordt gekwalificeerd en
-            # niet weggelaten.
+            # Hetzelfde onderscheid als `ahi_rem_reliable`.
             "reliable": bool(h >= 0.5),
             # Bij een falende effort-band is `ahi` een onvolledige telling en
-            # `ahi_incl_uncertain` het eerlijke getal. Dat aandeel hoort mee,
-            # anders leest een segment-AHI van 1,2 als een meting terwijl er
-            # 70 ongetypeerde apneus onder liggen.
-            "uncertain_fraction": (round(onzeker / (tel + onzeker), 3)
-                                   if (tel + onzeker) else 0.0),
+            # `ahi_incl_uncertain` het eerlijke getal.
+            "uncertain_fraction": s.get("uncertain_fraction") or 0.0,
         }
     return uit
-
 
 def _slice(events, hypno, lo_s, hi_s, epoch_len_s=30.0, artifact_epochs=None):
     """De events, het hypnogram en de artefactlijst van één segment.
