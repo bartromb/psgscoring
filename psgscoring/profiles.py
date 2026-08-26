@@ -467,6 +467,60 @@ class PostProcessingRules:
     ijking over. Zie docs/arousal_drempel_herijking_preregistratie.md.
     """
 
+    arousal_onset_offset_s: float = 0.0
+    """Vaste verschuiving (s) van elke arousal-onset, VOOR koppeling en RERA.
+
+    `0.0` = huidig gedrag. De verschuiving grijpt aan zodra de arousals
+    gedetecteerd zijn en voordat ze aan de respiratoire events gekoppeld worden,
+    zodat ze ook doorwerkt in Rule 1B-bevestiging en RERA-detectie. Erna
+    schuiven zou alleen veranderen wat er GERAPPORTEERD wordt, niet wat de
+    index voedt.
+
+    **Waar het getal vandaan komt.** De kandidaatdekking op PSG-IPA piekt op vier
+    van de vijf opnames bij +2 s in plaats van 0. Daarop is +2 s vastgelegd en
+    vervolgens op F1 gemeten, met vooraf vastgelegde criteria, op twee cohorten:
+
+    | | PSG-IPA | MESA |
+    |---|---|---|
+    | scoorders per opname | 12 | 1 |
+    | afleidingen | 3 (F+C+O) | 1 |
+    | duur menselijke arousals | 8,6 s | 11,0 s |
+    | n | 5 | 30 |
+    | **gemiddelde gepaarde dF1 bij +2 s** | **+0,0123** | **+0,0140** |
+    | beter op | 5/5 | 22/30, tekentoets p = 0,00053 |
+    | maximum van de reeks | +2 s | +2 s |
+
+    Glad en eentoppig op beide cohorten: -2 s kost 0,06 tot 0,07 F1, +6 s kost
+    0,08 tot 0,09. Ander apparatuurpark, andere scoorconventie, ander aantal
+    afleidingen -- zelfde optimum, zelfde grootte. Het is dus een eigenschap van
+    de detector, niet van een scoordersgroep.
+
+    **Klinische prijs: nul.** MESA n=30 gepaard, `aasm_v3_breath` (draagt
+    hypopneu-arousal en RERA):
+
+    | | 0 s | +2 s | gepaarde d | ernstklasse |
+    |---|---:|---:|---:|---:|
+    | AHI | 14,40 | 14,40 | +0,01 (p = 1) | **0/30** |
+    | RDI | 21,75 | 21,95 | +0,09 (p = 0,56) | **0/30** |
+    | resp. event-F1 | 0,4918 | 0,4920 | -0,0011 (p = 0,75) | |
+
+    De arousalTELLING is identiek op 30/30 -- een verschuiving verplaatst events
+    en maakt er geen. Ter maat: de classifier-uitrol van 23-08 kostte een
+    RDI-ernstklasseverschuiving op 11/30 = 37 %.
+
+    **Het mechanisme is maar half verklaard.** Het vermogensvenster is
+    gecentreerd (`_bandpower_instant` zet de waarde op `s + win // 2`), niet
+    links uitgelijnd zoals ik eerst schreef. Een gecentreerd 2 s-Hanningvenster
+    laat het vermogen op t het interval [t-1, t+1] weerspiegelen, dus de
+    drempelpassage waar `onset_s` uit komt ligt ~1 s te vroeg. Dat dekt de
+    helft; waar de tweede seconde vandaan komt is niet gemeten.
+
+    **Default 0,0**, want de gerapporteerde arousal-onsets in het klinische
+    rapport schuiven mee. Dat de index onberoerd blijft, maakt dat geen
+    vanzelfsprekendheid. Zie docs/arousal_onsetverschuiving_bevinding.md,
+    _mesa_bevinding.md en _ahi_impact.md.
+    """
+
     arousal_uses_artifact_epochs: bool = False
     """Slaat de arousalstap de als artefact gevlagde epochs over?
 

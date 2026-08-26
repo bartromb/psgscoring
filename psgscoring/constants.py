@@ -111,6 +111,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "AROUSAL_USES_ARTIFACT_EPOCHS": pp.arousal_uses_artifact_epochs,
         "AROUSAL_LGBM_THRESHOLD": pp.arousal_lgbm_threshold,
         "AROUSAL_EVENT_LOCKED_THRESHOLD": pp.arousal_event_locked_threshold,
+        "AROUSAL_ONSET_OFFSET_S": pp.arousal_onset_offset_s,
         "AROUSAL_EOG_REJECT": pp.arousal_eog_reject,
         "HYPOXIC_BURDEN_CAP_AT_NEXT_EVENT":
             pp.hypoxic_burden_cap_at_next_event,

@@ -862,6 +862,7 @@ def run_pneumo_analysis(
                 lgbm        = _ar_lgbm,
                 lgbm_threshold = _ar_thr,
                 event_locked_threshold = _arousal_event_locked_threshold(profile),
+                onset_offset_s = _arousal_onset_offset_s(profile),
             )
         except Exception as e:  # noqa: BLE001 — arousal failure must not abort the run
             logger.warning("[pneumo] arousal analysis failed, continuing: %s", e)
@@ -1750,6 +1751,30 @@ def _arousal_event_locked_threshold(profile) -> float | None:
                 "[pneumo] PSGSCORING_AROUSAL_EVENT_LOCKED_THRESHOLD=%r is geen "
                 "getal; profielwaarde aangehouden", env)
     return float(val) if val is not None else None
+
+
+def _arousal_onset_offset_s(profile) -> float:
+    """Vaste verschuiving van de arousal-onsets, met env-override.
+
+    De env-override bestaat om beide armen op een cohort te meten zonder de
+    registry te muteren -- dezelfde reden als bij het event-locked werkpunt.
+    Een onleesbare waarde valt terug op het profiel in plaats van te knallen:
+    een meting die stilletjes het verkeerde getal draait is erger dan een
+    meting die de profielwaarde aanhoudt en dat meldt.
+    """
+    val = profile.get("AROUSAL_ONSET_OFFSET_S")
+    env = os.environ.get("PSGSCORING_AROUSAL_ONSET_OFFSET_S")
+    if env is not None:
+        try:
+            return float(env)
+        except ValueError:
+            logger.warning(
+                "[pneumo] PSGSCORING_AROUSAL_ONSET_OFFSET_S=%r is geen getal; "
+                "profielwaarde aangehouden", env)
+    try:
+        return float(val) if val is not None else 0.0
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _resolve_emg_name(raw, ch) -> str | None:

@@ -1938,6 +1938,7 @@ def run_arousal_respiratory_analysis(
     lgbm:        bool | None = None,
     lgbm_threshold: float | None = None,
     event_locked_threshold: float | None = None,
+    onset_offset_s: float = 0.0,
 ) -> dict:
     """
     Master-functie: detecteer arousals, RERAs en koppel aan respiratoire events.
@@ -2000,6 +2001,20 @@ def run_arousal_respiratory_analysis(
                                     lgbm_threshold=lgbm_threshold,
                                     resp_event_ends=_ends,
                                     event_locked_threshold=event_locked_threshold)
+    # -- Onsetverschuiving ------------------------------------------
+    # HIER en niet later: stap 2 koppelt deze arousals aan de respiratoire
+    # events en stap 3 draait er de RERA-detectie op. Na afloop schuiven zou
+    # alleen veranderen wat er GERAPPORTEERD wordt, niet wat de AHI en de RDI
+    # voedt -- en juist dat onderscheid is het hele punt van de vlag.
+    if onset_offset_s:
+        for _e in (ar_result.get("events") or []):
+            for _k in ("onset_s", "end_s"):
+                if _e.get(_k) is not None:
+                    _e[_k] = round(float(_e[_k]) + float(onset_offset_s), 3)
+        logger.info("[arousal] onsets %+.2f s verschoven (profielvlag)",
+                    onset_offset_s)
+        ar_result.setdefault("summary", {})["onset_offset_s"] = float(onset_offset_s)
+
     output["arousals"] = ar_result
 
     arousals = ar_result.get("events", [])

@@ -1,3 +1,79 @@
+# v0.27.7 — 2026-08-26 — `arousal_onset_offset_s` (default 0,0, gedragsneutraal)
+
+**Gedragsneutraal:** de vlag staat op elk profiel op `0.0`, de default. Golden 9/9,
+1141 tests. Deze release verandert geen enkele gescoorde waarde; ze maakt de
+verschuiving alleen instelbaar.
+
+Een vaste verschuiving (in seconden) van elke arousal-onset, die aangrijpt
+**vóór** de koppeling aan de respiratoire events en vóór de RERA-detectie. Erná
+schuiven zou alleen veranderen wat er GERAPPORTEERD wordt en niet wat de AHI en
+de RDI voedt; `tests/test_arousal_onset_offset.py` valt om op zo'n
+implementatie.
+
+## Waarom +2 s
+
+De kandidaatdekking op PSG-IPA piekt op vier van de vijf opnames bij +2 s in
+plaats van 0. Dat getal is daarop vastgelegd en daarna op event-F1 gemeten, met
+vooraf vastgelegde criteria, op twee cohorten die op vrijwel alles verschillen:
+
+| | PSG-IPA | MESA |
+|---|---|---|
+| scoorders per opname | 12 | 1 |
+| afleidingen | 3 (F+C+O) | 1 |
+| duur menselijke arousals | 8,6 s | 11,0 s |
+| n | 5 | 30 |
+| **gemiddelde gepaarde ΔF1 bij +2 s** | **+0,0123** | **+0,0140** |
+| beter op | 5/5 | 22/30, tekentoets p = 0,00053 |
+| maximum van de reeks | +2 s | +2 s |
+
+Beide reeksen zijn glad en eentoppig; −2 s kost 0,06–0,07 F1, +6 s kost
+0,08–0,09.
+
+## Klinische prijs: nul
+
+MESA n=30 gepaard, `aasm_v3_breath` (draagt hypopneu-arousal én RERA):
+
+| | 0 s | +2 s | gepaarde Δ | ernstklasse |
+|---|---:|---:|---:|---:|
+| AHI | 14,40 | 14,40 | +0,01 (p = 1) | **0/30** |
+| RDI | 21,75 | 21,95 | +0,09 (p = 0,56) | **0/30** |
+| resp. event-F1 | 0,4918 | 0,4920 | −0,0011 (p = 0,75) | |
+
+De arousaltelling is identiek op 30/30 — een verschuiving verplaatst events en
+maakt er geen. Controleprofiel `aasm_v3_rec`: 0/30 afwijkingen op alles. Ter
+maat: de classifier-uitrol van 0.27.0 kostte een RDI-ernstklasseverschuiving op
+11/30 = 37 %.
+
+## Wat er niet vaststaat
+
+Het mechanisme is half verklaard. Het vermogensvenster is **gecentreerd**
+(`_bandpower_instant` zet de waarde op `s + win // 2`), niet links uitgelijnd;
+een gecentreerd 2 s-Hanningvenster laat het vermogen op *t* het interval
+[*t*−1, *t*+1] weerspiegelen, zodat de drempelpassage waar `onset_s` uit komt
+~1 s te vroeg ligt. Waar de tweede seconde vandaan komt is niet gemeten.
+
+En +1 s ligt dicht bij +2 s op beide cohorten (MESA +0,0136 tegen +0,0140); op
+MESA piekt de MEDIANE F1 zelfs op +1. De vooraf vastgelegde maat is de
+gepaarde, en die kiest +2.
+
+## Zichtbaarheid
+
+De gerapporteerde arousal-onsets schuiven mee in het klinische rapport, ook al
+blijft de index onveranderd. `summary["onset_offset_s"]` draagt de provenance,
+en **YASAFlaskified 0.34.7 toont die** als regel "Arousal-onsets verschoven" in
+het provenanceblok — alleen wanneer er daadwerkelijk geschoven is. Een vlag die
+de onsets verplaatst zonder dat het rapport het meldt, maakt twee rapporten van
+dezelfde nacht onvergelijkbaar; dat is dezelfde fout als de drie waarvoor dat
+blok gebouwd is.
+
+Een default-flip blijft niettemin een aparte beslissing.
+
+Zie `docs/arousal_onsetverschuiving_preregistratie.md`,
+`_bevinding.md`, `_mesa_preregistratie.md`, `_mesa_bevinding.md`,
+`_ahi_impact.md`.
+
+---
+
 # v0.27.6 — 2026-08-25 — drie hersenregio's, niet twee kanalen uit dezelfde
 
 **Scored values change** op montages die meer EEG-afleidingen dragen dan er tot
