@@ -1,3 +1,20 @@
+# v0.28.1 — 2026-08-26 — split-nightsegmenten gekwalificeerd
+
+`segment_indices()` geeft per segment twee velden erbij:
+
+- **`reliable`** — `False` onder een half uur slaap in dat segment. Eén event is
+  daar al 2/u; hetzelfde onderscheid als `ahi_rem_reliable`, dus de index wordt
+  gekwalificeerd en niet weggelaten.
+- **`uncertain_fraction`** — welk deel van de events in dat segment niet
+  getypeerd kon worden. Op de casus die dit aanleiding gaf was dat **99 %** in
+  het diagnostische deel: `ahi` 1,2/u tegen `ahi_incl_uncertain` **83,5/u**,
+  omdat beide effort-banden waren afgekeurd. Zonder dat aandeel leest die 1,2
+  als een meting.
+
+Gedragsneutraal: bestaande velden ongewijzigd, 1162 tests.
+
+---
+
 # v0.28.0 — 2026-08-26 — arousal-onsets +2 s, split-night, en drie reparaties uit de Thaise casus
 
 **Scored values change** op de negentien profielen die de arousal-classifier

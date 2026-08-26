@@ -193,5 +193,16 @@ def segment_indices(events, hypno, breakpoint_s, epoch_len_s=30.0,
             "n_uncertain": onzeker,
             "ahi": round(tel / h, 1) if h > 0 else None,
             "ahi_incl_uncertain": round((tel + onzeker) / h, 1) if h > 0 else None,
+            # Een half uur slaap draagt geen index: één event is dan al 2/u.
+            # Hetzelfde onderscheid als `ahi_rem_reliable` -- de index BESTAAT,
+            # hij is alleen niet te vertrouwen, dus hij wordt gekwalificeerd en
+            # niet weggelaten.
+            "reliable": bool(h >= 0.5),
+            # Bij een falende effort-band is `ahi` een onvolledige telling en
+            # `ahi_incl_uncertain` het eerlijke getal. Dat aandeel hoort mee,
+            # anders leest een segment-AHI van 1,2 als een meting terwijl er
+            # 70 ongetypeerde apneus onder liggen.
+            "uncertain_fraction": (round(onzeker / (tel + onzeker), 3)
+                                   if (tel + onzeker) else 0.0),
         }
     return uit
