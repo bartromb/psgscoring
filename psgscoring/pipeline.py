@@ -126,6 +126,8 @@ def run_pneumo_analysis(
     artifact_epochs: list | None = None,
     scoring_profile: str = "aasm_v3_rec",
     arousal_events: list | None = None,
+    split_night: str | None = None,
+    split_night_breakpoint_s: float | None = None,
 ) -> dict:
     """
     Run the full pneumological analysis on a single PSG recording.
@@ -499,6 +501,40 @@ def run_pneumo_analysis(
                     _cd["n_pressure_only"], _cd["n_kept"])
 
     output["respiratory"] = resp
+
+    # ── Split-night ───────────────────────────────────────────────
+    # Bij een split-night wordt de eerste helft diagnostisch geregistreerd en
+    # gaat de patiënt daarna aan CPAP. Eén AHI over die hele nacht verdunt de
+    # diagnose: op de casus die dit aanleiding gaf las het rapport "Mild SAS,
+    # AHI 10,1/u" terwijl het diagnostische deel ODI3 ~60/u had.
+    #
+    # De nacht-AHI blijft staan zoals AASM hem voorschrijft; de segmentindices
+    # komen ERNAAST. Een detector die stilzwijgend de hoofdindex herdefinieert
+    # lost één fout op door een tweede te maken.
+    if split_night and split_night != "off":
+        try:
+            from .split_night import detect_split_night, segment_indices
+            _sn = detect_split_night(
+                flow=ref_flow, sf_flow=sf_ref,
+                spo2=spo2_data, sf_spo2=(sf_spo2 or sf_ref or 1.0),
+                manual_breakpoint_s=(split_night_breakpoint_s
+                                     if split_night == "manual" else None),
+            )
+            if _sn.get("detected") and hypno:
+                _sn["segments"] = segment_indices(
+                    resp.get("events") or [], hypno, _sn["breakpoint_s"],
+                    artifact_epochs=artifact_epochs)
+                _d = _sn["segments"]["diagnostic"]; _t = _sn["segments"]["therapeutic"]
+                logger.warning(
+                    "[pneumo] split-night op %.0f s (%s): diagnostisch AHI %s/u "
+                    "(%.1f u), onder therapie %s/u (%.1f u)",
+                    _sn["breakpoint_s"], _sn["method"], _d["ahi"], _d["sleep_h"],
+                    _t["ahi"], _t["sleep_h"])
+            output["split_night"] = _sn
+        except Exception as e:  # noqa: BLE001 — mag de run nooit breken
+            logger.warning("[pneumo] split-night-detectie mislukt: %s", e)
+            output["split_night"] = {"detected": False, "error": str(e)}
+
 
     # `dual_sensor` betekent: apneus en hypopneeën zijn op VERSCHILLENDE
     # sensoren gescoord. respiratory.py zette de vlag op True zodra er

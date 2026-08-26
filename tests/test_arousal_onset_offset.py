@@ -100,23 +100,47 @@ def test_offset_staat_in_de_provenance(monkeypatch):
     assert "onset_offset_s" not in _draai(monkeypatch, 0.0)["arousals"]["summary"]
 
 
-def test_alle_profielen_staan_default_uit():
-    """Geen enkel profiel mag de verschuiving aan hebben zonder beslissing.
+def test_de_verschuiving_staat_aan_waar_de_classifier_draait():
+    """Sinds 26-08-2026 default AAN, op precies dezelfde profielen.
 
-    De gerapporteerde arousal-onsets in het klinische rapport schuiven mee,
-    ook al blijft de index onveranderd; dat maakt aanzetten een aparte keuze.
+    De verschuiving is op PSG-IPA gevonden en daar bevestigd (+0,0123, 5/5), en
+    op MESA gerepliceerd (+0,0140, 22/30, p = 0,00053) met het maximum van de
+    reeks op +2 s op beide cohorten. Klinische prijs nul: AHI- en
+    RDI-ernstklasse 0/30, arousaltelling identiek op 30/30.
     """
-    # EERST: het veld moet er zijn. Alleen op waarheid toetsen met .get()
-    # slaagt ook als de vlag helemaal niet in de registry zit -- dan meet de
-    # test niets en blijft hij groen terwijl de vlag onbereikbaar is.
     ontbreekt = [n for n, p in SCORING_PROFILES.items()
                  if "AROUSAL_ONSET_OFFSET_S" not in p]
-    assert not ontbreekt, (
-        f"vlag niet in de registry voor: {ontbreekt}")
+    assert not ontbreekt, f"vlag niet in de registry voor: {ontbreekt}"
 
-    aan = {n: p["AROUSAL_ONSET_OFFSET_S"] for n, p in SCORING_PROFILES.items()
-           if p["AROUSAL_ONSET_OFFSET_S"]}
-    assert aan == {}, f"profielen met een verschuiving aan: {aan}"
+    aan = {n for n, p in SCORING_PROFILES.items() if p["AROUSAL_ONSET_OFFSET_S"]}
+    assert aan, "de verschuiving staat nergens aan"
+    assert all(SCORING_PROFILES[n]["AROUSAL_ONSET_OFFSET_S"] == 2.0 for n in aan)
+
+
+def test_de_reproductieprofielen_blijven_onaangeroerd():
+    """Historische conventies en datasetreproducties mogen NIET bewegen.
+
+    `mesa_shhs` en `chicago_1999` reproduceren een externe conventie; de v1/v2-
+    en CMS-profielen een oudere regelset. Eén verschoven onset daar maakt een
+    gepubliceerde uitkomst onreproduceerbaar.
+    """
+    for naam in ("mesa_shhs", "chicago_1999", "aasm_v1_rec", "aasm_v2_rec",
+                 "cms_medicare"):
+        assert SCORING_PROFILES[naam]["AROUSAL_ONSET_OFFSET_S"] == 0.0, naam
+
+
+def test_verschuiving_en_classifier_staan_op_dezelfde_profielen():
+    """Eén invariant in plaats van twee lijsten die uiteen kunnen lopen.
+
+    De verschuiving corrigeert waar de classifier zijn onsets vandaan haalt;
+    hem aanzetten zonder classifier, of andersom, is nooit bedoeld.
+    """
+    lgbm_uit = {n for n, p in SCORING_PROFILES.items() if not p["AROUSAL_LGBM"]}
+    offset_uit = {n for n, p in SCORING_PROFILES.items()
+                  if not p["AROUSAL_ONSET_OFFSET_S"]}
+    assert lgbm_uit == offset_uit, (
+        f"lopen uiteen: alleen-lgbm-uit {lgbm_uit - offset_uit}, "
+        f"alleen-offset-uit {offset_uit - lgbm_uit}")
 
 
 def test_env_override_en_terugval(monkeypatch):

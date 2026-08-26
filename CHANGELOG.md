@@ -1,3 +1,90 @@
+# v0.28.0 — 2026-08-26 — arousal-onsets +2 s, split-night, en drie reparaties uit de Thaise casus
+
+**Scored values change** op de negentien profielen die de arousal-classifier
+draaien: elke arousal-onset schuift 2,0 s op. **Ongewijzigd** op de vijf
+profielen die een historische conventie of een dataset reproduceren
+(`mesa_shhs`, `chicago_1999`, `aasm_v1_rec`, `aasm_v2_rec`, `cms_medicare`) —
+daar blijft de vlag op 0,0. Een test pint die invariant: de profielen met de
+verschuiving uit zijn exact de profielen met de classifier uit.
+
+## De beslisregel, en wat er gemeten is
+
+Vooraf vastgelegd in `docs/arousal_onsetverschuiving_preregistratie.md` en
+`_mesa_preregistratie.md`, en op **twee cohorten** gehaald:
+
+| | PSG-IPA | MESA |
+|---|---|---|
+| scoorders per opname | 12 | 1 |
+| afleidingen | 3 (F+C+O) | 1 |
+| duur menselijke arousals | 8,6 s | 11,0 s |
+| n | 5 | 30 |
+| **gemiddelde gepaarde ΔF1** | **+0,0123** | **+0,0140** |
+| beter op | 5/5 | 22/30, tekentoets p = 0,00053 |
+| maximum van de reeks | +2 s | +2 s |
+
+Beide reeksen glad en eentoppig; −2 s kost 0,06–0,07 F1, +6 s kost 0,08–0,09.
+
+## Klinische prijs: nul
+
+MESA n=30 gepaard, `aasm_v3_breath` (draagt hypopneu-arousal én RERA):
+
+| | 0 s | +2 s | gepaarde Δ | ernstklasse |
+|---|---:|---:|---:|---:|
+| AHI | 14,40 | 14,40 | +0,01 (p = 1) | **0/30** |
+| RDI | 21,75 | 21,95 | +0,09 (p = 0,56) | **0/30** |
+| resp. event-F1 | 0,4918 | 0,4920 | −0,0011 (p = 0,75) | |
+
+De arousaltelling is identiek op 30/30 — een verschuiving verplaatst events en
+maakt er geen. Ter maat: de classifier-uitrol van 0.27.0 kostte een
+RDI-ernstklasseverschuiving op 11/30 = 37 %.
+
+**Let op bij het lezen van golden 9/9:** de golden-digest rondt op één decimaal
+af, dus die zegt hier weinig. De gepaarde MESA-meting hierboven is het bewijs,
+niet de digest.
+
+## Waarom nu aan
+
+Zes andere richtingen zijn vooraf vastgelegd, gemeten en verworpen: drempels
+(orakel per opname +0,005), v4 (features erbij), v5 (features herschaald), v6
+(weging geforceerd), v7 (hertraind op PSG-IPA: mediaan 0,432 tegen 0,514) en v8
+(ensemble v3+v7: 0,466). Deze verschuiving is de enige ingreep die zijn
+voorregistratie haalde, op beide cohorten, zonder klinische prijs.
+
+## Zichtbaarheid
+
+Het provenanceblok toont "Arousal-onsets verschoven: +2.0 s" zodra er geschoven
+is (YASAFlaskified ≥ 0.34.7). De index verandert niet, de tijdstippen in het
+rapport wel — daarom staat het er.
+
+## Ook in deze release
+
+**Split-night** (`split_night.py`). Bij een split-night verdunt één AHI over
+diagnostiek én titratie de diagnose: op de casus die dit aanleiding gaf las het
+rapport "Mild SAS, AHI 10,1/u" bij een patiënt die de verwijzer als ernstig
+kende. `detect_split_night()` zoekt het breekpunt op een **flowamplitudestap én
+een saturatiebasislijnstap** — beide vereist. Dat "beide" is gemeten: op acht
+gewone MESA-nachten liep de flowverhouding van 2,0 tot **202** zonder klinische
+betekenis, dus flow alleen had 8 van de 8 nachten ten onrechte gesplitst.
+Gevalideerd: Thaise opname positief op 2:15 (flow 5,4×, SpO2 89 → 96 %), MESA
+**0 vals-positief op 8**. De nacht-AHI blijft ongewijzigd; de segmentindices
+komen ernaast, met `uncertain` apart geteld. Uit tenzij aangevraagd.
+
+**Stadium-AHI's tellen dezelfde events als `ahi_total`.** Tot nu toe telden
+`ahi_rem` en `ahi_nrem` over de VOLLEDIGE eventlijst, inclusief de kale
+`uncertain`-apneus die `ahi_total` uitsluit. Dat gaf een tegenspraak die niemand
+kan rijmen: "AHI 10,1/u" in de kop en "NREM-AHI 30,9/u" verderop (56 van 128
+events tegen 5,533 u slaap). Nieuw: `ahi_rem_incl_uncertain`,
+`ahi_nrem_incl_uncertain` en `uncertain_fraction`.
+
+**Hypoxic burden krijgt een plausibiliteitsplafond** (150 %·min/u). Een
+gelijkspanning-gekoppelde, ruizige oximeter gaf **243** — een getal dat als
+meting leest terwijl het een artefact is. Boven het plafond rapporteert
+`hypoxic_burden` `None` met de reden erbij; de ruwe waarde blijft in
+`hypoxic_burden_raw`.
+
+
+---
+
 # v0.27.7 — 2026-08-26 — `arousal_onset_offset_s` (default 0,0, gedragsneutraal)
 
 **Gedragsneutraal:** de vlag staat op elk profiel op `0.0`, de default. Golden 9/9,

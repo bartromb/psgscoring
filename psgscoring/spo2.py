@@ -8,6 +8,7 @@ Dependencies: numpy, scipy, psgscoring.constants, psgscoring.utils
 """
 
 from __future__ import annotations
+import logging
 import traceback
 
 import numpy as np
@@ -16,6 +17,8 @@ from scipy.ndimage import label, maximum_filter1d
 from .indices import per_hour
 from .constants import EPOCH_LEN_S
 from .utils import build_sleep_mask, fmt_time, hypno_to_numeric, is_nrem, is_rem, safe_r
+
+logger = logging.getLogger("psgscoring.spo2")
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +118,15 @@ def get_desaturation(
 
 # ---------------------------------------------------------------------------
 # Hypoxic burden  (Azarbarzin et al., Eur Heart J 2019; AJRCCM 2023)
+#
+# PLAUSIBILITEITSPLAFOND. In gepubliceerde cohorten ligt de burden bij ernstige
+# OSA zelden boven 100 %·min/u; boven 150 meet je het signaal en niet de
+# patiënt. Op de Thaise casus van 26-08-2026 gaf een gelijkspanning-gekoppelde,
+# ruizige SAO2 een burden van **243** -- een getal dat als meting leest terwijl
+# het een artefact is, en dat in een klinisch rapport erger is dan een
+# ontbrekende waarde. Boven het plafond rapporteren we daarom de REDEN in
+# plaats van het getal, in dezelfde stijl als de HR-plausibiliteitsvoetnoot.
+HYPOXIC_BURDEN_MAX_PLAUSIBLE = 150.0
 # ---------------------------------------------------------------------------
 
 def _ensemble_search_window(
@@ -475,7 +487,22 @@ def compute_hypoxic_burden(
         # Normalise: %·s → %·min/h
         burden_pct_min_h = (total_area / 60.0) / tst_h if tst_h > 0 else 0.0
 
-        result["hypoxic_burden"] = safe_r(burden_pct_min_h, 2)
+        _burden = safe_r(burden_pct_min_h, 2)
+        if _burden is not None and _burden > HYPOXIC_BURDEN_MAX_PLAUSIBLE:
+            # Het getal blijft beschikbaar voor wie het wil narekenen, maar de
+            # hoofdwaarde wordt None: een rapport dat 243 toont, nodigt uit tot
+            # een klinische conclusie over een oximeter die niet meewerkte.
+            result["hypoxic_burden"] = None
+            result["hypoxic_burden_raw"] = _burden
+            result["hypoxic_burden_unreliable"] = (
+                f"burden {_burden:.0f} %·min/u ligt boven het plausibele "
+                f"maximum van {HYPOXIC_BURDEN_MAX_PLAUSIBLE:.0f} — dit meet de "
+                "signaalkwaliteit van de oximeter, niet de patiënt")
+            logger.warning("[spo2] hypoxic burden %.0f boven plafond %.0f — "
+                           "als onbetrouwbaar gerapporteerd",
+                           _burden, HYPOXIC_BURDEN_MAX_PLAUSIBLE)
+        else:
+            result["hypoxic_burden"] = _burden
         result["total_area_pct_s"] = safe_r(total_area, 1)
         result["n_events_with_burden"] = n_burden
         result["mean_event_burden"] = (

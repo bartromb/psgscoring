@@ -467,7 +467,7 @@ class PostProcessingRules:
     ijking over. Zie docs/arousal_drempel_herijking_preregistratie.md.
     """
 
-    arousal_onset_offset_s: float = 0.0
+    arousal_onset_offset_s: float = 2.0
     """Vaste verschuiving (s) van elke arousal-onset, VOOR koppeling en RERA.
 
     `0.0` = huidig gedrag. De verschuiving grijpt aan zodra de arousals
@@ -515,10 +515,17 @@ class PostProcessingRules:
     drempelpassage waar `onset_s` uit komt ligt ~1 s te vroeg. Dat dekt de
     helft; waar de tweede seconde vandaan komt is niet gemeten.
 
-    **Default 0,0**, want de gerapporteerde arousal-onsets in het klinische
-    rapport schuiven mee. Dat de index onberoerd blijft, maakt dat geen
-    vanzelfsprekendheid. Zie docs/arousal_onsetverschuiving_bevinding.md,
-    _mesa_bevinding.md en _ahi_impact.md.
+    **Default 2,0 sinds 26-08-2026**, en uitgezet op precies de profielen die
+    ook de classifier uitzetten: de vijf die een historische conventie of een
+    dataset reproduceren. Daar mag geen enkele gescoorde waarde bewegen.
+
+    De gerapporteerde arousal-onsets schuiven mee; het provenanceblok meldt dat
+    met "Arousal-onsets verschoven: +2.0 s". De index blijft onveranderd, maar
+    de tijdstippen in het rapport niet -- vandaar dat het rapport het toont in
+    plaats van het stil te doen.
+
+    Zie docs/arousal_onsetverschuiving_bevinding.md, _mesa_bevinding.md en
+    _ahi_impact.md.
     """
 
     arousal_uses_artifact_epochs: bool = False
@@ -1619,6 +1626,7 @@ _aasm_v2_rec = Profile(
         # deel uit van AASM v1/v2 of de CMS-regels, en de twee
         # dataset-profielen moeten paper v31/v37 reproduceren.
         arousal_lgbm=False,
+        arousal_onset_offset_s=0.0,
         # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
         # MESA), maar dat verschuift de arousaldetectie en dus de uitkomst van
@@ -1659,6 +1667,7 @@ _aasm_v1_rec = Profile(
         # deel uit van AASM v1/v2 of de CMS-regels, en de twee
         # dataset-profielen moeten paper v31/v37 reproduceren.
         arousal_lgbm=False,
+        arousal_onset_offset_s=0.0,
         # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
         # MESA), maar dat verschuift de arousaldetectie en dus de uitkomst van
@@ -1702,6 +1711,7 @@ _cms_medicare = Profile(
         # deel uit van AASM v1/v2 of de CMS-regels, en de twee
         # dataset-profielen moeten paper v31/v37 reproduceren.
         arousal_lgbm=False,
+        arousal_onset_offset_s=0.0,
         # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
         # MESA), maar dat verschuift de arousaldetectie en dus de uitkomst van
@@ -1757,6 +1767,7 @@ _mesa_shhs = Profile(
         # deel uit van AASM v1/v2 of de CMS-regels, en de twee
         # dataset-profielen moeten paper v31/v37 reproduceren.
         arousal_lgbm=False,
+        arousal_onset_offset_s=0.0,
         # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
         # MESA), maar dat verschuift de arousaldetectie en dus de uitkomst van
@@ -1855,6 +1866,7 @@ _chicago_1999 = Profile(
         # deel uit van AASM v1/v2 of de CMS-regels, en de twee
         # dataset-profielen moeten paper v31/v37 reproduceren.
         arousal_lgbm=False,
+        arousal_onset_offset_s=0.0,
         # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
         # MESA), maar dat verschuift de arousaldetectie en dus de uitkomst van

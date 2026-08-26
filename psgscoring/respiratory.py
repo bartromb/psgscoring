@@ -2214,6 +2214,15 @@ def _compute_summary(
         "ahi_total":       ahi,
         "ahi_incl_uncertain": ahi_incl_uncertain,  # scorer-calibrated: also counts unsubtyped ("uncertain") apneas (~0 bias vs scorers)
         "n_uncertain_apnea":  len(uncertain_ap),    # apneas detected but not subtyped (degraded effort signal)
+        # Welk DEEL van alle gedetecteerde events niet getypeerd kon worden.
+        # Bij een falende effort-band loopt dat op tot boven de helft, en dan
+        # is `ahi_total` geen milde AHI maar een onvolledige telling. Het
+        # rapport hoort dat te tonen in plaats van het getal te presenteren
+        # alsof er niets aan de hand is.
+        "uncertain_fraction": (
+            safe_r(len(uncertain_ap) /
+                   (len(apneas_incl) + len(hypopneas)), 3)
+            if (len(apneas_incl) + len(hypopneas)) else 0.0),
         "oahi":            oahi_all,      # officieel: ALLE obstructief + hypopneas (AASM-conform)
         "oahi_conf60":     oahi_conf60,   # supplementair: enkel conf > 0.60 (informatief)
         "oahi_all":        oahi_all,      # alias voor backward compat
@@ -2222,8 +2231,26 @@ def _compute_summary(
         "oahi_sweep":         oahi_sweep_3pt,    # {"lenient":x, "primary":x, "strict":x}
         "oahi_sweep_width":   sweep_width,       # /h
         "robustness_grade":   robustness_grade,  # "A" | "B" | "C"
-        "ahi_rem":         idx(len([e for e in events if is_rem(e["stage"])]),  rem_h),
-        "ahi_nrem":        idx(len([e for e in events if is_nrem(e["stage"])]), nrem_h),
+        # STADIUM-AHI's TELLEN DEZELFDE EVENTS ALS ahi_total.
+        #
+        # Tot v0.27.7 telden deze twee over de VOLLEDIGE eventlijst, inclusief
+        # de kale `uncertain`-apneus die `ahi_total` juist uitsluit. Op een
+        # klinisch rapport van 26-08-2026 leverde dat een tegenspraak op die
+        # niemand kan rijmen: "Mild SAS, AHI 10,1/u" in de kop en "NREM-AHI
+        # 30,9/u" twee bladzijden verderop. Nagerekend: 56 kwalificerende
+        # events / 5,533 u = 10,1 en alle 128 events / 5,533 u = 23,1.
+        #
+        # Een stadium-AHI is de AHI beperkt tot één stadium. Telt hij andere
+        # events dan de AHI zelf, dan is het geen deelverzameling meer maar een
+        # ander getal met dezelfde naam.
+        "ahi_rem":         idx(len(hyp_r) + len(split_rn(apneas)[0]),  rem_h),
+        "ahi_nrem":        idx(len(hyp_n) + len(split_rn(apneas)[1]), nrem_h),
+        # En dezelfde uitsplitsing voor de scoorder-gekalibreerde variant, zodat
+        # wie `ahi_incl_uncertain` leest ook per stadium verder kan.
+        "ahi_rem_incl_uncertain":
+            idx(len(hyp_r) + len(split_rn(apneas_incl)[0]),  rem_h),
+        "ahi_nrem_incl_uncertain":
+            idx(len(hyp_n) + len(split_rn(apneas_incl)[1]), nrem_h),
         # Hoeveel slaap er onder die twee indices ligt, en of dat genoeg is.
         #
         # Bij 22,5 minuten REM is één event al 2,7/u. Dat getal is wiskundig
