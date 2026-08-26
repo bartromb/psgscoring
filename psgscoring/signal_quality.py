@@ -100,6 +100,10 @@ BREATH_FRACTION_FAILED_BELOW = 0.27
 # in drie cohorten is gezien, verdient een melding maar geen afkeuring.
 BREATH_FRACTION_WEAK_BELOW   = 0.35
 FLAT_FRACTION_FAILED_ABOVE   = 0.50   # halve nacht identieke monsters = dood
+#: Stap waarmee `flat_fraction` bemonstert. Groot genoeg dat de
+#: kwantisatiestap niet meer meetelt (een ademsignaal beweegt in 0,25 s
+#: altijd meer dan één stap), klein genoeg om een echt dode lijn te zien.
+FLAT_STEP_S = 0.25
 
 # Pair thresholds
 ENERGY_RATIO_WARN     = 10.0    # 10× asymmetry is suspicious
@@ -160,9 +164,25 @@ def rip_shape_metrics(signal: np.ndarray, sf: float) -> tuple[float, float]:
     opgeschreven. Witte ruis levert hier ongeveer de bandbreedteverhouding
     (~0,10); een ademsignaal ligt er ver boven.
 
-    `flat_fraction` is het aandeel opeenvolgende monsters dat identiek is. Een
-    losgeraakte band of een uitgevallen versterker geeft een vlakke lijn, en
-    dat is te zien zonder te weten hoe groot een normale uitslag is.
+    `flat_fraction` is het aandeel opeenvolgende monsters dat identiek is,
+    gemeten met een vaste STAP VAN 0,25 s in plaats van monster voor monster.
+
+    Die stap is niet cosmetisch. Monster voor monster tellen meet in feite de
+    verhouding tussen de kwantisatiestap en de helling per monster, en die
+    hangt af van de bemonsteringsfrequentie -- een eigenschap van het BESTAND,
+    niet van de sensor. Op een BDF van 250 Hz beweegt een ademsignaal van
+    0,18 Hz tussen twee buren vaak minder dan één stap: gemeten op 26-08-2026
+    gaf een volstrekt normale thoraxband **0,686** en de abdomenband 0,565,
+    ruim boven de faaldrempel van 0,50, terwijl 88 % van hun vermogen in de
+    ademband zat en beide op 11,6 ademhalingen per minuut piekten. Beide
+    kanalen werden afgekeurd, waardoor 72 apneus ongetypeerd bleven en de AHI
+    van een ernstige patiënt als "mild" uit de bus kwam.
+
+    Met een stap van 0,25 s zakken diezelfde kanalen naar 0,031 en 0,019 --
+    het bereik van gezonde MESA-banden (0,006-0,033) -- terwijl een werkelijk
+    losgeraakte band op 1,000 blijft. Dit is dezelfde faalwijze als de
+    MAD-drempel die deze functie moest vervangen: een maat die schaalvrij
+    bedoeld was maar een eigenschap van het opnamebestand mat.
 
     Deze twee bestaan omdat de oude poort op ABSOLUTE amplitude oordeelde
     (`MAD < 0.005`). EDF-eenheden zijn per kanaal vrij: MESA schrijft RIP in
@@ -177,7 +197,9 @@ def rip_shape_metrics(signal: np.ndarray, sf: float) -> tuple[float, float]:
     if not finite.any():
         return 0.0, 1.0
     s = s[finite]
-    d = np.diff(s)
+    # Vaste stap in de TIJD, niet in monsters -- zie de uitleg hierboven.
+    stap = max(1, int(round(FLAT_STEP_S * sf)))
+    d = np.diff(s[::stap])
     flat = float(np.mean(d == 0.0)) if d.size else 1.0
 
     nperseg = int(min(120 * sf, max(s.size // 4, 64)))

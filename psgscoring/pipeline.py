@@ -521,8 +521,22 @@ def run_pneumo_analysis(
                                      if split_night == "manual" else None),
             )
             if _sn.get("detected") and hypno:
+                _ev = resp.get("events") or []
+                _bp = _sn["breakpoint_s"]
                 _sn["segments"] = segment_indices(
-                    resp.get("events") or [], hypno, _sn["breakpoint_s"],
+                    _ev, hypno, _bp, artifact_epochs=artifact_epochs)
+                # De VOLLEDIGE indexfamilie per deel. Bij een split-night is
+                # het diagnostische deel de meting waarop de diagnose rust; dan
+                # hoort daar alles bij wat een diagnose draagt -- OAHI,
+                # stadium-AHI's, de uncertain-boekhouding -- en niet één los
+                # getal naast een nacht-AHI die iets anders telt.
+                from .split_night import segment_spo2, segment_summaries
+                _sn["summaries"] = segment_summaries(
+                    _ev, hypno, _bp, artifact_epochs=artifact_epochs)
+                # En de saturatie op hetzelfde venster, anders staat er een
+                # diagnostische AHI naast een ODI over de hele nacht.
+                _sn["spo2"] = segment_spo2(
+                    spo2_data, sf_spo2, hypno, _bp,
                     artifact_epochs=artifact_epochs)
                 _d = _sn["segments"]["diagnostic"]; _t = _sn["segments"]["therapeutic"]
                 logger.warning(

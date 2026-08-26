@@ -206,3 +206,75 @@ def segment_indices(events, hypno, breakpoint_s, epoch_len_s=30.0,
                                    if (tel + onzeker) else 0.0),
         }
     return uit
+
+
+def _slice(events, hypno, lo_s, hi_s, epoch_len_s=30.0, artifact_epochs=None):
+    """De events, het hypnogram en de artefactlijst van één segment.
+
+    Het hypnogram wordt niet ingekort maar BUITEN het venster op wake gezet.
+    Dat houdt de epoch-indices gelijk aan die van de hele nacht, zodat elke
+    index die op epochnummers steunt -- de artefactlijst, de stadiumtellingen --
+    blijft kloppen. Inkorten zou alles verschuiven en stil verkeerde stadia
+    opleveren.
+    """
+    art = set(artifact_epochs or [])
+    lo_ep, hi_ep = lo_s / epoch_len_s, hi_s / epoch_len_s
+    hyp = [(st if lo_ep <= i < hi_ep else "W") for i, st in enumerate(hypno)]
+    ev = [e for e in events
+          if lo_s <= float(e.get("onset_s", 0)) < hi_s]
+    return ev, hyp, sorted(art)
+
+
+def segment_summaries(events, hypno, breakpoint_s, epoch_len_s=30.0,
+                      artifact_epochs=None) -> dict:
+    """De VOLLEDIGE indexfamilie per segment, niet alleen de AHI.
+
+    Bij een split-night is het diagnostische deel de meting waarop de diagnose
+    rust; dan moet daar ook alles bij horen wat een diagnose draagt -- OAHI,
+    stadium-AHI's, de uncertain-boekhouding -- en niet één los getal naast een
+    nacht-AHI die iets anders telt.
+
+    Hergebruikt `_compute_summary`, dus elke regel die daar geldt (welke events
+    in `ahi_total` tellen, hoe stadium-AHI's dezelfde eventset gebruiken, hoe
+    een lege noemer `None` oplevert in plaats van nul) geldt hier ook. Een
+    tweede implementatie zou precies de tegenspraak opleveren die de
+    stadium-AHI-reparatie moest wegnemen.
+    """
+    from .respiratory import _compute_summary
+
+    n_s = len(hypno) * epoch_len_s
+    uit = {}
+    for naam, lo, hi in (("diagnostic", 0.0, float(breakpoint_s)),
+                         ("therapeutic", float(breakpoint_s), n_s)):
+        ev, hyp, art = _slice(events, hypno, lo, hi, epoch_len_s, artifact_epochs)
+        try:
+            uit[naam] = _compute_summary(ev, hyp, art)
+        except Exception as e:                              # noqa: BLE001
+            logger.warning("[split] samenvatting voor %s mislukt: %s", naam, e)
+            uit[naam] = {"error": str(e)}
+    return uit
+
+
+def segment_spo2(spo2, sf_spo2, hypno, breakpoint_s, epoch_len_s=30.0,
+                 artifact_epochs=None) -> dict:
+    """ODI, T90 en de rest per segment, op hetzelfde venster als de AHI.
+
+    Zonder dit zou de kop een diagnostische AHI tonen naast een ODI over de
+    hele nacht -- twee getallen over verschillende stukken slaap, naast elkaar
+    gepresenteerd alsof ze bij elkaar horen.
+    """
+    from .spo2 import analyze_spo2
+
+    if spo2 is None or not sf_spo2:
+        return {}
+    n_s = len(hypno) * epoch_len_s
+    uit = {}
+    for naam, lo, hi in (("diagnostic", 0.0, float(breakpoint_s)),
+                         ("therapeutic", float(breakpoint_s), n_s)):
+        _ev, hyp, _art = _slice([], hypno, lo, hi, epoch_len_s, artifact_epochs)
+        try:
+            uit[naam] = (analyze_spo2(spo2, sf_spo2, hyp) or {}).get("summary") or {}
+        except Exception as e:                              # noqa: BLE001
+            logger.warning("[split] SpO2 voor %s mislukt: %s", naam, e)
+            uit[naam] = {"error": str(e)}
+    return uit

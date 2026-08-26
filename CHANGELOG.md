@@ -1,3 +1,67 @@
+# v0.29.0 — 2026-08-26 — de RIP-poort keurde goede banden af
+
+**Scored values change** op opnames met hoog bemonsterde effort-banden: apneus
+die als `uncertain` in de lijst stonden, kunnen weer getypeerd worden als
+obstructief, centraal of gemengd. Golden 9/9, 1167 tests.
+
+## Wat er misging
+
+`flat_fraction` telde opeenvolgende **identieke monsters**. Dat meet in feite de
+verhouding tussen de kwantisatiestap en de helling per monster — en die hangt af
+van de bemonsteringsfrequentie, dus van het **bestand** en niet van de sensor.
+
+Op een BDF van 250 Hz gemeten:
+
+| kanaal | flat (oud) | vermogen in de ademband | piek | oordeel |
+|---|---:|---:|---:|---|
+| Chest | **0,686** | 87,9 % | 11,6/min | **failed** |
+| Abd | **0,565** | 87,0 % | 11,6/min | **failed** |
+
+Twee banden die onmiskenbaar ademen, allebei afgekeurd omdat ze boven de
+faaldrempel van 0,50 uitkwamen. Gevolg op die opname: geen effort-gebaseerde
+typering, **72 apneus die `uncertain` bleven**, en een AHI die een ernstige
+patiënt als "mild" rapporteerde.
+
+Dit is dezelfde faalwijze als de MAD-drempel die deze functie in 0.19 moest
+vervangen: een maat die schaalvrij bedoeld was maar een eigenschap van het
+opnamebestand mat.
+
+## De reparatie
+
+`flat_fraction` bemonstert nu met een **vaste stap van 0,25 s** in plaats van
+monster voor monster. Lang genoeg dat een ademsignaal altijd meer dan één
+kwantisatiestap beweegt, kort genoeg om een dode lijn te zien.
+
+| | flat (oud) | flat (nieuw) |
+|---|---:|---:|
+| BDF Chest | 0,686 | **0,031** |
+| BDF Abd | 0,565 | **0,019** |
+| MESA Thor/Abdo (n=8) | 0,022–0,062 | 0,001–0,033 |
+| werkelijk losgeraakte band | 1,000 | **1,000** |
+
+De BDF-banden komen in het bereik van gezonde MESA-banden; een dode lijn wordt
+nog steeds gepakt; MESA verandert niet (8/8 kanalen slagen, 7/8 bilateraal —
+de achtste is single-channel op de energieratio, niet op vlakheid).
+
+`tests/test_rip_flatness_rate_invariance.py` pint de eigenschap die ontbrak:
+**dezelfde ademhaling geeft dezelfde vlakheid bij 32, 64, 128 en 250 Hz.**
+
+## Split-night: de volledige indexfamilie per deel
+
+`segment_summaries()` draait `_compute_summary` op elk segment, dus AHI, OAHI,
+stadium-AHI's en de uncertain-boekhouding volgen daar dezelfde regels als over
+de hele nacht — één implementatie, geen tweede die kan afwijken.
+`segment_spo2()` doet hetzelfde voor ODI en T90, op hetzelfde venster; anders
+staat er een diagnostische AHI naast een ODI over de hele nacht.
+
+Het hypnogram wordt daarbij niet ingekort maar buiten het venster op wake gezet,
+zodat epoch-indices — en daarmee de artefactlijst — blijven kloppen.
+
+Op de aanleidende opname: diagnostisch **44,7/u** (127,1 met de ongetypeerde
+apneus erbij) tegen 3,8/u onder therapie, waar de nacht-AHI 10,1 meldde.
+
+---
+
 # v0.28.1 — 2026-08-26 — split-nightsegmenten gekwalificeerd
 
 `segment_indices()` geeft per segment twee velden erbij:
