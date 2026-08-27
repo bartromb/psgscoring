@@ -17,7 +17,7 @@ Technical details (signal processing chain, classification logic, bias correctio
 
 `psgscoring` detects and classifies respiratory events (apneas, hypopneas, RERAs) in polysomnography recordings following AASM rules. It extends [YASA](https://github.com/raphaelvallat/yasa) (Vallat & Walker, *eLife* 2021) from sleep staging into a complete clinical respiratory scoring pipeline.
 
-**Four things that distinguish this library:**
+**Five things that distinguish this library:**
 
 1. **Graded evidence instead of a threshold cascade** — the AASM Rule 1A
    conjunction is evaluated as a product of graded terms (flow reduction,
@@ -26,15 +26,31 @@ Technical details (signal processing chain, classification logic, bias correctio
    On MESA (n=150, held out) this raises event-level agreement over the rule
    cascade by a median ΔF1 of +0.029 (p = 7·10⁻⁸) without costing anything on
    the AHI itself.
-2. **AHI confidence interval** — every study is scored at three stringency
-   levels (strict/standard/sensitive), yielding a per-study robustness grade
-   (A/B/C) rather than a single AHI number.
+2. **The AHI as a range, not a number** — every study is scored under several
+   profiles, so a severity class that depends on where the hypopnea threshold
+   sits is visible instead of implied. On one split-night recording the
+   diagnostic AHI ran from 83.5 to 127.1/h across two accepted rules; the
+   clinical picture held, the number did not.
+
+   The library still computes an `ahi_interval` with an A/B/C
+   `robustness_grade`, but **treat that grade with care**: it assumes
+   strict ≤ standard ≤ sensitive, and on PSG-IPA with a manual hypnogram
+   `sensitive` gave *fewer* events than `standard` on 5 of 5 recordings. The
+   names describe the intent, not the behaviour. The reference application
+   stopped displaying the grade in v0.15.0 for that reason. The interval itself
+   is min/max of three numbers and assumes no ordering.
 3. **Clinical auditability** — every event carries a confidence score, the
    rule that admitted it, the graded terms behind that decision, and the
    counters of every correction that touched it. Rejected candidates are kept
    with their rejection reason rather than discarded, so a reviewing physician
    can see what was *not* scored and why.
-4. **Measured, not asserted** — every behavioural change ships with the
+4. **Split-night studies are indexed in halves** — the transition to titration
+   is detected from a step in flow amplitude *and* a recovery of the SpO₂
+   baseline (both required: on ordinary nights the flow ratio alone ranged 2 to
+   202). Each half gets its own AHI, sleep time, reliability flag and untyped
+   fraction. A single average across both halves is the one number that cannot
+   answer either question the study was ordered for.
+5. **Measured, not asserted** — every behavioural change ships with the
    measurement that motivated it and a decision rule fixed *before* the sweep.
    `CHANGELOG.md` carries the numbers, including the ones that argued against
    the change. Validation runs on PSG-IPA (5 recordings, 12 scorers each) and
@@ -90,10 +106,17 @@ resp = results["respiratory"]["summary"]
 print(f"AHI: {resp['ahi_total']}, Severity: {resp['severity']}")
 print(f"Events: {resp['n_obstructive']} OA, {resp['n_hypopnea']} Hyp")
 
-# AHI confidence interval
+# How much does the AHI move with the profile?
 interval = results["ahi_interval"]
-print(f"AHI interval: [{interval['strict']['ahi']}–{interval['sensitive']['ahi']}]")
-print(f"Robustness: {interval['robustness_grade']}")
+lo, hi = interval["interval"]        # min/max over the profiles, no ordering assumed
+print(f"AHI interval: [{lo:.1f}-{hi:.1f}]")
+
+# Split-night: index the halves separately, or one average hides the diagnosis
+sn = results.get("split_night") or {}
+if sn.get("detected"):
+    d = sn["segments"]["diagnostic"]
+    t = sn["segments"]["therapeutic"]
+    print(f"before therapy: {d['ahi']}/h   on therapy: {t['ahi']}/h")
 ```
 
 ## Scoring Profiles
@@ -308,6 +331,21 @@ than by the signal in them, and it failed 52 of 52 MESA recordings. Repairing
 it halved the bias at **identical** F1, precision and recall on three of the
 five profiles — the events had been found all along and were being discarded
 in the accounting. See `CHANGELOG.md` 0.16.0 and `docs/`.
+
+**And then the same mistake happened twice more**, which is why it is worth
+recording rather than quietly fixing. The scale-free replacement counted
+*consecutive identical samples* as evidence of a detached belt. At 250 Hz a
+slow breathing signal moves less than one quantiser step between neighbours,
+so a belt with 88% of its power in the breathing band scored 0.686 against a
+failure threshold of 0.50 (0.29.0). Three times a gate meant to measure a
+sensor measured the file instead.
+
+The fix is a test, not a threshold: one synthetic breathing signal is rendered
+at five sampling rates × three quantiser steps × two amplitudes, and every gate
+statistic must return the same value across all thirty renderings. All seven
+pass (largest spread 0.054); the unrepaired flatness statistic does not
+(0.30.0). *Scale-free* and *file-invariant* turn out not to be the same
+property.
 
 ## Bias corrections
 
