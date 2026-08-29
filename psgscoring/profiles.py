@@ -290,6 +290,73 @@ class PostProcessingRules:
     de startwaarde komen over; de implementatie is eigen werk vanaf deze
     specificatie. Zie `docs/third_party_comparison.md`."""
 
+    event_gap_tolerance_breaths: float = 0.0
+    """Hoeveel ademteugen onder de drempel een event mag onderbreken.
+
+    De detectoren labelen AANEENGESLOTEN runs onder de amplitudedrempel. Eén
+    ademteug die de drempel niet haalt knipt een event daarmee doormidden, en
+    twee helften van elk ~7 s sneuvelen allebei op de eis van ≥ 10 s: het event
+    verdwijnt volledig in plaats van iets korter te worden.
+
+    De AASM staat de onderbreking uitdrukkelijk toe. Voor apneus staat het er
+    letterlijk — ten minste 90 % van de EVENTDUUR moet aan de amplitudereductie
+    voldoen, wat de resterende 10 % vrijgeeft. Voor hypopneus volgt hetzelfde
+    uit de duurdefinitie: van de nadir van de laatste normale ademteug tot de
+    eerste die de basislijn benadert, en die kapt niet af bij de eerste sample
+    die de drempel mist.
+
+    Gemeten op een gecontroleerde fixture (identieke signalen op één ademteug
+    na, stabiliteitsfilter en lokale vloer uit om het mechanisme te isoleren):
+    vier aaneengesloten reducties van 18 s leverden 4/4 gescoorde hypopneus, en
+    dezelfde vier met één normale ademteug op t+8 s leverden er 1.
+
+    In ADEMTEUGEN en niet in seconden, om dezelfde reden waarom de RIP-poort
+    schaalvrij moest worden: 4 s is bij 30 ademhalingen/min twee ademteugen en
+    bij 10/min nog geen halve. Een vaste seconde-grens meet dan de
+    ademfrequentie van de patiënt in plaats van "een herstelademteug". De
+    omrekening gebruikt de mediane ademteugduur van de opname
+    (`_breath_gap_seconds`).
+
+    Drie voorwaarden, en de derde is de belangrijkste: deze knop begrenst wat
+    overbrugd MAG worden, `event_min_qualifying_fraction` bewaakt wat het
+    resultaat nog IS, en GEEN van beide zijden mag de minimale eventduur al
+    halen. Die laatste voorwaarde staat niet in de AASM maar volgt uit wat de
+    vlag geacht wordt te doen: een event redden dat de drempel in onbruikbare
+    fragmenten had geknipt. Zonder haar plakt de brug de laagamplitude-
+    ademhaling ná een event eraan vast — op een gecontroleerde fixture groeide
+    een event van 30,9 s naar 37,3 s door een run van 3,7 s op 2,6 s afstand op
+    te slokken, terwijl daar niets te repareren viel.
+
+    Daaruit volgt de eigenschap die deze vlag meetbaar maakt: hij kan alleen
+    events TOEVOEGEN. Hij verlengt geen bestaand event en voegt geen twee
+    geldige events samen — twee reducties van 14 s met een volledige
+    herstelademteug ertussen blijven twee events. De richting van het effect
+    staat dus vóór de meting vast.
+
+    Gemeten op de fixture uit `tests/test_event_gap_tolerance.py` (vier
+    reducties van 18 s, elk met een volledige herstelademteug van 4 s in het
+    midden): uit scoort 2 van de 4, aan op 0,90 scoort er 4. Op 0,75 slaat hij
+    door naar 6 — vandaar dat 0,90 de default is en niet een soepeler getal.
+
+    Default `0.0` = geen overbrugging = bestaand gedrag; het masker gaat dan
+    ongewijzigd — dezelfde array, geen kopie — de detector in. Env-override
+    `PSGSCORING_EVENT_GAP_TOLERANCE_BREATHS` om beide armen te meten zonder de
+    registry te muteren."""
+
+    event_min_qualifying_fraction: float = 0.90
+    """Welk deel van de eventduur de amplitudedrempel moet halen na overbrugging.
+
+    De AASM-waarde voor apneus, hier op beide eventtypes toegepast. Zonder deze
+    eis zou een reeks korte reducties met steeds een gaatje ertussen aan elkaar
+    groeien tot één lang "event" waarin de meerderheid van de tijd normaal
+    geademd wordt.
+
+    De fractie wordt tegen het ORIGINELE masker gemeten: overbrugde samples
+    tellen in de noemer en niet in de teller, zodat elke overbrugging het
+    oordeel strenger maakt in plaats van soepeler.
+
+    Zonder `event_gap_tolerance_breaths` doet deze waarde niets."""
+
     event_boundaries: str = "envelope"
     """Waar de event-grenzen vandaan komen: `"envelope"` of `"breath"`.
 

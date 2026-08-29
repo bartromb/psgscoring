@@ -368,6 +368,29 @@ def detect_respiratory_events(
         # v0.4.1: monotonie-herstel parameters
         _STABILITY_CV  = sp.get("STABILITY_FILTER_CV", 0.45)
         _PEAK_MIN_BR   = sp.get("PEAK_MIN_CONSECUTIVE_BREATHS", 3)
+        # v0.31.0: duurtolerantie. In ADEMTEUGEN (zie _breath_gap_seconds).
+        # Env-override om beide armen te meten zonder de registry te muteren,
+        # zelfde patroon als PSGSCORING_BASELINE_MODE. Onleesbaar -> profiel-
+        # waarde met waarschuwing: stil op nul terugvallen zou een meting
+        # ongeldig maken zonder dat het opvalt.
+        _GAP_BREATHS   = float(sp.get("EVENT_GAP_TOLERANCE_BREATHS", 0.0))
+        _env_gap = os.environ.get("PSGSCORING_EVENT_GAP_TOLERANCE_BREATHS")
+        if _env_gap:
+            try:
+                _GAP_BREATHS = float(_env_gap)
+            except ValueError:
+                logger.warning(
+                    "[resp] PSGSCORING_EVENT_GAP_TOLERANCE_BREATHS=%r is geen "
+                    "getal; profielwaarde aangehouden", _env_gap)
+        _QUAL_FRAC     = float(sp.get("EVENT_MIN_QUALIFYING_FRACTION", 0.90))
+        _env_frac = os.environ.get("PSGSCORING_EVENT_MIN_QUALIFYING_FRACTION")
+        if _env_frac:
+            try:
+                _QUAL_FRAC = float(_env_frac)
+            except ValueError:
+                logger.warning(
+                    "[resp] PSGSCORING_EVENT_MIN_QUALIFYING_FRACTION=%r is "
+                    "geen getal; profielwaarde aangehouden", _env_frac)
         result["scoring_thresholds"] = {
             "hypopnea_threshold": _HYPOP_THRESH,
             "desaturation_pct":   _DESAT_PCT,
@@ -377,6 +400,8 @@ def detect_respiratory_events(
             "use_peak_detection": _USE_PEAK,
             "stability_filter_cv": _STABILITY_CV,
             "peak_min_consecutive_breaths": _PEAK_MIN_BR,
+            "event_gap_tolerance_breaths": _GAP_BREATHS,
+            "event_min_qualifying_fraction": _QUAL_FRAC,
         }
 
         # ── perf (v0.7.x): shared-preprocessing cache ────────────────────
@@ -515,6 +540,18 @@ def detect_respiratory_events(
                 sf_hy, hypno, result, denoise=_DENOISE,
             ))
 
+        # Duurtolerantie in seconden. Kan pas HIER: de omrekening leest de
+        # mediane ademteugduur van deze opname.
+        _gap_s = _breath_gap_seconds(breaths, _GAP_BREATHS)
+        _gap_stats_ap: dict = {}
+        _gap_stats_hy: dict = {}
+        if _gap_s > 0:
+            logger.info(
+                "[resp] duurtolerantie: %.1f ademteug(en) = %.2f s "
+                "(mediane ademteugduur uit %d teugen), minimaal %.0f%% van de "
+                "eventduur moet de drempel halen",
+                _GAP_BREATHS, _gap_s, len(breaths or []), _QUAL_FRAC * 100)
+
         # ── Effort envelopes ─────────────────────────────────────────────
         thorax_env  = _cache(f"thorax_env|{_ENV_KEY}", lambda: (
             preprocess_effort(thorax_data, sf_flow, envelope_method=_ENV_METHOD,
@@ -612,7 +649,10 @@ def detect_respiratory_events(
             sf_ecg=_sf_ecg_local,
             flow_filt=_flow_filt_snap,
             signal_quality=signal_quality,  # v0.3.001 BUG2 gate,
-            use_rhythm=_USE_RHYTHM
+            use_rhythm=_USE_RHYTHM,
+            gap_tolerance_s=_gap_s,
+            min_qualifying_fraction=_QUAL_FRAC,
+            gap_stats=_gap_stats_ap,
         )
 
         # ── Fix 1: Herbereken hypopnea-basislijn zonder post-apnea recovery ─
@@ -703,6 +743,9 @@ def detect_respiratory_events(
             local_bl_min_reduction_pct=sp.get("LOCAL_BL_MIN_REDUCTION_PCT", 20.0),
             local_bl_pre_win_s=sp.get("LOCAL_BL_PRE_WIN_S", 30.0),
             use_rhythm=_USE_RHYTHM,
+            gap_tolerance_s=_gap_s,
+            min_qualifying_fraction=_QUAL_FRAC,
+            gap_stats=_gap_stats_hy,
         )
         events = new_events
 
@@ -752,6 +795,17 @@ def detect_respiratory_events(
             events = _flag_csr_events(events, csr_info)
             n_csr_flagged = sum(1 for e in events if e.get("csr_flagged"))
             logger.info("Fix3: %d events gemarkeerd als mogelijk CSR-gerelateerd", n_csr_flagged)
+
+        # Herkomst. Alleen aanwezig als de tolerantie werkelijk gedraaid
+        # heeft; een leeg veld zou suggereren dat er iets gemeten is.
+        if _gap_s > 0:
+            result["event_gap_bridging"] = {
+                "tolerance_breaths": _GAP_BREATHS,
+                "tolerance_s":       safe_r(_gap_s, 2),
+                "min_qualifying_fraction": _QUAL_FRAC,
+                "apnea":     _gap_stats_ap,
+                "hypopnea":  _gap_stats_hy,
+            }
 
         result["events"]             = events
         result["rejected_hypopneas"] = rejected
@@ -936,6 +990,132 @@ def snap_events_to_breaths(events: list, breaths: list) -> tuple[list, dict]:
         stats["median_onset_shift_s"] = round(float(np.median(do)), 3)
         stats["median_offset_shift_s"] = round(float(np.median(df)), 3)
     return uit, stats
+
+
+def bridge_event_gaps(
+    mask: np.ndarray,
+    sf: float,
+    max_gap_s: float,
+    min_event_s: float,
+    min_qualifying_fraction: float = 0.90,
+    stats: dict | None = None,
+) -> np.ndarray:
+    """Laat een korte onderbreking een event niet VERNIETIGEN.
+
+    De detectoren labelen AANEENGESLOTEN runs onder de amplitudedrempel. Eén
+    ademteug die de drempel niet haalt knipt een event daarmee doormidden, en
+    twee helften van elk ~7 s sneuvelen allebei op de eis van >=10 s: het event
+    verdwijnt volledig in plaats van iets korter te worden.
+
+    Zo bedoelt de AASM het niet. Voor apneus staat het er letterlijk -- ten
+    minste 90 % van de EVENTDUUR moet aan de amplitudereductie voldoen, wat de
+    resterende 10 % vrijgeeft. Voor hypopneus volgt hetzelfde uit de
+    duurdefinitie: van de nadir van de laatste normale ademteug tot de eerste
+    die de basislijn benadert, en die kapt niet af bij de eerste sample die de
+    drempel mist.
+
+    DRIE voorwaarden, en de derde is de belangrijkste:
+
+    1. ``max_gap_s`` -- wat overbrugd MAG worden.
+    2. ``min_qualifying_fraction`` -- wat het resultaat nog IS. Zonder deze eis
+       groeit een reeks korte reducties met steeds een gaatje ertussen aan
+       elkaar tot één lang "event" waarin de meerderheid van de tijd normaal
+       geademd wordt. Gemeten tegen het ORIGINELE masker: overbrugde samples
+       tellen in de noemer en niet in de teller, zodat elke overbrugging het
+       oordeel strenger maakt.
+    3. ``min_event_s`` -- GEEN van beide zijden mag de minimale eventduur al
+       halen. Dit is de voorwaarde die de vlag doet wat hij belooft en niets
+       meer. Zonder haar plakt de brug de laagamplitude-ademhaling ná een event
+       eraan vast: op een gecontroleerde fixture groeide een event van 30,9 s
+       naar 37,3 s door een run van 3,7 s op 2,6 s afstand op te slokken. Dat
+       event was al geldig; er viel niets te repareren.
+
+    Daaruit volgt een eigenschap die deze functie bruikbaar maakt in een
+    validatie: de vlag kan alleen events TOEVOEGEN die de drempel had
+    weggeknipt. Hij kan geen bestaand event verlengen en geen twee geldige
+    events tot één samenvoegen -- twee reducties van 14 s met een volledige
+    herstelademteug ertussen blijven twee events, wat ook is wat een scoorder
+    daar ziet. De richting van het effect staat dus vóór de meting vast, en een
+    uitkomst die de andere kant op wijst is per definitie een fout in de meting
+    of in deze redenering, niet een verrassing in de data.
+
+    Links naar rechts, greedy en dus deterministisch: dezelfde invoer geeft
+    hetzelfde masker, ongeacht in welke volgorde de gaten toevallig liggen. Een
+    keten van drie te korte fragmenten levert daardoor één geldig event plus een
+    gestrand restant, niet één maximaal event; zodra er een geldig event ligt
+    stopt de groei. Bewust: doorgroeien zou voorwaarde 3 langs de achterdeur
+    weer opheffen.
+
+    ``max_gap_s <= 0`` geeft het masker ONGEWIJZIGD terug -- dezelfde array,
+    geen kopie. Dat is de default, en daarmee is byte-identiek gedrag geen
+    belofte maar een eigenschap van het pad.
+    """
+    if stats is not None:
+        stats.setdefault("max_gap_s", float(max_gap_s))
+        stats.setdefault("min_event_s", float(min_event_s))
+        stats.setdefault("min_qualifying_fraction", float(min_qualifying_fraction))
+        stats.setdefault("n_bridged", 0)
+        stats.setdefault("n_runs_before", None)
+        stats.setdefault("n_runs_after", None)
+    if max_gap_s <= 0 or min_qualifying_fraction <= 0:
+        return mask
+    max_gap = round(max_gap_s * sf)
+    if max_gap < 1:
+        return mask
+    min_event = round(min_event_s * sf)
+
+    lab, n = label(mask)
+    if stats is not None:
+        stats["n_runs_before"] = n
+        stats["n_runs_after"] = n
+    if n < 2:
+        return mask
+    runs = [(sl[0].start, sl[0].stop) for sl in find_objects(lab) if sl is not None]
+
+    out = mask.copy()
+    n_bridged = 0
+    cur_start, cur_stop = runs[0]
+    qual = cur_stop - cur_start
+    for nxt_start, nxt_stop in runs[1:]:
+        if ((nxt_start - cur_stop) <= max_gap
+                and (cur_stop - cur_start) < min_event      # links nog niet geldig
+                and (nxt_stop - nxt_start) < min_event):    # rechts nog niet geldig
+            new_len  = nxt_stop - cur_start
+            new_qual = qual + (nxt_stop - nxt_start)
+            if new_qual >= min_qualifying_fraction * new_len:
+                out[cur_stop:nxt_start] = True
+                cur_stop = nxt_stop
+                qual = new_qual
+                n_bridged += 1
+                continue
+        cur_start, cur_stop = nxt_start, nxt_stop
+        qual = cur_stop - cur_start
+
+    if stats is not None:
+        stats["n_bridged"] = n_bridged
+        stats["n_runs_after"] = n - n_bridged
+    return out
+
+
+def _breath_gap_seconds(breaths: list | None, n_breaths: float,
+                        fallback_s: float = 4.0) -> float:
+    """Reken een tolerantie in ADEMTEUGEN om naar seconden.
+
+    In ademteugen en niet in seconden, om dezelfde reden waarom de RIP-poort
+    schaalvrij moest worden: 4 s is bij een ademfrequentie van 30/min twee
+    ademteugen en bij 10/min nog geen halve. Een vaste seconde-grens meet dan de
+    ademfrequentie van de patient in plaats van "een herstelademteug".
+
+    Bij minder dan tien gemeten ademteugen bestaat er geen bruikbare mediaan en
+    valt de omrekening terug op ``fallback_s`` per ademteug -- expliciet, want
+    stilzwijgend nul teruggeven zou de vlag uitzetten zonder dat iets dat meldt.
+    """
+    if n_breaths <= 0:
+        return 0.0
+    durs = [float(b["duration_s"]) for b in (breaths or [])
+            if b.get("duration_s")]
+    med = float(np.median(durs)) if len(durs) >= 10 else float(fallback_s)
+    return float(n_breaths) * med
 
 
 def reject_stable_breathing(
@@ -1660,10 +1840,17 @@ def _detect_apneas(
     signal_quality: dict | None = None,
     # v0.22.0: ritmiek-as, default uit.
     use_rhythm: bool = False,
+    # v0.31.0: duurtolerantie, default uit (0 s = ongewijzigd masker).
+    gap_tolerance_s: float = 0.0,
+    min_qualifying_fraction: float = 0.90,
+    gap_stats: dict | None = None,
 ) -> list[dict]:
     """Detecteer apnea-events: ≥90% flow-reductie gedurende ≥10s (AASM)."""
     events: list[dict] = []
-    labeled, n_ap = label(apnea_raw & sleep_mask_ap)
+    labeled, n_ap = label(bridge_event_gaps(
+        apnea_raw & sleep_mask_ap, sf_flow,
+        gap_tolerance_s, APNEA_MIN_DUR_S, min_qualifying_fraction,
+        stats=gap_stats))
     slices_ap = find_objects(labeled)
     for i, sl in enumerate(slices_ap):
         if sl is None:
@@ -1751,6 +1938,10 @@ def _detect_hypopneas(
     local_bl_strict_reduction: float = 30.0,    # v0.4.2: profile-aware
     local_bl_min_reduction_pct: float = 20.0,   # v0.5.0: profile-aware
     local_bl_pre_win_s: float = 30.0,           # v0.5.0: profile-aware
+    # v0.31.0: duurtolerantie, default uit (0 s = ongewijzigd masker).
+    gap_tolerance_s: float = 0.0,
+    min_qualifying_fraction: float = 0.90,
+    gap_stats: dict | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Return (all_events_including_new_hypopneas, rejected_candidates)."""
     # Build apnea exclusion mask (±5 s around each confirmed apnea)
@@ -1761,7 +1952,10 @@ def _detect_hypopneas(
         ee      = int((ev["onset_s"] + ev["duration_s"]) * sf_hy)
         excl[max(0, eo - margin) : min(len(excl), ee + margin)] = True
 
-    labeled, n_hy = label(hypopnea_raw & sleep_mask_hy & ~excl)
+    labeled, n_hy = label(bridge_event_gaps(
+        hypopnea_raw & sleep_mask_hy & ~excl, sf_hy,
+        gap_tolerance_s, HYPOPNEA_MIN_DUR_S, min_qualifying_fraction,
+        stats=gap_stats))
     new_events = list(existing_events)
     rejected:  list[dict] = []
     slices_hy = find_objects(labeled)

@@ -119,6 +119,8 @@ def _profile_to_legacy_dict(profile) -> dict:
         "STABILITY_FILTER_ALL_HYPOPNEA_SUBTYPES":
             pp.stability_filter_all_hypopnea_subtypes,
         "EVENT_BOUNDARIES": pp.event_boundaries,
+        "EVENT_GAP_TOLERANCE_BREATHS": pp.event_gap_tolerance_breaths,
+        "EVENT_MIN_QUALIFYING_FRACTION": pp.event_min_qualifying_fraction,
         "SPLIT_EVENTS_LONGER_THAN_S": pp.split_events_longer_than_s,
         "DESAT_LOW_BASELINE_RELAXATION": pp.desat_low_baseline_relaxation,
         "HYPOXIC_BURDEN_LOCAL_BASELINE": pp.hypoxic_burden_local_baseline,
