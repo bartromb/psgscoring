@@ -867,6 +867,7 @@ def run_pneumo_analysis(
                 lgbm_threshold = _ar_thr,
                 event_locked_threshold = _arousal_event_locked_threshold(profile),
                 onset_offset_s = _arousal_onset_offset_s(profile),
+                min_interval_s = _arousal_min_interval_s(profile),
             )
         except Exception as e:  # noqa: BLE001 — arousal failure must not abort the run
             logger.warning("[pneumo] arousal analysis failed, continuing: %s", e)
@@ -1811,6 +1812,28 @@ def _arousal_event_locked_threshold(profile) -> float | None:
                 "[pneumo] PSGSCORING_AROUSAL_EVENT_LOCKED_THRESHOLD=%r is geen "
                 "getal; profielwaarde aangehouden", env)
     return float(val) if val is not None else None
+
+
+def _arousal_min_interval_s(profile) -> float:
+    """Minimale slaaptijd tussen twee arousals (AASM 10 s), met env-override.
+
+    Zelfde patroon en zelfde reden als `_arousal_onset_offset_s`: beide armen
+    moeten te meten zijn zonder de registry te muteren, en een onleesbare
+    waarde valt terug op het profiel mét waarschuwing in plaats van stilletjes
+    op nul.
+    """
+    env = os.environ.get("PSGSCORING_AROUSAL_MIN_INTERVAL_S")
+    if env is not None:
+        try:
+            return float(env)
+        except ValueError:
+            logger.warning(
+                "[pneumo] PSGSCORING_AROUSAL_MIN_INTERVAL_S=%r is geen getal; "
+                "profielwaarde aangehouden", env)
+    try:
+        return float(profile.get("AROUSAL_MIN_INTERVAL_S") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _arousal_onset_offset_s(profile) -> float:

@@ -386,6 +386,12 @@ def _recompute_arousal_summary(
 AROUSAL_MIN_DUR_S     = 3.0     # ≥3s EEG-frequentieverandering
 AROUSAL_MAX_DUR_S     = 30.0    # >30s = waarschijnlijk wakker
 PRESLEEP_MIN_S        = 10.0    # ≥10s slaap vóór arousal vereist
+#: AASM: twee arousals moeten door >=10 s slaap gescheiden zijn. Dezelfde 10 s
+#: als PRESLEEP_MIN_S en niet toevallig: het IS die regel, alleen toegepast op
+#: de vorige arousal in plaats van op het hypnogram. `PRESLEEP_MIN_S` toetst of
+#: er slaap-EPOCHS voorafgaan, en een epoch waarin net een arousal zat heet nog
+#: steeds N2 -- die check ziet een vorige arousal dus niet.
+AROUSAL_MIN_INTERVAL_S = 10.0
 POST_RESP_WINDOW_S    = 15.0    # arousal binnen 15s na resp. event = respiratoir
 # Zoveel VOOR het einde van een event begint het koppelvenster. Komt uit
 # correlate_arousals_to_respiratory (window_pre_s); staat hier als constante
@@ -634,6 +640,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                     lgbm_threshold: float | None = None,
                     resp_event_ends: list | None = None,
                     event_locked_threshold: float | None = None,
+                    min_interval_s: float = 0.0,
                     _no_hybrid: bool = False) -> dict:
     """
     Detecteer EEG-arousals conform AASM, Sectie 5.
@@ -1267,6 +1274,25 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
     except Exception as e:
         result["error"]     = str(e)
         result["traceback"] = traceback.format_exc()
+
+    # AASM: >=10 s slaap tussen twee arousals. HIER en niet eerder: dit is een
+    # regel over de UITEINDELIJKE eventlijst, dus hij hoort na het
+    # classifierfilter -- dat kan van een paar te dichte kandidaten er al een
+    # verwijderd hebben, en dan valt er niets samen te voegen.
+    if min_interval_s and result.get("success") and result.get("events"):
+        _mi_stats: dict = {}
+        result["events"] = enforce_min_arousal_interval(
+            result["events"], min_interval_s, stats=_mi_stats)
+        if _mi_stats["n_merged"]:
+            result["summary"] = _recompute_arousal_summary(
+                result["events"], hypno, set(artifact_epochs or []))
+            logger.info("[arousal] %d paren samengevoegd op de %.0f s-regel "
+                        "(%d -> %d)", _mi_stats["n_merged"], min_interval_s,
+                        _mi_stats["n_before"], _mi_stats["n_after"])
+        if isinstance(result.get("summary"), dict):
+            result["summary"]["min_interval_s"] = float(min_interval_s)
+            result["summary"]["n_interval_merged"] = _mi_stats["n_merged"]
+
     if _hybrid_requested and isinstance(result.get("summary"), dict):
         # Een consument moet kunnen zien DAT de hybride gevraagd was en of hij
         # gedraaid heeft. Zonder dit is een regelgebaseerd resultaat niet te
@@ -1280,6 +1306,79 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
 # ═══════════════════════════════════════════════════════════════
 # MULTI-DERIVATIE  (v0.8.1 — event-level union over EEG-afleidingen)
 # ═══════════════════════════════════════════════════════════════
+
+def enforce_min_arousal_interval(
+    events: list[dict],
+    min_interval_s: float,
+    stats: dict | None = None,
+) -> list[dict]:
+    """Twee arousals binnen ``min_interval_s`` van elkaar zijn er EEN.
+
+    De AASM eist dat een arousal wordt voorafgegaan door ten minste 10 s
+    stabiele slaap. Check A in `detect_arousals` toetst daarvan alleen de
+    hypnogramkant -- of de voorgaande 10 s als slaap gescoord staat -- en een
+    epoch waarin net een arousal zat heet nog steeds N2. Twee bursts van 4 s uit
+    elkaar leverden daardoor twee arousals waar er een hoort te staan.
+
+    In multi-derivatie telt dit dubbel: `_union_arousals` fuseert alleen bij
+    TEMPORELE OVERLAP, dus twee afleidingen die 2 s na elkaar vuren leveren twee
+    events op.
+
+    Deze functie kan alleen events WEGNEMEN, nooit toevoegen: de richting van
+    het effect staat vast voor de meting. Dat is het spiegelbeeld van
+    `bridge_event_gaps` in respiratory.py, en om dezelfde reden nuttig.
+
+    Samengevoegd betekent: onset van de eerste, einde van de laatste. Band en
+    stadium komen van de langste bijdrager, net als in `_union_arousals`, zodat
+    de twee samenvoegingen dezelfde regel volgen. Het resultaat kan langer
+    duren dan ``AROUSAL_MAX_DUR_S`` -- dat is bewust, want die grens is een
+    KANDIDAATfilter en geen regel over de uiteindelijke eventlijst.
+
+    ``min_interval_s <= 0`` geeft de lijst ONGEWIJZIGD terug, hetzelfde object.
+    """
+    if stats is not None:
+        stats.setdefault("min_interval_s", float(min_interval_s))
+        stats.setdefault("n_merged", 0)
+        stats.setdefault("n_before", len(events or []))
+        stats.setdefault("n_after", len(events or []))
+    if min_interval_s <= 0 or not events or len(events) < 2:
+        return events
+
+    def _span(e):
+        o = float(e.get("onset_s") or 0.0)
+        end = float(e["end_s"] if e.get("end_s") is not None
+                    else o + float(e.get("duration_s") or 0.0))
+        return o, end
+
+    geordend = sorted(events, key=lambda e: _span(e)[0])
+    uit: list[dict] = [dict(geordend[0])]
+    n_merged = 0
+    for ev in geordend[1:]:
+        o, end = _span(ev)
+        huidig = uit[-1]
+        ho, hend = _span(huidig)
+        if (o - hend) < float(min_interval_s):
+            if (end - o) > (hend - ho):          # langste wint band/stadium
+                huidig["dominant_band"] = ev.get("dominant_band",
+                                                 huidig.get("dominant_band"))
+                huidig["stage"] = ev.get("stage", huidig.get("stage"))
+            nieuw_end = max(end, hend)
+            huidig["onset_s"] = _safe(ho)
+            huidig["end_s"] = _safe(nieuw_end)
+            huidig["duration_s"] = _safe(nieuw_end - ho)
+            huidig["merged_from"] = int(huidig.get("merged_from", 1)) + 1
+            _d = set(huidig.get("derivations") or []) | set(ev.get("derivations") or [])
+            if _d:
+                huidig["derivations"] = sorted(_d)
+            n_merged += 1
+        else:
+            uit.append(dict(ev))
+
+    if stats is not None:
+        stats["n_merged"] = n_merged
+        stats["n_after"] = len(uit)
+    return uit
+
 
 def _union_arousals(event_lists: list[list[dict]]) -> list[dict]:
     """Voeg arousals van meerdere afleidingen samen tot één event-lijst.
@@ -1374,7 +1473,8 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                           lgbm: bool | None = None,
                           lgbm_threshold: float | None = None,
                           resp_event_ends: list | None = None,
-                          event_locked_threshold: float | None = None) -> dict:
+                          event_locked_threshold: float | None = None,
+                          min_interval_s: float = 0.0) -> dict:
     """Multi-derivatie arousal-detectie via event-level union.
 
     ``derivations``: geordende lijst ``[(naam, eeg_data[, sf]), ...]`` — element 0
@@ -1400,7 +1500,8 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                               hysteresis=hysteresis, lgbm=lgbm,
                               lgbm_threshold=lgbm_threshold,
                               resp_event_ends=resp_event_ends,
-                              event_locked_threshold=event_locked_threshold)
+                              event_locked_threshold=event_locked_threshold,
+                              min_interval_s=min_interval_s)
         if res.get("success"):
             per.append((name, res))
     if not per:
@@ -1415,7 +1516,16 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
     n_eog_rejected = 0
     if eog_reject and eog_data is not None:
         merged, n_eog_rejected = _eog_reject_occipital(merged, eog_data, sf)
+    # Nogmaals NA de union, en dat is geen dubbelop: `_union_arousals` fuseert
+    # alleen bij temporele OVERLAP, dus twee afleidingen die 2 s na elkaar
+    # vuren leveren hier twee events op die de 10 s-regel nog niet gezien
+    # hebben.
+    _mi_stats: dict = {}
+    merged = enforce_min_arousal_interval(merged, min_interval_s, stats=_mi_stats)
     summ = _recompute_arousal_summary(merged, hypno, set(artifact_epochs or []))
+    if min_interval_s:
+        summ["min_interval_s"] = float(min_interval_s)
+        summ["n_interval_merged"] = _mi_stats["n_merged"]
     summ["n_derivations"] = len(per)
     summ["derivations"] = [n for n, _ in per]
     summ["n_per_derivation"] = {n: len(res.get("events", [])) for n, res in per}
@@ -1939,6 +2049,7 @@ def run_arousal_respiratory_analysis(
     lgbm_threshold: float | None = None,
     event_locked_threshold: float | None = None,
     onset_offset_s: float = 0.0,
+    min_interval_s: float = 0.0,
 ) -> dict:
     """
     Master-functie: detecteer arousals, RERAs en koppel aan respiratoire events.
@@ -1991,7 +2102,8 @@ def run_arousal_respiratory_analysis(
                                           hysteresis=hysteresis, lgbm=lgbm,
                                           lgbm_threshold=lgbm_threshold,
                                           resp_event_ends=_ends,
-                                          event_locked_threshold=event_locked_threshold)
+                                          event_locked_threshold=event_locked_threshold,
+                                          min_interval_s=min_interval_s)
     else:
         ar_result = detect_arousals(eeg_data, sf_eeg, hypno, emg_data=emg_data,
                                     artifact_epochs=artifact_epochs,
@@ -2000,7 +2112,8 @@ def run_arousal_respiratory_analysis(
                                     hysteresis=hysteresis, lgbm=lgbm,
                                     lgbm_threshold=lgbm_threshold,
                                     resp_event_ends=_ends,
-                                    event_locked_threshold=event_locked_threshold)
+                                    event_locked_threshold=event_locked_threshold,
+                                    min_interval_s=min_interval_s)
     # -- Onsetverschuiving ------------------------------------------
     # HIER en niet later: stap 2 koppelt deze arousals aan de respiratoire
     # events en stap 3 draait er de RERA-detectie op. Na afloop schuiven zou
@@ -2080,7 +2193,7 @@ def run_arousal_respiratory_analysis(
     # zonder classifier blijven de sleutels weg.
     for _k in ("lgbm_available", "lgbm_skipped_reason", "lgbm_threshold",
                "lgbm_n_pre", "lgbm_n_post", "n_event_locked",
-               "event_locked_threshold"):
+               "event_locked_threshold", "min_interval_s", "n_interval_merged"):
         if _k in ar_sum:
             output["summary"][_k] = ar_sum[_k]
 

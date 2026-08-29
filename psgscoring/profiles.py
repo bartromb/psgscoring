@@ -1023,6 +1023,29 @@ class PostProcessingRules:
     Default False = ongewijzigd gedrag; de env-override
     ``PSGSCORING_BREATH_AROUSAL_LATENCY`` blijft werken en wint."""
 
+    arousal_min_interval_s: float = 0.0
+    """Minimale slaaptijd tussen twee arousals; korter = EEN arousal (AASM 10 s).
+
+    De AASM eist dat een arousal wordt voorafgegaan door ten minste 10 s
+    stabiele slaap. `detect_arousals` toetst daarvan alleen de hypnogramkant —
+    of de voorgaande 10 s als slaap gescoord staat — en een epoch waarin net een
+    arousal zat heet nog steeds N2. Die check ziet een voorgaande arousal dus
+    niet: twee bursts van 4 s uit elkaar leveren twee arousals waar er één
+    hoort te staan.
+
+    In multi-derivatie (default op de klinische profielen) telt het dubbel:
+    `_union_arousals` fuseert alleen bij temporele OVERLAP, dus twee
+    afleidingen die 2 s na elkaar vuren leveren twee events.
+
+    Kan alleen events WEGNEMEN, nooit toevoegen — het spiegelbeeld van
+    `event_gap_tolerance_breaths`, en om dezelfde reden bruikbaar in een
+    validatie: de richting staat vóór de meting vast. Dat maakt hem een
+    PRECISIE-ingreep, en het gemeten arousalgat is precies precisie (F1 0,546
+    tegen een menselijk plafond van 0,679).
+
+    Default `0.0` = uit = bestaand gedrag. Env-override
+    `PSGSCORING_AROUSAL_MIN_INTERVAL_S`."""
+
     rule1a_arousal_enabled: bool = False
     """v0.12.3+: laat de AASM Rule 1A arousal-tak daadwerkelijk kwalificeren.
 
