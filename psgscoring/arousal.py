@@ -1279,6 +1279,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
     # regel over de UITEINDELIJKE eventlijst, dus hij hoort na het
     # classifierfilter -- dat kan van een paar te dichte kandidaten er al een
     # verwijderd hebben, en dan valt er niets samen te voegen.
+    min_interval_s = _min_interval_from_env(min_interval_s)
     if min_interval_s and result.get("success") and result.get("events"):
         _mi_stats: dict = {}
         result["events"] = enforce_min_arousal_interval(
@@ -1306,6 +1307,31 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
 # ═══════════════════════════════════════════════════════════════
 # MULTI-DERIVATIE  (v0.8.1 — event-level union over EEG-afleidingen)
 # ═══════════════════════════════════════════════════════════════
+
+def _min_interval_from_env(explicit: float) -> float:
+    """De 10 s-regel ook leesbaar voor wie de pipeline NIET gebruikt.
+
+    `PSGSCORING_AROUSAL_MIN_INTERVAL_S` wordt in `pipeline.py` gelezen, maar de
+    meetharnassen roepen `detect_arousals`/`detect_arousals_multi` rechtstreeks
+    aan -- `sweep_arousal_threshold_psgipa.py` bijvoorbeeld. Die zagen de vlag
+    dus niet, en een arm die niets doet is vandaag al twee keer als meting
+    gerapporteerd (zie docs/rule1a_arousal_20260829.md).
+
+    De env WINT van het argument, net als bij `PSGSCORING_AROUSAL_LGBM` een
+    paar regels verderop: een installatie of een meting moet hem kunnen
+    forceren. Onleesbaar -> het argument, met waarschuwing.
+    """
+    env = os.environ.get("PSGSCORING_AROUSAL_MIN_INTERVAL_S")
+    if env is None:
+        return float(explicit or 0.0)
+    try:
+        return float(env)
+    except ValueError:
+        logger.warning(
+            "[arousal] PSGSCORING_AROUSAL_MIN_INTERVAL_S=%r is geen getal; "
+            "doorgegeven waarde aangehouden", env)
+        return float(explicit or 0.0)
+
 
 def enforce_min_arousal_interval(
     events: list[dict],
@@ -1521,6 +1547,7 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
     # vuren leveren hier twee events op die de 10 s-regel nog niet gezien
     # hebben.
     _mi_stats: dict = {}
+    min_interval_s = _min_interval_from_env(min_interval_s)
     merged = enforce_min_arousal_interval(merged, min_interval_s, stats=_mi_stats)
     summ = _recompute_arousal_summary(merged, hypno, set(artifact_epochs or []))
     if min_interval_s:

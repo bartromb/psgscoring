@@ -189,3 +189,33 @@ def test_de_index_volgt_de_samenvoeging():
     _, aan = _tel(4.0, 10.0)
     assert aan["summary"]["n_arousals"] < uit["summary"]["n_arousals"]
     assert aan["summary"]["arousal_index"] < uit["summary"]["arousal_index"]
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  5. Bereikbaar zonder de pipeline
+# ══════════════════════════════════════════════════════════════════════
+#
+# `pipeline.py` leest de env-vlag, maar de meetharnassen roepen de detector
+# RECHTSTREEKS aan (sweep_arousal_threshold_psgipa.py doet dat). Zonder deze
+# doorgifte meet zo'n harnas een arm die niets doet -- vandaag twee keer
+# gebeurd, zie docs/rule1a_arousal_20260829.md.
+
+def test_de_env_vlag_bereikt_de_detector_zonder_pipeline(monkeypatch):
+    monkeypatch.setenv("PSGSCORING_AROUSAL_MIN_INTERVAL_S", "10")
+    ev, res = _tel(4.0, 0.0)        # argument 0,0 -- de env moet winnen
+    assert len(ev) == 1, "env-vlag bereikt detect_arousals niet"
+    assert res["summary"]["min_interval_s"] == 10.0
+
+
+def test_de_env_wint_van_het_argument(monkeypatch):
+    monkeypatch.setenv("PSGSCORING_AROUSAL_MIN_INTERVAL_S", "0")
+    ev, _ = _tel(4.0, 10.0)         # argument 10 -- de env zet hem uit
+    assert len(ev) == 2, "env kan de regel niet uitzetten"
+
+
+def test_onleesbare_env_valt_terug_op_het_argument(monkeypatch, caplog):
+    monkeypatch.setenv("PSGSCORING_AROUSAL_MIN_INTERVAL_S", "tien")
+    with caplog.at_level("WARNING", logger="psgscoring.arousal"):
+        ev, _ = _tel(4.0, 10.0)
+    assert len(ev) == 1
+    assert any("geen getal" in m for m in caplog.messages)
