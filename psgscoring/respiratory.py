@@ -1125,6 +1125,30 @@ def limit_events_per_desaturation(
     return behouden, list(rejected) + gedegradeerd, stats
 
 
+#: Welke afgewezen kandidaten de arousal-tak van Rule 1A mag herbeoordelen.
+#:
+#: De AASM stelt de flowreductie (>=30 %) en de duur (>=10 s) in BEIDE takken
+#: verplicht; alleen de BEVESTIGING is een disjunctie (>=3 % desaturatie OF
+#: arousal). Een kandidaat die op de amplitude of de duur sneuvelde is dus geen
+#: Rule 1A-kandidaat, en een arousal kan daar niets aan toevoegen.
+#:
+#: De lege string dekt de historische vorm zonder ``reject_reason``: die kwam
+#: uitsluitend uit de desaturatietoets. Externe aanroepers die hun eigen
+#: kandidaten aanleveren blijven daarmee werken.
+#:
+#: Een ALLOW-list en niet een deny-list: een afwijzingsgrond die later
+#: bijkomt en hier niet in staat wordt niet hersteld. Dat is de veilige kant
+#: -- de omgekeerde fout laat een event stil terugkeren dat een verplicht
+#: criterium niet haalde, en dat is exact de fout die deze constante repareert.
+#:
+#: Het stabiele-ademhalingsfilter staat er BEWUST niet in. Dat filter ziet
+#: alleen events die hun desaturatie al hadden; het is een kwaliteitsveto
+#: bovenop de AASM, geen ontbrekend criterium. Zo'n veto via de arousal-tak
+#: ongedaan maken zou het filter uitschakelen voor elk event met toevallig een
+#: arousal in de buurt, zonder dat iets dat meldt.
+REINSTATABLE_REJECTIONS: frozenset[str] = frozenset({"", "no_desaturation"})
+
+
 def reinstate_rule1a_arousal_hypopneas(
     rejected:       list,
     arousal_events: list,
@@ -1145,7 +1169,12 @@ def reinstate_rule1a_arousal_hypopneas(
 
     Parameters
     ----------
-    rejected       : candidates from detect_respiratory_events
+    rejected       : candidates from detect_respiratory_events. Alleen
+                     kandidaten waarvan de ``reject_reason`` in
+                     ``REINSTATABLE_REJECTIONS`` staat worden beoordeeld: de
+                     arousal vervangt het BEVESTIGINGSCRITERIUM, niet de
+                     flowreductie of de duur. Wat er buiten valt komt met
+                     reden in ``stats["ineligible_by_reason"]``.
     arousal_events : detected arousals (from arousal_analysis module)
     resp_events    : existing Rule 1A events (list to extend)
     hypno          : string hypnogram
@@ -1173,8 +1202,15 @@ def reinstate_rule1a_arousal_hypopneas(
                     else float(arousal_window_s))
 
     n_tested = n_coupled = 0
+    n_ineligible = 0
+    ineligible: dict[str, int] = {}
     reinstated: list[dict] = []
     for cand in rejected:
+        reden = str(cand.get("reject_reason") or "")
+        if reden not in REINSTATABLE_REJECTIONS:
+            n_ineligible += 1
+            ineligible[reden] = ineligible.get(reden, 0) + 1
+            continue
         n_tested += 1
         onset = float(cand["onset_s"])
         dur   = float(cand["duration_s"])
@@ -1218,11 +1254,23 @@ def reinstate_rule1a_arousal_hypopneas(
             "rule1b":           True,   # deprecated alias
         })
 
+    if n_ineligible:
+        logger.info(
+            "Rule 1A: %d van %d afgewezen kandidaten komen niet in aanmerking "
+            "(criterium niet gehaald of kwaliteitsveto): %s",
+            n_ineligible, len(rejected), ineligible)
+
     if stats is not None:
         stats.update({
+            # Alleen de kandidaten die de tak WERKELIJK heeft beoordeeld.
             "n_candidates_tested": n_tested,
             "n_arousal_coupled":   n_coupled,
             "n_qualified":         len(reinstated),
+            # ... en wat er buiten viel, met reden. Een tak die op nul staat
+            # moet laten zien of dat komt doordat er niets was of doordat
+            # alles werd geweerd.
+            "n_ineligible":        n_ineligible,
+            "ineligible_by_reason": ineligible,
         })
 
     if reinstated:
@@ -1823,6 +1871,15 @@ def _detect_hypopneas(
                     "min_spo2":   min_spo2,
                     "indices":    (sub_idx[0], sub_idx[-1] + 1),
                     "epoch":      ep_idx,
+                    # Deze kandidaat haalde de amplitude- en duurcriteria WEL
+                    # en struikelde alleen over het bevestigingscriterium. Dat
+                    # is precies de vorm die de arousal-tak van Rule 1A mag
+                    # herbeoordelen -- zie REINSTATABLE_REJECTIONS. Zonder
+                    # deze reden was "geen reden" de enige aanwijzing, en dat
+                    # is geen aanwijzing: elke nieuwe afwijzingsgrond die
+                    # vergeet zichzelf te benoemen zou stilzwijgend
+                    # kwalificeren.
+                    "reject_reason": "no_desaturation",
                 })
                 continue
 
