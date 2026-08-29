@@ -2503,8 +2503,15 @@ def _arousal_limb_wired(profile: dict) -> bool:
     wijzigen, en dan meet je een andere bibliotheek dan die je uitrolt.
 
     Let op de koppeling: `pipeline.py` vereist arousals EN `limb_enabled`, dus
-    deze vlag in zijn eentje aanzetten doet aantoonbaar niets -- zie
-    docs/rule1a_arousal_preregistratie.md.
+    deze vlag in zijn eentje aanzetten doet aantoonbaar niets. Dat is geen
+    theorie: `scripts/compare_baseline_arousal.py` -- het harnas dat over deze
+    tak moest beslissen -- zet alleen `PSGSCORING_RULE1A_AROUSAL` en nooit deze
+    vlag, en leverde daardoor een "aan"-kolom die byte-identiek was aan "uit"
+    (f1_median 0,3491573033707865 en bias 1,6878 in beide). Wie hiermee meet,
+    zet ALLEBEI. Zie docs/rule1a_arousal_20260829.md.
+
+    (De oude verwijzing hier was docs/rule1a_arousal_preregistratie.md; dat
+    bestand heeft nooit bestaan.)
     """
     env = os.environ.get("PSGSCORING_AROUSAL_LIMB_WIRED")
     if env is not None:

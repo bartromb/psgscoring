@@ -1049,11 +1049,43 @@ class PostProcessingRules:
     rule1a_arousal_enabled: bool = False
     """v0.12.3+: laat de AASM Rule 1A arousal-tak daadwerkelijk kwalificeren.
 
-    De tak was door een doorgiftefout dood (issue #16). De doorgifte is nu
-    gerepareerd, maar hem AANZETTEN is een gedragswijziging: op PSG-IPA gaat
-    de bias van +1.77 naar +7.75/u zolang de koppeling niet gekalibreerd is.
-    Default False, zodat paper- en NSRR-reproductie ongemoeid blijven; fase 4
-    bepaalt de kalibratie en pas daarna kan dit aan.
+    De tak was door een doorgiftefout dood (issue #16). De doorgifte is
+    gerepareerd; hem AANZETTEN blijft een gedragswijziging.
+
+    HIER STOND: "op PSG-IPA gaat de bias van +1.77 naar +7.75/u". Dat tweede
+    getal is nooit gemeten. Het is ingevoerd in commit 7f794d2 (30-07-2026),
+    waarvan de eigen meettabel -- in de commitboodschap en in de CHANGELOG --
+    drie opnames beslaat (SN1, SN3, SN5) en helemaal geen bias noemt. Uit die
+    tabel volgt +1,13 -> +3,39 op die drie. Om op n=5 bij +7,75 uit te komen
+    zouden SN2 en SN4 elk +11,5/u moeten bijdragen, op nachten met
+    referentie-AHI 4,33 en 3,82. Het getal komt in geen enkel verslag voor.
+    (+1,77 klopt wel: dat is de paper-v31-baseline, terug te vinden in drie
+    handoffs en het peer-reviewdocument.)
+
+    WEL GEMETEN, 29-08-2026, met BEIDE benodigde vlaggen aan -- zie de
+    valkuil bij `arousal_limb_wired`:
+
+      PSG-IPA n=5 (aasm_v3_rec, rolling), tak uit -> aan:
+        bias        +1,69 -> +2,05      (delta +0,36/u, niet +5,98)
+        event-F1     0,349 -> 0,347     percentiel 6,1 -> 6,1
+        severity      4/5  -> 3/5       gekwalificeerd: 11 events over 5 nachten
+
+      MESA n=150 (aasm_v3_rec vs. `aasm15`), tak uit -> aan:
+        F1 mediaan   0,438 -> 0,382     slechter op 106/150, p = 2,5e-13
+        precisie     0,517 -> 0,342
+        recall       0,408 -> 0,500
+        bias         -5,26 -> +8,01     severity 87/150 -> 53/150
+
+    MESA draagt het besluit, PSG-IPA niet. Let op WAT de MESA-cijfers zeggen:
+    de recall stijgt fors, want de `aasm15`-referentie bevat hypopneus die
+    alleen via een arousal kwalificeren en die kunnen wij zonder deze tak niet
+    produceren -- de onderdetectie is dus deels structureel. Maar de precisie
+    stort in en de bias schiet van -5,26 naar +8,01 door nul heen. De
+    ontbrekende regelhelft is echt; onze koppeling is te toegeeflijk.
+
+    Default False, zodat paper- en NSRR-reproductie ongemoeid blijven. Aanzetten
+    vraagt eerst een gekalibreerde koppeling (venster, gap, latentie), niet deze
+    vlag. Volledig verslag: docs/rule1a_arousal_20260829.md.
     """
 
     rule1a_gap_max_breaths: int = 1
