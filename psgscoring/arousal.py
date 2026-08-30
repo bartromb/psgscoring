@@ -400,6 +400,10 @@ POST_RESP_WINDOW_S    = 15.0    # arousal binnen 15s na resp. event = respiratoi
 AROUSAL_PRE_RESP_WINDOW_S = 5.0
 RERA_FLOW_LIMIT_THR   = 0.80    # flow 80–100% = flow-limitatie (plateau)
 RERA_MIN_DUR_S        = 10.0    # ≥10s flow-limitatie voor RERA
+#: Koppelvenster voor RERA's. Stond hardgecodeerd op 10,0 in `detect_reras` en
+#: op 15,0 in `_compute_rera_rdi` -- twee getallen voor dezelfde vraag, die
+#: onafhankelijk konden verschuiven. Zie PostProcessingRules.rera_arousal_window_s.
+RERA_AROUSAL_WINDOW_S = 15.0
 
 # v0.8.11: Correcte frequentiebanden conform AASM
 ALPHA_NARROW_BAND     = (8, 11)    # Alpha ZONDER spindle-overlap (was 8-13)
@@ -641,6 +645,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                     resp_event_ends: list | None = None,
                     event_locked_threshold: float | None = None,
                     min_interval_s: float = 0.0,
+                    rem_alpha_baseline: bool = False,
                     _no_hybrid: bool = False) -> dict:
     """
     Detecteer EEG-arousals conform AASM, Sectie 5.
@@ -898,7 +903,16 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
             arousal_bl_rem_arr  = _rolling_baseline(_detect_rem, rem_mask)
         else:
             arousal_bl_nrem_arr = _rolling_baseline(arousal_pow, nrem_mask)
-            arousal_bl_rem_arr  = _rolling_baseline(arousal_pow, rem_mask)
+            # `rem_alpha_baseline` maakt teller en noemer in REM dezelfde
+            # grootheid. Fase 1 toetst daar `alpha_pow`; de basislijn stond op
+            # `alpha+theta+beta`. Een REM-arousal werd dus afgezet tegen een
+            # noemer waar theta zwaar in meeweegt, en theta IS de
+            # REM-achtergrond -- de drempel ligt daardoor te hoog.
+            # Default False = bestaand gedrag. Aanzetten verandert de
+            # REM-telling (op PSG-IPA SN3 gemeten: 61 -> 73 events) en vraagt
+            # dus een meting, geen aanname.
+            arousal_bl_rem_arr = _rolling_baseline(
+                alpha_pow if rem_alpha_baseline else arousal_pow, rem_mask)
         sigma_bl_nrem_arr   = _rolling_baseline(sigma_pow, nrem_mask)
 
         # Globale baselines voor statistiek (backward compat)
@@ -962,6 +976,8 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
 
         arousal_mask = np.zeros(n_samples, dtype=bool)
         artifact_set = set(artifact_epochs or [])
+        n_te_lang = 0          # regio's boven AROUSAL_MAX_DUR_S
+        te_lang_s = 0.0        # en hoeveel slaaptijd daarin zat
 
         # Slaap-mask per sample
         sleep_sample_mask = np.zeros(n_samples, dtype=bool)
@@ -1039,7 +1055,18 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
             indices = np.where(labeled == i)[0]
             dur_s   = len(indices) / sf
 
-            if dur_s < AROUSAL_MIN_DUR_S or dur_s > AROUSAL_MAX_DUR_S:
+            # Te kort of te lang. De BOVENgrens verdient een telling: een
+            # regio langer dan 30 s is vermoedelijk een ontwaking, en die
+            # verdween hier zonder spoor. Een lezer kon niet zien of een lage
+            # arousal-index betekende dat er weinig gebeurde of dat er veel
+            # weggegooid was. De AASM kent geen bovengrens voor een arousal;
+            # deze is een pragmatische wachtregel, en dan hoort er een teller
+            # bij. De ACCEPTATIE verandert niet -- alleen de zichtbaarheid.
+            if dur_s > AROUSAL_MAX_DUR_S:
+                n_te_lang += 1
+                te_lang_s += dur_s
+                continue
+            if dur_s < AROUSAL_MIN_DUR_S:
                 continue
 
             onset_s = float(indices[0]) / sf
@@ -1063,8 +1090,15 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
             # REM (waar fase 1 op alpha draait). Dat gedrag blijft ongemoeid als
             # de vlag uit staat; alleen bij spectral_shift volgt de abruptheid
             # dezelfde grootheid als fase 1.
-            _abr_src = ((_detect_rem if _is_rem(stage) else _detect_nrem)
-                        if spectral_shift else arousal_pow)
+            # Bij `rem_alpha_baseline` volgt ook de ABRUPTHEID in REM de alpha.
+            # Half repareren zou een derde asymmetrie maken: fase 1 op alpha,
+            # de basislijn op alpha, en de abruptheid nog op alpha+theta+beta.
+            if spectral_shift:
+                _abr_src = _detect_rem if _is_rem(stage) else _detect_nrem
+            elif rem_alpha_baseline and _is_rem(stage):
+                _abr_src = alpha_pow
+            else:
+                _abr_src = arousal_pow
             pre_power  = float(np.mean(_abr_src[pre_3s_start:onset_idx])) if onset_idx > pre_3s_start else 1e-12
             onset_power = float(np.mean(_abr_src[onset_idx:onset_1s_end]))
             if spectral_shift:
@@ -1190,6 +1224,12 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
             "n_alpha_dominant":    sum(1 for a in arousals if a["dominant_band"] == "alpha"),
             "n_beta_dominant":     sum(1 for a in arousals if a["dominant_band"] == "beta"),
             "n_emg_confirmed":     sum(1 for a in arousals if a["emg_confirmed"]),
+            # Zie de duurcheck in fase 2. Nul hoort ook zichtbaar te zijn:
+            # het verschil tussen "niets weggegooid" en "niet gekeken" is
+            # precies wat hier jarenlang niet af te lezen was.
+            "n_too_long_discarded": n_te_lang,
+            "too_long_discarded_s": _safe(te_lang_s),
+            "max_duration_s":       AROUSAL_MAX_DUR_S,
         }
         result["success"] = True
 
@@ -1239,6 +1279,13 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                 result["summary"] = _recompute_arousal_summary(
                     kept, hypno, set(artifact_epochs or []),
                 )
+                # `_recompute_arousal_summary` bouwt een VERSE dict, dus de
+                # duurtellers uit fase 2 vielen hier weg zodra de classifier
+                # draaide -- en dat is juist het pad dat de klinische profielen
+                # nemen. Zelfde val als bij n_interval_merged.
+                result["summary"]["n_too_long_discarded"] = n_te_lang
+                result["summary"]["too_long_discarded_s"] = _safe(te_lang_s)
+                result["summary"]["max_duration_s"] = AROUSAL_MAX_DUR_S
                 result["summary"]["lgbm_threshold"] = _thr
                 result["summary"]["lgbm_n_pre"]     = n_pre
                 result["summary"]["lgbm_n_post"]    = len(kept)
@@ -1285,8 +1332,15 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
         result["events"] = enforce_min_arousal_interval(
             result["events"], min_interval_s, stats=_mi_stats)
         if _mi_stats["n_merged"]:
+            _bewaar = {k: result["summary"].get(k)
+                       for k in ("n_too_long_discarded", "too_long_discarded_s",
+                                 "max_duration_s", "lgbm_threshold",
+                                 "lgbm_n_pre", "lgbm_n_post")
+                       if isinstance(result.get("summary"), dict)
+                       and k in result["summary"]}
             result["summary"] = _recompute_arousal_summary(
                 result["events"], hypno, set(artifact_epochs or []))
+            result["summary"].update(_bewaar)
             logger.info("[arousal] %d paren samengevoegd op de %.0f s-regel "
                         "(%d -> %d)", _mi_stats["n_merged"], min_interval_s,
                         _mi_stats["n_before"], _mi_stats["n_after"])
@@ -1500,7 +1554,8 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                           lgbm_threshold: float | None = None,
                           resp_event_ends: list | None = None,
                           event_locked_threshold: float | None = None,
-                          min_interval_s: float = 0.0) -> dict:
+                          min_interval_s: float = 0.0,
+                          rem_alpha_baseline: bool = False) -> dict:
     """Multi-derivatie arousal-detectie via event-level union.
 
     ``derivations``: geordende lijst ``[(naam, eeg_data[, sf]), ...]`` — element 0
@@ -1527,7 +1582,8 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                               lgbm_threshold=lgbm_threshold,
                               resp_event_ends=resp_event_ends,
                               event_locked_threshold=event_locked_threshold,
-                              min_interval_s=min_interval_s)
+                              min_interval_s=min_interval_s,
+                              rem_alpha_baseline=rem_alpha_baseline)
         if res.get("success"):
             per.append((name, res))
     if not per:
@@ -1578,6 +1634,16 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
     # draait was dus niet af te lezen OF hij gedraaid had. Alle afleidingen
     # krijgen dezelfde emg_data en dezelfde vlaggen, dus de status is uniform;
     # de tellingen zijn per afleiding en worden opgeteld.
+    # Duurtellers optellen over de afleidingen: elk kanaal gooit zijn eigen
+    # te lange regio's weg, en de union ziet die nooit.
+    if any("n_too_long_discarded" in (r.get("summary") or {}) for _, r in per):
+        summ["n_too_long_discarded"] = sum(
+            (r.get("summary") or {}).get("n_too_long_discarded", 0) for _, r in per)
+        summ["too_long_discarded_s"] = _safe(sum(
+            (r.get("summary") or {}).get("too_long_discarded_s", 0.0) or 0.0
+            for _, r in per))
+        summ["max_duration_s"] = AROUSAL_MAX_DUR_S
+
     _first = per[0][1].get("summary", {}) or {}
     for _k in ("lgbm_available", "lgbm_skipped_reason", "lgbm_threshold",
                "event_locked_threshold"):
@@ -1885,6 +1951,7 @@ def detect_reras(
     resp_events:  list,
     hypno:        list,
     artifact_epochs: list = None,
+    arousal_window_s: float = RERA_AROUSAL_WINDOW_S,
 ) -> dict:
     """
     Detecteer RERAs conform AASM, Sectie 3E.
@@ -1960,7 +2027,7 @@ def detect_reras(
             linked_arousal = None
             for ar in arousals:
                 ar_onset = ar.get("onset_s", 0)
-                if 0 <= ar_onset - c_end <= 10.0:
+                if 0 <= ar_onset - c_end <= arousal_window_s:
                     has_arousal    = True
                     linked_arousal = ar_onset
                     break
@@ -1977,6 +2044,20 @@ def detect_reras(
 
         result["events"]  = confirmed_reras
         result["summary"] = {
+            # NIET het getal dat gerapporteerd wordt. Er bestaan twee
+            # RERA-definities naast elkaar: deze (flow-limitatie op de
+            # envelope) en `pipeline._compute_rera_rdi` (FRI + flattening).
+            # Alleen de tweede voedt `respiratory.summary.n_rera`, de RDI en
+            # het PDF-rapport. Deze telling is diagnostisch.
+            #
+            # Ze stonden onder bijna dezelfde naam -- `n_reras` hier,
+            # `n_rera` daar -- en een consument die de verkeerde pakt krijgt
+            # een ander getal zonder dat iets dat meldt. `generate_psg_report.py`
+            # in YASAFlaskified leest deze; die module staat in tasks.py
+            # uitgecommentarieerd en is dus dood, maar wie hem terughaalt
+            # rapporteert stilzwijgend de andere definitie.
+            "authoritative": False,
+            "reported_by":   "diagnostic only; see respiratory.summary.n_rera",
             "n_reras":     len(confirmed_reras),
             "rera_index":  per_hour(len(confirmed_reras), total_sleep_h),
             "rdi":         per_hour(len(resp_events) + len(confirmed_reras),
@@ -2091,6 +2172,7 @@ def run_arousal_respiratory_analysis(
     event_locked_threshold: float | None = None,
     onset_offset_s: float = 0.0,
     min_interval_s: float = 0.0,
+    rem_alpha_baseline: bool = False,
 ) -> dict:
     """
     Master-functie: detecteer arousals, RERAs en koppel aan respiratoire events.
@@ -2144,7 +2226,8 @@ def run_arousal_respiratory_analysis(
                                           lgbm_threshold=lgbm_threshold,
                                           resp_event_ends=_ends,
                                           event_locked_threshold=event_locked_threshold,
-                                          min_interval_s=min_interval_s)
+                                          min_interval_s=min_interval_s,
+                                          rem_alpha_baseline=rem_alpha_baseline)
     else:
         ar_result = detect_arousals(eeg_data, sf_eeg, hypno, emg_data=emg_data,
                                     artifact_epochs=artifact_epochs,
@@ -2154,7 +2237,8 @@ def run_arousal_respiratory_analysis(
                                     lgbm_threshold=lgbm_threshold,
                                     resp_event_ends=_ends,
                                     event_locked_threshold=event_locked_threshold,
-                                    min_interval_s=min_interval_s)
+                                    min_interval_s=min_interval_s,
+                                    rem_alpha_baseline=rem_alpha_baseline)
     # -- Onsetverschuiving ------------------------------------------
     # HIER en niet later: stap 2 koppelt deze arousals aan de respiratoire
     # events en stap 3 draait er de RERA-detectie op. Na afloop schuiven zou
@@ -2234,7 +2318,9 @@ def run_arousal_respiratory_analysis(
     # zonder classifier blijven de sleutels weg.
     for _k in ("lgbm_available", "lgbm_skipped_reason", "lgbm_threshold",
                "lgbm_n_pre", "lgbm_n_post", "n_event_locked",
-               "event_locked_threshold", "min_interval_s", "n_interval_merged"):
+               "event_locked_threshold", "min_interval_s", "n_interval_merged",
+               "n_too_long_discarded", "too_long_discarded_s",
+               "max_duration_s"):
         if _k in ar_sum:
             output["summary"][_k] = ar_sum[_k]
 

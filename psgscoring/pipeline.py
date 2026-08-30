@@ -868,6 +868,8 @@ def run_pneumo_analysis(
                 event_locked_threshold = _arousal_event_locked_threshold(profile),
                 onset_offset_s = _arousal_onset_offset_s(profile),
                 min_interval_s = _arousal_min_interval_s(profile),
+                rem_alpha_baseline = bool(
+                    profile.get("AROUSAL_REM_BASELINE_ALPHA", False)),
             )
         except Exception as e:  # noqa: BLE001 — arousal failure must not abort the run
             logger.warning("[pneumo] arousal analysis failed, continuing: %s", e)
@@ -1257,7 +1259,9 @@ def run_pneumo_analysis(
     # old (step 8b) and this position touches the summary, so the values are
     # unchanged; on CSR nights the keys are now retained (bug fix, v0.7.4).
     logger.info("[pneumo 9b/11] RERA and RDI computation...")
-    _compute_rera_rdi(output, hypno, arousals, artifact_epochs)
+    _compute_rera_rdi(output, hypno, arousals, artifact_epochs,
+                      arousal_window_s=float(
+                          profile.get("RERA_AROUSAL_WINDOW_S", 15.0)))
 
     # ── Step 9c: clinical phenotype flags (POSA, REM-predominant) — v0.10.0 ──
     # Output-additive; derived from the already-computed position + REM/NREM indices.
@@ -2018,7 +2022,8 @@ def _compute_phenotypes(output: dict, hypno: list) -> None:
 
 
 def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
-                      artifact_epochs: list | None = None) -> None:
+                      artifact_epochs: list | None = None,
+                      arousal_window_s: float = 15.0) -> None:
     """Compute RERA index and RDI from FRI events + flattening + arousal coupling.
 
     Two RERA sources (v0.8.16):
@@ -2083,7 +2088,7 @@ def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
         for fri in fri_events:
             fri_end = float(fri["onset_s"]) + float(fri["duration_s"])
             has_arousal = any(
-                fri["onset_s"] <= a_onset <= fri_end + 15.0
+                fri["onset_s"] <= a_onset <= fri_end + arousal_window_s
                 for a_onset, _ in arousal_times
             )
             if has_arousal:
@@ -2100,7 +2105,7 @@ def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
             seq_end = seq["onset_s"] + seq["duration_s"]
             # Check arousal within 15s of sequence end
             has_arousal = any(
-                seq["onset_s"] <= a_onset <= seq_end + 15.0
+                seq["onset_s"] <= a_onset <= seq_end + arousal_window_s
                 for a_onset, _ in arousal_times
             )
             # Al geteld als respiratoir event of als FRI-RERA? Op
@@ -2185,6 +2190,27 @@ def _ahi_severity(ahi) -> str | None:
     return "severe"
 
 
+def arousal_limb_is_effective(profile: dict) -> bool:
+    """Kwalificeert de arousal-tak van Rule 1A werkelijk hypopneeën?
+
+    Drie voorwaarden, en tot 30-08-2026 loog het rapport hierover: het drukte
+    "(>=3% desaturation OR arousal)" af zodra `DESAT_OR_AROUSAL` waar was,
+    terwijl die tak op `aasm_v3_rec` helemaal niet draait. Een clinicus las dus
+    een criterium dat de software niet toepast.
+
+    De ademteug-gegradeerde detector is het andere geval: stap 7b leest de
+    arousals rechtstreeks, langs `rule1a_arousal_enabled` en
+    `arousal_limb_wired` heen, dus daar draait de tak altijd. Dat verschil
+    tussen `aasm_v3_rec` en `aasm_v3_breath` is precies wat onzichtbaar was.
+    """
+    if not profile.get("DESAT_OR_AROUSAL"):
+        return False
+    if str(profile.get("HYPOPNEA_DETECTOR", "envelope")) == "breath_graded":
+        return True
+    return bool(profile.get("RULE1A_AROUSAL_ENABLED")
+                and profile.get("AROUSAL_LIMB_WIRED"))
+
+
 def _hypopnea_criterion_str(profile: dict) -> str | None:
     """A5: human-readable hypopnea scoring criterion (AASM v3 VIII.D Note 1)."""
     try:
@@ -2192,8 +2218,14 @@ def _hypopnea_criterion_str(profile: dict) -> str | None:
         desat = float(profile.get("DESATURATION_DROP_PCT", 3.0))
         rule = str(profile.get("_AASM_RULE") or "")
         prefix = f"{rule}: " if rule[:1].isdigit() else ""
-        if profile.get("DESAT_OR_AROUSAL"):
+        if arousal_limb_is_effective(profile):
             return f"{prefix}≥{flow}% flow reduction ≥10 s + (≥{desat:g}% desaturation OR arousal)"
+        if profile.get("DESAT_OR_AROUSAL"):
+            # Het profiel STAAT de arousal-tak toe, maar hij is niet bedraad.
+            # Zeggen wat er werkelijk gebeurt, met de reden erbij.
+            return (f"{prefix}≥{flow}% flow reduction ≥10 s + ≥{desat:g}% "
+                    f"desaturation (arousal limb permitted by the rule but not "
+                    f"enabled in this profile)")
         if profile.get("DESAT_REQUIRED"):
             return f"{prefix}≥{flow}% flow reduction ≥10 s + ≥{desat:g}% desaturation"
         return f"{prefix}≥{flow}% flow reduction ≥10 s"

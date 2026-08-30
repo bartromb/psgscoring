@@ -113,6 +113,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "AROUSAL_EVENT_LOCKED_THRESHOLD": pp.arousal_event_locked_threshold,
         "AROUSAL_ONSET_OFFSET_S": pp.arousal_onset_offset_s,
         "AROUSAL_MIN_INTERVAL_S": pp.arousal_min_interval_s,
+        "AROUSAL_REM_BASELINE_ALPHA": pp.arousal_rem_baseline_alpha,
         "AROUSAL_EOG_REJECT": pp.arousal_eog_reject,
         "HYPOXIC_BURDEN_CAP_AT_NEXT_EVENT":
             pp.hypoxic_burden_cap_at_next_event,
@@ -135,6 +136,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "LOCAL_BL_MIN_REDUCTION_PCT": pp.local_baseline_min_reduction_pct,
         "LOCAL_BL_PRE_WIN_S":         pp.local_baseline_pre_win_s,
         "RULE1B_AROUSAL_WINDOW_S":    pp.rule1b_arousal_window_s,
+        "RERA_AROUSAL_WINDOW_S":      pp.rera_arousal_window_s,
         # v0.5.1: profile-tunable dynamic baseline parameters
         "BASELINE_WINDOW_S":          pp.baseline_window_s,
         "BASELINE_PERCENTILE":        pp.baseline_percentile,

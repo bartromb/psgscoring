@@ -1076,6 +1076,23 @@ class PostProcessingRules:
     Default False = ongewijzigd gedrag; de env-override
     ``PSGSCORING_BREATH_AROUSAL_LATENCY`` blijft werken en wint."""
 
+    arousal_rem_baseline_alpha: bool = False
+    """Meet REM-arousals tegen een ALPHA-basislijn in plaats van alpha+theta+beta.
+
+    In REM toetst fase 1 van `detect_arousals` op `alpha_pow`, maar de
+    rollende basislijn stond op `alpha+theta+beta`. Teller en noemer waren dus
+    verschillende grootheden, en niet onschuldig: theta IS de REM-achtergrond,
+    dus de noemer wordt gedomineerd door precies het signaal dat geen arousal
+    is. De effectieve drempel ligt daardoor in REM te hoog.
+
+    De vlag zet ook de ABRUPTHEIDSTOETS in REM op alpha. Half repareren zou een
+    derde asymmetrie maken.
+
+    Default `False` = bestaand gedrag. Aanzetten verandert de REM-telling --
+    op PSG-IPA SN3 gemeten als 61 -> 73 events -- en vraagt dus een meting op
+    beide cohorten, geen aanname. De REM-arousalindex staat apart in het
+    rapport, dus dit raakt een getoond getal."""
+
     arousal_min_interval_s: float = 10.0
     """Minimale slaaptijd tussen twee arousals; korter = EEN arousal (AASM 10 s).
 
@@ -1158,6 +1175,29 @@ class PostProcessingRules:
     vraagt eerst een gekalibreerde koppeling (venster, gap, latentie), niet deze
     vlag. Volledig verslag: docs/rule1a_arousal_20260829.md.
     """
+
+    rera_arousal_window_s: float = 15.0
+    """Hoe lang na een RERA-kandidaat een arousal er nog bij hoort.
+
+    Er stonden DRIE getallen voor wat dezelfde fysiologische vraag lijkt:
+
+      * `rule1b_arousal_window_s` (15 s; `mesa_shhs` 5 s) — hypopnee-herstel
+      * een hardgecodeerde 15,0 in `_compute_rera_rdi` — de RERA's die
+        WERKELIJK gerapporteerd worden
+      * een hardgecodeerde 10,0 in `detect_reras` — de tweede, niet-geleverde
+        RERA-definitie
+
+    Twee daarvan konden onafhankelijk verschuiven zonder dat iets dat merkte.
+    Dit veld benoemt ze en zet beide RERA-paden op één getal.
+
+    BEWUST een eigen veld en niet `rule1b_arousal_window_s` hergebruikt. Die
+    staat op `mesa_shhs` op 5 s voor de NSRR-conventie bij hypopneeherstel;
+    hem ook op de RERA-koppeling loslaten zou dat profiel stil veranderen,
+    terwijl de twee vragen niet identiek zijn — de ene koppelt een arousal aan
+    een AMPLITUDE-event, de andere aan een reeks flow-gelimiteerde ademteugen.
+    Default 15,0 op elk profiel = precies het huidige gedrag van het geleverde
+    pad; alleen de niet-geleverde `detect_reras` gaat van 10 naar 15 en die
+    komt in geen enkel rapport."""
 
     rule1a_gap_max_breaths: int = 1
     """Maximaal aantal ademteugen tussen eventeinde en arousal (gap-check)."""
