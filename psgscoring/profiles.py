@@ -490,7 +490,7 @@ class PostProcessingRules:
 
     Env-override: `PSGSCORING_AROUSAL_EOG_REJECT=1` zet hem terug aan."""
 
-    arousal_lgbm_threshold: float | None = 0.80
+    arousal_lgbm_threshold: float | None = 0.70
     # Event-locked werkpunt: een LAGERE cutoff binnen het koppelvenster rond
     # een respiratoir event-einde. None = uit (huidig gedrag).
     #
@@ -529,9 +529,32 @@ class PostProcessingRules:
     arousal-index**, terwijl 0,90 er ruim een derde te weinig telt — en die
     index staat in het rapport.
 
-    **Default blijft `None`** tot die keuze gemaakt is. Voorwaardelijk op
-    `arousal_uses_artifact_epochs`: wordt de lijst tóch gebruikt, dan moet de
-    ijking over. Zie docs/arousal_drempel_herijking_preregistratie.md.
+    **Default 0,70 sinds 30-08-2026** (gebruikersbesluit), samen met
+    `arousal_min_interval_s = 10.0`. Die twee horen bij elkaar en zijn los van
+    elkaar niet verdedigbaar: de 10 s-regel haalt ~15 % van de events weg, dus
+    het optimum schuift mee omlaag. De regel op 0,80 laten staan geeft een
+    count-ratio van 0,81 op PSG-IPA — dan telt de index te laag.
+
+    Gemeten (event-F1 tegen de scoorders, `--multi`):
+
+    | | PSG-IPA n=5 | MESA n=30 |
+    |---|---:|---:|
+    | 0,80 + regel uit *(oud)* | 0,5144 (ratio 1,014) | 0,4101 (ratio 0,760) |
+    | 0,80 + regel aan | 0,5371 (ratio 0,810) | **0,4251** (ratio 0,669) |
+    | 0,70 + regel aan *(nu)* | **0,5559** (ratio **1,000**) | 0,4171 (ratio 0,841) |
+
+    **Lees dit eerlijk:** op PSG-IPA is 0,70+regel het beste punt én het enige
+    met een count-ratio van 1,00. Op MESA is 0,80+regel bèter (0,4251 tegen
+    0,4171). De cohorten zijn het eens dat de REGEL wint en oneens over de
+    DREMPEL, en het vooraf vastgelegde primaire MESA-criterium voor juist deze
+    combinatie is NIET gehaald (20/30 beter, p = 0,099; er waren 21 nodig).
+    De keuze voor 0,70 is gemaakt op de multi-scoordercohort en is een
+    klinisch besluit, geen statistische conclusie.
+
+    Voorwaardelijk op `arousal_uses_artifact_epochs`: wordt de lijst tóch
+    gebruikt, dan moet de ijking over. `mesa_shhs` en `chicago_1999` draaien de
+    classifier niet, dus deze waarde raakt hen niet.
+    Verslag: docs/arousal_10s_regel_20260830.md.
     """
 
     arousal_onset_offset_s: float = 2.0
@@ -1023,7 +1046,7 @@ class PostProcessingRules:
     Default False = ongewijzigd gedrag; de env-override
     ``PSGSCORING_BREATH_AROUSAL_LATENCY`` blijft werken en wint."""
 
-    arousal_min_interval_s: float = 0.0
+    arousal_min_interval_s: float = 10.0
     """Minimale slaaptijd tussen twee arousals; korter = EEN arousal (AASM 10 s).
 
     De AASM eist dat een arousal wordt voorafgegaan door ten minste 10 s
@@ -1043,8 +1066,26 @@ class PostProcessingRules:
     PRECISIE-ingreep, en het gemeten arousalgat is precies precisie (F1 0,546
     tegen een menselijk plafond van 0,679).
 
-    Default `0.0` = uit = bestaand gedrag. Env-override
-    `PSGSCORING_AROUSAL_MIN_INTERVAL_S`."""
+    **Default 10,0 sinds 30-08-2026** (gebruikersbesluit), samen met
+    `arousal_lgbm_threshold = 0.70`; zie daar voor de cijfers en voor waarom de
+    twee onlosmakelijk zijn.
+
+    Kort: op PSG-IPA wint de regel op **15 van de 15** paren (drie drempels ×
+    vijf opnames), en op gematchte count-ratio levert hij **+0,042 F1** —
+    betere localisatie, geen boekhouding. Op MESA repliceert hij bij gelijke
+    drempel, met de vooraf vastgelegde toets gehaald in beide richtingen
+    (p = 0,024 op 0,80 en p = 0,008 op 0,70).
+
+    De prijs staat er ook: de arousal-INDEX zakt. Count-ratio PSG-IPA
+    1,014 → 0,810 en MESA 0,760 → 0,669 bij gelijke drempel. Dat is de reden
+    dat de drempel meebeweegt naar 0,70, waar de PSG-IPA-ratio weer op 1,00
+    uitkomt.
+
+    `mesa_shhs` en `chicago_1999` blijven expliciet op `0.0`: die reproduceren
+    paper v31/v37 en de NSRR-conventie, en een andere arousaltelling breekt dat.
+
+    Env-override `PSGSCORING_AROUSAL_MIN_INTERVAL_S`, sinds 0b201ff ook gelezen
+    door `detect_arousals` zelf zodat de meetharnassen hem zien."""
 
     rule1a_arousal_enabled: bool = False
     """v0.12.3+: laat de AASM Rule 1A arousal-tak daadwerkelijk kwalificeren.
@@ -1915,6 +1956,10 @@ _mesa_shhs = Profile(
         # Idem voor de PLM-tijdbasis: die is per 21-08-2026 default aan omdat
         # het een rekenfout was, maar dit profiel moet reproduceerbaar blijven.
         plm_time_base=False,
+        # En idem voor de AASM-regel van 10 s tussen twee arousals, default aan
+        # sinds 30-08-2026. Die verandert de ARO USALTELLING (op PSG-IPA SN3
+        # 173 -> 159), en dit profiel reproduceert de NSRR-conventie.
+        arousal_min_interval_s=0.0,
         # En de arousal-classifier: paper v31/v37 draaide op het
         # regelgebaseerde pad.
         stability_filter_all_hypopnea_subtypes=False,
@@ -2000,6 +2045,10 @@ _chicago_1999 = Profile(
         # PostProcessingRules.rip_quality_scale_free.
         rip_quality_scale_free=False,
         plm_time_base=False,
+        # Zie mesa_shhs: de 10 s-regel tussen arousals staat sinds 30-08-2026
+        # default aan en verandert de arousaltelling. Dit profiel bevriest het
+        # gedrag van 1999.
+        arousal_min_interval_s=0.0,
         stability_filter_all_hypopnea_subtypes=False,
         thermistor_gate="envelope_agreement",
     ),

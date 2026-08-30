@@ -13,12 +13,24 @@ import numpy as np
 import pytest
 
 
-def test_the_operating_point_is_0_80_everywhere_it_is_read():
-    """0,80 sinds 23-08-2026 (gebruikersbeslissing).
+def test_the_operating_point_is_0_70_everywhere_it_is_read():
+    """0,70 sinds 30-08-2026 (gebruikersbeslissing), was 0,80 sinds 23-08.
 
-    Gekozen boven 0,90 omdat 0,80 op beide cohorten van 0,60 wint en de
-    eventtelling zuiver houdt (1,07 / 1,01 tegen 1,52 / 1,47), terwijl 0,90
-    de arousal-index ruim een derde te laag zou zetten.
+    De verschuiving hoort ONLOSMAKELIJK bij `arousal_min_interval_s = 10.0`,
+    die dezelfde dag aan ging. De 10 s-regel haalt ~15 % van de events weg,
+    dus het optimum schuift mee omlaag; de regel op 0,80 laten staan geeft een
+    count-ratio van 0,81 op PSG-IPA en dan telt de index te laag.
+
+    Gemeten event-F1 (`--multi`), PSG-IPA n=5 / MESA n=30:
+        0,80 + regel uit   0,5144 (ratio 1,014)  /  0,4101 (ratio 0,760)
+        0,80 + regel aan   0,5371 (ratio 0,810)  /  0,4251 (ratio 0,669)
+        0,70 + regel aan   0,5559 (ratio 1,000)  /  0,4171 (ratio 0,841)
+
+    Eerlijk gelezen: op PSG-IPA is dit het beste punt en het enige met ratio
+    1,00; op MESA is 0,80 + regel béter. Het vooraf vastgelegde primaire
+    MESA-criterium voor juist deze combinatie is NIET gehaald (20/30, p=0,099).
+    De keuze is gemaakt op de multi-scoordercohort en is klinisch, niet
+    statistisch. Zie docs/arousal_10s_regel_20260830.md.
 
     Op de vijf gepinde profielen staat de classifier uit, dus daar wordt de
     waarde nooit gelezen; die worden hier niet gepind op een getal maar op het
@@ -30,8 +42,41 @@ def test_the_operating_point_is_0_80_everywhere_it_is_read():
         pp = get_profile(name).post_processing
         if not pp.arousal_lgbm:
             continue                      # classifier uit: drempel irrelevant
-        assert pp.arousal_lgbm_threshold == 0.80, (
+        assert pp.arousal_lgbm_threshold == 0.70, (
             f"{name} draait de classifier op {pp.arousal_lgbm_threshold}")
+
+
+def test_the_interval_rule_is_on_except_where_reproduction_forbids_it():
+    """De 10 s-regel hoort overal aan te staan BEHALVE waar een gepubliceerd
+    resultaat eraan hangt.
+
+    `mesa_shhs` reproduceert paper v31/v37 en de NSRR-conventie, `chicago_1999`
+    bevriest het gedrag van 1999. Een andere arousaltelling breekt allebei --
+    op PSG-IPA SN3 gaat de telling van 173 naar 159.
+    """
+    from psgscoring.profiles import get_profile, list_profiles
+
+    for name in list_profiles():
+        p = get_profile(name)
+        verwacht = 0.0 if p.family in ("dataset", "legacy") else 10.0
+        assert p.post_processing.arousal_min_interval_s == verwacht, (
+            f"{name} ({p.family}) staat op "
+            f"{p.post_processing.arousal_min_interval_s}, verwacht {verwacht}")
+
+
+def test_the_two_flags_move_together():
+    """Los van elkaar zijn ze niet verdedigbaar; deze test zegt dat hardop.
+
+    0,70 zonder de regel ondertelt niet maar OVERtelt (ratio 1,215 op
+    PSG-IPA); de regel zonder de drempelverschuiving ondertelt (0,810). Wie
+    er een terugdraait, hoort de ander mee te nemen.
+    """
+    from psgscoring.profiles import get_profile
+
+    for name in ("aasm_v3_rec", "aasm_v3_breath"):
+        pp = get_profile(name).post_processing
+        assert (pp.arousal_lgbm_threshold, pp.arousal_min_interval_s) == (0.70, 10.0), (
+            f"{name}: de twee vlaggen zijn uit de pas gelopen")
 
 
 def test_the_pinned_profiles_do_not_run_the_classifier_at_all():
@@ -110,8 +155,9 @@ def test_the_classifier_can_be_switched_per_run(monkeypatch):
     import numpy as np
     import pytest
     pytest.importorskip("mne")
-    import psgscoring
     import mne
+
+    import psgscoring
 
     sf, minutes = 64.0, 25
     n = int(sf * 60 * minutes)

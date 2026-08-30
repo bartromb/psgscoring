@@ -44,12 +44,25 @@ def _spans(events):
 #  1. Uit is uit
 # ══════════════════════════════════════════════════════════════════════
 
-def test_elk_profiel_heeft_de_regel_uit():
+def test_de_reproductieprofielen_houden_de_regel_uit():
+    """Sinds 30-08-2026 staat de regel default AAN (gebruikersbeslissing).
+
+    Deze test bewaakt nog maar één ding: dat `mesa_shhs` en `chicago_1999`
+    hem uit houden. Die reproduceren paper v31/v37 en de NSRR-conventie, en
+    een andere arousaltelling breekt dat -- op SN3 gaat de telling van 173
+    naar 159.
+
+    Het positieve pinnen (0,70 + 10,0 op de rest) staat in
+    `tests/test_arousal_threshold_flag.py`, bij de drempel waar het bij hoort:
+    de twee vlaggen zijn los van elkaar niet verdedigbaar.
+    """
     from psgscoring.constants import SCORING_PROFILES
-    from psgscoring.profiles import list_profiles
+    from psgscoring.profiles import get_profile, list_profiles
     for naam in list_profiles():
-        assert SCORING_PROFILES[naam]["AROUSAL_MIN_INTERVAL_S"] == 0.0, (
-            f"{naam} zet de tussenafstandsregel aan")
+        if get_profile(naam).family in ("dataset", "legacy"):
+            assert SCORING_PROFILES[naam]["AROUSAL_MIN_INTERVAL_S"] == 0.0, (
+                f"{naam} reproduceert een gepubliceerd resultaat en mag de "
+                "tussenafstandsregel niet aan hebben")
 
 
 def test_uitgeschakeld_geeft_dezelfde_lijst_terug():
