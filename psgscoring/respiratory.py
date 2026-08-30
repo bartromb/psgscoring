@@ -383,6 +383,19 @@ def detect_respiratory_events(
                     "[resp] PSGSCORING_EVENT_GAP_TOLERANCE_BREATHS=%r is geen "
                     "getal; profielwaarde aangehouden", _env_gap)
         _QUAL_FRAC     = float(sp.get("EVENT_MIN_QUALIFYING_FRACTION", 0.90))
+        # v0.31.1: de globale SpO2-basislijn-overname begrenzen. None = altijd
+        # overnemen = bestaand gedrag. De parameter bestond al in
+        # get_desaturation maar werd door niemand doorgegeven.
+        _DESAT_GBL = sp.get("DESAT_GLOBAL_BL_MIN_LOCAL_PCT")
+        _env_gbl = os.environ.get("PSGSCORING_DESAT_GLOBAL_BL_MIN_LOCAL_PCT")
+        if _env_gbl:
+            try:
+                _DESAT_GBL = float(_env_gbl)
+            except ValueError:
+                logger.warning(
+                    "[resp] PSGSCORING_DESAT_GLOBAL_BL_MIN_LOCAL_PCT=%r is geen "
+                    "getal; profielwaarde aangehouden", _env_gbl)
+        _DESAT_GBL = None if _DESAT_GBL is None else float(_DESAT_GBL)
         _env_frac = os.environ.get("PSGSCORING_EVENT_MIN_QUALIFYING_FRACTION")
         if _env_frac:
             try:
@@ -402,6 +415,7 @@ def detect_respiratory_events(
             "peak_min_consecutive_breaths": _PEAK_MIN_BR,
             "event_gap_tolerance_breaths": _GAP_BREATHS,
             "event_min_qualifying_fraction": _QUAL_FRAC,
+            "desat_global_bl_min_local_pct": _DESAT_GBL,
         }
 
         # ── perf (v0.7.x): shared-preprocessing cache ────────────────────
@@ -653,6 +667,7 @@ def detect_respiratory_events(
             gap_tolerance_s=_gap_s,
             min_qualifying_fraction=_QUAL_FRAC,
             gap_stats=_gap_stats_ap,
+            desat_global_bl_min_local_pct=_DESAT_GBL,
         )
 
         # ── Fix 1: Herbereken hypopnea-basislijn zonder post-apnea recovery ─
@@ -746,6 +761,7 @@ def detect_respiratory_events(
             gap_tolerance_s=_gap_s,
             min_qualifying_fraction=_QUAL_FRAC,
             gap_stats=_gap_stats_hy,
+            desat_global_bl_min_local_pct=_DESAT_GBL,
         )
         events = new_events
 
@@ -1844,6 +1860,8 @@ def _detect_apneas(
     gap_tolerance_s: float = 0.0,
     min_qualifying_fraction: float = 0.90,
     gap_stats: dict | None = None,
+    # None = altijd overnemen = bestaand gedrag; zie profiles.
+    desat_global_bl_min_local_pct: float | None = None,
 ) -> list[dict]:
     """Detecteer apnea-events: ≥90% flow-reductie gedurende ≥10s (AASM)."""
     events: list[dict] = []
@@ -1894,7 +1912,8 @@ def _detect_apneas(
                 use_rhythm=use_rhythm,
             )
             desat, min_spo2 = get_desaturation(
-                spo2_data, onset_s, sub_dur, sf_spo2, global_spo2_bl
+                spo2_data, onset_s, sub_dur, sf_spo2, global_spo2_bl,
+                global_baseline_min_local_pct=desat_global_bl_min_local_pct,
             )
             events.append({
                 "type":               ev_type,
@@ -1942,6 +1961,7 @@ def _detect_hypopneas(
     gap_tolerance_s: float = 0.0,
     min_qualifying_fraction: float = 0.90,
     gap_stats: dict | None = None,
+    desat_global_bl_min_local_pct: float | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Return (all_events_including_new_hypopneas, rejected_candidates)."""
     # Build apnea exclusion mask (±5 s around each confirmed apnea)
@@ -2023,13 +2043,14 @@ def _detect_hypopneas(
             # v0.8.22: Lokale basislijn-validatie — vergelijk met directe
             # pre-event ademhaling. Voorkomt false positives door opgeblazen
             # rollende basislijn (post-apnea recovery hyperpnea).
-            local_valid, local_red = (True, None) if pe_decided else _validate_local_reduction(
+            local_valid, local_red, local_floor = (
+                (True, None, None) if pe_decided else _validate_local_reduction(
                 hypop_env, sub_idx[0], sub_idx[-1] + 1, sf_hy,
                 min_reduction_pct=local_bl_min_reduction_pct,
                 pre_win_s=local_bl_pre_win_s,
                 stability_cv_threshold=local_bl_cv_threshold,
                 stability_strict_reduction=local_bl_strict_reduction,
-            )
+            ))
             if not local_valid:
                 rejected.append({
                     "type":       "hypopnea",
@@ -2040,7 +2061,7 @@ def _detect_hypopneas(
                     "min_spo2":   None,
                     "indices":    (sub_idx[0], sub_idx[-1] + 1),
                     "epoch":      ep_idx,
-                    "reject_reason": f"local_reduction_{local_red}pct<20pct",
+                    "reject_reason": f"local_reduction_{local_red}pct<{local_floor}pct",
                 })
                 continue
 
@@ -2052,6 +2073,7 @@ def _detect_hypopneas(
             desat, min_spo2 = get_desaturation(
                 spo2_data, onset_s, sub_dur, sf_spo2, global_spo2_bl,
                 post_win_s=post_event_win_s,
+                global_baseline_min_local_pct=desat_global_bl_min_local_pct,
             )
             rule1a = desat is not None and desat >= desat_pct
 
@@ -2229,12 +2251,25 @@ def _validate_local_reduction(
 
     Returns
     -------
-    (is_valid, local_reduction_pct)
+    (is_valid, local_reduction_pct, effective_min_pct)
         ``local_reduction_pct`` is the measured reduction (%) when valid;
         ``float('nan')`` when validation could not be measured (insufficient
         pre-event data or flat-line baseline). Callers expecting a numeric
         percentage MUST guard against NaN.
+
+        ``effective_min_pct`` is de vloer die WERKELIJK gehanteerd is, dus na
+        de stabiliteitsverscherping. Hij hoort erbij omdat de aanroeper hem
+        anders niet kan kennen: de verscherping gebeurt hierbinnen. De
+        afwijzingsreden noemde daardoor jarenlang een hardgecodeerde 20 terwijl
+        de werkelijke vloer 25 of 30 kon zijn -- er zijn afwijzingen
+        `local_reduction_28.6pct<20pct` gezien, die er onzinnig uitzien en het
+        niet zijn. `event_review._rejection_nearness` in YASAFlaskified deelt
+        die twee getallen op elkaar om te bepalen hoe dicht een kandidaat bij
+        scoren kwam; met een verkeerde noemer is die rangschikking scheef.
     """
+    # De vloer zoals hij BINNENKOMT. De stabiliteitsverscherping hieronder kan
+    # hem verhogen; wat we teruggeven is wat er werkelijk gegolden heeft.
+    effective_min = float(min_reduction_pct)
     pre_samples = int(pre_win_s * sf)
     pre_start   = max(0, event_start - pre_samples)
 
@@ -2243,13 +2278,13 @@ def _validate_local_reduction(
     # the event but we explicitly mark the reduction as "not measured" so
     # downstream consumers don't treat the missing measurement as 100%.
     if event_start - pre_start < int(3 * sf):
-        return True, float("nan")
+        return True, float("nan"), effective_min
 
     pre_seg   = env[pre_start:event_start]
     event_seg = env[event_start:event_end]
 
     if len(pre_seg) == 0 or len(event_seg) == 0:
-        return True, float("nan")
+        return True, float("nan"), effective_min
 
     pre_mean   = float(np.mean(pre_seg))
     event_mean = float(np.mean(event_seg))
@@ -2257,7 +2292,7 @@ def _validate_local_reduction(
     if pre_mean < 1e-9:
         # Pre-event flat-lined — likely sensor dropout, not a true baseline.
         # Don't reject the event but do not pretend we measured a reduction.
-        return True, float("nan")
+        return True, float("nan"), effective_min
 
     local_reduction = (1.0 - event_mean / pre_mean) * 100.0
 
@@ -2277,8 +2312,10 @@ def _validate_local_reduction(
         # rarely fires.
         if local_cv < stability_cv_threshold:
             min_reduction_pct = max(min_reduction_pct, stability_strict_reduction)
+            effective_min = float(min_reduction_pct)
 
-    return local_reduction >= min_reduction_pct, safe_r(local_reduction)
+    return (local_reduction >= min_reduction_pct, safe_r(local_reduction),
+            safe_r(effective_min))
 
 
 # ---------------------------------------------------------------------------

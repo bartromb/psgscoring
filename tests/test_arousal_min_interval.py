@@ -232,3 +232,33 @@ def test_onleesbare_env_valt_terug_op_het_argument(monkeypatch, caplog):
         ev, _ = _tel(4.0, 10.0)
     assert len(ev) == 1
     assert any("geen getal" in m for m in caplog.messages)
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  8. De teller telt beide samenvoegstappen
+# ══════════════════════════════════════════════════════════════════════
+#
+# De regel draait per afleiding EN na de union. `n_interval_merged` telde
+# alleen die tweede: op PSG-IPA SN3 stond er 4 terwijl de telling van 173 naar
+# 159 ging. Wie het veld leest om te zien hoeveel de regel deed, kreeg een
+# factor drie te weinig.
+
+def test_de_teller_telt_beide_stappen(monkeypatch):
+    from psgscoring.arousal import detect_arousals_multi
+
+    eeg = _eeg_met_twee_bursts(4.0)
+    hypno = ["N2"] * (DUUR // 30)
+    # Twee afleidingen: dezelfde bursts, de tweede iets verschoven zodat de
+    # union ze NIET al samenvoegt (die fuseert alleen bij overlap).
+    tweede = np.roll(eeg, int(6.0 * SF))
+    res = detect_arousals_multi([("C4-M1", eeg, SF), ("O2-M1", tweede, SF)],
+                                SF, hypno, min_interval_s=10.0)
+    s = res["summary"]
+    assert "n_interval_merged_per_derivation" in s
+    assert "n_interval_merged_after_union" in s
+    assert s["n_interval_merged"] == (s["n_interval_merged_per_derivation"]
+                                      + s["n_interval_merged_after_union"])
+    assert s["n_interval_merged"] >= s["n_interval_merged_after_union"], (
+        "het totaal mag nooit kleiner zijn dan de deelstap die er eerst stond")
+    assert s["n_interval_merged_per_derivation"] > 0, (
+        "fixture voegt per afleiding niets samen -- meet dan niet wat ze bedoelt")

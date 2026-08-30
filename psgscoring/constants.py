@@ -124,6 +124,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "EVENT_MIN_QUALIFYING_FRACTION": pp.event_min_qualifying_fraction,
         "SPLIT_EVENTS_LONGER_THAN_S": pp.split_events_longer_than_s,
         "DESAT_LOW_BASELINE_RELAXATION": pp.desat_low_baseline_relaxation,
+        "DESAT_GLOBAL_BL_MIN_LOCAL_PCT": pp.desat_global_baseline_min_local_pct,
         "HYPOXIC_BURDEN_LOCAL_BASELINE": pp.hypoxic_burden_local_baseline,
         "HYPOPNEA_AROUSAL_LATENCY": pp.hypopnea_arousal_latency_grading,
         "RULE1A_AROUSAL_ENABLED": pp.rule1a_arousal_enabled,

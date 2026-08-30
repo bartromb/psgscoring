@@ -1552,7 +1552,21 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
     summ = _recompute_arousal_summary(merged, hypno, set(artifact_epochs or []))
     if min_interval_s:
         summ["min_interval_s"] = float(min_interval_s)
-        summ["n_interval_merged"] = _mi_stats["n_merged"]
+        # De regel draait TWEE keer: per afleiding binnen `detect_arousals`, en
+        # nog eens na de union. Hier stond alleen die tweede, en dat is de
+        # kleinste van de twee: op PSG-IPA SN3 meldde het veld 4 terwijl de
+        # telling 173 -> 159 ging. Een lezer die dat veld gebruikt om te zien
+        # hoeveel de regel deed, kreeg een factor drie te weinig.
+        #
+        # Zelfde vorm als de lgbm-tellingen hierboven: per afleiding optellen.
+        # De uitsplitsing blijft leesbaar, want de twee stappen betekenen niet
+        # hetzelfde -- de eerste voegt buren binnen EEN kanaal samen, de tweede
+        # buren die pas door de union naast elkaar kwamen te liggen.
+        _per_deriv = sum((r.get("summary") or {}).get("n_interval_merged", 0)
+                         for _, r in per)
+        summ["n_interval_merged"] = _per_deriv + _mi_stats["n_merged"]
+        summ["n_interval_merged_per_derivation"] = _per_deriv
+        summ["n_interval_merged_after_union"] = _mi_stats["n_merged"]
     summ["n_derivations"] = len(per)
     summ["derivations"] = [n for n, _ in per]
     summ["n_per_derivation"] = {n: len(res.get("events", [])) for n, res in per}

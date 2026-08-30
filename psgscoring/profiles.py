@@ -218,6 +218,36 @@ class PostProcessingRules:
     aanzetten en strictness opnieuw afleiden zijn één experiment. Zie de
     CHANGELOG bij v0.16.0."""
 
+    desat_global_baseline_min_local_pct: float | None = None
+    """Vanaf welke lokale SpO₂-basislijn de GLOBALE basislijn nog mag overnemen.
+
+    `get_desaturation` bepaalt de desaturatie tegen de lokale pre-event
+    basislijn (90e percentiel over 120 s), en vervangt die door de globale
+    (95e percentiel over alle slaap) zodra de globale hoger ligt. Dat is
+    bedoeld voor ernstige OSAS, waar het pre-event venster zelf al gedaald kan
+    zijn en de lokale basislijn de daling wegmeet.
+
+    Bij een CHRONISCHE desatureerder werkt hij averechts. Ligt de echte
+    basislijn van een COPD- of OHS-patiënt op 88 %, dan tilt de globale
+    overname hem naar bijvoorbeeld 92 %, en elke daling wordt 4 procentpunt
+    dieper gemeten dan ze is. Dat telt te veel, en het is niet zichtbaar in de
+    uitvoer.
+
+    Deze waarde begrenst de overname: hij vuurt alleen nog wanneer de lokale
+    basislijn ONDER dit percentage ligt, dus alleen wanneer die implausibel
+    laag is. Een zinnige startwaarde is 88.
+
+    De parameter bestond al in `spo2.get_desaturation` maar werd door geen
+    enkele aanroeper doorgegeven — een knop die niets deed. Sinds 30-08-2026 is
+    hij bedraad; de default `None` houdt het bestaande gedrag (altijd
+    overnemen), dus elk profiel blijft byte-identiek tot iemand hem zet.
+    Env-override `PSGSCORING_DESAT_GLOBAL_BL_MIN_LOCAL_PCT`, zodat beide armen
+    te meten zijn zonder de registry te muteren.
+
+    NIET hetzelfde als `desat_low_baseline_relaxation`: die verschuift het
+    CRITERIUM van 3 % naar 2 %, dit verschuift de BASISLIJN waartegen gemeten
+    wordt. Ze raken dezelfde patiëntengroep langs twee verschillende assen."""
+
     desat_low_baseline_relaxation: bool = False
     """Verschuif het desaturatiecentrum van 3 % naar 2 % bij een lage baseline.
 
