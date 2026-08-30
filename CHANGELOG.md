@@ -1,3 +1,96 @@
+# v0.31.1 — 2026-08-30 — eerlijke rapportage, twee dode knoppen bedraad, CI groen
+
+**Geen gedragswijziging.** Geen enkel profiel scoort anders; golden 9/9,
+1253 tests. Wat verandert is wat de software OVER ZICHZELF rapporteert, plus
+drie vlaggen die klaarstaan maar uit staan.
+
+## Het rapport noemde een criterium dat niet werd toegepast
+
+`_hypopnea_criterion_str` drukte "≥30% flow reduction ≥10 s + (≥3%
+desaturation **OR arousal**)" af zodra `desat_or_arousal` gezet was. Op
+`aasm_v3_rec` draait die arousal-tak helemaal niet — `rule1a_arousal_enabled`
+en `arousal_limb_wired` staan er allebei uit. Een clinicus las dus een regel
+die de software niet volgt.
+
+`arousal_limb_is_effective()` beslist nu op grond van wat er werkelijk
+gebeurt. De ademteug-gegradeerde detector leest de arousals rechtstreeks in
+stap 7b en past de tak dus altijd toe; de envelope-detector heeft beide
+vlaggen nodig. Een profiel dat de tak wél toestaat maar hem uit heeft staan,
+zegt dat nu:
+
+    aasm_v3_rec     ... + ≥3% desaturation (arousal limb permitted by the
+                        rule but not enabled in this profile)
+    aasm_v3_breath  ... + (≥3% desaturation OR arousal)
+
+Dat verschil tussen die twee profielen was tot nu toe nergens af te lezen.
+
+## De afwijzingsreden noemde een drempel die niet gold
+
+`_validate_local_reduction` verhoogt zijn eigen vloer bij stabiele ademhaling,
+en de aanroeper wist dat niet: die schreef een hardgecodeerde 20 in de reden.
+Er bestaan dus afwijzingen `local_reduction_28.6pct<20pct`, die er onzinnig
+uitzien en het niet zijn — de vloer stond op 30.
+
+Niet cosmetisch: `event_review._rejection_nearness` in YASAFlaskified deelt die
+twee getallen op elkaar om te bepalen welke events een beoordelaar te zien
+krijgt. Met de verkeerde noemer werd 28,6/20 een "grensgeval" in plaats van
+28,6/30 = 0,95.
+
+## Twee knoppen die niets deden
+
+`global_baseline_min_local_pct` bestond in `get_desaturation` en werd door geen
+enkele aanroeper doorgegeven. Zonder hem neemt de globale SpO₂-basislijn altijd
+de lokale over — goed bij ernstige OSAS, averechts bij een chronische
+desatureerder: een COPD- of OHS-patiënt met een echte basislijn van 88 % wordt
+tegen 92 % gemeten en elke dip leest vier punten te diep. Nu een profielveld
+met env-override, default `None` = ongewijzigd. Op een fixture met basislijn
+88 %, globaal 92 % en dips van 2,5 % gaat de telling van 4/4 naar 1/4 — events
+die er nooit waren.
+
+`rera_arousal_window_s` vervangt drie losse getallen voor één vraag: het
+profielveld voor hypopnee-herstel (15 s, `mesa_shhs` 5 s), een hardgecodeerde
+15,0 in `_compute_rera_rdi` en een hardgecodeerde 10,0 in `detect_reras`. Beide
+RERA-paden staan nu op één waarde. Bewust een eigen veld — het hypopneevenster
+hergebruiken zou `mesa_shhs` stil naar 5 s trekken.
+
+## Tellingen die niet klopten of ontbraken
+
+* `n_interval_merged` telde alleen de samenvoegingen ná de union, terwijl de
+  10-secondenregel twee keer draait. Op PSG-IPA SN3 stond er 4 waar de telling
+  van 173 naar 159 ging. Nu de som, met beide helften apart.
+* Arousalregio's langer dan `AROUSAL_MAX_DUR_S` verdwenen zonder spoor, zodat
+  een lage arousal-index niet te onderscheiden was van veel weggooien. Nu
+  geteld — inclusief de seconden en de grens zelf — en doorgetrokken door het
+  classifierfilter, de intervalregel en de multi-wrapper.
+
+## Twee RERA-definities, één gerapporteerd
+
+`detect_reras` (flow-limitatie) en `_compute_rera_rdi` (FRI + flattening) staan
+naast elkaar onder bijna dezelfde naam, `n_reras` tegen `n_rera`, en alleen de
+tweede voedt de RDI en het rapport. De diagnostische zegt dat nu in zijn eigen
+uitvoer en wijst naar degene die wél telt.
+
+## Een gemeten asymmetrie, achter een vlag
+
+In REM toetst fase 1 op `alpha_pow` terwijl de rollende basislijn op
+alpha+theta+beta stond. Theta ís de REM-achtergrond, dus de noemer wordt
+gedomineerd door precies wat geen arousal is en de drempel ligt er te hoog.
+`arousal_rem_baseline_alpha` repareert de basislijn én de abruptheidstoets —
+half repareren zou een derde asymmetrie maken. **Default uit**: aanzetten
+verandert de REM-arousalindex, een getoond getal, en vraagt eerst een meting op
+beide cohorten.
+
+## CI
+
+De `tests`-workflow stond sinds ten minste 26-08 op elke push rood: vijf tests
+hebben de LightGBM-classifier nodig en die zit in de `[ml]`-extra, terwijl CI
+alleen `[test]` installeerde. De bedoeling stond er al — de stap ervoor
+installeert `libgomp1` juist voor LightGBM.
+
+En publiceren had geen poort: 0.31.0 ging naar PyPI terwijl de suite rood
+stond. `publish.yml` draait nu eerst de volledige `tests`-workflow op de
+getagde commit.
+
 # v0.31.0 — 2026-08-30 — de AASM-regel van 10 s tussen arousals aan, werkpunt 0,70
 
 Gedragswijziging op één punt, en het raakt een gerapporteerd klinisch getal: de
