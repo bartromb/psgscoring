@@ -1,3 +1,112 @@
+# v0.31.0 — 2026-08-30 — de AASM-regel van 10 s tussen arousals aan, werkpunt 0,70
+
+Gedragswijziging op één punt, en het raakt een gerapporteerd klinisch getal: de
+**arousal-index daalt**, en RERA en RDI bewegen mee omdat ze dezelfde
+arousallijst lezen. `mesa_shhs` en `chicago_1999` zijn expliciet gepind en
+blijven byte-identiek; paper v31/v37 reproduceert ongewijzigd. Golden 9/9,
+1226 tests.
+
+De overige zes wijzigingen in deze release zijn gedragsneutraal: twee weerlegde
+vlaggen die default uit staan, een reparatie in een tak die nergens aanstond,
+twee documentatiecorrecties en een testpoort.
+
+## De 10-secondenregel tussen arousals staat aan, en de drempel op 0,70
+
+De AASM eist dat een arousal wordt voorafgegaan door ten minste 10 s stabiele
+slaap. `detect_arousals` toetste daarvan alleen de hypnogramkant — of de
+voorgaande 10 s als slaap gescoord staat — en een epoch waarin net een arousal
+zat heet nog steeds N2. Die check zag een voorgaande arousal dus nooit. Op een
+synthetisch EEG met twee bursts van 4 s uit elkaar scoorde de detector er twee
+waar er één hoort te staan. In multi-derivatie, de default op de klinische
+profielen, telt het dubbel: `_union_arousals` fuseert alleen bij temporele
+OVERLAP, dus twee afleidingen die 2 s na elkaar vuren leveren twee events.
+
+De twee vlaggen bewegen SAMEN en zijn los van elkaar niet verdedigbaar. De
+regel haalt ~15 % van de events weg, dus het optimum schuift mee omlaag; de
+regel op 0,80 laten staan geeft een count-ratio van 0,81 op PSG-IPA en dan telt
+de index te laag.
+
+Gemeten event-F1 tegen de scoorders (`--multi`), PSG-IPA n=5 / MESA n=30:
+
+| | PSG-IPA | MESA |
+|---|---|---|
+| 0,80 + regel uit *(0.30.0)* | 0,5144 (ratio 1,014) | 0,4101 (ratio 0,760) |
+| 0,80 + regel aan | 0,5371 (ratio 0,810) | **0,4251** (ratio 0,669) |
+| 0,70 + regel aan *(nu)* | **0,5559** (ratio **1,000**) | 0,4171 (ratio 0,841) |
+
+Op PSG-IPA — twaalf scoorders — wint de regel op **15 van de 15** paren over
+drie drempels, en op gematchte count-ratio levert 0,70 + regel **+0,042 F1**.
+Dat sluit boekhouding uit: dezelfde telling, betere localisatie. Tegen het
+gemeten menselijke plafond van 0,679 is dat ongeveer een kwart van het gat.
+
+**Lees de MESA-kolom er eerlijk bij.** De regel repliceert daar bij gelijke
+drempel (p = 0,024 op 0,80 en p = 0,008 op 0,70), maar 0,80 + regel is er béter
+dan 0,70 + regel, en het vooraf vastgelegde primaire criterium voor juist deze
+combinatie is NIET gehaald: 20 van 30 beter waar er 21 nodig waren, p = 0,099.
+De cohorten zijn het eens dat de regel wint en oneens over de drempel. De keuze
+voor 0,70 is gemaakt op de multi-scoordercohort en is een klinisch besluit, geen
+statistische conclusie. Geen tussenliggende drempel geprobeerd — dat zou
+drempelvissen zijn ná het zien van de data.
+
+Verslag: `docs/arousal_10s_regel_20260830.md`.
+
+## De arousal-tak van Rule 1A herstelde kandidaten die een verplicht criterium misten
+
+`reinstate_rule1a_arousal_hypopneas` liep over de hele lijst afgewezen
+kandidaten zonder ooit naar `reject_reason` te kijken. Die lijst bevat ook
+kandidaten die op de FLOWREDUCTIE sneuvelden (`local_reduction_*`,
+`pre_event_reduction_*`) en events die het stabiele-ademhalingsfilter had
+geveto'd. Een arousal kon dus een event promoveren dat de amplitudedrempel nooit
+haalde.
+
+De AASM eist de ≥30 %-reductie en de ≥10 s-duur in BEIDE takken; alleen de
+bevestiging is een disjunctie. De afwijzing wegens ontbrekende desaturatie
+noemt zichzelf nu (`reject_reason="no_desaturation"`) en de herstelpas werkt met
+een ALLOW-list, zodat een grond die later bijkomt geweigerd wordt in plaats van
+stilzwijgend te kwalificeren.
+
+Uitvoerneutraal: geen profiel zet `rule1a_arousal_enabled`. Het telt omdat de
+kalibratie van die tak dit pad gebruikt, en zonder de reparatie zou dat
+experiment een vervuilde tak meten.
+
+## Duurtolerantie op de amplitudemaskers — gebouwd, gemeten, WEERLEGD
+
+`event_gap_tolerance_breaths` (default `0.0`) laat een korte onderbreking een
+event niet vernietigen; de AASM staat dat uitdrukkelijk toe. Twee werkpunten op
+twee cohorten: PSG-IPA verliest op allebei (ΔF1 −0,022 en −0,017), MESA wint op
+1 ademteug (+0,017, p = 0,017) maar niet op 0,25 (p = 0,10). Vierendelen
+behoudt 53 % van de winst en 76 % van de schade.
+
+De oorzaak is meetbaar: het hypopneemasker op SN1 heeft **4631 runs in één
+nacht** — spikkel van de 30 %-drempel op een ruizige neusdruk-envelope, geen
+doorgeknipte events. De brug overbrugde er 678 en verdubbelde de hypopneus.
+Het effect volgt het teken van de bestaande bias, dus dit is een
+compensatieknop, geen reparatie. Default uit; de code blijft staan zodat een
+volgende ronde hem niet opnieuw hoeft af te leiden.
+Verslag: `docs/duurtolerantie_20260829.md`.
+
+## Een biascijfer in de registry was nooit gemeten
+
+`rule1a_arousal_enabled` droeg "op PSG-IPA gaat de bias van +1.77 naar
++7.75/u". Dat tweede getal komt in geen enkel verslag voor; de commit die het
+invoerde draagt een meettabel over drie opnames zonder biascijfer, waaruit
++1,13 → +3,39 volgt. Werkelijk gemeten met beide benodigde vlaggen aan:
+**+1,69 → +2,05** op PSG-IPA (11 gekwalificeerde events over vijf nachten), en
+op MESA n=150 F1 0,438 → 0,382 met bias −5,26 → +8,01. MESA draagt het besluit
+om de tak uit te laten, PSG-IPA nauwelijks.
+Verslag: `docs/rule1a_arousal_20260829.md`.
+
+## Env-overrides die hun consument niet bereikten
+
+Op één dag sprong dezelfde val vier keer: een vlag die alleen in `pipeline.py`
+gelezen wordt is onzichtbaar voor elk meetharnas dat de detectoren rechtstreeks
+aanroept, en zo'n run ziet er geslaagd uit terwijl hij niets meet.
+`detect_arousals` leest `PSGSCORING_AROUSAL_MIN_INTERVAL_S` nu zelf, en een
+nieuwe test bewaakt twee dingen: elke `PSGSCORING_*` die genoemd wordt, wordt
+ergens echt uitgelezen, en de zestien vlaggen die alleen via de pipeline
+leesbaar zijn staan in een expliciete lijst — zodat de volgende dat beslist in
+plaats van ontdekt tijdens een meting.
+
 # v0.30.0 — 2026-08-26 — poortmaten geaudit, segmentindices samengevoegd, golden scherper
 
 Gedragswijziging op één punt: de split-nightsegmenten tellen nu de DEFINITIEVE
