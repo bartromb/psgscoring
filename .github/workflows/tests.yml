@@ -57,10 +57,20 @@ jobs:
           sudo apt-get install -y --no-install-recommends libgomp1
 
       # ─── Install package ───────────────────────────────────────────
+      # `ml` staat erbij omdat vijf tests de LightGBM-classifier NODIG hebben:
+      # zonder lightgbm valt `detect_arousals` terug op het regelgebaseerde pad
+      # en meldt `lgbm_available=False`, waarna de arousal-tests over het
+      # werkpunt, het event-locked venster en de EMG-guard allemaal omvallen.
+      # De suite stond daardoor sinds ten minste 26-08-2026 op elke push rood,
+      # terwijl hij lokaal groen was -- daar zit lightgbm wel in de omgeving.
+      #
+      # De stap hierboven installeert libgomp1 al expliciet "LightGBM (optional
+      # [full] extra) also needs it", dus de bedoeling stond er altijd al;
+      # alleen de installatieregel trok de extra niet binnen.
       - name: Install psgscoring with test extras
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[test]"
+          pip install -e ".[test,ml]"
 
       # ─── Import smoke (no pytest needed) ───────────────────────────
       # Runs even if tests/ is empty; catches basic import regressions.
@@ -117,6 +127,13 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends libgomp1
+      # BEWUST zonder `ml`, anders dan de matrixjob hierboven. Deze job is
+      # altijd groen geweest ZONDER lightgbm, en lokaal is hij groen MET
+      # lightgbm -- de golden-uitvoer hangt dus niet van de classifier af. Dat
+      # is een eigenschap die het waard is te blijven toetsen: de synthetische
+      # EEG staat op 32 Hz en AROUSAL_LGBM_MIN_SF is 64, dus de hybride hoort
+      # daar sowieso overgeslagen te worden. Zet `ml` er alleen bij als je die
+      # controle bewust opgeeft.
       - name: Install psgscoring with test extras
         run: |
           python -m pip install --upgrade pip
