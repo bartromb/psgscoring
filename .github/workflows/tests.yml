@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:   # allow manual trigger from UI
+  # Aanroepbaar vanuit publish.yml, zodat een release NIET kan publiceren
+  # terwijl de suite rood staat. Dat was tot 30-08-2026 wel het geval: 0.31.0
+  # ging naar PyPI terwijl deze workflow op elke push faalde. Hergebruik in
+  # plaats van de stappen dupliceren -- twee kopieën van een testopstelling
+  # lopen uiteen, en dan is de poort er wel maar bewaakt hij iets anders.
+  workflow_call:
 
 jobs:
   lint:

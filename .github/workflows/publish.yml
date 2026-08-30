@@ -27,8 +27,20 @@ on:
   workflow_dispatch:   # allow manual trigger for re-upload
 
 jobs:
+  # ─── Poort ─────────────────────────────────────────────────────────
+  # Draait de VOLLEDIGE tests-workflow op de getagde commit. Zonder deze
+  # stap publiceert een release ongeacht de staat van de suite: op
+  # 30-08-2026 ging 0.31.0 naar PyPI terwijl `tests` sinds ten minste
+  # 26-08 op elke push rood stond, en PyPI kent geen verwijderen -- alleen
+  # yanken. De poort kost ~3 minuten en dat is de prijs niet waard om te
+  # besparen.
+  tests:
+    name: Test gate
+    uses: ./.github/workflows/tests.yml
+
   build:
     name: Build distribution
+    needs: tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
