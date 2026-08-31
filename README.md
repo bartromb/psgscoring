@@ -323,6 +323,35 @@ Paired against `aasm_v3_rec`, breath-graded scoring raises event agreement by
 a median ΔF1 of **+0.029** (95/150 recordings, p = 6.8·10⁻⁸); the probabilistic
 variant by +0.036 (p = 1.4·10⁻⁹).
 
+**Read the bias column against the reference it is measured on.** `aasm15`
+credits hypopneas that qualify *only* through an arousal, and `aasm_v3_rec`
+cannot produce those: `rule1a_arousal_enabled` is off on every profile, so the
+arousal limb of Rule 1A qualifies nothing. A large part of the bias is
+therefore a rule we do not apply, not a detector that under-counts.
+
+Measured against `desat3_all` — the same reconstruction, but all apnea types
+and hypopneas on desaturation only, which is what the default profile actually
+scores:
+
+| profile | vs `aasm15` | vs `desat3_all` | median F1 (like-for-like) |
+|---|---|---|---|
+| `aasm_v3_rec` | −5.26 | **−1.43** | 0.430 |
+| `aasm_v3_breath` | −5.13 | **−1.31** | 0.505 |
+
+Both shift by the same ≈3.8/h, which is what marks this as a property of the
+reference rather than of the profile. Roughly three quarters of the reported
+under-detection is the missing arousal limb; the residual detector bias is
+about −1.4/h.
+
+Two caveats. `oahi3` is *not* the like-for-like comparison even though the bias
+against it is near zero (+0.31 at n=30, −0.66 at n=150): it is obstructive-only
+and drops central and mixed apneas from the reference while the algorithm
+scores them, so that near-zero can be two errors cancelling. And `desat3_all`
+has no published NSRR column, so unlike the other three references it cannot be
+calibrated with `--verify-reference`; it inherits its credibility from the same
+reconstruction code. The three remaining profiles in the table above were not
+recomputed — only `aasm_v3_rec` and `aasm_v3_breath` have stored event lists.
+
 **These numbers moved substantially in 0.17.0**, and the reason is worth
 stating plainly. The earlier figures on this cohort reported a bias of −11 to
 −15/h and were read as under-detection. Most of it was not: a signal-quality
