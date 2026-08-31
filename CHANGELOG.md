@@ -1,3 +1,85 @@
+# v0.31.2 — 2026-08-31 — de CSR-herclassificatie claimt niet meer wat ze niet kan waarmaken
+
+Eén zichtbare wijziging, en die raakt geen enkele index: de **confidence van
+CSR-herclassificeerde events** wordt niet langer kunstmatig opgetrokken. De AHI,
+de OAHI en alle afgeleide indices blijven gelijk. Golden 9/9, 1277 tests.
+
+## Een rapport dat zichzelf tegensprak
+
+Een uitgeleverd rapport toonde "centraal 29 (40 %)" op twee sterren bij een
+patiënt met een split-night van 83,5/u zonder CPAP en 1,1/u ermee. Die 29
+centrale events waren niet als centraal gedétecteerd: ze kwamen alle 29 uit de
+CSR-herclassificatie, die obstructieve en gemengde apneus in een
+Cheyne-Stokes-dal centraal noemt. Een respons die zo volledig is op druk wijst
+juist op obstructieve events.
+
+Die stap is op 14-08 gemeten en zwak bevonden op precies de nachten waar hij
+vuurt: `docs/subtypering_mesa_20260814.md`, MESA n=52, **κ = 0,091** op
+CSR-nachten tegen 0,311 zonder, met 230 van de 235 fouten in de richting
+obstructief → centraal. Er veranderde toen niets. Nu wel.
+
+**De confidence wordt niet meer opgetrokken.** De regel zette
+`max(conf, 0.80)` met als toelichting dat de CSR-context goed bewijs levert —
+en verhoogde daarmee het vertrouwen in juist de beslissing die daar het zwakst
+is. De sterrenkolom in het rapport leest dat veld, en 0,80 valt in de band
+0,60–0,84; dat is waarom 26 van die 29 events twee sterren droegen. Events
+houden nu hun eigen confidence uit `classify_apnea_type`.
+`csr_confidence_floor` herstelt het oude getal voor een reproductie.
+
+**De therapiehelft wordt nu gebruikt.** Bij een split-night is die een
+onafhankelijk signaal over de subtypering dat de scoring nooit raadpleegde.
+`csr_therapy_contradiction()` meldt de tegenspraak wanneer een ernstige
+diagnostische AHI onder therapie onder 5/u zakt terwijl de meerderheid van de
+centrale events uit herclassificatie komt. Conventionele drempels, geen
+zelfbedachte: 5/u voor behandelsucces, 15/u zodat een vrijwel-volledige respons
+iets betekent. Het is een OBSERVATIE — geen event gaat terug, geen index
+beweegt.
+
+**De stap is meetbaar geworden.** `csr_reclassification` bestond al sinds
+v0.4.x, twee profielen zetten hem expliciet, en `pipeline.py` gaf hem nooit
+door: uitzetten deed niets.
+
+## Twaalf profielvelden zonder consument
+
+`profiles.py` heet in de code "the single source of truth" voor het
+scoringsgedrag. Twaalf van de 101 velden waren dat niet — gedeclareerd, gezet
+door profielen, gelezen door niets.
+
+Ze waren niet onopgemerkt: **vier tests hielden ze in leven** door de declaratie
+te pinnen in plaats van het gedrag. `assert p.hypopnea.sensor ==
+"nasal_pressure"` bewijst dat een veld een waarde heeft, niet dat iets het
+leest, en zo'n assert kan niet falen door de bedrading weg te halen.
+
+Twee ervan sliepen niet maar logen, en zijn verwijderd in plaats van bedraad:
+
+* `HypopneaRules.sensor` dupliceerde `flow_fallback_strategy` en sprak het bij
+  `chicago_1999` tegen — het veld zei `nasal_pressure_or_flow`, dus mét
+  terugval, terwijl de bedrade strategie `none` was.
+* `unsure_as_hypopnea` beschreef hoe de NSRR-annotatie gelezen moet worden, niet
+  hoe wij scoren; dat hoort in het harnas, waar het ook al staat.
+
+`tests/test_profile_fields_have_a_consumer.py` bewaakt de rest: een nieuw veld
+zonder consument dwingt nu een beslissing af in plaats van een ontdekking
+tijdens een meting.
+
+## De MESA-bias stond op de verkeerde referentie
+
+De README meldde −5,30/u op MESA en dat las als onderdetectie. Grotendeels is
+het dat niet. `aasm15` crediteert hypopneeën die alleen via een arousal
+kwalificeren, en `aasm_v3_rec` kan die per constructie niet produceren.
+
+De nieuwe referentiearm `desat3_all` — dezelfde reconstructie, alle apneutypes,
+hypopneeën op alleen desaturatie — geeft:
+
+| profiel | vs `aasm15` | vs `desat3_all` |
+|---|---|---|
+| `aasm_v3_rec` | −5,26 | **−1,43** |
+| `aasm_v3_breath` | −5,13 | **−1,31** |
+
+Beide verschuiven met dezelfde ≈3,8/u. Dat twee profielen met verschillende
+hypopneedetectoren dezelfde correctie krijgen, is wat dit tot een eigenschap
+van de referentie maakt. Beide README's zijn bijgewerkt.
+
 # v0.31.1 — 2026-08-30 — eerlijke rapportage, twee dode knoppen bedraad, CI groen
 
 **Geen gedragswijziging.** Geen enkel profiel scoort anders; golden 9/9,
