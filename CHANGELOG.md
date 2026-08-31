@@ -52,6 +52,25 @@ nachtgetal doet dat.
 `n_lm_eligible` staat er per segment bij, zodat het verschil tussen "beweging"
 en "reeksdeelnemer" zichtbaar is in plaats van verborgen.
 
+## Wat NIET gesplitst is, en waarom
+
+Vijf grootheden staan nog over de hele nacht. Geen van vijf staat in een
+klinische kernsectie van het rapport, en elk vraagt meer dan een venster:
+
+* **FRI-index** — vraagt de onsets van de FRI-events, zoals `rera_onsets_s` die
+  nu voor de RERA's draagt. Cheap, maar niet gedaan zonder een lezer die erom
+  vraagt.
+* **LM-index** — de teller is `sleep_lms`, een SUPERSET van de gepubliceerde
+  `events` (die zijn al ontdaan van respiratoir-geassocieerde bewegingen). Uit
+  de uitvoer alleen is hij dus niet exact te herleiden; een schatting zou
+  dezelfde klasse fout zijn als die hierboven.
+* **PLM-arousalindex** — hangt aan `_compute_arousal_etiology`, dat NA het
+  split-blok draait.
+* **Hypoxische en ventilatoire last** — `compute_hypoxic_burden()` neemt vier
+  profielafhankelijke argumenten; die door het split-blok heen halen koppelt
+  twee stappen die nu los staan.
+* **Centrale-instabiliteitsindex** — post-processing, na het split-blok.
+
 1323 tests, golden 9/9, mypy schoon. Geverifieerd op MESA-opname 0001 (12 u,
 723 beenbewegingen, 155 reeksdeelnemers).
 
