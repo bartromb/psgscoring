@@ -412,23 +412,43 @@ def segment_plm(plm_events, hypno, breakpoint_s, epoch_len_s=30.0,
                 artifact_epochs=None) -> dict:
     """PLM-index per segment.
 
-    Geteld worden de bewegingen die de PLM-stap AL als reeksdeelnemer heeft
-    goedgekeurd; hier wordt niets opnieuw gekwalificeerd. Een reeks die over
-    het breekpunt heen loopt valt daardoor in beide helften, elk met de
-    bewegingen die er tijdens vielen. Dat is de juiste boekhouding voor een
+    TELT `is_plm`, NIET DE LIJST
+    ----------------------------
+    `analyze_plm()` publiceert in `events` alle IN AANMERKING KOMENDE
+    beenbewegingen (`plm_eligible`), maar de PLM-index rekent alleen de
+    bewegingen die deel uitmaken van een gekwalificeerde REEKS -- vier of meer
+    met een interval van 5 tot 90 s. Elke beweging draagt daarvoor `is_plm`.
+
+    De eerste versie hiervan telde de lijst zelf, en dat gaf op een echte
+    opname PLMI 91,3 en 29,2 per helft naast 12,9 over de nacht: twee helften
+    die allebei ver boven hun eigen gemiddelde liggen, wat rekenkundig niet kan.
+    De synthetische test zag het niet, omdat een met de hand gemaakte lijst
+    per constructie alleen reeksdeelnemers bevatte. Dat is precies de klasse
+    fout waar dit project vaker op is gestrand: twee tellers onder één naam.
+
+    Een reeks die over het breekpunt heen loopt valt in beide helften, elk met
+    de bewegingen die er tijdens vielen. Dat is de juiste boekhouding voor een
     index per uur slaap, maar het betekent dat de twee segmenttellingen niet
     per se twee complete reeksen zijn.
     """
     uit = {}
     noemers = segment_denominator_h(hypno, breakpoint_s, epoch_len_s,
                                     artifact_epochs)
+    # Draagt geen enkele beweging het veld, dan komt de lijst niet uit
+    # analyze_plm() en is elk element per aanname al reeksdeelnemer.
+    heeft_vlag = any("is_plm" in e for e in (plm_events or []))
     for naam, lo, hi in _segmenten(hypno, breakpoint_s, epoch_len_s):
         ev = _venster(plm_events or [], lo, hi)
+        n = sum(1 for e in ev if e.get("is_plm")) if heeft_vlag else len(ev)
         h = noemers.get(naam) or 0.0
         uit[naam] = {
             "sleep_h": round(h, 3),
-            "n_plm": len(ev),
-            "plm_index": _per_uur(len(ev), h),
+            "n_plm": n,
+            # Alle in aanmerking komende bewegingen in dit venster, of ze nu
+            # in een reeks vielen of niet. Staat erbij zodat het verschil met
+            # `n_plm` zichtbaar is in plaats van verborgen.
+            "n_lm_eligible": len(ev),
+            "plm_index": _per_uur(n, h),
             "reliable": bool(h >= 0.5),
         }
     return uit

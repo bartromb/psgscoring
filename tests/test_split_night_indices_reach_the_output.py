@@ -197,3 +197,42 @@ def test_de_houding_per_helft_wordt_gerapporteerd(uit):
     pos = uit["split_night"]["position"]
     assert (pos.get("diagnostic") or {}).get("ahi_per_pos") is not None
     assert (pos.get("therapeutic") or {}).get("ahi_per_pos") is not None
+
+
+@pytest.mark.parametrize("fam,teller,nacht_pad", [
+    ("arousal", "n_arousals", ("arousal", "events")),
+    ("plm", "n_plm", None),
+])
+def test_de_twee_helften_zijn_samen_de_hele_nacht(uit, fam, teller, nacht_pad):
+    """De invariant die de PLM-fout had moeten vangen.
+
+    `segment_plm` telde eerst de gepubliceerde eventlijst in plaats van de
+    bewegingen met `is_plm`. Dat gaf op een echte opname PLMI 91,3 en 29,2 per
+    helft naast 12,9 over de nacht: twee helften die allebei ver boven hun eigen
+    gemiddelde liggen. Geen enkele test op de segmenten onderling ving dat --
+    alleen de vergelijking met het nachtgetal doet dat.
+    """
+    sn = uit["split_night"][fam]
+    som = sn["diagnostic"][teller] + sn["therapeutic"][teller]
+    if fam == "plm":
+        nacht = ((uit.get("plm") or {}).get("summary") or {}).get("n_plm")
+    else:
+        nacht = len((uit.get("arousal") or {}).get("events") or [])
+    if not nacht:
+        pytest.skip(f"geen {fam}-events in deze opname")
+    assert som == nacht, (
+        f"{fam}: de helften tellen samen {som}, de nacht {nacht} -- "
+        "er wordt een andere teller gebruikt")
+
+
+def test_de_plm_index_van_de_helften_omsluit_die_van_de_nacht(uit):
+    """Twee helften kunnen niet allebei boven of allebei onder het geheel
+    liggen; een index per uur is een gewogen gemiddelde van zijn delen."""
+    sn = uit["split_night"]["plm"]
+    d = sn["diagnostic"]["plm_index"]
+    t_ = sn["therapeutic"]["plm_index"]
+    nacht = ((uit.get("plm") or {}).get("summary") or {}).get("plm_index")
+    if None in (d, t_, nacht) or nacht == 0:
+        pytest.skip("geen PLM-index in deze opname")
+    assert min(d, t_) - 0.05 <= nacht <= max(d, t_) + 0.05, (
+        f"nacht {nacht} ligt buiten [{min(d, t_)}, {max(d, t_)}]")

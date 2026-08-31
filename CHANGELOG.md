@@ -21,7 +21,39 @@ opnieuw. Geen tweede telling van slaaptijd per houding.
 Daarmee draagt `split_night` acht families: `segments`, `summaries`, `spo2`,
 `arousal`, `rdi`, `plm`, `position` en `snore`.
 
-1321 tests, golden 9/9, mypy schoon.
+## REPARATIE: `split_night["plm"]` uit 0.31.4 telde de verkeerde beweging
+
+**Wie 0.31.4 gebruikt en de PLM-index per segment leest, moet naar 0.31.5.**
+
+`analyze_plm()` publiceert in `events` alle IN AANMERKING KOMENDE
+beenbewegingen, maar de PLM-index rekent alleen de bewegingen die deel
+uitmaken van een gekwalificeerde reeks — vier of meer, interval 5 tot 90 s.
+Elke beweging draagt daarvoor `is_plm`. `segment_plm()` telde de lijst zelf.
+
+Op MESA-opname 0001 met een kunstmatig breekpunt halverwege gaf dat:
+
+| | deel 1 | deel 2 | hele nacht |
+|---|---:|---:|---:|
+| PLMI, 0.31.4 | 91,3 | 29,2 | 12,9 |
+| PLMI, 0.31.5 | 22,5 | 3,3 | 12,9 |
+
+Twee helften die allebei ver boven hun eigen gemiddelde liggen kan niet: een
+index per uur is een gewogen gemiddelde van zijn delen. De synthetische test
+kon het niet zien, omdat een met de hand gemaakte lijst per constructie alleen
+reeksdeelnemers bevat. **Een echte opname legde het binnen een minuut bloot** —
+en dat is het argument om er altijd één doorheen te halen voordat een index
+naar buiten gaat.
+
+Er staan nu twee invarianten op: de segmenttellingen moeten optellen tot de
+nachttelling, en de nachtindex moet tussen die van de twee helften liggen. Geen
+enkele toets op de segmenten onderling ving dit; alleen de vergelijking met het
+nachtgetal doet dat.
+
+`n_lm_eligible` staat er per segment bij, zodat het verschil tussen "beweging"
+en "reeksdeelnemer" zichtbaar is in plaats van verborgen.
+
+1323 tests, golden 9/9, mypy schoon. Geverifieerd op MESA-opname 0001 (12 u,
+723 beenbewegingen, 155 reeksdeelnemers).
 
 # v0.31.4 — 2026-08-31 — bij een split-night gaat nu ELKE index over het juiste stuk nacht
 

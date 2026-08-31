@@ -145,8 +145,10 @@ def test_zonder_reras_is_de_rdi_de_ahi():
 # ── PLM ───────────────────────────────────────────────────────────────────
 
 def test_de_plm_index_wordt_per_deel_gerekend():
-    plm = [{"onset_s": 60.0 + 90 * i, "duration_s": 2.0} for i in range(40)]
-    plm += [{"onset_s": BREUK + 60.0 + 90 * i, "duration_s": 2.0} for i in range(5)]
+    plm = [{"onset_s": 60.0 + 90 * i, "duration_s": 2.0, "is_plm": True}
+           for i in range(40)]
+    plm += [{"onset_s": BREUK + 60.0 + 90 * i, "duration_s": 2.0, "is_plm": True}
+            for i in range(5)]
     p = segment_plm(plm, HYP, BREUK)
     assert p["diagnostic"]["n_plm"] == 40
     assert p["therapeutic"]["n_plm"] == 5
@@ -168,3 +170,20 @@ def test_geen_slaap_geeft_geen_getal_maar_None():
     assert a["diagnostic"]["arousal_index"] is None
     p = segment_plm([{"onset_s": 60.0, "duration_s": 2.0}], wakker, BREUK)
     assert p["diagnostic"]["plm_index"] is None
+
+
+def test_alleen_reeksdeelnemers_tellen_mee_in_de_plm_index():
+    """`analyze_plm` publiceert ALLE in aanmerking komende beenbewegingen; de
+    index rekent alleen die in een gekwalificeerde reeks.
+
+    De eerste versie telde de lijst zelf. Op een echte opname gaf dat PLMI 91,3
+    en 29,2 per helft naast 12,9 over de nacht -- twee helften die allebei ver
+    boven hun eigen gemiddelde liggen. Een synthetische lijst kon dat niet
+    laten zien, want die bevatte per constructie alleen reeksdeelnemers.
+    """
+    plm = [{"onset_s": 60.0 + 90 * i, "duration_s": 2.0, "is_plm": i < 20}
+           for i in range(40)]
+    p = segment_plm(plm, HYP, BREUK)
+    assert p["diagnostic"]["n_plm"] == 20, "losse bewegingen tellen mee"
+    assert p["diagnostic"]["n_lm_eligible"] == 40
+    assert p["diagnostic"]["plm_index"] == pytest.approx(10.0, abs=0.3)
