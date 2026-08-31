@@ -147,7 +147,26 @@ class PostProcessingRules:
     """Coefficient of variation threshold for rejecting normal variability."""
 
     csr_reclassification: bool = True
-    """Reclassify events as central based on Cheyne-Stokes periodicity."""
+    """Herclassificeer CSR-gevlagde obstructieve/gemengde apneus als centraal.
+
+    **Dit veld bestond sinds v0.4.x en werd door niemand gelezen.** Het stond
+    in de dataclass, twee profielen zetten hem expliciet, en `pipeline.py` gaf
+    hem nooit door aan `postprocess_respiratory_events`. Uitzetten deed dus
+    niets. Sinds 31-08-2026 is hij bedraad -- dezelfde dode-knopklasse als
+    `desat_global_baseline_min_local_pct`, en gevonden doordat een
+    duplicaat-lint aansloeg toen ik hem per ongeluk een tweede keer
+    declareerde.
+
+    Default `True` = bestaand gedrag. Waarom hij ertoe doet: de stap is nooit
+    tegen een referentie gehouden vóór invoering, en de meting die er achteraf
+    op kwam noemde hem zwak. `docs/subtypering_mesa_20260814.md` (MESA n=52):
+    kappa **0,091** op CSR-nachten tegen 0,311 zonder, en de dominante fout is
+    juist obstructief -> centraal (230 van de 235).
+
+    De fysiologische onderbouwing blijft staan -- bij hartfalen kan
+    hartpulsatie effort voorwenden waar die er niet is -- maar zolang de stap
+    niet uit kán, is dat een aanname en geen meting. Zie ook
+    `csr_confidence_floor` en `postprocess.csr_therapy_contradiction`."""
 
     local_baseline_validation: bool = True
     """Reject candidates driven solely by inflated rolling baseline."""
@@ -1075,6 +1094,23 @@ class PostProcessingRules:
 
     Default False = ongewijzigd gedrag; de env-override
     ``PSGSCORING_BREATH_AROUSAL_LATENCY`` blijft werken en wint."""
+
+    csr_confidence_floor: float | None = None
+    """Optionele ondergrens voor de confidence van een CSR-herclassificatie.
+
+    Hier stond een harde `max(conf, 0.80)` in `reclassify_csr_events`, met als
+    toelichting dat de CSR-context goed bewijs levert. Die aanname is
+    weerlegd (zie `csr_reclassification`): de regel verhoogde het vertrouwen in
+    precies de beslissing die op die nachten het zwakst is.
+
+    Zichtbaar gevolg: de sterrenkolom in het rapport leest deze confidence, en
+    0,80 valt in de band 0,60-0,84. Op een opname met 29 herclassificaties
+    stonden er 26 op twee sterren, uitsluitend omdat deze regel dat getal
+    zette.
+
+    Default `None` = het event houdt de confidence uit `classify_apnea_type`.
+    Zet op `0.80` om het gedrag van vóór 31-08-2026 te herstellen, bijvoorbeeld
+    voor een reproductie."""
 
     arousal_rem_baseline_alpha: bool = False
     """Meet REM-arousals tegen een ALPHA-basislijn in plaats van alpha+theta+beta.

@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 def reclassify_csr_events(
     events: list,
     csr_info: dict,
+    confidence_floor: float | None = None,
 ) -> list:
     """
     Reclassify CSR-flagged events as central.
@@ -77,8 +78,27 @@ def reclassify_csr_events(
             ev["original_type"] = ev["type"]
             ev["type"] = "central"
             ev["csr_reclassified"] = True
-            # Adjust confidence — CSR context provides good evidence
-            ev["confidence"] = max(ev.get("confidence", 0.5), 0.80)
+            # GEEN confidence-verhoging meer, tenzij een profiel erom vraagt.
+            #
+            # Hier stond `max(conf, 0.80)`, met als toelichting "CSR context
+            # provides good evidence". Die aanname is op 14-08-2026 gemeten en
+            # weerlegd: op CSR-nachten haalt de obstructief-versus-centraal
+            # beslissing kappa 0,091 tegen 0,311 zonder CSR, en de dominante
+            # fout is juist obstructief -> centraal (230 van de 235). De regel
+            # verhoogde dus het vertrouwen in precies de beslissing die daar
+            # het zwakst is. Zie docs/subtypering_mesa_20260814.md.
+            #
+            # Dat is zichtbaar in het rapport: de sterrenkolom leest de
+            # confidence, en 0,80 valt in de band 0,60-0,84. Op een opname met
+            # 29 herclassificaties stonden er 26 op twee sterren, uitsluitend
+            # omdat deze regel dat getal zette.
+            #
+            # Het event behoudt nu zijn eigen confidence uit
+            # `classify_apnea_type`. `csr_reclassified` blijft erop staan, dus
+            # wie de herkomst wil zien, ziet hem.
+            if confidence_floor is not None:
+                ev["confidence"] = max(ev.get("confidence", 0.5),
+                                       float(confidence_floor))
             ev["classify_detail"] = ev.get("classify_detail", {})
             if isinstance(ev["classify_detail"], dict):
                 ev["classify_detail"]["csr_reclassified"] = True
@@ -316,6 +336,85 @@ def compute_central_instability_index(
 # 4. Master post-processing function
 # ---------------------------------------------------------------------------
 
+def csr_therapy_contradiction(
+    events: list,
+    split_night: dict | None,
+    *,
+    min_diagnostic_ahi: float = 15.0,
+    max_residual_ahi: float = 5.0,
+    min_reclassified_share: float = 0.50,
+) -> dict | None:
+    """Spreekt de therapiehelft de CSR-herclassificatie tegen?
+
+    Bij een split-night levert de tweede helft een onafhankelijk signaal dat de
+    scoring niet gebruikt: hoe de events op DRUK reageren. Verdwijnt een
+    ernstige AHI vrijwel volledig onder CPAP, dan waren die events
+    drukresponsief -- kenmerkend voor obstructieve ziekte. Centrale apneu
+    reageert daar niet zo op.
+
+    Staat er dan in hetzelfde rapport dat de meerderheid van de centrale events
+    uit een CSR-HERCLASSIFICATIE komt (obstructief/gemengd -> centraal), dan
+    bevat het rapport twee uitspraken die niet samengaan. Deze functie zegt dat
+    hardop in plaats van het aan de lezer over te laten.
+
+    Waarom dit ertoe doet: `docs/subtypering_mesa_20260814.md` meet die
+    herclassificatie op MESA n=52 en vindt kappa 0,091 op CSR-nachten (0,311
+    zonder), met 230 van de 235 fouten in de richting obstructief -> centraal.
+    De stap is dus zwak op precies de nachten waar hij vuurt, en de
+    therapierespons is het enige onafhankelijke tegenwicht dat er ligt.
+
+    Drempels, conventioneel en niet zelfbedacht:
+      * ``max_residual_ahi`` 5/u -- de gangbare grens voor behandelsucces;
+      * ``min_diagnostic_ahi`` 15/u -- pas vanaf matig-ernstig is een
+        vrijwel-volledige respons informatief;
+      * ``min_reclassified_share`` 0,50 -- de meerderheid van de centrale
+        events moet uit de herclassificatie komen, anders gaat het over
+        werkelijk gedetecteerde centrale events en zegt de tegenspraak niets.
+
+    Returns ``None`` als er niets te melden valt, anders een dict met de
+    getallen waarop de melding rust. Dit is een OBSERVATIE: de functie
+    herclassificeert niets terug en verandert geen enkele index.
+    """
+    sn = split_night or {}
+    if not sn.get("detected"):
+        return None
+    segs = sn.get("segments") or {}
+    diag, ther = segs.get("diagnostic") or {}, segs.get("therapeutic") or {}
+    if not (diag.get("reliable") and ther.get("reliable")):
+        return None
+    a_diag, a_ther = diag.get("ahi"), ther.get("ahi")
+    if a_diag is None or a_ther is None:
+        return None
+    if not (float(a_diag) >= min_diagnostic_ahi
+            and float(a_ther) < max_residual_ahi):
+        return None
+
+    centraal = [e for e in events if str(e.get("type")) == "central"]
+    if not centraal:
+        return None
+    herklas = [e for e in centraal if e.get("csr_reclassified")]
+    aandeel = len(herklas) / len(centraal)
+    if aandeel < min_reclassified_share:
+        return None
+
+    return {
+        "diagnostic_ahi": round(float(a_diag), 1),
+        "therapeutic_ahi": round(float(a_ther), 1),
+        "n_central": len(centraal),
+        "n_central_from_csr_reclassification": len(herklas),
+        "reclassified_share": round(aandeel, 3),
+        "message": (
+            "De therapiehelft spreekt de CSR-herclassificatie tegen: de AHI "
+            f"zakt van {float(a_diag):.1f} naar {float(a_ther):.1f} onder "
+            f"therapie, wat op drukresponsieve (obstructieve) events wijst, "
+            f"terwijl {len(herklas)} van de {len(centraal)} centrale events "
+            "uit een CSR-herclassificatie van obstructief/gemengd komen. Die "
+            "herclassificatie is op CSR-nachten zwak gemeten (kappa 0,09). "
+            "Controleer de subtypering vóór een uitspraak over centrale "
+            "slaapapneu."),
+    }
+
+
 def postprocess_respiratory_events(
     events: list,
     csr_info: dict | None = None,
@@ -323,6 +422,8 @@ def postprocess_respiratory_events(
     abdomen_data: np.ndarray | None = None,
     sf_effort: float = 0,
     ahi_interval: dict | None = None,
+    csr_reclassification: bool = True,
+    csr_confidence_floor: float | None = None,
 ) -> dict:
     """
     Run all post-processing refinements on respiratory events.
@@ -356,8 +457,9 @@ def postprocess_respiratory_events(
     )
 
     # Step 1: CSR-aware reclassification
-    if csr_info:
-        events = reclassify_csr_events(events, csr_info)
+    if csr_info and csr_reclassification:
+        events = reclassify_csr_events(events, csr_info,
+                                       confidence_floor=csr_confidence_floor)
         result["n_csr_reclassified"] = sum(
             1 for e in events if e.get("csr_reclassified")
         )

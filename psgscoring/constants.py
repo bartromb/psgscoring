@@ -114,6 +114,8 @@ def _profile_to_legacy_dict(profile) -> dict:
         "AROUSAL_ONSET_OFFSET_S": pp.arousal_onset_offset_s,
         "AROUSAL_MIN_INTERVAL_S": pp.arousal_min_interval_s,
         "AROUSAL_REM_BASELINE_ALPHA": pp.arousal_rem_baseline_alpha,
+        "CSR_RECLASSIFICATION": pp.csr_reclassification,
+        "CSR_CONFIDENCE_FLOOR": pp.csr_confidence_floor,
         "AROUSAL_EOG_REJECT": pp.arousal_eog_reject,
         "HYPOXIC_BURDEN_CAP_AT_NEXT_EVENT":
             pp.hypoxic_burden_cap_at_next_event,

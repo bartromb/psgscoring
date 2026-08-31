@@ -1325,6 +1325,9 @@ def run_pneumo_analysis(
                 abdomen_data=abdomen_data,
                 sf_effort=sf_apnea or sf_flow or 0,
                 ahi_interval=output["respiratory"].get("summary", {}).get("ahi_interval"),
+                csr_reclassification=bool(
+                    profile.get("CSR_RECLASSIFICATION", True)),
+                csr_confidence_floor=profile.get("CSR_CONFIDENCE_FLOOR"),
             )
             output["respiratory"]["events"] = pp["events"]
             output["postprocess"] = {
@@ -1420,6 +1423,20 @@ def run_pneumo_analysis(
         except Exception as e:  # noqa: BLE001 — mag de run nooit breken
             logger.warning("[pneumo] split-night-detectie mislukt: %s", e)
             output["split_night"] = {"detected": False, "error": str(e)}
+
+        # De therapiehelft is het enige ONAFHANKELIJKE signaal over de
+        # subtypering dat de scoring niet gebruikt. Hier alleen waargenomen,
+        # niets herclassificeerd: zie postprocess.csr_therapy_contradiction.
+        try:
+            from .postprocess import csr_therapy_contradiction
+            _contra = csr_therapy_contradiction(
+                output["respiratory"].get("events", []),
+                output.get("split_night"))
+            if _contra:
+                output["respiratory"]["csr_therapy_contradiction"] = _contra
+                logger.warning("[pneumo] %s", _contra["message"])
+        except Exception as e:  # noqa: BLE001
+            logger.debug("[pneumo] tegenspraakcheck overgeslagen: %s", e)
 
     # ── Step 12 (v0.11.0): AASM v3 clinical enrichments (output-additive) ──
     # Run last, after every summary recompute + central/CSR reclassification, so
