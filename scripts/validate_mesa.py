@@ -37,6 +37,10 @@ Drie referentiesets, elk geijkt tegen zijn eigen gepubliceerde NSRR-kolom
               arousal-tak. vs ``oahi35``: bias +0,11, MAE 0,84, r = 0,998
   ``oahi4``   idem met >=4%. MESA's eigen kopcijfer.
               vs ``oahi45``: bias +0,19, MAE 0,66, r = 0,998
+  ``desat3_all`` LIKE-FOR-LIKE met een detector die de arousal-tak niet
+              toepast: alle apneutypes + hypopneeen op alleen >=3%
+              desaturatie. Geen gepubliceerde NSRR-kolom, dus NIET te ijken
+              met ``--verify-reference``.
 
 De oahi-varianten staan erbij voor continuiteit met eerdere rondes, maar ze
 crediteren geen hypopnee die alleen door een arousal kwalificeert terwijl
@@ -115,6 +119,34 @@ REFERENCES = {
                "column": "oahi35", "source": "dataset"},
     "oahi4":  {"desat": 4.0, "arousal": False, "apneas": "obstructive",
                "column": "oahi45", "source": "dataset"},
+    # LIKE-FOR-LIKE met een detector die de arousal-tak NIET toepast.
+    #
+    # Waarom hij nodig is. De bias tegen `aasm15` is -5,26 (n=150), en die
+    # -5,30 staat als "MESA-bias" in twee GitHub-README's. Maar `aasm15`
+    # crediteert hypopneeen die ALLEEN via een arousal kwalificeren, en
+    # `aasm_v3_rec` kan die per constructie niet produceren:
+    # `rule1a_arousal_enabled` staat overal uit. Daar meten we dus voor een
+    # deel een ontbrekende REGEL, geen detectiefout.
+    #
+    # `oahi3` leek het antwoord -- daartegen is de bias +0,31 (n=30) en
+    # -0,67 (n=150), praktisch nul -- maar die is OBSTRUCTIEF-ONLY en laat
+    # centrale en gemengde apneus uit de referentie weg, terwijl wij die wel
+    # scoren (1694 stuks over 150 opnames). Die bijna-nul kan dus twee fouten
+    # zijn die elkaar opheffen: centrale apneus die wij erbij tellen tegen
+    # arousal-only hypopneeen die wij missen.
+    #
+    # Deze set haalt beide verstoringen weg: ALLE apneutypes, zoals wij ze
+    # scoren, en hypopneeen op ALLEEN desaturatie, zoals wij ze scoren. Wat
+    # overblijft is de detector.
+    #
+    # `column`/`source` zijn None: er bestaat geen gepubliceerde NSRR-kolom
+    # voor deze combinatie, dus `--verify-reference` kan hem niet ijken. Dat
+    # is een echte beperking. De andere drie zijn tegen hun eigen kolom
+    # gekalibreerd (bias +0,32 / +0,11 / +0,19); deze erft zijn
+    # geloofwaardigheid van dezelfde reconstructiecode, niet van een
+    # onafhankelijke controle.
+    "desat3_all": {"desat": 3.0, "arousal": False, "apneas": "all",
+                   "column": None, "source": None},
 }
 PRIMARY_REFERENCE = "aasm15"
 
@@ -601,6 +633,8 @@ def verify_reference(data_dir, limit=60):
         if tst < 1.0:
             continue
         for name, spec in REFERENCES.items():
+            if spec["column"] is None:
+                continue          # geen gepubliceerde tegenhanger
             table = sources.get(spec["source"], {})
             if rid not in table:
                 continue
@@ -616,6 +650,10 @@ def verify_reference(data_dir, limit=60):
           f"arousal-venster {AROUSAL_LINK_WINDOW_S:.0f} s)")
     print(f"  {'set':9s} {'kolom':22s} {'n':>4s} {'bias':>8s} {'MAE':>7s} {'r':>7s}")
     for name, spec in REFERENCES.items():
+        if spec["column"] is None:
+            print(f"  {name:9s} (geen NSRR-kolom)      -- afgeleide set, niet "
+                  f"te ijken; zie REFERENCES")
+            continue
         if len(got[name]) < 3:
             print(f"  {name:9s} te weinig data")
             continue
