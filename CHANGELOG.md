@@ -1,3 +1,66 @@
+# v0.31.4 — 2026-08-31 — bij een split-night gaat nu ELKE index over het juiste stuk nacht
+
+0.29.0 splitste de AHI en de saturatie. De **arousalindex, de RDI en de
+PLM-index bleven over de hele nacht staan** — inclusief de uren onder CPAP — en
+stonden in het rapport naast een diagnostische AHI alsof ze over dezelfde
+meting gingen.
+
+De fout heeft een richting. Een geslaagde titratie drukt elk van die indices
+omlaag, dus het nachtgemiddelde laat de meting waarop de diagnose rust
+stelselmatig milder lijken. Op een synthetische split-night van dit type:
+
+| | diagnostisch | onder therapie | hele nacht |
+|---|---:|---:|---:|
+| AHI | 36,0/u | 4,6/u | 20,3/u |
+| **arousalindex** | **36,0/u** | **0,0/u** | **18,0/u** |
+| RDI | 36,0/u | 4,6/u | 20,3/u |
+| ODI3 | 36,0/u | 4,6/u | 20,3/u |
+
+De arousalindex halveert in het nachtgemiddelde.
+
+## Wat erbij komt
+
+`split_night` draagt drie nieuwe families naast `segments`, `summaries` en
+`spo2`:
+
+* **`arousal`** — `arousal_index` per helft, met `respiratory_arousal_index` en
+  `spontaneous_arousal_index` erbij. Die twee worden hier DIRECT geteld op het
+  `type` dat de correlatiestap op elk event zet, niet — zoals bij de nachtindex
+  — door de totaalindex naar rato van de etiologiefractie te verdelen. Dat kan
+  omdat de events beschikbaar zijn, en het is de eerlijker vorm: juist de
+  verhouding respiratoir/spontaan verschilt tussen de twee helften. Een lijst
+  zonder `type` (extern aangeleverde arousals) houdt de deelindices op `None`,
+  niet op nul.
+* **`rdi`** — `rera_index` en `rdi` per helft. Hiervoor publiceert de
+  respiratoire uitvoer nu `rera_onsets_s`: de onsets van de RERA's die de
+  autoritatieve telling meetelde. Zonder die lijst is een telling een getal, en
+  een getal is niet over een breekpunt te verdelen. `detect_reras()` heeft een
+  eigen, ruimere definitie en blijft niet-autoritatief.
+* **`plm`** — `plm_index` per helft, geteld op de bewegingen die de PLM-stap al
+  had goedgekeurd. Een reeks die over het breekpunt loopt valt in beide helften,
+  elk met de bewegingen die er tijdens vielen.
+
+Alles deelt door **dezelfde noemer als de segment-AHI**, opgehaald uit
+`_compute_summary` in plaats van opnieuw uitgerekend. Een tweede definitie van
+slaaptijd is hier eerder misgegaan: één rapport toonde 44,3/u en 43,2/u voor
+dezelfde teller.
+
+## Volgordebewaking
+
+`_cap_plm_event_list()` kort de PLM-lijst in tot de payloadgrens. Draaide die
+stap vóór het split-blok, dan telde de segment-PLM-index alleen het begin van
+de nacht — stil, want een afgekapte lijst ziet er niet afgekapt uit. Precies dat
+overkwam `plm_arousal_index` vóór 22-08-2026. Er staat nu een test op die de
+volgorde uit de bron leest.
+
+## Nog niet gesplitst
+
+De positie-AHI en de snurkindex staan nog over de hele nacht. Ze vragen de
+positie- respectievelijk geluidsdata per segment, wat een grotere ingreep is dan
+deze; het staat genoteerd, niet stilgezwegen.
+
+1317 tests (24 nieuw), golden 9/9, mypy schoon.
+
 # v0.31.3 — 2026-08-31 — de CSR-herclassificatie staat default uit
 
 **Gedragswijziging op een gerapporteerd getal.** De AHI blijft gelijk; de

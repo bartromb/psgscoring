@@ -272,3 +272,163 @@ def segment_spo2(spo2, sf_spo2, hypno, breakpoint_s, epoch_len_s=30.0,
             logger.warning("[split] SpO2 voor %s mislukt: %s", naam, e)
             uit[naam] = {"error": str(e)}
     return uit
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# De rest van de indexfamilie
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Tot 0.31.3 werd alleen de AHI-familie en de saturatie per segment gerekend.
+# De arousalindex, de RDI en de PLM-index bleven over de HELE nacht staan, en
+# stonden in het rapport naast een diagnostische AHI alsof ze bij elkaar
+# hoorden. Bij een geslaagde titratie drukt het tweede deel elk van die getallen
+# omlaag: de arousalindex van een patiënt met 60 arousals in twee diagnostische
+# uren en 5 in vijf uur CPAP leest als 9,3/u waar het diagnostische deel op
+# 30/u ligt. De fout heeft dus een richting -- ze maakt de meting waarop de
+# diagnose rust stelselmatig milder.
+
+
+def segment_denominator_h(hypno, breakpoint_s, epoch_len_s=30.0,
+                          artifact_epochs=None) -> dict:
+    """De noemer per segment, uit dezelfde functie die de AHI gebruikt.
+
+    Niet opnieuw uitgerekend maar opgehaald: `_compute_summary` met een lege
+    eventlijst geeft precies de slaaptijd die de segment-AHI deelt. Een tweede
+    definitie van slaaptijd is hier al eerder misgegaan -- één rapport toonde
+    44,3/u en 43,2/u voor dezelfde teller, omdat de ene sectie de uren uit
+    n/index afleidde en de andere uit de YASA-slaapstatistiek.
+    """
+    from .respiratory import _compute_summary
+
+    n_s = len(hypno) * epoch_len_s
+    uit = {}
+    for naam, lo, hi in (("diagnostic", 0.0, float(breakpoint_s)),
+                         ("therapeutic", float(breakpoint_s), n_s)):
+        _ev, hyp, art = _slice([], hypno, lo, hi, epoch_len_s, artifact_epochs)
+        try:
+            uit[naam] = float(
+                _compute_summary([], hyp, art).get("index_denominator_h") or 0.0)
+        except Exception as e:                              # noqa: BLE001
+            logger.warning("[split] noemer voor %s mislukt: %s", naam, e)
+            uit[naam] = 0.0
+    return uit
+
+
+def _per_uur(n, h):
+    """Index of None. Nooit nul en nooit een ondergrens op de noemer.
+
+    De ondergrens van 0,001 uur die hier ooit stond maakte van een index het
+    aantal maal duizend (REI 81000/u op 81 events), en nul teruggeven leest als
+    "geen events" -- geruststellend fout, wat klinisch erger is dan zichtbaar
+    fout.
+    """
+    return round(n / h, 2) if h and h > 0 else None
+
+
+def _venster(events, lo_s, hi_s):
+    return [e for e in events if lo_s <= float(e.get("onset_s", 0) or 0) < hi_s]
+
+
+def _segmenten(hypno, breakpoint_s, epoch_len_s):
+    n_s = len(hypno) * epoch_len_s
+    return (("diagnostic", 0.0, float(breakpoint_s)),
+            ("therapeutic", float(breakpoint_s), n_s))
+
+
+def segment_arousals(arousals, hypno, breakpoint_s, epoch_len_s=30.0,
+                     artifact_epochs=None) -> dict:
+    """Arousalindex per segment, met de etiologie erbij.
+
+    Respiratoir en spontaan worden hier DIRECT geteld op het `type` dat de
+    correlatiestap op elk event zet, niet -- zoals bij de nachtindex -- door de
+    totaalindex naar rato van de etiologiefractie te verdelen. Dat kan hier
+    omdat de events zelf beschikbaar zijn, en het is de eerlijker vorm: de
+    verhouding respiratoir/spontaan verschilt juist tussen de twee helften.
+    Draagt een lijst geen `type` (een extern aangeleverde arousalset), dan
+    blijven de deelindices `None` -- niet nul, want dat zou "geen respiratoire
+    arousals" beweren waar niets gemeten is.
+    """
+    uit = {}
+    noemers = segment_denominator_h(hypno, breakpoint_s, epoch_len_s,
+                                    artifact_epochs)
+    getypeerd = any(a.get("type") in ("respiratory", "spontaneous")
+                    for a in (arousals or []))
+    for naam, lo, hi in _segmenten(hypno, breakpoint_s, epoch_len_s):
+        ev = _venster(arousals or [], lo, hi)
+        h = noemers.get(naam) or 0.0
+        n_resp = sum(1 for a in ev if a.get("type") == "respiratory")
+        n_spont = len(ev) - n_resp
+        uit[naam] = {
+            "sleep_h": round(h, 3),
+            "n_arousals": len(ev),
+            "arousal_index": _per_uur(len(ev), h),
+            "n_respiratory": n_resp if getypeerd else None,
+            "n_spontaneous": n_spont if getypeerd else None,
+            "respiratory_arousal_index": _per_uur(n_resp, h) if getypeerd else None,
+            "spontaneous_arousal_index": _per_uur(n_spont, h) if getypeerd else None,
+            # Zelfde regel als bij de AHI: een half uur slaap draagt geen index.
+            "reliable": bool(h >= 0.5),
+        }
+    return uit
+
+
+def segment_rdi(events, rera_onsets_s, hypno, breakpoint_s, epoch_len_s=30.0,
+                artifact_epochs=None) -> dict:
+    """RERA-index en RDI per segment.
+
+    RDI = AHI + RERA-index, exact zoals `_compute_rera_rdi` het nachtbreed
+    doet, en op dezelfde segmentnoemer als de AHI. De AHI komt uit
+    `segment_indices()` en wordt hier niet opnieuw geteld.
+
+    `rera_onsets_s` zijn de onsets van de RERA's die de AUTORITATIEVE telling
+    meetelde (FRI + flattening, na de overlaptoets). `detect_reras()` heeft een
+    eigen, ruimere definitie en is in zijn samenvatting expliciet als
+    niet-autoritatief gemarkeerd; die lijst hoort hier dus niet in.
+    """
+    seg = segment_indices(events, hypno, breakpoint_s, epoch_len_s,
+                          artifact_epochs)
+    onsets = [float(o) for o in (rera_onsets_s or [])]
+    uit = {}
+    for naam, lo, hi in _segmenten(hypno, breakpoint_s, epoch_len_s):
+        s = seg.get(naam) or {}
+        h = s.get("sleep_h") or 0.0
+        n_rera = sum(1 for o in onsets if lo <= o < hi)
+        rera_index = _per_uur(n_rera, h)
+        ahi = s.get("ahi")
+        uit[naam] = {
+            "sleep_h": round(float(h), 3),
+            "n_rera": n_rera,
+            "rera_index": rera_index,
+            # Zonder noemer bestaat de RERA-index niet, en dan bestaat de RDI
+            # ook niet: AHI + niets is geen getal.
+            "rdi": (None if rera_index is None or ahi is None
+                    else round(float(ahi) + rera_index, 1)),
+            "reliable": bool(h >= 0.5),
+        }
+    return uit
+
+
+def segment_plm(plm_events, hypno, breakpoint_s, epoch_len_s=30.0,
+                artifact_epochs=None) -> dict:
+    """PLM-index per segment.
+
+    Geteld worden de bewegingen die de PLM-stap AL als reeksdeelnemer heeft
+    goedgekeurd; hier wordt niets opnieuw gekwalificeerd. Een reeks die over
+    het breekpunt heen loopt valt daardoor in beide helften, elk met de
+    bewegingen die er tijdens vielen. Dat is de juiste boekhouding voor een
+    index per uur slaap, maar het betekent dat de twee segmenttellingen niet
+    per se twee complete reeksen zijn.
+    """
+    uit = {}
+    noemers = segment_denominator_h(hypno, breakpoint_s, epoch_len_s,
+                                    artifact_epochs)
+    for naam, lo, hi in _segmenten(hypno, breakpoint_s, epoch_len_s):
+        ev = _venster(plm_events or [], lo, hi)
+        h = noemers.get(naam) or 0.0
+        uit[naam] = {
+            "sleep_h": round(h, 3),
+            "n_plm": len(ev),
+            "plm_index": _per_uur(len(ev), h),
+            "reliable": bool(h >= 0.5),
+        }
+    return uit

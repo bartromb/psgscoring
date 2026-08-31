@@ -1412,6 +1412,25 @@ def run_pneumo_analysis(
                 _sn["spo2"] = segment_spo2(
                     spo2_data, sf_spo2, hypno, _bp,
                     artifact_epochs=artifact_epochs)
+                # En de rest van de indexfamilie. Tot 0.31.3 bleven de
+                # arousalindex, de RDI en de PLM-index over de HELE nacht
+                # staan naast een diagnostische AHI. Een geslaagde titratie
+                # drukt elk van die getallen omlaag, dus de fout maakte de
+                # meting waarop de diagnose rust stelselmatig milder.
+                from .split_night import (
+                    segment_arousals,
+                    segment_plm,
+                    segment_rdi,
+                )
+                _ar_ev = (output.get("arousal") or {}).get("events") or []
+                _sn["arousal"] = segment_arousals(
+                    _ar_ev, hypno, _bp, artifact_epochs=artifact_epochs)
+                _sn["rdi"] = segment_rdi(
+                    _ev, output["respiratory"].get("rera_onsets_s") or [],
+                    hypno, _bp, artifact_epochs=artifact_epochs)
+                _sn["plm"] = segment_plm(
+                    (output.get("plm") or {}).get("events") or [],
+                    hypno, _bp, artifact_epochs=artifact_epochs)
                 _d = _sn["segments"]["diagnostic"]; _t = _sn["segments"]["therapeutic"]
                 logger.warning(
                     "[pneumo] split-night op %.0f s (%s): diagnostisch AHI %s/u "
@@ -2098,6 +2117,12 @@ def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
     fri_events = [r for r in rejected if not _overlaps(_span(r), events)]
 
     fri_rera_count = 0
+    # De onsets van de MEEGETELDE RERA's. Zonder deze lijst kan een split-night
+    # geen RDI per helft rekenen: de telling is een getal, en een getal is niet
+    # te verdelen over een breekpunt. `detect_reras()` heeft een eigen, ruimere
+    # definitie en is niet-autoritatief -- die lijst zou een andere RDI geven
+    # dan de nachtwaarde hier vlak boven.
+    rera_onsets: list[float] = []
     if arousals and fri_events:
         arousal_times = [(float(a.get("onset_s", 0)), float(a.get("duration_s", 3)))
                          for a in arousals]
@@ -2109,6 +2134,7 @@ def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
             )
             if has_arousal:
                 fri_rera_count += 1
+                rera_onsets.append(float(fri["onset_s"]))
 
     # ── Source 2: Flattening-based RERAs (flow limitation + arousal) ───
     flat_rera_count = 0
@@ -2131,6 +2157,7 @@ def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
                     and not _overlaps(_seq_span, events)
                     and not _overlaps(_seq_span, fri_events)):
                 flat_rera_count += 1
+                rera_onsets.append(float(seq["onset_s"]))
 
     rera_count = fri_rera_count + flat_rera_count
 
@@ -2158,6 +2185,9 @@ def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
     resp["summary"]["n_rera_flattening"] = flat_rera_count
     resp["summary"]["rera_index"]      = rera_index
     resp["summary"]["rdi"]             = rdi
+    # Naast de telling ook WAAR ze lagen. Alleen de split-night leest dit; het
+    # staat buiten `summary` omdat een samenvatting getallen draagt, geen lijst.
+    resp["rera_onsets_s"]              = sorted(rera_onsets)
     resp["summary"]["n_fri"]           = len(fri_events) - fri_rera_count
     # De FRI-INDEX hoort hier, niet in de rapportlaag. Eén klinisch rapport
     # toonde 44,3/u in de RERA-sectie en 43,2/u in sectie 8d, over dezelfde
