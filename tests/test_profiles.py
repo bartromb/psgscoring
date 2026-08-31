@@ -5,6 +5,8 @@ Run with: python -m pytest test_profiles.py -v
 """
 
 import warnings
+from pathlib import Path
+
 import pytest
 from psgscoring.profiles import (
     Profile,
@@ -100,9 +102,19 @@ class TestAASMv3Rec:
         assert p.hypopnea.desat_or_arousal is True
         assert p.hypopnea.desat_required is False
 
-    def test_nasal_pressure_sensor(self):
+    def test_no_nasal_pressure_fallback(self):
+        """VERVANGEN 31-08-2026: pinde `hypopnea.sensor`, een DOOD veld.
+
+        Die assert bewees dat een veld een waarde had, niet dat iets het las --
+        en niets las het. Zo hield de test het veld in leven terwijl de
+        sensorkeuze elders viel. Erger: bij `chicago_1999` sprak het veld de
+        bedrade `flow_fallback_strategy` tegen.
+
+        Wat het profiel WEL bepaalt, is of er teruggevallen wordt op de
+        RIP-som als de neusdruk uitvalt. Dat is de vraag die hier telt.
+        """
         p = get_profile("aasm_v3_rec")
-        assert p.hypopnea.sensor == "nasal_pressure"
+        assert p.post_processing.flow_fallback_strategy == "none"
 
     def test_aasm_version_labeled_v3(self):
         p = get_profile("aasm_v3_rec")
@@ -185,11 +197,18 @@ class TestMESAShhs:
     metadata now reflects that.
     """
 
-    def test_nasal_pressure_primary(self):
-        """MESA Brigham Reading Center scores hypopneas from nasal pressure
-        as primary airflow signal (per the MESA Sleep PSG Scoring Manual)."""
+    def test_nasal_pressure_primary_with_rip_fallback(self):
+        """MESA Brigham Reading Center scores hypopneas from nasal pressure as
+        primary airflow signal (per the MESA Sleep PSG Scoring Manual), met
+        terugval op de RIP-som als die uitvalt.
+
+        VERVANGEN 31-08-2026: pinde `hypopnea.sensor`, dat niets aanstuurde.
+        `flow_fallback_strategy` is de vlag die het werkelijk doet, en die
+        onderscheidt dit profiel ook echt van de klinische.
+        """
         p = get_profile("mesa_shhs")
-        assert p.hypopnea.sensor == "nasal_pressure_primary"
+        assert p.post_processing.flow_fallback_strategy == "ripsum_on_nasal_failure"
+        assert get_profile("aasm_v3_rec").post_processing.flow_fallback_strategy == "none"
 
     def test_desat_or_arousal_gating(self):
         """Canonical MESA clinical AHI (`nsrr_ahi_hp3u`) gates on
@@ -206,10 +225,19 @@ class TestMESAShhs:
         assert "ahi_3pct_arousal" in p.hypopnea.output_variants
         assert "ahi_4pct" in p.hypopnea.output_variants
 
-    def test_unsure_as_hypopnea_flag(self):
-        """NSRR 'Unsure' tag handling."""
-        p = get_profile("mesa_shhs")
-        assert p.post_processing.unsure_as_hypopnea is True
+    def test_unsure_as_hypopnea_is_handled_by_the_harness(self):
+        """NSRR 'Unsure' tag handling -- maar niet in een scoringsprofiel.
+
+        VERVANGEN 31-08-2026. Het profielveld beschreef hoe de NSRR-ANNOTATIE
+        gelezen moet worden, niet hoe wij scoren, en werd door niets gelezen.
+        Deze test pinde het bestaan ervan en hield het daarmee in leven.
+
+        Het gedrag zit waar het hoort: in het harnas dat de dataset leest.
+        """
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+        from validate_mesa import HYPOPNEA_CONCEPTS
+        assert "unsure" in HYPOPNEA_CONCEPTS
 
     def test_family_is_dataset(self):
         p = get_profile("mesa_shhs")

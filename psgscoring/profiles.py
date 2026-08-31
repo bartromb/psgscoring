@@ -67,11 +67,6 @@ class HypopneaRules:
     flow_reduction_threshold: float
     """Minimum flow amplitude reduction (0.30 = 30% drop)."""
 
-    sensor: str
-    """Primary sensor for flow reduction measurement.
-    Values: 'nasal_pressure', 'rip_bands_primary', 'nasal_pressure_or_flow'
-    """
-
     min_duration_s: float = 10.0
     max_duration_s: float = 60.0
 
@@ -187,9 +182,6 @@ class PostProcessingRules:
 
     mixed_apnea_decomposition: bool = True
     """Split mixed apneas into central + obstructive components."""
-
-    unsure_as_hypopnea: bool = False
-    """NSRR-specific: 'Unsure' tag = hypopnea with >50% reduction."""
 
     hypopnea_detector: str = "envelope"
     """v0.12.3+: welke hypopnee-detector draait.
@@ -1661,7 +1653,6 @@ _aasm_v3_rec = Profile(
     citation="Troester MM, Quan SF, Berry RB, et al. AASM Manual v3. 2023.",
     hypopnea=HypopneaRules(
         flow_reduction_threshold=0.30,
-        sensor="nasal_pressure",
         min_duration_s=10.0,
         max_duration_s=60.0,
         desat_threshold=0.03,
@@ -1697,7 +1688,6 @@ _aasm_v3_breath = Profile(
     citation="Troester MM, Quan SF, Berry RB, et al. AASM Manual v3. 2023.",
     hypopnea=HypopneaRules(
         flow_reduction_threshold=0.30,
-        sensor="nasal_pressure",
         min_duration_s=10.0,
         max_duration_s=60.0,
         desat_threshold=0.03,
@@ -1797,7 +1787,6 @@ _aasm_v3_prob = Profile(
     citation="Troester MM, Quan SF, Berry RB, et al. AASM Manual v3. 2023.",
     hypopnea=HypopneaRules(
         flow_reduction_threshold=0.30,
-        sensor="nasal_pressure",
         min_duration_s=10.0,
         max_duration_s=60.0,
         desat_threshold=0.03,
@@ -1879,7 +1868,6 @@ _aasm_v2_rec = Profile(
     citation="Berry RB, et al. JCSM 2012;8:597-619; Berry RB, et al. AASM v2.6. 2020.",
     hypopnea=HypopneaRules(
         flow_reduction_threshold=0.30,
-        sensor="nasal_pressure",
         min_duration_s=10.0,
         max_duration_s=60.0,
         desat_threshold=0.03,
@@ -1920,7 +1908,6 @@ _aasm_v1_rec = Profile(
     citation="Iber C, Ancoli-Israel S, Chesson AL, Quan SF. AASM Manual v1. 2007.",
     hypopnea=HypopneaRules(
         flow_reduction_threshold=0.30,
-        sensor="nasal_pressure",
         min_duration_s=10.0,
         max_duration_s=60.0,
         desat_threshold=0.04,
@@ -1964,7 +1951,6 @@ _cms_medicare = Profile(
     citation="CMS National Coverage Determination 240.4; Troester 2023 Rule 1B.",
     hypopnea=HypopneaRules(
         flow_reduction_threshold=0.30,
-        sensor="nasal_pressure",
         min_duration_s=10.0,
         max_duration_s=60.0,
         desat_threshold=0.04,
@@ -2018,7 +2004,6 @@ _mesa_shhs = Profile(
     citation="MESA Sleep PSG Scoring Manual, NSRR / Brigham Reading Center.",
     hypopnea=HypopneaRules(
         flow_reduction_threshold=0.30,
-        sensor="nasal_pressure_primary",
         min_duration_s=10.0,
         max_duration_s=60.0,
         desat_threshold=0.03,
@@ -2049,7 +2034,6 @@ _mesa_shhs = Profile(
         breath_level_detection=True,
         artefact_flank_exclusion=True,
         mixed_apnea_decomposition=True,
-        unsure_as_hypopnea=True,  # ← NSRR-specific
         # GEPIND: ook de thermistorpoort blijft de oude, want die beslist of
         # apneus op de thermistor of op de neusdruk gescoord worden.
         thermistor_gate="envelope_agreement",
@@ -2082,6 +2066,14 @@ _mesa_shhs = Profile(
         baseline_window_s=120,
         baseline_percentile=85.0,
         # v0.5.1: when nasal pressure quality is poor, fall back to RIPsum.
+        # NSRR-conventie, hier als COMMENTAAR en niet als profielveld.
+        # `unsure_as_hypopnea` stond hier als vlag en werd door niets gelezen:
+        # het beschrijft hoe de NSRR-ANNOTATIE gelezen moet worden, niet hoe
+        # wij scoren, dus het hoort in het meetharnas. `validate_mesa.py`
+        # implementeert het ook daar (`HYPOPNEA_CONCEPTS = {"hypopnea",
+        # "unsure"}`). Let op de openstaande tegenspraak: de oude vlag
+        # documenteerde `Unsure` als ">50 % reductie", het harnas behandelt
+        # het als de gewone >=30 %-hypopnee. Dat verschil is nooit beslecht.
         flow_fallback_strategy="ripsum_on_nasal_failure",
         # v0.6 prototype: targeted at the noisy-Pres-signal failure mode
         # documented on mesaid 6382 (paper v34 §S5.8). 3-second envelope
@@ -2123,7 +2115,6 @@ _chicago_1999 = Profile(
     citation="AASM Task Force. Sleep 1999;22:667-689.",
     hypopnea=HypopneaRules(
         flow_reduction_threshold=0.50,
-        sensor="nasal_pressure_or_flow",
         min_duration_s=10.0,
         max_duration_s=60.0,
         desat_threshold=0.03,
@@ -2180,7 +2171,6 @@ _aasm_v3_dual = Profile(
     citation="Troester MM, Quan SF, Berry RB, et al. AASM Manual v3. 2023.",
     hypopnea=HypopneaRules(
         flow_reduction_threshold=0.30,
-        sensor="nasal_pressure",
         min_duration_s=10.0,
         max_duration_s=60.0,
         desat_threshold=0.03,
@@ -2242,7 +2232,6 @@ _aasm_v3_fusion = Profile(
     citation="Troester MM, Quan SF, Berry RB, et al. AASM Manual v3. 2023.",
     hypopnea=HypopneaRules(
         flow_reduction_threshold=0.30,
-        sensor="nasal_pressure",
         min_duration_s=10.0,
         max_duration_s=60.0,
         desat_threshold=0.03,
@@ -2386,7 +2375,6 @@ _aasm_v3_pressure = Profile(
     citation="Troester MM, Quan SF, Berry RB, et al. AASM Manual v3. 2023.",
     hypopnea=HypopneaRules(
         flow_reduction_threshold=0.30,
-        sensor="nasal_pressure",
         min_duration_s=10.0,
         max_duration_s=60.0,
         desat_threshold=0.03,
@@ -2421,7 +2409,6 @@ _aasm_v3_strict = Profile(
     citation="Rombaut et al. 2026 (paper v31), §2.1.",
     hypopnea=HypopneaRules(
         flow_reduction_threshold=0.30,
-        sensor="nasal_pressure",
         min_duration_s=10.0,
         max_duration_s=60.0,
         desat_threshold=0.03,
@@ -2469,7 +2456,6 @@ _aasm_v3_sensitive = Profile(
     citation="Rombaut et al. 2026 (paper v31), §2.1.",
     hypopnea=HypopneaRules(
         flow_reduction_threshold=0.25,  # ← key difference
-        sensor="nasal_pressure",
         min_duration_s=10.0,
         max_duration_s=90.0,  # v0.2.8: extended for UARS
         desat_threshold=0.03,
@@ -2519,7 +2505,6 @@ _aasm_v3_sensitive = Profile(
 
 _ENVELOPE_ARM_HYPOPNEA = HypopneaRules(
     flow_reduction_threshold=0.30,
-    sensor="nasal_pressure",
     min_duration_s=10.0,
     max_duration_s=60.0,
     desat_threshold=0.03,
@@ -2562,7 +2547,6 @@ _aasm_v3_amplitude = Profile(
     ),
     hypopnea=HypopneaRules(
         flow_reduction_threshold=0.30,
-        sensor="nasal_pressure",
         min_duration_s=10.0,
         max_duration_s=60.0,
         desat_threshold=0.03,
@@ -2609,7 +2593,6 @@ _aasm_v3_pair_scalefree = Profile(
     ),
     hypopnea=HypopneaRules(
         flow_reduction_threshold=0.30,
-        sensor="nasal_pressure",
         min_duration_s=10.0,
         max_duration_s=60.0,
         desat_threshold=0.03,

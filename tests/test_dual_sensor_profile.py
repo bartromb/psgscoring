@@ -50,13 +50,25 @@ def test_the_other_profiles_do_not_use_two_sensors():
 
 
 def test_hypopnea_rules_follow_aasm_rule_1a():
-    """Apneus veranderen; hypopneeen blijven op de neusdruk per AASM."""
+    """Apneus veranderen; de hypopneeregels blijven die van Rule 1A.
+
+    BIJGESTELD 31-08-2026. Deze test pinde ook `h.sensor` en
+    `h.square_root_linearisation`. Beide waren DODE velden: ze stonden in de
+    dataclass en geen enkele consument las ze. Zo'n assert bewijst dat een veld
+    een waarde heeft, niet dat het iets doet -- en hield het veld in leven.
+
+    `sensor` is verwijderd (het dupliceerde `flow_fallback_strategy` en sprak
+    het bij chicago_1999 tegen). `square_root_linearisation` staat als bekende
+    schuld in `tests/test_profile_fields_have_a_consumer.py`; de bedrade
+    tegenhanger is `hypopnea_force_linearisation`.
+
+    Wat hieronder staat is wél bedraad: de drie getallen van Rule 1A.
+    """
     h = get_profile("aasm_v3_dual").hypopnea
     assert h.flow_reduction_threshold == 0.30
     assert h.desat_threshold == 0.03
     assert h.desat_or_arousal is True
-    assert h.sensor == "nasal_pressure"
-    assert h.square_root_linearisation is True
+    assert get_profile("aasm_v3_dual").post_processing.flow_fallback_strategy == "none"
 
 
 def test_the_legacy_dict_carries_both_switches():
