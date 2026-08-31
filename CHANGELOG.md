@@ -1,3 +1,28 @@
+# v0.31.5 — 2026-08-31 — ook de houding en het snurken per deel van de nacht
+
+Sluit aan op 0.31.4, dat de arousalindex, de RDI en de PLM-index splitste. Daar
+bleven twee families over de hele nacht staan; ze staan er nu naast.
+
+* **`split_night["position"]`** — de positie-AHI per helft. Dit is geen bijzaak
+  bij een split-night: ligt de patiënt in het diagnostische deel vooral op de
+  rug en onder therapie vooral op de zij, dan verklaart de **houding** een deel
+  van de daling die anders volledig aan de CPAP wordt toegeschreven. Eén
+  positie-AHI over de hele nacht maakt dat onzichtbaar.
+* **`split_night["snore"]`** — de snurkindex per helft. De drempel is het 60e
+  percentiel van de RMS-verdeling over het HELE signaal en hangt niet van het
+  hypnogram af, dus beide helften liggen aan dezelfde meetlat. Was die drempel
+  per segment bepaald, dan trok een stille tweede helft zijn eigen lat omlaag
+  en rapporteerde alsnog snurken — dat staat nu als test vast.
+
+Beide zijn dunne lagen op `analyze_position` en `analyze_snore`, in dezelfde
+vorm als `segment_spo2`: het hypnogram buiten het venster op wake, de analyse
+opnieuw. Geen tweede telling van slaaptijd per houding.
+
+Daarmee draagt `split_night` acht families: `segments`, `summaries`, `spo2`,
+`arousal`, `rdi`, `plm`, `position` en `snore`.
+
+1321 tests, golden 9/9, mypy schoon.
+
 # v0.31.4 — 2026-08-31 — bij een split-night gaat nu ELKE index over het juiste stuk nacht
 
 0.29.0 splitste de AHI en de saturatie. De **arousalindex, de RDI en de

@@ -53,15 +53,22 @@ def _split_night_raw(mne):
         flow[a:b] *= 0.05
         spo2[b:b + int(15 * sf)] -= 5.0
 
+    # Houding en snurken horen bij het beeld: rugligging en snurken in het
+    # diagnostische deel, zijligging en stilte onder therapie. Zonder deze
+    # kanalen zou de test de twee nieuwste families overslaan.
+    positie = np.where(np.arange(n) < k, 0.0, 1.0)      # 0 = rug, 1 = links
+    snurk = np.where(np.arange(n) < k,
+                     rng.normal(0, 1.0, n), rng.normal(0, 0.02, n))
+
     info = mne.create_info(
         ["Resp nasal", "SaO2", "Thorax", "Abdomen", "EEG C4-M1",
-         "Chin EMG", "Leg EMG"],
-        sf, ["misc", "misc", "misc", "misc", "eeg", "misc", "misc"])
+         "Chin EMG", "Leg EMG", "Position", "Snore"],
+        sf, ["misc"] * 4 + ["eeg"] + ["misc"] * 4)
     raw = mne.io.RawArray(
         np.vstack([flow, spo2,
                    np.sin(2 * np.pi * 0.25 * t) * np.where(np.arange(n) < k, 1.0, 0.2),
                    np.sin(2 * np.pi * 0.25 * t) * np.where(np.arange(n) < k, 1.0, 0.2),
-                   eeg, rng.normal(0, 5e-6, n), been]),
+                   eeg, rng.normal(0, 5e-6, n), been, positie, snurk]),
         info, verbose=False)
     return raw, ["N2"] * int(np.ceil(raw.times[-1] / 30.0))
 
@@ -83,9 +90,10 @@ def test_de_split_wordt_gerapporteerd(uit):
 
 
 @pytest.mark.parametrize("sleutel", ["segments", "summaries", "spo2",
-                                     "arousal", "rdi", "plm"])
+                                     "arousal", "rdi", "plm",
+                                     "position", "snore"])
 def test_elke_indexfamilie_staat_in_de_uitvoer(uit, sleutel):
-    """Zes families, elk met beide helften. Ontbreekt er een, dan staat er in
+    """Acht families, elk met beide helften. Ontbreekt er een, dan staat er in
     het rapport een nachtgetal naast een segmentgetal."""
     blok = (uit.get("split_night") or {}).get(sleutel)
     assert blok, f"split_night['{sleutel}'] ontbreekt"
@@ -167,3 +175,25 @@ def test_de_segmenten_worden_geteld_voor_de_payloadgrens():
     assert split < cap, (
         f"segment_plm (regel {split}) draait NA _cap_plm_event_list "
         f"(regel {cap}): de segment-PLM-index telt dan een afgekapte lijst")
+
+
+def test_de_snurkdrempel_is_dezelfde_voor_beide_helften(uit):
+    """Was de drempel per segment bepaald, dan trok een stille tweede helft
+    zijn eigen lat omlaag en rapporteerde alsnog snurken."""
+    sn = uit["split_night"]["snore"]
+    d = (sn.get("diagnostic") or {}).get("snore_index")
+    t_ = (sn.get("therapeutic") or {}).get("snore_index")
+    if d is None or t_ is None:
+        pytest.skip("geen snurkindex in deze opname")
+    assert d > t_, (
+        f"diagnostisch {d} zou boven {t_} moeten liggen: het snurken stopt "
+        "na de titratie in deze fixture")
+
+
+def test_de_houding_per_helft_wordt_gerapporteerd(uit):
+    """Ligt de patiënt diagnostisch op de rug en onder therapie op de zij, dan
+    verklaart de houding een deel van de daling die aan de CPAP wordt
+    toegeschreven."""
+    pos = uit["split_night"]["position"]
+    assert (pos.get("diagnostic") or {}).get("ahi_per_pos") is not None
+    assert (pos.get("therapeutic") or {}).get("ahi_per_pos") is not None

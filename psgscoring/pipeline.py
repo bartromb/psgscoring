@@ -1431,6 +1431,18 @@ def run_pneumo_analysis(
                 _sn["plm"] = segment_plm(
                     (output.get("plm") or {}).get("events") or [],
                     hypno, _bp, artifact_epochs=artifact_epochs)
+                # Houding en snurken horen er ook bij. Ligt de patiënt
+                # diagnostisch vooral op de rug en onder therapie op de zij,
+                # dan verklaart de HOUDING een deel van de daling die aan de
+                # CPAP wordt toegeschreven -- en één positie-AHI over de hele
+                # nacht maakt dat onzichtbaar.
+                from .split_night import segment_position, segment_snore
+                _sn["position"] = segment_position(
+                    pos_data, sf_pos, _ev, hypno, _bp,
+                    artifact_epochs=artifact_epochs)
+                _sn["snore"] = segment_snore(
+                    snore_data, sf_snore, hypno, _bp,
+                    artifact_epochs=artifact_epochs)
                 _d = _sn["segments"]["diagnostic"]; _t = _sn["segments"]["therapeutic"]
                 logger.warning(
                     "[pneumo] split-night op %.0f s (%s): diagnostisch AHI %s/u "

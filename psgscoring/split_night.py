@@ -432,3 +432,63 @@ def segment_plm(plm_events, hypno, breakpoint_s, epoch_len_s=30.0,
             "reliable": bool(h >= 0.5),
         }
     return uit
+
+
+def segment_position(pos_data, sf_pos, events, hypno, breakpoint_s,
+                     epoch_len_s=30.0, artifact_epochs=None) -> dict:
+    """De positie-AHI per segment.
+
+    Dezelfde vorm als `segment_spo2`: het hypnogram wordt buiten het venster op
+    wake gezet en de analyse draait opnieuw, zodat er geen tweede telling van
+    slaaptijd per houding ontstaat.
+
+    Klinisch is dit geen bijzaak bij een split-night. Ligt de patiënt in het
+    diagnostische deel vooral op de rug en onder therapie vooral op de zij, dan
+    verklaart de HOUDING een deel van de daling die aan de CPAP wordt
+    toegeschreven. Eén positie-AHI over de hele nacht maakt dat onzichtbaar.
+    """
+    from .ancillary import analyze_position
+
+    if pos_data is None or not sf_pos:
+        return {}
+    n_s = len(hypno) * epoch_len_s
+    uit = {}
+    for naam, lo, hi in (("diagnostic", 0.0, float(breakpoint_s)),
+                         ("therapeutic", float(breakpoint_s), n_s)):
+        ev, hyp, _art = _slice(events or [], hypno, lo, hi, epoch_len_s,
+                               artifact_epochs)
+        try:
+            uit[naam] = (analyze_position(pos_data, sf_pos, hyp, ev)
+                         or {}).get("summary") or {}
+        except Exception as e:                              # noqa: BLE001
+            logger.warning("[split] positie voor %s mislukt: %s", naam, e)
+            uit[naam] = {"error": str(e)}
+    return uit
+
+
+def segment_snore(snore_data, sf_snore, hypno, breakpoint_s, epoch_len_s=30.0,
+                  artifact_epochs=None) -> dict:
+    """De snurkindex per segment.
+
+    De drempel is het 60e percentiel van de RMS-verdeling over het HELE
+    signaal en hangt niet van het hypnogram af; de twee helften worden dus aan
+    dezelfde meetlat gelegd. Was die drempel per segment bepaald, dan zou een
+    stille tweede helft zijn eigen lat omlaag trekken en alsnog "snurken"
+    rapporteren.
+    """
+    from .ancillary import analyze_snore
+
+    if snore_data is None or not sf_snore:
+        return {}
+    n_s = len(hypno) * epoch_len_s
+    uit = {}
+    for naam, lo, hi in (("diagnostic", 0.0, float(breakpoint_s)),
+                         ("therapeutic", float(breakpoint_s), n_s)):
+        _ev, hyp, _art = _slice([], hypno, lo, hi, epoch_len_s, artifact_epochs)
+        try:
+            uit[naam] = (analyze_snore(snore_data, sf_snore, hyp)
+                         or {}).get("summary") or {}
+        except Exception as e:                              # noqa: BLE001
+            logger.warning("[split] snurk voor %s mislukt: %s", naam, e)
+            uit[naam] = {"error": str(e)}
+    return uit
