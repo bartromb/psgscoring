@@ -141,8 +141,40 @@ class PostProcessingRules:
     stability_filter_cv: float = 0.45
     """Coefficient of variation threshold for rejecting normal variability."""
 
-    csr_reclassification: bool = True
+    csr_reclassification: bool = False
     """Herclassificeer CSR-gevlagde obstructieve/gemengde apneus als centraal.
+
+    **Default `False` sinds 31-08-2026** (gebruikersbesluit), na twee metingen
+    met hetzelfde antwoord. Gemeten op MESA n=52 bruikbaar, 841 gematchte paren
+    op de 38 CSR-nachten, beide armen op dezelfde opnames:
+
+    | | aan | uit |
+    |---|---:|---:|
+    | Cohen kappa | 0,090 | **0,185** |
+    | accuraatheid | 0,650 | **0,815** |
+    | recall obstructief | 0,680 | **0,901** |
+    | recall centraal | **0,466** | 0,276 |
+
+    De dominante fout -- obstructief dat centraal genoemd wordt -- zakt van 232
+    naar 72 van de 725. De prijs staat er ook: de centrale recall daalt van
+    0,466 naar 0,276, dus de regel vindt wel degelijk echte centrale events.
+    Maar 160 obstructieve events teruggewonnen tegen 22 centrale verloren is een
+    slechte ruil, en kappa zegt dat ook.
+
+    Zonder Cheyne-Stokes zijn beide armen identiek (kappa 0,311): de regel vuurt
+    daar niet. De DETECTIE is in elk stratum tot op drie decimalen gelijk -- de
+    stap verplaatst geen events, hij hernoemt ze.
+
+    **Dit raakt de OAHI**, niet alleen een label: `_oahi_at()` selecteert op
+    `type == "obstructive"`, dus een event dat centraal genoemd wordt valt uit
+    de obstructieve index. `mesa_shhs` en `chicago_1999` pinnen daarom
+    expliciet `True`.
+
+    Wat hier NIET uit volgt: dat de classifier gelijk heeft. De NSRR-referentie
+    is één scoorder zonder spreidingsmaat, en op CSR-nachten is
+    obstructief-versus-centraal ook voor mensen moeilijk. Kappa 0,185 blijft
+    zwak -- uitzetten repareert de subtypering niet, het maakt haar minder
+    verkeerd.
 
     **Dit veld bestond sinds v0.4.x en werd door niemand gelezen.** Het stond
     in de dataclass, twee profielen zetten hem expliciet, en `pipeline.py` gaf
@@ -2029,7 +2061,9 @@ _mesa_shhs = Profile(
         arousal_uses_artifact_epochs=True,
         stability_filter_enabled=True,
         stability_filter_cv=0.45,
-        csr_reclassification=True,
+        # GEPIND. De herclassificatie raakt de OAHI (`_oahi_at` selecteert
+        # op type == "obstructive"), en dit profiel reproduceert paper
+        # v31/v37. De default staat sinds 31-08-2026 op False.
         local_baseline_validation=True,
         breath_level_detection=True,
         artefact_flank_exclusion=True,
@@ -2050,6 +2084,11 @@ _mesa_shhs = Profile(
         # sinds 30-08-2026. Die verandert de ARO USALTELLING (op PSG-IPA SN3
         # 173 -> 159), en dit profiel reproduceert de NSRR-conventie.
         arousal_min_interval_s=0.0,
+        # En de CSR-herclassificatie, default UIT sinds 31-08-2026. Die raakt
+        # de OAHI -- `_oahi_at()` selecteert op type == "obstructive", dus een
+        # event dat centraal genoemd wordt valt eruit -- en dit profiel
+        # reproduceert paper v31/v37.
+        csr_reclassification=True,
         # En de arousal-classifier: paper v31/v37 draaide op het
         # regelgebaseerde pad.
         stability_filter_all_hypopnea_subtypes=False,
@@ -2143,9 +2182,11 @@ _chicago_1999 = Profile(
         rip_quality_scale_free=False,
         plm_time_base=False,
         # Zie mesa_shhs: de 10 s-regel tussen arousals staat sinds 30-08-2026
-        # default aan en verandert de arousaltelling. Dit profiel bevriest het
-        # gedrag van 1999.
+        # default aan en verandert de arousaltelling, en de
+        # CSR-herclassificatie staat sinds 31-08-2026 default uit en raakt de
+        # OAHI. Dit profiel bevriest het gedrag van 1999.
         arousal_min_interval_s=0.0,
+        csr_reclassification=True,
         stability_filter_all_hypopnea_subtypes=False,
         thermistor_gate="envelope_agreement",
     ),
@@ -2426,7 +2467,6 @@ _aasm_v3_strict = Profile(
         stability_filter_enabled=True,
         stability_filter_cv=0.30,
         summary_after_reclassification=True,
-        csr_reclassification=True,
         local_baseline_validation=True,
         flow_smoothing_s=0.0,
         breath_level_detection=False,
@@ -2474,7 +2514,6 @@ _aasm_v3_sensitive = Profile(
         stability_filter_enabled=True,
         stability_filter_cv=0.50,
         summary_after_reclassification=True,
-        csr_reclassification=True,
         local_baseline_validation=True,
         flow_smoothing_s=5.0,
         breath_level_detection=True,

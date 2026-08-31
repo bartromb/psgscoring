@@ -589,7 +589,7 @@
         "conf": 0.95,
         "d": 12.4,
         "t": 301.6,
-        "type": "central"
+        "type": "obstructive"
       },
       {
         "conf": 0.9,
@@ -628,12 +628,13 @@
       "ahi_excl_noise": 12.6,
       "ahi_total": 12.6,
       "n_by_type": {
-        "central": 2
+        "central": 1,
+        "obstructive": 1
       },
       "n_events": 2,
       "n_rejected_hypopneas": 0,
-      "oahi_all": 0.0,
-      "oahi_conf60": 0.0,
+      "oahi_all": 6.3,
+      "oahi_conf60": 6.3,
       "rdi": 12.6,
       "rule1a_arousal_reinstated": 0,
       "rule1b_reinstated": 0,

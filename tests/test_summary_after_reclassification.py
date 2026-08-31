@@ -17,6 +17,7 @@ De correctie zit achter ``summary_after_reclassification``; default uit, zodat
 """
 from __future__ import annotations
 
+import os
 import warnings
 from collections import Counter
 
@@ -84,11 +85,33 @@ def _make_mixed_csr_raw():
 
 
 def _run(profile="aasm_v3_rec"):
+    """Draait MET de CSR-herclassificatie aan, en dat moet sinds 31-08-2026
+    expliciet.
+
+    Deze module toetst `summary_after_reclassification`: of de samenvatting en
+    de eventlijst hetzelfde beeld geven nadat events van type wisselen. Die
+    vraag heeft alleen zin als er events van type WISSELEN, en de
+    CSR-herclassificatie is wat ze laat wisselen.
+
+    Sinds die stap default UIT staat (kappa 0,090 tegen 0,185 op de
+    CSR-nachten van MESA) zou de fixture stilzwijgend niets meer
+    herclassificeren, en zouden deze vier tests groen blijven zonder iets te
+    meten. De env-override zet hem hier aan; `mesa_shhs` en `chicago_1999`
+    houden hem sowieso aan voor hun reproductie.
+    """
     raw, hypno, cmap = _make_mixed_csr_raw()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return psgscoring.run_pneumo_analysis(
-            raw, hypno, channel_map=cmap, scoring_profile=profile)
+        _oud = os.environ.get("PSGSCORING_CSR_RECLASSIFICATION")
+        os.environ["PSGSCORING_CSR_RECLASSIFICATION"] = "1"
+        try:
+            return psgscoring.run_pneumo_analysis(
+                raw, hypno, channel_map=cmap, scoring_profile=profile)
+        finally:
+            if _oud is None:
+                os.environ.pop("PSGSCORING_CSR_RECLASSIFICATION", None)
+            else:
+                os.environ["PSGSCORING_CSR_RECLASSIFICATION"] = _oud
 
 
 def _counts(out):

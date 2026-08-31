@@ -83,11 +83,40 @@ def test_de_stap_is_uit_te_zetten():
     assert uit["events"][0]["type"] == "obstructive"
 
 
-def test_elk_profiel_houdt_de_stap_aan():
-    """Default = bestaand gedrag; de vlag bestaat om te MÉTEN, niet om te wijzigen."""
+def test_alleen_de_reproductieprofielen_houden_de_stap_aan():
+    """Default UIT sinds 31-08-2026, na twee metingen met hetzelfde antwoord.
+
+    Op de 38 CSR-nachten van MESA (841 gematchte paren) gaat kappa van 0,090
+    naar 0,185 en de obstructieve recall van 0,680 naar 0,901 wanneer de stap
+    uit gaat; de dominante fout obstructief -> centraal zakt van 232 naar 72.
+    De centrale recall daalt van 0,466 naar 0,276 -- de regel vindt echte
+    centrale events, maar koopt ze met een veelvoud aan valse.
+
+    `mesa_shhs` en `chicago_1999` houden hem AAN: de herclassificatie raakt de
+    OAHI, want `_oahi_at()` selecteert op type == "obstructive". Die twee
+    reproduceren gepubliceerde resultaten.
+    """
     from psgscoring.constants import SCORING_PROFILES
+    from psgscoring.profiles import get_profile
     for naam, d in SCORING_PROFILES.items():
-        assert d["CSR_RECLASSIFICATION"] is True, naam
+        verwacht = get_profile(naam).family in ("dataset", "legacy")
+        assert d["CSR_RECLASSIFICATION"] is verwacht, (
+            f"{naam} ({get_profile(naam).family}) staat op "
+            f"{d['CSR_RECLASSIFICATION']}, verwacht {verwacht}")
+
+
+def test_de_oahi_hangt_aan_het_subtypelabel():
+    """Waarom dit geen cosmetische wijziging is.
+
+    Een event dat centraal genoemd wordt, valt uit de obstructieve index. Dat
+    is de reden dat de reproductieprofielen gepind zijn en dat het omzetten van
+    de default een gerapporteerd getal verandert.
+    """
+    import inspect
+
+    from psgscoring import respiratory
+    bron = inspect.getsource(respiratory)
+    assert 'obstr     = [e for e in events if e["type"] == "obstructive"]' in bron
 
 
 # ══════════════════════════════════════════════════════════════════════

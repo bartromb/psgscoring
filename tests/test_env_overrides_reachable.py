@@ -106,6 +106,9 @@ PIPELINE_ONLY = {
     # waar een harnas ze aan voorbij zou kunnen komen.
     "PSGSCORING_AROUSAL_LIMB_WIRED",
     "PSGSCORING_RULE1A_AROUSAL",
+    # Stap die alleen in de pipeline bestaat; het meetharnas gaat via
+    # run_pneumo_analysis, dus de env bereikt hem daar.
+    "PSGSCORING_CSR_RECLASSIFICATION",
     "PSGSCORING_THERMISTOR_GATE",
     "PSGSCORING_PLM_EVENT_LIST_CAP",
     "PSGSCORING_PLM_OFFSET_AASM",

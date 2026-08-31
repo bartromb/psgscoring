@@ -1325,8 +1325,7 @@ def run_pneumo_analysis(
                 abdomen_data=abdomen_data,
                 sf_effort=sf_apnea or sf_flow or 0,
                 ahi_interval=output["respiratory"].get("summary", {}).get("ahi_interval"),
-                csr_reclassification=bool(
-                    profile.get("CSR_RECLASSIFICATION", True)),
+                csr_reclassification=_csr_reclassification(profile),
                 csr_confidence_floor=profile.get("CSR_CONFIDENCE_FLOOR"),
             )
             output["respiratory"]["events"] = pp["events"]
@@ -2540,6 +2539,20 @@ def _compute_arousal_etiology(output: dict, hypno: list) -> None:
             summ["plm_arousal_index"] = round(ai * min(n_plm_ar, n_total) / n_total, 1)
     except Exception as e:  # noqa: BLE001
         logger.warning("[pneumo] arousal-etiology indices failed: %s", e)
+
+
+def _csr_reclassification(profile: dict) -> bool:
+    """Draait de CSR-herclassificatie? Profielvlag met env-override.
+
+    De override bestaat om dezelfde reden als `PSGSCORING_RULE1A_AROUSAL`: de
+    stap moet te meten zijn zonder de registry te muteren. Dat is hier extra
+    nodig omdat de meting van 14-08 (kappa 0,091 op CSR-nachten) nooit is
+    opgevolgd juist doordat de stap niet uit kon.
+    """
+    env = os.environ.get("PSGSCORING_CSR_RECLASSIFICATION")
+    if env is not None:
+        return env.strip().lower() in ("1", "true", "yes", "on")
+    return bool(profile.get("CSR_RECLASSIFICATION", True))
 
 
 def _arousal_limb_wired(profile: dict) -> bool:
