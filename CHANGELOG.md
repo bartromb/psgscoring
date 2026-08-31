@@ -1,3 +1,58 @@
+# v0.31.3 — 2026-08-31 — de CSR-herclassificatie staat default uit
+
+**Gedragswijziging op een gerapporteerd getal.** De AHI blijft gelijk; de
+**OAHI stijgt** op opnames met Cheyne-Stokes, en de subtypeverdeling verschuift
+van centraal naar obstructief. `mesa_shhs` en `chicago_1999` zijn gepind en
+reproduceren ongewijzigd. Golden op één case opnieuw gezet, 1278 tests.
+
+## Wat er gemeten is
+
+De regel maakte van elke CSR-gevlagde obstructieve of gemengde apneu een
+centrale. Ze is nooit tegen een referentie gehouden vóór invoering. Nu twee
+keer gemeten met hetzelfde antwoord — MESA, 52 bruikbare opnames, 841 gematchte
+paren op de 38 CSR-nachten, beide armen op dezelfde opnames en hetzelfde zaad:
+
+| | aan | uit |
+|---|---:|---:|
+| Cohen κ | 0,090 | **0,185** |
+| accuraatheid | 0,650 | **0,815** |
+| recall obstructief | 0,680 | **0,901** |
+| recall centraal | **0,466** | 0,276 |
+
+De dominante fout — obstructief dat centraal genoemd wordt — zakt van 232 naar
+72 van de 725.
+
+**De prijs staat erbij:** de centrale recall daalt van 0,466 naar 0,276. De
+regel vindt dus werkelijk centrale events; ze koopt die alleen met een veelvoud
+aan valse. 160 obstructieve events teruggewonnen tegen 22 centrale verloren is
+een slechte ruil, en κ zegt dat ook.
+
+De DETECTIE is in elk stratum tot op drie decimalen gelijk. Dat is de controle
+die zegt dat dit alleen de typering meet: de stap verplaatst geen events, hij
+hernoemt ze. Zonder Cheyne-Stokes zijn beide armen identiek (κ 0,311), want
+daar vuurt de regel niet.
+
+## Waarom dit de OAHI raakt
+
+`_oahi_at()` selecteert op `type == "obstructive"`. Een event dat centraal
+genoemd wordt, valt dus uit de obstructieve index. De golden laat het zien op
+de case `poor_quality`: **`oahi_all` 0,0 → 6,3**, omdat het enige obstructieve
+event van die opname was weggeherclassificeerd. `ahi_total` verandert niet — die
+telt alle apneutypes.
+
+Voor een lezer van een rapport: een patiënt die eerder als overwegend centraal
+getypeerd werd, kan nu overwegend obstructief lezen. Bij een heranalyse van een
+oude opname is dat zichtbaar.
+
+## Wat hier NIET uit volgt
+
+Dat de classifier gelijk heeft. De NSRR-referentie is één scoorder zonder
+spreidingsmaat, en obstructief-versus-centraal op een CSR-nacht is ook voor
+mensen moeilijk. κ 0,185 blijft zwak: uitzetten repareert de subtypering niet,
+het maakt haar minder verkeerd. De centrale recall die is ingeleverd, is precies
+wat een betere arbiter zou moeten terugwinnen — de ECG-tak, die op een MESA-
+opname in 40 van de 40 vensters zweeg, of een PTT-surrogaat uit de pleth.
+
 # v0.31.2 — 2026-08-31 — de CSR-herclassificatie claimt niet meer wat ze niet kan waarmaken
 
 Eén zichtbare wijziging, en die raakt geen enkele index: de **confidence van
