@@ -534,3 +534,141 @@ def _mean_effort_ratio(
         return 0.0
     vals = [float(np.mean(seg[start:end])) for seg in effort_segs.values()]
     return float(np.mean(vals)) / effort_baseline if vals else 0.0
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Hypopneu-subtypering: de eigen regel van de manual
+# ═══════════════════════════════════════════════════════════════════════════
+
+#: Hoeveel de inspiratoire afvlakking tijdens het event moet TOENEMEN ten
+#: opzichte van de basislijnademteugen om als obstructiekenmerk te tellen.
+#: De manual zegt "toegenomen" en kwantificeert niet; dit is dus een keuze en
+#: geen regel. Relatief, niet absoluut: een patiënt die de hele nacht op 0,35
+#: ademt heeft geen toename op het event, en een absolute drempel zou daar
+#: elke hypopneu obstructief noemen.
+HYPOPNEA_FLATTENING_RATIO = 1.30
+
+#: Fasehoek waarboven thorax en abdomen als paradoxaal gelden. Zelfde waarde
+#: als in `classify_apnea_type` (regel 0), zodat er niet twee definities van
+#: paradox naast elkaar bestaan.
+HYPOPNEA_PARADOX_DEG = 45.0
+
+#: Venster vóór het event waarin de "basislijnademhaling" wordt gemeten.
+#: Gelijk aan het pre-event-basislijnvenster van AASM (2 minuten).
+HYPOPNEA_BASELINE_S = 120.0
+
+
+def classify_hypopnea_type(
+    *,
+    onset_s: float,
+    duration_s: float,
+    breaths: list | None,
+    thorax_env: np.ndarray | None,
+    abdomen_env: np.ndarray | None,
+    sf: float,
+    snore_present: bool | None = None,
+    baseline_s: float = HYPOPNEA_BASELINE_S,
+) -> tuple[str, float, dict]:
+    """Subtypeer een hypopneu volgens AASM v3 §6.1 (optionele criteria).
+
+    WAAROM DIT NIET `classify_apnea_type` IS
+    ----------------------------------------
+    Die functie implementeert sectie 3B, de APNEUregel, en beslist op
+    effort-vlakheid: "no raw movement, low envelope" -> centraal. Bij een
+    hypopneu is de inspanning per definitie nooit vlak -- de flow daalt 30 tot
+    90 %, niet naar nul. Die regel kan daar dus vrijwel alleen vuren wanneer het
+    EFFORTKANAAL zwak is, en dan zegt `hypopnea_central` iets over de
+    meetopstelling in plaats van over de patiënt.
+
+    De regels delen geen logica; parametriseren zou de fout verplaatsen in
+    plaats van hem weghalen.
+
+    DE REGEL, OMGEKEERD ONTWORPEN
+    -----------------------------
+    **Obstructief** bij ten minste één van:
+
+    1. snurken tijdens het event;
+    2. toegenomen inspiratoire afvlakking t.o.v. de basislijnademteugen;
+    3. thoracoabdominale paradox die TIJDENS het event optreedt maar NIET in de
+       ademhaling ervóór.
+
+    **Centraal** alleen als geen van de drie aanwezig is. Eén kenmerk is
+    genoeg -- geen stemming, geen weging.
+
+    Criterium 3 draagt de bescherming: een band die de hele nacht al paradoxaal
+    staat (verwisselde polariteit, losgekoppeld) is vóór het event óók
+    paradoxaal en telt dus niet mee. Een absolute paradoxtoets zou daar juist
+    wél vuren.
+
+    WAT ONBEREIKBAAR IS EN WAAROM DAT IN DE UITVOER STAAT
+    -----------------------------------------------------
+    Criterium 1 vraagt snurken. Het bandfilter van 0,05-3 Hz knipt
+    snurktrillingen er juist uit, dus zonder apart snurkkanaal is dit criterium
+    op dit pad niet te toetsen. `snore_present=None` betekent dan ook niet
+    "geen snurken" maar "niet gemeten", en het verschil staat in
+    `criteria_unavailable`. Met twee van de drie criteria betekent "centraal"
+    strikt genomen "geen van de twee die we kónden toetsen", en dat is zwakker
+    dan de manual bedoelt. `complete` zegt of het oordeel op alle drie rust.
+
+    Returns
+    -------
+    ``(subtype, confidence, detail)`` met subtype ``"obstructive"``,
+    ``"central"`` of ``"uncertain"``.
+    """
+    detail: dict = {"rule": "AASM v3 §6.1 (optional)",
+                    "criteria_met": [], "criteria_unavailable": []}
+
+    # ── 1. Snurken ────────────────────────────────────────────────────────
+    if snore_present is None:
+        detail["criteria_unavailable"].append("snoring")
+    elif snore_present:
+        detail["criteria_met"].append("snoring")
+
+    # ── 2. Toegenomen inspiratoire afvlakking ─────────────────────────────
+    einde_s = onset_s + duration_s
+    tijdens = [b["flattening"] for b in (breaths or [])
+               if b.get("flattening") is not None
+               and onset_s <= float(b.get("onset_s", -1)) < einde_s]
+    basis = [b["flattening"] for b in (breaths or [])
+             if b.get("flattening") is not None
+             and onset_s - baseline_s <= float(b.get("onset_s", -1)) < onset_s]
+    if tijdens and basis:
+        f_ev = float(np.mean(tijdens))
+        f_bl = float(np.mean(basis))
+        detail["flattening_event"] = safe_r(f_ev, 3)
+        detail["flattening_baseline"] = safe_r(f_bl, 3)
+        if f_bl > 1e-9 and f_ev >= HYPOPNEA_FLATTENING_RATIO * f_bl:
+            detail["criteria_met"].append("flattening")
+    else:
+        detail["criteria_unavailable"].append("flattening")
+
+    # ── 3. Paradox tijdens, maar niet ervóór ──────────────────────────────
+    if thorax_env is not None and abdomen_env is not None and sf > 0:
+        o_i, e_i = int(onset_s * sf), int(einde_s * sf)
+        p_i = max(0, int((onset_s - baseline_s) * sf))
+        hoek_ev = _compute_phase_angle(thorax_env, abdomen_env, o_i, e_i, sf)
+        hoek_bl = _compute_phase_angle(thorax_env, abdomen_env, p_i, o_i, sf)
+        detail["phase_angle_event"] = safe_r(hoek_ev, 1)
+        detail["phase_angle_baseline"] = safe_r(hoek_bl, 1)
+        if hoek_ev is None or hoek_bl is None:
+            detail["criteria_unavailable"].append("paradox")
+        elif hoek_ev >= HYPOPNEA_PARADOX_DEG and hoek_bl < HYPOPNEA_PARADOX_DEG:
+            detail["criteria_met"].append("paradox")
+    else:
+        detail["criteria_unavailable"].append("paradox")
+
+    detail["complete"] = not detail["criteria_unavailable"]
+
+    # ── Het oordeel ───────────────────────────────────────────────────────
+    if len(detail["criteria_unavailable"]) == 3:
+        # Niets te toetsen. `uncertain` in plaats van een restcategorie die
+        # dan alleen zegt dat er niets gemeten is.
+        return "uncertain", 0.3, detail
+    if detail["criteria_met"]:
+        # Meer kenmerken maken het niet obstructiever -- de regel is "ten
+        # minste één" -- maar ze maken de uitspraak wel steviger.
+        conf = 0.70 + 0.10 * min(2, len(detail["criteria_met"]) - 1)
+        return "obstructive", round(conf, 2), detail
+    # Restcategorie. Zonder alle drie de criteria is dit zwakker dan de manual
+    # bedoelt, en dat staat in `complete`.
+    return "central", (0.65 if detail["complete"] else 0.55), detail

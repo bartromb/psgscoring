@@ -386,6 +386,9 @@ def run_pneumo_analysis(
             # `apnea_flow is flow_therm_data` is de vraag die er staat; dezelfde
             # idioom als een paar regels verderop.
             apnea_on_thermistor = apnea_flow is flow_therm_data,
+            # AASM v3 §6.1 -- de eigen subtyperingsregel voor hypopneus.
+            # Profielvlag, env-override zoals bij de andere meetvlaggen.
+            hypopnea_subtype_aasm=_hypopnea_subtype_aasm(profile),
             flow_data    = apnea_flow,
             hypop_flow   = hypop_flow,
             sf_hypop     = sf_hypop,
@@ -2525,6 +2528,19 @@ def _thermistor_gate(profile: dict) -> str:
                 "(%s); profielwaarde %r blijft staan",
                 raw, ", ".join(sorted(_THERMISTOR_GATES)), gate)
     return gate
+
+
+def _hypopnea_subtype_aasm(profile: dict) -> bool:
+    """Subtypeer hypopneus met de manualregel? Profielvlag, env wint.
+
+    `PSGSCORING_HYPOPNEA_SUBTYPE_AASM=0/1`. Zonder override is de arm niet van
+    de huidige te scheiden in één run.
+    """
+    v = bool(profile.get("HYPOPNEA_SUBTYPE_AASM", False))
+    env = os.environ.get("PSGSCORING_HYPOPNEA_SUBTYPE_AASM")
+    if env is not None:
+        v = env == "1"
+    return v
 
 
 def _plm_bilateral_window_s(profile: dict) -> float:

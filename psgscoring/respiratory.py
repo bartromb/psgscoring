@@ -308,6 +308,7 @@ def detect_respiratory_events(
     sf_ecg:            float | None = None,
     signal_quality:    dict | None = None,
     apnea_on_thermistor: bool = False,
+    hypopnea_subtype_aasm: bool = False,
     _precomputed:      dict | None = None,
 ) -> dict:
     """
@@ -762,6 +763,7 @@ def detect_respiratory_events(
             min_qualifying_fraction=_QUAL_FRAC,
             gap_stats=_gap_stats_hy,
             desat_global_bl_min_local_pct=_DESAT_GBL,
+            hypopnea_subtype_aasm=hypopnea_subtype_aasm,
         )
         events = new_events
 
@@ -1962,6 +1964,7 @@ def _detect_hypopneas(
     min_qualifying_fraction: float = 0.90,
     gap_stats: dict | None = None,
     desat_global_bl_min_local_pct: float | None = None,
+    hypopnea_subtype_aasm: bool = False,
 ) -> tuple[list[dict], list[dict]]:
     """Return (all_events_including_new_hypopneas, rejected_candidates)."""
     # Build apnea exclusion mask (±5 s around each confirmed apnea)
@@ -2130,6 +2133,19 @@ def _detect_hypopneas(
                 signal_quality=signal_quality,  # v0.3.001 BUG2 gate
                 use_rhythm=use_rhythm,
             )
+            # AASM v3 §6.1: hypopneus hebben een EIGEN subtyperingsregel,
+            # omgekeerd ontworpen (drie obstructiekenmerken, centraal als
+            # rest). `classify_apnea_type` hierboven beslist op
+            # effort-vlakheid, en die bestaat bij een hypopneu niet -- daar
+            # vuurt hij vrijwel alleen op een zwak effortkanaal.
+            if hypopnea_subtype_aasm:
+                from .classify import classify_hypopnea_type
+
+                hy_sub, hy_conf, hy_det = classify_hypopnea_type(
+                    onset_s=onset_s, duration_s=sub_dur, breaths=breaths,
+                    thorax_env=thorax_env, abdomen_env=abdomen_env, sf=sf_flow,
+                    snore_present=None,   # zie de vlagdocstring: 3 Hz-filter
+                )
             hy_label = f"hypopnea_{hy_sub}" if hy_sub != "obstructive" else "hypopnea"
             flow_red_ratio = safe_r(
                 1.0 - float(np.mean(hypop_norm[sub_idx[0] : sub_idx[-1] + 1])), 3

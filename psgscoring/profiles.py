@@ -792,6 +792,32 @@ class PostProcessingRules:
     Aanzetten neemt bovendien events weg, en dat verlaagt de AHI.
     """
 
+    hypopnea_subtype_aasm: bool = False
+    """Subtypeer hypopneus met de EIGEN regel van de manual (§6.1) in plaats
+    van met de apneuregel.
+
+    `False` = huidig gedrag: `classify_apnea_type` beslist, op effort-vlakheid.
+    Bij een hypopneu is de inspanning per definitie nooit vlak, dus die regel
+    vuurt daar vrijwel alleen op een zwak effortkanaal -- `hypopnea_central`
+    zegt dan iets over de meetopstelling in plaats van over de patiënt.
+
+    `True` = AASM v3 §6.1: obstructief bij ten minste één van snurken,
+    toegenomen inspiratoire afvlakking t.o.v. de basislijnademteugen, of
+    paradox die tijdens maar niet vóór het event optreedt. Centraal alleen als
+    geen van de drie aanwezig is.
+
+    **Op dit pad is snurken niet toetsbaar**: het bandfilter van 0,05-3 Hz
+    haalt snurktrillingen weg. Het oordeel rust dus op twee van de drie
+    criteria, en `classify_detail["complete"]` zegt dat per event.
+
+    IJkpunt voor de meting: menselijke scoorders noemen 5,9 % van hun
+    hypopneus centraal (95 van 1601 in PSG-IPA). Meet de fractie
+    `hypopnea_central` vóór en na, plus de kappa voor subtype tegen het
+    plafond (mediaan 0,561).
+
+    Env-override: `PSGSCORING_HYPOPNEA_SUBTYPE_AASM`.
+    """
+
     plm_bilateral_window_s: float = 0.5
     """Onset-tot-onset venster waarbinnen twee benen ÉÉN beweging zijn.
 

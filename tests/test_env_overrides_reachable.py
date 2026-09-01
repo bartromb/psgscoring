@@ -115,6 +115,9 @@ PIPELINE_ONLY = {
     # run_pneumo_analysis, dus daar werkt hij wel. Bewuste keuze, zelfde vorm
     # als de arousalvlaggen hierboven.
     "PSGSCORING_PLM_BILATERAL_WINDOW_S",
+    # Doorgegeven als ARGUMENT aan detect_respiratory_events(). Een harnas dat
+    # die functie direct aanroept moet de vlag zelf meegeven.
+    "PSGSCORING_HYPOPNEA_SUBTYPE_AASM",
     "PSGSCORING_THERMISTOR_GATE",
     "PSGSCORING_PLM_EVENT_LIST_CAP",
     "PSGSCORING_PLM_OFFSET_AASM",
