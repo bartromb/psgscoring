@@ -109,6 +109,12 @@ PIPELINE_ONLY = {
     # Stap die alleen in de pipeline bestaat; het meetharnas gaat via
     # run_pneumo_analysis, dus de env bereikt hem daar.
     "PSGSCORING_CSR_RECLASSIFICATION",
+    # Doorgegeven als ARGUMENT aan analyze_plm(bilateral_window_s=...). Een
+    # harnas dat analyze_plm rechtstreeks aanroept moet het venster zelf
+    # meegeven -- de env bereikt hem daar niet. De bilaterale meting gaat via
+    # run_pneumo_analysis, dus daar werkt hij wel. Bewuste keuze, zelfde vorm
+    # als de arousalvlaggen hierboven.
+    "PSGSCORING_PLM_BILATERAL_WINDOW_S",
     "PSGSCORING_THERMISTOR_GATE",
     "PSGSCORING_PLM_EVENT_LIST_CAP",
     "PSGSCORING_PLM_OFFSET_AASM",

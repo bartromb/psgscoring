@@ -50,7 +50,17 @@ _log_plm = logging.getLogger(__name__)
 PLM_MIN_INTERVAL_S = 5.0
 PLM_MAX_INTERVAL_S = 90.0
 PLM_MIN_SERIES     = 4
+#: Huidig gedrag. Een factor tien krapper dan de manual voorschrijft; zie
+#: `BILATERAL_WIN_AASM_S` en `PLMRules.bilateral_window_s`.
 BILATERAL_WIN_S    = 0.5
+
+#: Wat de AASM-manual zegt: bewegingen aan twee verschillende benen die minder
+#: dan 5 s uit elkaar BEGINNEN, tellen als één beweging. Onset-tot-onset, niet
+#: op overlap. Dit is een regel, geen afstelbare parameter -- vandaar een eigen
+#: constante naast de huidige waarde, zodat het verschil tussen "wat de manual
+#: zegt" en "wat wij doen" in de code zichtbaar is in plaats van in een
+#: changelog.
+BILATERAL_WIN_AASM_S = 5.0
 RESP_EXCLUSION_S   = 0.5     # LM within 0.5 s of resp event end -> excluded
 
 
@@ -65,6 +75,7 @@ def analyze_plm(
     time_base_fix: bool = True,
     event_list_cap: int | None = EVENT_LIST_CAP,
     offset_aasm: bool = False,
+    bilateral_window_s: float = BILATERAL_WIN_S,
 ) -> dict:
     """
     Detect PLMs on left and/or right tibialis anterior EMG channels.
@@ -111,7 +122,7 @@ def analyze_plm(
                                     time_base_fix=time_base_fix,
                                   offset_aasm=offset_aasm)
                  if leg_r is not None else [])
-        all_lms = _merge_bilateral(lms_l, lms_r)
+        all_lms = _merge_bilateral(lms_l, lms_r, bilateral_window_s)
         all_lms.sort(key=lambda x: x["onset_s"])
 
         # Tag with sleep stage; filter wake
@@ -355,8 +366,19 @@ def _lm_events_aasm_offset(rms, step_s: float, resting: float) -> list[dict]:
 def _merge_bilateral(
     lms_l: list[dict],
     lms_r: list[dict],
+    window_s: float = BILATERAL_WIN_S,
 ) -> list[dict]:
-    """Merge bilateral LMs (within 0.5 s) into a single LM."""
+    """Voeg bilaterale beenbewegingen samen tot één beweging.
+
+    `window_s` is onset-tot-onset. De AASM-waarde is 5,0 s
+    (`BILATERAL_WIN_AASM_S`); de default hier is de huidige 0,5 s, want een
+    gedragswijziging krijgt eerst een meting. Zie `PLMRules.bilateral_window_s`.
+
+    Wat een te krap venster kost: bilaterale bewegingen die 0,5 tot 5 s uit
+    elkaar beginnen tellen als twee. Dat verhoogt `n_lm` en daarmee de
+    LM-index. Het PLM-interval begint bij 5 s, dus zulke dubbeltellingen vormen
+    zelf geen reeks -- maar ze zitten wel in de teller.
+    """
     used_r: set[int] = set()
     merged: list[dict] = []
 
@@ -365,7 +387,7 @@ def _merge_bilateral(
         for j, rlm in enumerate(lms_r):
             if j in used_r:
                 continue
-            if abs(lm["onset_s"] - rlm["onset_s"]) <= BILATERAL_WIN_S:
+            if abs(lm["onset_s"] - rlm["onset_s"]) <= window_s:
                 merged.append({
                     "onset_s":      min(lm["onset_s"],     rlm["onset_s"]),
                     "duration_s":   max(lm["duration_s"],  rlm["duration_s"]),

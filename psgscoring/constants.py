@@ -106,6 +106,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "PLM_TIME_BASE": pp.plm_time_base,
         "PLM_EVENT_LIST_CAP": pp.plm_event_list_cap,
         "PLM_OFFSET_AASM": pp.plm_offset_aasm,
+        "PLM_BILATERAL_WINDOW_S": pp.plm_bilateral_window_s,
         "FLOW_GAP_SCALE_FREE": pp.flow_gap_scale_free,
         "AROUSAL_LGBM": pp.arousal_lgbm,
         "AROUSAL_USES_ARTIFACT_EPOCHS": pp.arousal_uses_artifact_epochs,

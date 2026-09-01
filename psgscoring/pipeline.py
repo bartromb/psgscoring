@@ -737,6 +737,7 @@ def run_pneumo_analysis(
             # na _compute_arousal_etiology().
             event_list_cap=None,
             offset_aasm=_plm_offset_aasm(profile),
+            bilateral_window_s=_plm_bilateral_window_s(profile),
         ))
     else:
         output["plm"] = {"success": False, "error": "No leg-EMG channels", "summary": {}}
@@ -1258,6 +1259,17 @@ def run_pneumo_analysis(
     # this adds. On non-CSR nights Fix 3 does not fire and nothing between the
     # old (step 8b) and this position touches the summary, so the values are
     # unchanged; on CSR nights the keys are now retained (bug fix, v0.7.4).
+    # Welke regel draagt deze AHI? Naast het getal, niet in het herkomstblok:
+    # `hypopnea_criterion` staat daar al sinds v0.11.0 en werd door geen enkele
+    # consument gelezen. Zie docs/AASM_v3_conformiteit.md §1.1.
+    try:
+        if (output.get("respiratory") or {}).get("summary") is not None:
+            output["respiratory"]["summary"]["ahi_rule"] = ahi_rule_conformity(
+                profile)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[pneumo] AHI-regeloordeel mislukt (%s): %s",
+                       type(e).__name__, e)
+
     logger.info("[pneumo 9b/11] RERA and RDI computation...")
     _compute_rera_rdi(output, hypno, arousals, artifact_epochs,
                       arousal_window_s=float(
@@ -2269,6 +2281,65 @@ def arousal_limb_is_effective(profile: dict) -> bool:
                 and profile.get("AROUSAL_LIMB_WIRED"))
 
 
+def ahi_rule_conformity(profile: dict) -> dict:
+    """Welke AASM-regel draagt deze AHI, en is dat er een die de manual kent?
+
+    WAAROM DIT NAAST HET GETAL MOET STAAN
+    -------------------------------------
+    AASM v3 verplaatst het 4 %-criterium van ACCEPTABLE naar OPTIONAL. Daarmee
+    is "flowreductie + (desaturatie OF arousal)" de enige AANBEVOLEN regel en
+    Rule 1B de enige optionele. Staat de arousal-tak uit, dan is de uitvoer
+    "flowreductie + desaturatie zonder arousal-alternatief" -- geen van beide.
+    Onder v2.6 was dat een keuze binnen twee toegestane definities; onder v3 is
+    het een derde definitie die de manual niet kent.
+
+    Het getal heet niettemin `ahi_total`. `hypopnea_criterion` zegt het al
+    correct, maar staat in het herkomstblok en werd door geen enkele consument
+    gelezen. Een losse noot onderaan een rapport telt niet: het label reist mee
+    met het getal, of het bestaat niet.
+
+    Returns
+    -------
+    dict met `verdict`, `conform`, `label`, `reason` en `aasm_version`.
+    `label` is zelfstandig leesbaar -- wie alleen dat veld ziet, moet weten dat
+    het geen gewone AHI is.
+    """
+    versie = str(profile.get("_AASM_VERSION") or profile.get("aasm_version")
+                 or "AASM v3 (2023)")
+    desat = float(profile.get("DESATURATION_DROP_PCT", 3.0))
+    if arousal_limb_is_effective(profile):
+        return {
+            "verdict": "v3_recommended",
+            "conform": True,
+            "label": "AHI",
+            "reason": (f"flowreductie + (≥{desat:g}% desaturatie OF arousal) — "
+                       f"de aanbevolen regel"),
+            "aasm_version": versie,
+        }
+    if desat >= 4.0:
+        return {
+            "verdict": "v3_optional_1b",
+            "conform": True,
+            "label": f"AHI ({desat:g}% desaturatie)",
+            "reason": (f"flowreductie + ≥{desat:g}% desaturatie — Rule 1B, "
+                       f"in v3 OPTIONAL"),
+            "aasm_version": versie,
+        }
+    return {
+        "verdict": "desat_only",
+        "conform": False,
+        "label": f"AHI ({desat:g}% desaturatie, zonder arousal-tak)",
+        "reason": (
+            f"flowreductie + ≥{desat:g}% desaturatie zonder arousal-alternatief. "
+            f"Dat is niet de aanbevolen v3-regel (die kent de arousal-tak) en "
+            f"niet de optionele (die eist ≥4%). Het getal ligt daardoor "
+            f"systematisch lager dan een v3-conforme AHI, en de onderschatting "
+            f"is selectief: niet-desaturerende, arousal-gekwalificeerde "
+            f"hypopneus clusteren bij een herkenbaar fenotype."),
+        "aasm_version": versie,
+    }
+
+
 def _hypopnea_criterion_str(profile: dict) -> str | None:
     """A5: human-readable hypopnea scoring criterion (AASM v3 VIII.D Note 1)."""
     try:
@@ -2454,6 +2525,25 @@ def _thermistor_gate(profile: dict) -> str:
                 "(%s); profielwaarde %r blijft staan",
                 raw, ", ".join(sorted(_THERMISTOR_GATES)), gate)
     return gate
+
+
+def _plm_bilateral_window_s(profile: dict) -> float:
+    """Bilateraal venster: profielvlag, env wint.
+
+    `PSGSCORING_PLM_BILATERAL_WINDOW_S`, zoals bij de andere meetvlaggen. Zonder
+    override is de manualarm niet van de huidige te scheiden in één run.
+    """
+    from .plm import BILATERAL_WIN_S
+
+    v = float(profile.get("PLM_BILATERAL_WINDOW_S", BILATERAL_WIN_S))
+    env = os.environ.get("PSGSCORING_PLM_BILATERAL_WINDOW_S")
+    if env is not None:
+        try:
+            v = float(env)
+        except ValueError:
+            logger.warning("[pneumo] PSGSCORING_PLM_BILATERAL_WINDOW_S=%r is "
+                           "geen getal; profielwaarde %.2f blijft staan", env, v)
+    return v
 
 
 def _plm_offset_aasm(profile: dict) -> bool:

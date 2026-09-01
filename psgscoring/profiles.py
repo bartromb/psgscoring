@@ -792,6 +792,23 @@ class PostProcessingRules:
     Aanzetten neemt bovendien events weg, en dat verlaagt de AHI.
     """
 
+    plm_bilateral_window_s: float = 0.5
+    """Onset-tot-onset venster waarbinnen twee benen ÉÉN beweging zijn.
+
+    **De manual zegt 5,0 s; dit staat op 0,5 s** -- een factor tien krapper.
+    Bilaterale bewegingen die 0,5 tot 5 s uit elkaar beginnen tellen daardoor
+    als twee, wat `n_lm` en de LM-index inflateert. Het PLM-interval begint bij
+    5 s, dus zulke dubbeltellingen vormen zelf geen reeks; ze zitten wel in de
+    teller.
+
+    De default blijft 0,5 tot de meting op beide cohorten er is (werkregel 1
+    uit `docs/AASM_v3_conformiteit.md`). `psgscoring.plm.BILATERAL_WIN_AASM_S`
+    draagt de manualwaarde, zodat het verschil tussen wat de manual zegt en wat
+    wij doen in de code staat en niet alleen in een changelog.
+
+    Env-override: `PSGSCORING_PLM_BILATERAL_WINDOW_S`.
+    """
+
     plm_offset_aasm: bool = False
     """Bepaal het EINDE van een beenbeweging volgens AASM regel 4.A.
 
