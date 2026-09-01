@@ -669,6 +669,24 @@ def classify_hypopnea_type(
         # minste één" -- maar ze maken de uitspraak wel steviger.
         conf = 0.70 + 0.10 * min(2, len(detail["criteria_met"]) - 1)
         return "obstructive", round(conf, 2), detail
-    # Restcategorie. Zonder alle drie de criteria is dit zwakker dan de manual
-    # bedoelt, en dat staat in `complete`.
-    return "central", (0.65 if detail["complete"] else 0.55), detail
+
+    # GEEN RESTCATEGORIE ZONDER ALLE DRIE DE CRITERIA.
+    #
+    # "Centraal" is bij deze regel wat overblijft als geen obstructiekenmerk
+    # vuurt. Dat klopt alleen wanneer alle drie de kenmerken ook getoetst zijn.
+    # Kon er één niet worden getoetst, dan betekent "geen kenmerk gevonden"
+    # niet meer dan "we hebben er twee gekeken", en dat is geen centrale
+    # hypopneu maar een onbekende.
+    #
+    # Gemeten op PSG-IPA (5 opnames, 2026-09-01): met snurken onbereikbaar
+    # kwam 70,2 % van de hypopneus als centraal uit deze regel, tegen 5,9 %
+    # bij menselijke scoorders. De restbak liep vol met wat niet gemeten kon
+    # worden.
+    #
+    # Snurken is op het gefilterde flowpad niet af te leiden: de energie in
+    # 30-100 Hz uit de neusdruk scheidt hypopneus niet van flow-gematchte
+    # normale ademhaling (AUC 0,596 / 0,484 / 0,314 op SN1/SN3/SN5 -- toeval).
+    # Er is een echt snurkkanaal voor nodig.
+    if not detail["complete"]:
+        return "uncertain", 0.40, detail
+    return "central", 0.65, detail
