@@ -159,6 +159,8 @@ def main():
         ids = ids[:args.limit]
     print(f"{len(ids)} opnames -> {FS:.0f} Hz, {len(KANALEN)} kanalen")
 
+    tmp_dir = args.output.parent / (args.output.stem + "_delen")
+    tmp_dir.mkdir(parents=True, exist_ok=True)
     Xs, Ms, Ss, Rs = [], [], [], []
     from concurrent.futures import ProcessPoolExecutor, as_completed
     with ProcessPoolExecutor(max_workers=args.workers) as ex:
@@ -174,6 +176,11 @@ def main():
                 continue
             X, m, s, rid = r
             Xs.append(X); Ms.append(m); Ss.append(s); Rs.append(rid)
+            # Tussentijds wegschrijven. De vorige versie bewaarde alles in
+            # geheugen en schreef pas aan het eind; toen de opslag faalde was
+            # 25 minuten rekenwerk weg.
+            np.save(tmp_dir / f"{rid}.npy",
+                    np.array([X, m, s], dtype=object), allow_pickle=True)
             print(f"  {rid}: {X.shape[1]/FS/3600:.1f} u, "
                   f"{100*m.mean():.1f} % in event", flush=True)
 
@@ -181,11 +188,21 @@ def main():
         print("niets opgeleverd")
         return 1
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    # Ongelijke lengtes: als object-array, per opname.
+
+    # ONGELIJKE LENGTES. `np.array(lijst, dtype=object)` broadcast wanneer alle
+    # elementen dezelfde EERSTE dimensie hebben -- hier (4, T) met wisselende
+    # T -- en faalt met "could not broadcast input array from shape (4,259191)
+    # into shape (4,)". Dat gebeurde NA het verwerken van alle 150 opnames, dus
+    # het kostte de hele run. Een lege object-array vullen omzeilt het.
+    def _obj(lijst):
+        a = np.empty(len(lijst), dtype=object)
+        for i, v in enumerate(lijst):
+            a[i] = v
+        return a
+
     np.savez_compressed(
         args.output,
-        X=np.array(Xs, dtype=object), mask=np.array(Ms, dtype=object),
-        sleep=np.array(Ss, dtype=object), rec=np.array(Rs),
+        X=_obj(Xs), mask=_obj(Ms), sleep=_obj(Ss), rec=np.array(Rs),
         fs=FS, kanalen=np.array(KANALEN))
     uren = sum(x.shape[1] for x in Xs) / FS / 3600
     frac = float(np.mean([m.mean() for m in Ms]))
