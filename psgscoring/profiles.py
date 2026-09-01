@@ -792,6 +792,32 @@ class PostProcessingRules:
     Aanzetten neemt bovendien events weg, en dat verlaagt de AHI.
     """
 
+    shape_evidence_grading: bool = False
+    """Weeg vormmaten naar rato van het signaal eronder, in plaats van ze aan
+    of uit te zetten.
+
+    De harde poort (`phase_angle_needs_effort`) ruilde de ene bias voor de
+    andere. Gemeten op PSG-IPA, 286 gekoppelde apneus:
+
+        arm                recall centraal  recall obstructief  kappa
+        uit (huidig)              20,0 %            99,4 %      0,139
+        harde poort               98,7 %            44,8 %      0,250
+
+    `EFFORT_ABSENT_RATIO` is geen natuurlijke grens: een obstructief event met
+    een slecht zittende band heeft een lage effortverhouding en toch echte
+    paradox. Vandaar een gewicht dat MEELOOPT -- dezelfde behandeling die
+    Rule 1A kreeg. Zie `shape_evidence_weight`.
+
+    Env: `PSGSCORING_SHAPE_EVIDENCE_GRADING`.
+    """
+
+    shape_evidence_scale: float = 1.0
+    """Werkpunt van de weging: kleiner betekent eerder vol gewicht.
+
+    Hoort geijkt te worden tegen de matrix hierboven, niet gekozen.
+    Env: `PSGSCORING_SHAPE_EVIDENCE_SCALE`.
+    """
+
     phase_angle_needs_effort: bool = False
     """Vertrouw vormmaten alleen wanneer er inspanning onder ligt.
 

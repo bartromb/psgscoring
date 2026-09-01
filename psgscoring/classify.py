@@ -103,6 +103,39 @@ def _lgbm_confidence(features: list[float]) -> float | None:
 # Main classification entry point
 # ---------------------------------------------------------------------------
 
+def shape_evidence_weight(effort_ratio: float, scale: float = 1.0) -> float:
+    """Hoeveel zeggingskracht heeft een VORMmaat bij deze inspanning?
+
+    Fasehoek, paradoxcorrelatie en ruwe variabiliteit beschrijven de STRUCTUUR
+    van een signaal. Ze zeggen niets over of er signaal IS, en onder de
+    effortdrempel meten ze ruis -- die ook structuur heeft.
+
+    De eerste reparatie zette ze hard uit onder `EFFORT_ABSENT_RATIO`. Gemeten
+    op PSG-IPA (286 gekoppelde apneus) ruilde dat de ene bias voor de andere:
+
+        arm                recall centraal  recall obstructief  kappa
+        uit                       20,0 %            99,4 %      0,139
+        harde poort               98,7 %            44,8 %      0,250
+
+    85 van de 154 menselijk-obstructieve apneus werden centraal. De oorzaak is
+    dat `EFFORT_ABSENT_RATIO` geen natuurlijke grens is: een obstructief event
+    met een slecht zittende band heeft een lage verhouding en toch echte
+    paradox, en een centraal event met hartpulsatie heeft een hogere verhouding
+    en toch alleen ruis.
+
+    Vandaar een gewicht dat MEELOOPT in plaats van omslaat -- dezelfde
+    behandeling die AASM Rule 1A in dit pakket kreeg. Bij volle inspanning
+    (>= `EFFORT_PRESENT_RATIO`) telt de vormmaat volledig, bij afwezige
+    inspanning niet, en daartussen geleidelijk.
+
+    `scale` verschuift het werkpunt: kleiner betekent eerder vol gewicht. Het
+    hoort geijkt te worden tegen bovenstaande matrix, niet gekozen.
+    """
+    if effort_ratio <= 0.0 or scale <= 0.0:
+        return 0.0
+    return float(min(1.0, effort_ratio / (EFFORT_PRESENT_RATIO * scale)))
+
+
 def classify_apnea_type(
     onset_idx: int,
     end_idx: int,
@@ -117,6 +150,8 @@ def classify_apnea_type(
     signal_quality: dict | None = None,
     use_rhythm: bool = False,
     phase_angle_needs_effort: bool = False,
+    shape_evidence_grading: bool = False,
+    shape_evidence_scale: float = 1.0,
 ) -> tuple[str, float, dict]:
     """
     Classify an apnea event as ``"obstructive"``, ``"central"``, or
@@ -314,6 +349,41 @@ def classify_apnea_type(
     # is -1, ongeacht of er ademhaling onder zit. Alleen regel 0 dichtzetten
     # verplaatst de fout één regel naar beneden -- gemeten: hetzelfde event
     # kwam er dan uit op `paradox_corr=-0.997`.
+    # GEGRADEERD (v0.31.6). In plaats van de vormmaten aan of uit te zetten,
+    # schaalt hun zeggingskracht met het signaal eronder. De drempels van de
+    # regels blijven staan; wat verandert is hoe ver een vormmaat van zijn
+    # drempel af moet liggen voordat hij die haalt.
+    #
+    # Fasehoek: 45 graden bij vol gewicht, oplopend naar onbereikbaar bij
+    # gewicht nul. Paradox en ruwe beweging op dezelfde manier.
+    _shape_w = 1.0
+    if shape_evidence_grading:
+        _shape_w = shape_evidence_weight(effort_ratio, shape_evidence_scale)
+        detail["shape_weight"] = safe_r(_shape_w, 3)
+        if _shape_w < 1.0:
+            if _shape_w <= 1e-6:
+                phase_angle_deg = None
+                is_paradox = False
+                has_raw_move = False
+            else:
+                # Een vormmaat moet zijn drempel halen NA deling door het
+                # gewicht: bij half gewicht dus twee keer zo overtuigend zijn.
+                phase_angle_deg = (None if phase_angle_deg is None
+                                   else phase_angle_deg * _shape_w)
+                is_paradox = (paradox_corr is not None
+                              and paradox_corr * _shape_w < -0.15)
+                has_raw_move = raw_var_ratio * _shape_w > 0.25
+        # Regel 2 en de centrale regels lezen de ruwe variabiliteit
+        # RECHTSTREEKS, buiten `has_raw_move` om. Dezelfde omissie kostte
+        # vanmiddag drie iteraties: een poort op één regel verplaatst de fout
+        # naar de volgende.
+        _raw_var_gewogen = raw_var_ratio * _shape_w
+        _paradox_gewogen = (None if paradox_corr is None
+                            else paradox_corr * _shape_w)
+    else:
+        _raw_var_gewogen = raw_var_ratio
+        _paradox_gewogen = paradox_corr
+
     _vormmaten_genegeerd = (phase_angle_needs_effort
                        and effort_ratio < EFFORT_ABSENT_RATIO)
     if _vormmaten_genegeerd:
@@ -347,7 +417,7 @@ def classify_apnea_type(
         return "obstructive", safe_r(_conf(conf, 1), 2), detail
 
     # ── Rule 2: Raw movement, low envelope ───────────────────────────────
-    if (raw_var_ratio > 0.40 and effort_ratio < EFFORT_PRESENT_RATIO
+    if (_raw_var_gewogen > 0.40 and effort_ratio < EFFORT_PRESENT_RATIO
             and not _vormmaten_genegeerd):
         if paradox_corr is None or paradox_corr < 0.3:
             conf = min(0.85, 0.50 + raw_var_ratio * 0.3)
@@ -384,11 +454,11 @@ def classify_apnea_type(
     # de centrale regel: `no_paradox` en `raw_var < 0,25` zijn óók vormmaten.
     # Zonder deze regel valt een event met afwezige inspanning door naar de
     # restcategorie -- de tweede foutbron uit de PSG-IPA-meting (27 van 60).
-    no_paradox      = (_vormmaten_genegeerd or paradox_corr is None
-                       or paradox_corr > -0.10)
+    no_paradox      = (_vormmaten_genegeerd or _paradox_gewogen is None
+                       or _paradox_gewogen > -0.10)
     no_phase_signal = (_vormmaten_genegeerd or phase_angle_deg is None
                        or phase_angle_deg < 30.0)
-    _raw_var_beslis = 0.0 if _vormmaten_genegeerd else raw_var_ratio
+    _raw_var_beslis = 0.0 if _vormmaten_genegeerd else _raw_var_gewogen
     if (
         _raw_var_beslis < 0.25 and
         effort_ratio  < EFFORT_ABSENT_RATIO and

@@ -121,6 +121,8 @@ PIPELINE_ONLY = {
     # Idem: argument aan detect_respiratory_events(), doorgegeven aan beide
     # detectors en van daar aan classify_apnea_type().
     "PSGSCORING_PHASE_ANGLE_NEEDS_EFFORT",
+    "PSGSCORING_SHAPE_EVIDENCE_GRADING",
+    "PSGSCORING_SHAPE_EVIDENCE_SCALE",
     "PSGSCORING_THERMISTOR_GATE",
     "PSGSCORING_PLM_EVENT_LIST_CAP",
     "PSGSCORING_PLM_OFFSET_AASM",

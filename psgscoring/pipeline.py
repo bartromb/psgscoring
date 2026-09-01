@@ -390,6 +390,7 @@ def run_pneumo_analysis(
             # Profielvlag, env-override zoals bij de andere meetvlaggen.
             hypopnea_subtype_aasm=_hypopnea_subtype_aasm(profile),
             phase_angle_needs_effort=_phase_angle_needs_effort(profile),
+            shape_evidence=_shape_evidence(profile),
             flow_data    = apnea_flow,
             hypop_flow   = hypop_flow,
             sf_hypop     = sf_hypop,
@@ -2529,6 +2530,23 @@ def _thermistor_gate(profile: dict) -> str:
                 "(%s); profielwaarde %r blijft staan",
                 raw, ", ".join(sorted(_THERMISTOR_GATES)), gate)
     return gate
+
+
+def _shape_evidence(profile: dict) -> tuple[bool, float]:
+    """Gegradeerde vormmaten? (aan/uit, schaal). Profielvlag, env wint."""
+    aan = bool(profile.get("SHAPE_EVIDENCE_GRADING", False))
+    env = os.environ.get("PSGSCORING_SHAPE_EVIDENCE_GRADING")
+    if env is not None:
+        aan = env == "1"
+    schaal = float(profile.get("SHAPE_EVIDENCE_SCALE", 1.0))
+    env_s = os.environ.get("PSGSCORING_SHAPE_EVIDENCE_SCALE")
+    if env_s is not None:
+        try:
+            schaal = float(env_s)
+        except ValueError:
+            logger.warning("[pneumo] PSGSCORING_SHAPE_EVIDENCE_SCALE=%r is "
+                           "geen getal; %.2f blijft staan", env_s, schaal)
+    return aan, schaal
 
 
 def _phase_angle_needs_effort(profile: dict) -> bool:

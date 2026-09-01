@@ -310,6 +310,8 @@ def detect_respiratory_events(
     apnea_on_thermistor: bool = False,
     hypopnea_subtype_aasm: bool = False,
     phase_angle_needs_effort: bool = False,
+    #: (aan, schaal) -- zie profiles.shape_evidence_grading
+    shape_evidence: tuple[bool, float] = (False, 1.0),
     _precomputed:      dict | None = None,
 ) -> dict:
     """
@@ -671,6 +673,7 @@ def detect_respiratory_events(
             gap_stats=_gap_stats_ap,
             desat_global_bl_min_local_pct=_DESAT_GBL,
             phase_angle_needs_effort=phase_angle_needs_effort,
+            shape_evidence=shape_evidence,
         )
 
         # ── Fix 1: Herbereken hypopnea-basislijn zonder post-apnea recovery ─
@@ -767,6 +770,7 @@ def detect_respiratory_events(
             desat_global_bl_min_local_pct=_DESAT_GBL,
             hypopnea_subtype_aasm=hypopnea_subtype_aasm,
             phase_angle_needs_effort=phase_angle_needs_effort,
+            shape_evidence=shape_evidence,
         )
         events = new_events
 
@@ -1868,6 +1872,7 @@ def _detect_apneas(
     # None = altijd overnemen = bestaand gedrag; zie profiles.
     desat_global_bl_min_local_pct: float | None = None,
     phase_angle_needs_effort: bool = False,
+    shape_evidence: tuple[bool, float] = (False, 1.0),
 ) -> list[dict]:
     """Detecteer apnea-events: ≥90% flow-reductie gedurende ≥10s (AASM)."""
     events: list[dict] = []
@@ -1917,6 +1922,8 @@ def _detect_apneas(
                 signal_quality=signal_quality,  # v0.3.001 BUG2 gate
                 use_rhythm=use_rhythm,
                 phase_angle_needs_effort=phase_angle_needs_effort,
+                shape_evidence_grading=shape_evidence[0],
+                shape_evidence_scale=shape_evidence[1],
             )
             desat, min_spo2 = get_desaturation(
                 spo2_data, onset_s, sub_dur, sf_spo2, global_spo2_bl,
@@ -1971,6 +1978,7 @@ def _detect_hypopneas(
     desat_global_bl_min_local_pct: float | None = None,
     hypopnea_subtype_aasm: bool = False,
     phase_angle_needs_effort: bool = False,
+    shape_evidence: tuple[bool, float] = (False, 1.0),
 ) -> tuple[list[dict], list[dict]]:
     """Return (all_events_including_new_hypopneas, rejected_candidates)."""
     # Build apnea exclusion mask (±5 s around each confirmed apnea)
@@ -2139,6 +2147,8 @@ def _detect_hypopneas(
                 signal_quality=signal_quality,  # v0.3.001 BUG2 gate
                 use_rhythm=use_rhythm,
                 phase_angle_needs_effort=phase_angle_needs_effort,
+                shape_evidence_grading=shape_evidence[0],
+                shape_evidence_scale=shape_evidence[1],
             )
             # AASM v3 §6.1: hypopneus hebben een EIGEN subtyperingsregel,
             # omgekeerd ontworpen (drie obstructiekenmerken, centraal als
