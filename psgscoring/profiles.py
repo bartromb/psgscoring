@@ -792,6 +792,33 @@ class PostProcessingRules:
     Aanzetten neemt bovendien events weg, en dat verlaagt de AHI.
     """
 
+    phase_angle_needs_effort: bool = False
+    """Vertrouw vormmaten alleen wanneer er inspanning onder ligt.
+
+    Fasehoek, paradoxcorrelatie en ruwe variabiliteit zijn VORMmaten: ze zeggen
+    iets over de structuur van een signaal, niets over of er signaal IS. Onder
+    `EFFORT_ABSENT_RATIO` meten ze ruis -- en ruis heeft vorm. De fasehoek van
+    twee bijna-vlakke banden is die van twee ruisbronnen, en die zijn niet in
+    fase.
+
+    Gemeten op PSG-IPA (5 opnames, apneus gekoppeld binnen 10 s):
+
+        mens \\ wij        centraal   obstructief
+          centraal              15            60
+          obstructief            1           153
+
+    Van 75 menselijk-centrale apneus noemden wij er 60 obstructief; de
+    omgekeerde richting klopte bijna perfect. Uitgesplitst per beslisregel:
+    33x de fasehoek, 27x de restcategorie.
+
+    `True` poort drie regels tegelijk (fasehoek, paradox, ruwe beweging) EN
+    haalt dezelfde ruisblokkade van de centrale regels af -- anders valt het
+    event door naar de restcategorie, die obstructief is.
+
+    Default uit tot de cohortmeting er is (werkregel 1).
+    Env: `PSGSCORING_PHASE_ANGLE_NEEDS_EFFORT`.
+    """
+
     hypopnea_subtype_aasm: bool = False
     """Subtypeer hypopneus met de EIGEN regel van de manual (§6.1) in plaats
     van met de apneuregel.

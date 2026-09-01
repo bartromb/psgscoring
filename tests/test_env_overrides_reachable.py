@@ -118,6 +118,9 @@ PIPELINE_ONLY = {
     # Doorgegeven als ARGUMENT aan detect_respiratory_events(). Een harnas dat
     # die functie direct aanroept moet de vlag zelf meegeven.
     "PSGSCORING_HYPOPNEA_SUBTYPE_AASM",
+    # Idem: argument aan detect_respiratory_events(), doorgegeven aan beide
+    # detectors en van daar aan classify_apnea_type().
+    "PSGSCORING_PHASE_ANGLE_NEEDS_EFFORT",
     "PSGSCORING_THERMISTOR_GATE",
     "PSGSCORING_PLM_EVENT_LIST_CAP",
     "PSGSCORING_PLM_OFFSET_AASM",

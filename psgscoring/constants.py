@@ -108,6 +108,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "PLM_OFFSET_AASM": pp.plm_offset_aasm,
         "PLM_BILATERAL_WINDOW_S": pp.plm_bilateral_window_s,
         "HYPOPNEA_SUBTYPE_AASM": pp.hypopnea_subtype_aasm,
+        "PHASE_ANGLE_NEEDS_EFFORT": pp.phase_angle_needs_effort,
         "FLOW_GAP_SCALE_FREE": pp.flow_gap_scale_free,
         "AROUSAL_LGBM": pp.arousal_lgbm,
         "AROUSAL_USES_ARTIFACT_EPOCHS": pp.arousal_uses_artifact_epochs,

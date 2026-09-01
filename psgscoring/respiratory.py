@@ -309,6 +309,7 @@ def detect_respiratory_events(
     signal_quality:    dict | None = None,
     apnea_on_thermistor: bool = False,
     hypopnea_subtype_aasm: bool = False,
+    phase_angle_needs_effort: bool = False,
     _precomputed:      dict | None = None,
 ) -> dict:
     """
@@ -669,6 +670,7 @@ def detect_respiratory_events(
             min_qualifying_fraction=_QUAL_FRAC,
             gap_stats=_gap_stats_ap,
             desat_global_bl_min_local_pct=_DESAT_GBL,
+            phase_angle_needs_effort=phase_angle_needs_effort,
         )
 
         # ── Fix 1: Herbereken hypopnea-basislijn zonder post-apnea recovery ─
@@ -764,6 +766,7 @@ def detect_respiratory_events(
             gap_stats=_gap_stats_hy,
             desat_global_bl_min_local_pct=_DESAT_GBL,
             hypopnea_subtype_aasm=hypopnea_subtype_aasm,
+            phase_angle_needs_effort=phase_angle_needs_effort,
         )
         events = new_events
 
@@ -1864,6 +1867,7 @@ def _detect_apneas(
     gap_stats: dict | None = None,
     # None = altijd overnemen = bestaand gedrag; zie profiles.
     desat_global_bl_min_local_pct: float | None = None,
+    phase_angle_needs_effort: bool = False,
 ) -> list[dict]:
     """Detecteer apnea-events: ≥90% flow-reductie gedurende ≥10s (AASM)."""
     events: list[dict] = []
@@ -1912,6 +1916,7 @@ def _detect_apneas(
                 ) if tecg is not None else None,
                 signal_quality=signal_quality,  # v0.3.001 BUG2 gate
                 use_rhythm=use_rhythm,
+                phase_angle_needs_effort=phase_angle_needs_effort,
             )
             desat, min_spo2 = get_desaturation(
                 spo2_data, onset_s, sub_dur, sf_spo2, global_spo2_bl,
@@ -1965,6 +1970,7 @@ def _detect_hypopneas(
     gap_stats: dict | None = None,
     desat_global_bl_min_local_pct: float | None = None,
     hypopnea_subtype_aasm: bool = False,
+    phase_angle_needs_effort: bool = False,
 ) -> tuple[list[dict], list[dict]]:
     """Return (all_events_including_new_hypopneas, rejected_candidates)."""
     # Build apnea exclusion mask (±5 s around each confirmed apnea)
@@ -2132,6 +2138,7 @@ def _detect_hypopneas(
                 flattening_index=_ev_flat,
                 signal_quality=signal_quality,  # v0.3.001 BUG2 gate
                 use_rhythm=use_rhythm,
+                phase_angle_needs_effort=phase_angle_needs_effort,
             )
             # AASM v3 §6.1: hypopneus hebben een EIGEN subtyperingsregel,
             # omgekeerd ontworpen (drie obstructiekenmerken, centraal als

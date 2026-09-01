@@ -116,6 +116,7 @@ def classify_apnea_type(
     flattening_index: float | None = None,
     signal_quality: dict | None = None,
     use_rhythm: bool = False,
+    phase_angle_needs_effort: bool = False,
 ) -> tuple[str, float, dict]:
     """
     Classify an apnea event as ``"obstructive"``, ``"central"``, or
@@ -291,7 +292,50 @@ def classify_apnea_type(
         return lgbm_c if lgbm_c is not None else rule_conf
 
     # ── Rule 0 (v0.8.11): Phase angle ≥45° during event ──────────────────
-    if phase_angle_deg is not None and phase_angle_deg >= 45.0:
+    #
+    # MET AMPLITUDEPOORT (v0.31.6, `phase_angle_needs_effort`). Deze regel
+    # vuurt vóór alle andere en kende geen ondergrens op de amplitude.
+    # `_compute_phase_angle` is er expliciet op ontworpen om ook te werken
+    # "wanneer de amplitude-envelop laag is" -- zinnig om een obstructief event
+    # met lage amplitude te vangen, en precies verkeerd wanneer die lage
+    # amplitude JUIST het centrale kenmerk is.
+    #
+    # Bij een centrale apneu bewegen thorax en abdomen per definitie
+    # nauwelijks; de Hilbert-fase van twee bijna-vlakke signalen is die van
+    # ruis, en ruis is niet in fase.
+    #
+    # Gemeten op PSG-IPA (5 opnames): van de 75 apneus die de scoorder
+    # centraal noemde, noemden wij er 60 obstructief -- en 33 daarvan op
+    # precies deze regel. De omgekeerde richting klopte bijna perfect (153 van
+    # 154), dus dit is geen classificatiefout maar een eenzijdige bias.
+    # De poort dekt ELKE paradox-afgeleide aanwijzing, niet alleen de
+    # fasehoek. Regel 1 gebruikt de paradoxCORRELATIE, en die heeft exact
+    # hetzelfde probleem: de correlatie tussen twee ruissignalen in tegenfase
+    # is -1, ongeacht of er ademhaling onder zit. Alleen regel 0 dichtzetten
+    # verplaatst de fout één regel naar beneden -- gemeten: hetzelfde event
+    # kwam er dan uit op `paradox_corr=-0.997`.
+    _vormmaten_genegeerd = (phase_angle_needs_effort
+                       and effort_ratio < EFFORT_ABSENT_RATIO)
+    if _vormmaten_genegeerd:
+        # DRIE regels lezen hier hetzelfde ruissignaal als obstructie, en ze
+        # moeten alle drie mee. Gemeten door de poort stapsgewijs te verbreden
+        # op dezelfde fixture:
+        #
+        #   alleen regel 0 gepoort  -> regel 1 vuurt: paradox_corr=-0,997
+        #   ook regel 1 gepoort     -> regel 2 vuurt: raw_movement_var=0,965
+        #
+        # Het gemeenschappelijke: fase, correlatie en variabiliteit zijn
+        # VORMmaten. Ze zeggen iets over de structuur van een signaal, niets
+        # over of er signaal IS. Onder de effortdrempel meten ze ruis, en ruis
+        # heeft vorm.
+        #
+        # Wat overblijft is dat afwezige inspanning zelf beslist -- wat de
+        # AASM-definitie van een centrale apneu ook zegt.
+        detail["phase_angle_ignored"] = True
+        is_paradox = False
+        has_raw_move = False
+    if (phase_angle_deg is not None and phase_angle_deg >= 45.0
+            and not _vormmaten_genegeerd):
         conf = min(0.97, 0.75 + (phase_angle_deg - 45) / 180 * 0.2 + _flat_obstr_boost)
         detail["decision_reason"] = f"phase_angle={safe_r(phase_angle_deg,1)}deg"
         return "obstructive", safe_r(_conf(conf, 0), 2), detail
@@ -303,7 +347,8 @@ def classify_apnea_type(
         return "obstructive", safe_r(_conf(conf, 1), 2), detail
 
     # ── Rule 2: Raw movement, low envelope ───────────────────────────────
-    if raw_var_ratio > 0.40 and effort_ratio < EFFORT_PRESENT_RATIO:
+    if (raw_var_ratio > 0.40 and effort_ratio < EFFORT_PRESENT_RATIO
+            and not _vormmaten_genegeerd):
         if paradox_corr is None or paradox_corr < 0.3:
             conf = min(0.85, 0.50 + raw_var_ratio * 0.3)
             detail["decision_reason"] = f"raw_movement_var={safe_r(raw_var_ratio,3)}"
@@ -334,10 +379,18 @@ def classify_apnea_type(
     # on RIP bands (typically raw_var 0.10–0.20, effort_ratio 0.10–0.25)
     quarters_absent = sum(1 for q in quarter_efforts if q < EFFORT_ABSENT_RATIO)
     quarters_low    = sum(1 for q in quarter_efforts if q < EFFORT_PRESENT_RATIO)
-    no_paradox      = paradox_corr is None or paradox_corr > -0.10
-    no_phase_signal = phase_angle_deg is None or phase_angle_deg < 30.0
+    # De vormmaten tellen hier NEUTRAAL wanneer de poort dicht staat. Anders
+    # blokkeert dezelfde ruis die geen obstructie meer mag aantonen, wél nog
+    # de centrale regel: `no_paradox` en `raw_var < 0,25` zijn óók vormmaten.
+    # Zonder deze regel valt een event met afwezige inspanning door naar de
+    # restcategorie -- de tweede foutbron uit de PSG-IPA-meting (27 van 60).
+    no_paradox      = (_vormmaten_genegeerd or paradox_corr is None
+                       or paradox_corr > -0.10)
+    no_phase_signal = (_vormmaten_genegeerd or phase_angle_deg is None
+                       or phase_angle_deg < 30.0)
+    _raw_var_beslis = 0.0 if _vormmaten_genegeerd else raw_var_ratio
     if (
-        raw_var_ratio < 0.25 and
+        _raw_var_beslis < 0.25 and
         effort_ratio  < EFFORT_ABSENT_RATIO and
         quarters_absent >= 2 and
         no_paradox and
@@ -353,7 +406,7 @@ def classify_apnea_type(
     # Catches events where effort is low but not fully absent (cardiac
     # pulsation artefact inflates effort_ratio to 0.20–0.35).
     if (
-        raw_var_ratio < 0.30 and
+        _raw_var_beslis < 0.30 and
         effort_ratio  < EFFORT_PRESENT_RATIO and   # < 0.40
         quarters_low  >= 3 and                      # most quarters below 0.40
         no_paradox and

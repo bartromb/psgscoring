@@ -389,6 +389,7 @@ def run_pneumo_analysis(
             # AASM v3 §6.1 -- de eigen subtyperingsregel voor hypopneus.
             # Profielvlag, env-override zoals bij de andere meetvlaggen.
             hypopnea_subtype_aasm=_hypopnea_subtype_aasm(profile),
+            phase_angle_needs_effort=_phase_angle_needs_effort(profile),
             flow_data    = apnea_flow,
             hypop_flow   = hypop_flow,
             sf_hypop     = sf_hypop,
@@ -2528,6 +2529,15 @@ def _thermistor_gate(profile: dict) -> str:
                 "(%s); profielwaarde %r blijft staan",
                 raw, ", ".join(sorted(_THERMISTOR_GATES)), gate)
     return gate
+
+
+def _phase_angle_needs_effort(profile: dict) -> bool:
+    """Vormmaten alleen bij aanwezige inspanning? Profielvlag, env wint."""
+    v = bool(profile.get("PHASE_ANGLE_NEEDS_EFFORT", False))
+    env = os.environ.get("PSGSCORING_PHASE_ANGLE_NEEDS_EFFORT")
+    if env is not None:
+        v = env == "1"
+    return v
 
 
 def _hypopnea_subtype_aasm(profile: dict) -> bool:
