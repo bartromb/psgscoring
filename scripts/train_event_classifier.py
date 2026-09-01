@@ -211,7 +211,10 @@ def main():
         opgelegd = {c: MONOTOON[c] for c in kol if c in MONOTOON}
         print(f"  monotone constraints: {opgelegd}")
 
-    n_groepen = df["group"].nunique()
+    # Het aantal folds volgt de GROEPEN waarop gesplitst wordt, niet het
+    # aantal opnames. Met drie scoorders kan GroupKFold geen vijf folds maken,
+    # en de fout die sklearn dan geeft noemt de oorzaak niet.
+    n_groepen = len(set(groepen))
     folds = min(args.folds, n_groepen)
     if folds < 2:
         print(f"FOUT: {n_groepen} opname(s) — te weinig voor groepsgewijze CV. "

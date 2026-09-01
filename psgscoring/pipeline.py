@@ -1264,6 +1264,19 @@ def run_pneumo_analysis(
     # this adds. On non-CSR nights Fix 3 does not fire and nothing between the
     # old (step 8b) and this position touches the summary, so the values are
     # unchanged; on CSR nights the keys are now retained (bug fix, v0.7.4).
+    # Hoe zeker is een index bij DEZE ziektelast? Naast het getal, want een
+    # AHI van 8 en een AHI van 40 dragen niet dezelfde zekerheid en het rapport
+    # zei dat nergens. Zie indices.expected_scorer_agreement.
+    try:
+        _rs = (output.get("respiratory") or {}).get("summary")
+        if _rs is not None:
+            from .indices import expected_scorer_agreement
+            _rs["scorer_agreement_expectation"] = expected_scorer_agreement(
+                _rs.get("n_ah_total"))
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[pneumo] overeenstemmingsverwachting mislukt (%s): %s",
+                       type(e).__name__, e)
+
     # Welke regel draagt deze AHI? Naast het getal, niet in het herkomstblok:
     # `hypopnea_criterion` staat daar al sinds v0.11.0 en werd door geen enkele
     # consument gelezen. Zie docs/AASM_v3_conformiteit.md §1.1.
