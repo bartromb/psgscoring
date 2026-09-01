@@ -124,6 +124,10 @@ def main():
                     help="leg fysiologische richting op waar die vaststaat")
     ap.add_argument("--drop-confidence", action="store_true",
                     help="laat de regelgebaseerde confidence als feature weg")
+    ap.add_argument("--split-on", choices=("group", "scorer"), default="group",
+                    help="waarover te splitsen: opname (default) of SCOORDER. "
+                         "Splitsen op scoorder meet of het model een "
+                         "fysiologie heeft geleerd of een persoon")
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--rounds", type=int, default=1000)
     ap.add_argument("--seed", type=int, default=42)
@@ -157,7 +161,26 @@ def main():
 
     kol = _features(df, args.drop_confidence)
     X = df[kol].to_numpy(dtype=float)
-    groepen = df["group"].to_numpy()
+    if args.split_on == "scorer":
+        if "scorer" not in df.columns or df["scorer"].isna().all():
+            print("FOUT: --split-on scorer vraagt een gevulde kolom `scorer`. "
+                  "PSG-IPA heeft twaalf scoorders per opname en dus geen "
+                  "enkele scoorder-ID; MESA wel (`scorerid5`).")
+            return 1
+        # Rijen zonder scoorder kunnen niet in een scoordersplit: ze horen bij
+        # geen enkele fold en zouden stil in de training belanden.
+        weg = int(df["scorer"].isna().sum())
+        if weg:
+            print(f"  {weg} rijen zonder scoorder-ID uitgesloten")
+            df = df[df["scorer"].notna()].reset_index(drop=True)
+            X = df[kol].to_numpy(dtype=float)
+            y = (df["label_soft"] if args.objective == "cross_entropy"
+                 else df["label"]).to_numpy(dtype=float)
+        groepen = df["scorer"].astype(int).astype(str).to_numpy()
+        print(f"  splitsen op SCOORDER: {len(set(groepen))} scoorders "
+              f"({dict(zip(*np.unique(groepen, return_counts=True)))})")
+    else:
+        groepen = df["group"].to_numpy()
     print(f"  {len(kol)} features"
           f"{' (confidence weggelaten)' if args.drop_confidence else ''}")
 

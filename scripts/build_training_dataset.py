@@ -47,6 +47,9 @@ Eén rij per kandidaat (geaccepteerd EN afgewezen), met:
 
     group           patiënt-ID  -- gebruik dit voor GroupKFold, nooit splitsen
                                    binnen een opname
+    scorer          wie deze opname scoorde (MESA), of None (PSG-IPA: twaalf).
+                    Splitsen hierop meet generalisatie over SCOORDERS heen --
+                    zie de opmerking bij `_mesa_scorer`
     candidate_id    uniek per rij
     label           0/1, hard
     label_soft      [0,1], fractie scoorders (bij mesa gelijk aan label)
@@ -247,7 +250,58 @@ def _een_psgipa(sn_id, data_dir, profiel):
         if i == 0:
             hypno = _hypno_from_stages(stages, dur)
     acc, rej, ctx = _kandidaten_en_context(raw, hypno, profiel)
-    return _rijen(sn_id, acc, rej, ctx, scorer_sets)
+    rijen = _rijen(sn_id, acc, rej, ctx, scorer_sets)
+    for r in rijen:
+        # Twaalf scoorders per opname: er is geen ÉÉN scoorder om op te
+        # splitsen, en dat is precies waarom dit cohort de kalibratie draagt.
+        r["scorer"] = None
+    return rijen
+
+
+#: MESA legt per opname vast WIE hem scoorde (`scorerid5`). Drie scoorders
+#: dragen het hele cohort, en één van hen deed 59 %. Gecorrigeerd voor
+#: leeftijd, BMI, geslacht en site (n=2030-2052):
+#:
+#:     index          scoorder 928   scoorder 939
+#:     OAHI3          +1,28/u  n.s.  +2,55/u  p=0,03
+#:     arousalindex   +3,03/u  ***   +2,69/u  ***
+#:
+#: Respiratoir ontlopen ze elkaar nauwelijks; op arousals scheelt het ruim drie
+#: per uur op dezelfde populatie. Daarom hoort de scoorder als GROEP in de
+#: uitvoer: splitsen op scoorder meet of een model een fysiologie heeft geleerd
+#: of een persoon, en dat is de vraag die een split op opname niet stelt.
+_SCORER_CACHE: dict = {}
+
+
+def _mesa_scorer(data_dir: Path, rec_id: str):
+    """De scoorder-ID van deze opname, of None als de dataset ontbreekt."""
+    sleutel = str(data_dir)
+    if sleutel not in _SCORER_CACHE:
+        import pandas as pd
+        kaart = {}
+        for pad in sorted((data_dir / "datasets").glob("mesa-sleep-dataset-*.csv")):
+            try:
+                df = pd.read_csv(pad, low_memory=False)
+            except Exception as e:                            # noqa: BLE001
+                logging.getLogger(__name__).warning(
+                    "scoorderbestand %s onleesbaar: %s", pad, e)
+                continue
+            if "mesaid" in df.columns and "scorerid5" in df.columns:
+                for mid, sid in zip(df["mesaid"], df["scorerid5"]):
+                    if not pd.isna(sid):
+                        kaart[int(mid)] = int(sid)
+            break
+        _SCORER_CACHE[sleutel] = kaart
+        if not kaart:
+            logging.getLogger(__name__).warning(
+                "geen scorerid5 gevonden in %s/datasets — de scoorder komt "
+                "niet in de uitvoer en een split op scoorder is dan niet "
+                "mogelijk", data_dir)
+    kaart = _SCORER_CACHE[sleutel]
+    try:
+        return kaart.get(int(rec_id.split("-")[-1]))
+    except ValueError:
+        return None
 
 
 def _een_mesa(rec_id, data_dir, profiel):
@@ -269,7 +323,11 @@ def _een_mesa(rec_id, data_dir, profiel):
     menselijk = [{"onset_s": o, "duration_s": max(0.0, e - o), "type": t}
                  for (o, e, t) in refs[naam]]
     acc, rej, ctx = _kandidaten_en_context(raw, hypno, profiel)
-    return _rijen(rec_id, acc, rej, ctx, [menselijk])
+    rijen = _rijen(rec_id, acc, rej, ctx, [menselijk])
+    scoorder = _mesa_scorer(data_dir, rec_id)
+    for r in rijen:
+        r["scorer"] = scoorder
+    return rijen
 
 
 # ── Hoofdprogramma ─────────────────────────────────────────────────────────
