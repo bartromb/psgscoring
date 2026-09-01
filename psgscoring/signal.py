@@ -158,6 +158,29 @@ def denoise_flow_wavelet(
     # above 3 Hz. So d1 is empty by construction, MAD(d1) -> 0, and T -> 0,
     # which makes soft thresholding an expensive no-op.
     #
+    # DO NOT "FIX" THIS BY MOVING THE ESTIMATOR. That reading is too narrow and
+    # it was measured on 2026-09-01 (docs/wavelet_denoise_geen_schaalscheiding.md).
+    # Estimating sigma from the finest scale that actually lies INSIDE the
+    # passband (1-2 Hz) gives a real noise floor of 4.8e-02 and raises spike
+    # suppression from 0.0 % to 0.7 %. The gate asks for 90 %. A per-scale
+    # outlier rule instead of the universal threshold does not help either
+    # (-79 % across all scales; 0.6 % when restricted to the scales above the
+    # breathing frequency, with flanks intact at 0.016 s).
+    #
+    # The binding constraint is not the threshold but the premise. Energy per
+    # scale, breathing against a 0.5-2 s artefact:
+    #
+    #     scale 7 (0.25-0.50 Hz):  breathing 99.9 %   artefact 57.5 %
+    #     scale 6 (0.50-1.00 Hz):  breathing  0.1 %   artefact 28.5 %
+    #     scale 5 (1.00-2.00 Hz):  breathing  0.0 %   artefact 10.7 %
+    #
+    # 58 % of the artefact energy sits in the scale that carries 99.9 % of the
+    # breathing. An artefact of 0.5-2 s and a breath of 3-6 s are ONE OCTAVE
+    # apart, so no scale contains one without the other. Wavelet thresholding
+    # separates by scale; here there is nothing to separate. A method that
+    # could work would separate by SHAPE (an artefact is aperiodic, breathing
+    # is not), which is a different proposal with its own gate.
+    #
     # Measured on 10 min of synthetic breathing at 64 Hz: sigma = 5.5e-07
     # against a signal scale of 9.7e-01, so the estimated noise floor is six
     # orders of magnitude below the signal it is meant to sit in, and T is
