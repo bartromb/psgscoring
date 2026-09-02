@@ -1275,6 +1275,22 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                 )
                 n_pre = len(result["events"])
                 result["pre_lgbm_n_arousals"] = n_pre
+                # De kandidaten ZELF, niet alleen hun aantal. Zonder onsets is
+                # niet te bepalen of een gemiste arousal door de classifier is
+                # verworpen of nooit is voorgesteld -- en dat zijn twee heel
+                # verschillende reparaties.
+                #
+                # Twee metingen liepen hierop stuk. Werkpunt 0,01 als proxy gaf
+                # een KLEINERE lijst dan de normale uitvoer, omdat
+                # `enforce_min_arousal_interval` NA de classifier draait en bij
+                # een lage drempel massaal samenvoegt. En AROUSAL_LGBM=0 geeft
+                # geen kandidaten maar een ANDERE detector, het regelgebaseerde
+                # pad. Alleen de bibliotheek zelf kan deze lijst leveren.
+                result["pre_lgbm_events"] = [
+                    {"onset_s": float(c.get("onset_s", 0.0)),
+                     "duration_s": float(c.get("duration_s", 0.0))}
+                    for c in result["events"]
+                ]
                 result["events"] = kept
                 result["summary"] = _recompute_arousal_summary(
                     kept, hypno, set(artifact_epochs or []),
