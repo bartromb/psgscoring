@@ -165,3 +165,46 @@ def test_de_vlag_overleeft_de_hele_keten():
     src_multi = inspect.getsource(detect_arousals_multi)
     assert "score_wake_arousals=score_wake_arousals" in src_multi, (
         "de multi-afleidingsdetector geeft de vlag niet per afleiding door")
+
+
+def test_een_lange_wakkere_periode_levert_geen_arousalregen():
+    """De val waar de eerste versie in liep.
+
+    Gemeten op 24 MESA-opnames met één gedeeld masker: 140 -> 286 events, index
+    22,6 -> 45,5 tegen een menselijke 28,0, F1 0,443 -> 0,391. Slechter op
+    beide maten.
+
+    De oorzaak: de pre-sleep-eis van V.A.1 (>= 10 s stabiele slaap vóór de
+    arousal) toetste op hetzelfde verruimde masker, en verloor daarmee zijn
+    werking. In een lange wakkere periode vindt de bandvermogendetector volop
+    frequentieverschuivingen die geen arousals zijn.
+    """
+    eeg, _o = _eeg_met_arousals(minuten=30)
+    # tien minuten aaneengesloten wake in het midden
+    h = _hypno(30, wake_epochs=tuple(range(20, 40)))
+    n_uit = len(detect_arousals(eeg, SF, h).get("events") or [])
+    n_aan = len(detect_arousals(eeg, SF, h,
+                                score_wake_arousals=True).get("events") or [])
+    assert n_aan <= n_uit * 1.6, (
+        f"{n_uit} -> {n_aan}: de wake-periode levert een arousalregen; de "
+        f"pre-sleep-eis houdt niet stand")
+
+
+def test_de_pre_sleep_eis_toetst_op_ECHTE_slaap():
+    """Structureel: twee maskers, en de pre-sleep-check hoort op het slaapmasker.
+
+    Eén gedeeld masker maakt de eis betekenisloos zodra wake meedoet, en dat is
+    niet uit het gedrag af te lezen zonder een cohortmeting.
+    """
+    import inspect
+
+    from psgscoring.arousal import detect_arousals as _fn
+
+    src = inspect.getsource(_fn)
+    assert "search_mask" in src, "er is geen apart zoekmasker"
+    # de pre-sleep-check moet het SLAAPmasker lezen
+    i = src.index("Check A: Pre-sleep")
+    blok = src[i:i + 500]
+    assert "sleep_sample_mask" in blok, blok[:200]
+    assert "search_mask" not in blok, (
+        "de pre-sleep-eis leest het zoekmasker; dan toetst hij op wake mee")

@@ -1003,14 +1003,31 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
         #
         # Artefact-epochs blijven uitgesloten in beide standen. Die zijn geen
         # wake maar onmeetbaar.
+        # TWEE MASKERS, en dat onderscheid is het hele punt.
+        #
+        # `sleep_sample_mask` blijft ECHTE slaap. De pre-sleep-eis van V.A.1
+        # (>= 10 s stabiele slaap vóór de arousal) toetst hierop, en die eis is
+        # precies wat een arousal onderscheidt van gewone wakkere activiteit.
+        #
+        # `search_mask` mag wake omvatten wanneer `score_wake_arousals` aanstaat.
+        #
+        # De eerste versie gebruikte ÉÉN masker voor beide. Gemeten op 24
+        # MESA-opnames: het aantal events verdubbelde (140 -> 286), de index
+        # ging van 22,6 naar 45,5 tegen een menselijke 28,0, en de F1 zakte van
+        # 0,443 naar 0,391. Slechter op beide maten -- de verruiming had de
+        # beveiliging weggenomen die de regel bruikbaar maakt.
         sleep_sample_mask = np.zeros(n_samples, dtype=bool)
+        search_mask = np.zeros(n_samples, dtype=bool)
         for ep_i, stage in enumerate(hypno):
             if ep_i in artifact_set:
                 continue
-            if _is_sleep(stage) or score_wake_arousals:
-                s2 = ep_i * spe
-                e2 = min(s2 + spe, n_samples)
+            s2 = ep_i * spe
+            e2 = min(s2 + spe, n_samples)
+            if _is_sleep(stage):
                 sleep_sample_mask[s2:e2] = True
+                search_mask[s2:e2] = True
+            elif score_wake_arousals:
+                search_mask[s2:e2] = True
 
         # ── FASE 1: Vind verhoogd-vermogen regio's (rolling baseline) ──
         for ep_i, stage in enumerate(hypno):
@@ -1027,6 +1044,9 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
             # Een wakkere epoch krijgt de NREM-basislijn: er is geen aparte
             # wake-basislijn, en NREM is de conservatieve keuze (die ligt
             # hoger dan REM, dus er wordt minder snel iets gevonden).
+            # Een wake-epoch doet alleen mee als zoekgebied; of een
+            # kandidaat daar overleeft, beslist de pre-sleep-eis hieronder op
+            # het ECHTE slaapmasker.
             _als_nrem = _is_nrem(stage) or (score_wake_arousals
                                             and not _is_rem(stage)
                                             and not _is_sleep(stage))
