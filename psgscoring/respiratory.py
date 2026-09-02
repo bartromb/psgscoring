@@ -1952,28 +1952,51 @@ def _detect_apneas(
 
 
 def _snore_during(snore_data, sf_snore, onset_s, duration_s,
-                  baseline_percentile: float = 60.0) -> bool | None:
-    """Snurkt de patiënt tijdens dit event?
+                  baseline_s: float = 120.0,
+                  ratio: float = 1.30) -> bool | None:
+    """Neemt het snurken TOE ten opzichte van de ademhaling ervóór?
 
-    AASM v3 VIII.D.2.a: snurken tijdens het event is een obstructiekenmerk.
-    VIII.A.8 noemt een akoestische sensor, een piëzo-element of de neusdruk als
-    aanvaarde snurksensor.
+    AASM v3 VIII.D.2 noemt drie obstructiekenmerken, en alle drie zijn
+    CONTRASTEN met de pre-event-ademhaling:
 
-    Dezelfde drempel als `analyze_snore`: het 60e percentiel van de RMS over
-    het HELE signaal. Die keuze is bewust -- hij hangt niet van het hypnogram
-    of van het event af, dus alle events worden aan dezelfde lat gelegd. Een
-    drempel per event zou een stil deel van de nacht zijn eigen lat omlaag
-    laten trekken.
+        a. snoring during the event
+        b. INCREASED inspiratory flattening COMPARED TO baseline breathing
+        c. paradox during the event but NOT during pre-event breathing
 
-    Geeft `None` wanneer er geen snurkkanaal is: dat betekent "niet gemeten",
-    en dat is iets anders dan "niet gesnurkt". Het verschil bepaalt of
-    `classify_hypopnea_type` een centrale hypopnee mág aanwijzen.
+    Criterium 1 hoort dus dezelfde vorm te hebben als 2 en 3.
+
+    WAAROM EEN ABSOLUTE DREMPEL NIET WERKT
+    --------------------------------------
+    De eerste versie gebruikte het 60e percentiel van de RMS over de hele
+    nacht, dezelfde drempel als `analyze_snore`. Gemeten op 24 MESA-opnames:
+
+        menselijke hypopneus   2512 events,  30,1 % "snurkt"
+        normale ademhaling     1440 vensters, 39,7 % "snurkt"
+
+    Snurken kwam VAKER voor buiten de events dan erin. De reden is dat snurken
+    een eigenschap van de NACHT is, niet van het event: een snurkende patiënt
+    snurkt vrijwel doorlopend, en een drempel op het nachtpercentiel markeert
+    dan overal "snurkt". In de keten leverde dat 45,3 % centrale hypopneus
+    tegen een menselijk ijkpunt van 5,9 %.
+
+    DE MAAT
+    -------
+    Mediane RMS tijdens het event tegen de mediane RMS van de twee minuten
+    ervóór -- hetzelfde basislijnvenster als AASM VIII.B Note 1. De verhouding
+    is schaalvrij, dus een montage met dubbele versterking geeft hetzelfde
+    antwoord; de RIP-poort maakte die fout drie keer.
+
+    `ratio` is 1,30: het snurken moet met dertig procent toenemen. De manual
+    kwantificeert "snoring during the event" niet, dus dit is een KEUZE en
+    hoort geijkt te worden -- net als de afvlakkingsratio in
+    `HYPOPNEA_FLATTENING_RATIO`.
+
+    Geeft `None` wanneer er geen kanaal is OF geen bruikbare basislijn: dat
+    betekent "niet gemeten", en dat is iets anders dan "niet gesnurkt". Het
+    verschil bepaalt of `classify_hypopnea_type` een centrale hypopnee mág
+    aanwijzen.
     """
     if snore_data is None or not sf_snore or len(snore_data) < 2:
-        return None
-    a = int(onset_s * sf_snore)
-    b = int((onset_s + duration_s) * sf_snore)
-    if b <= a or a < 0 or b > len(snore_data):
         return None
     win = max(1, int(sf_snore))                       # 1 s-vensters
     n_win = len(snore_data) // win
@@ -1981,14 +2004,21 @@ def _snore_during(snore_data, sf_snore, onset_s, duration_s,
         return None
     rms = np.sqrt(np.mean(
         snore_data[:n_win * win].reshape(n_win, win) ** 2, axis=1))
-    drempel = float(np.percentile(rms, baseline_percentile))
-    i0, i1 = a // win, max(a // win + 1, b // win)
-    seg = rms[i0:min(i1, n_win)]
-    if not len(seg):
+
+    ev0, ev1 = int(onset_s), int(np.ceil(onset_s + duration_s))
+    bl0 = int(max(0, onset_s - baseline_s))
+    if ev1 > n_win or ev0 < 0 or ev1 <= ev0:
         return None
-    # Snurken telt wanneer een MEERDERHEID van de seconden erboven ligt; één
-    # piek is een geluid, geen snurkperiode.
-    return bool(np.mean(seg > drempel) > 0.5)
+    # Zonder pre-event-ademhaling is er niets om tegen af te zetten. Minstens
+    # 20 s basislijn, anders is de mediaan een toevalstreffer.
+    if ev0 - bl0 < 20:
+        return None
+
+    ev = float(np.median(rms[ev0:ev1]))
+    bl = float(np.median(rms[bl0:ev0]))
+    if bl <= 1e-12:
+        return None
+    return bool(ev >= ratio * bl)
 
 
 def _detect_hypopneas(
