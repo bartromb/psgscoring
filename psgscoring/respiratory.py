@@ -1951,6 +1951,21 @@ def _detect_apneas(
     return events
 
 
+# Onder deze bemonsteringsfrequentie kan een kanaal de snurkband niet dragen.
+#
+# Snurken is akoestische/vibratie-energie met een grondtoon rond 30-250 Hz. Om
+# de ONDERrand van die band te representeren moet Nyquist boven 30 Hz liggen,
+# dus sf boven 60 Hz. Dat is geen gekozen marge maar de bemonsteringsstelling.
+#
+# Gemeten aanleiding: het MESA-kanaal dat `Snore` heet staat op 32 Hz -- uit de
+# EDF-kop, want MNE tilt bij een gemengde-frequentie-EDF alle kanalen naar de
+# hoogste (256 Hz) en dan lijkt het kanaal breed. Nyquist ligt er op 16 Hz.
+# Alles wat wij aan dat kanaal maten (AUC 0,486 / 0,566 / 0,543 tegen
+# menselijke apneu-subtypes op 37 opnames) ging over een laagfrequente
+# envelope, niet over snurken.
+SNORE_MIN_SF_HZ = 60.0
+
+
 def _snore_during(snore_data, sf_snore, onset_s, duration_s,
                   baseline_s: float = 120.0,
                   ratio: float = 1.30) -> bool | None:
@@ -1997,6 +2012,11 @@ def _snore_during(snore_data, sf_snore, onset_s, duration_s,
     aanwijzen.
     """
     if snore_data is None or not sf_snore or len(snore_data) < 2:
+        return None
+    # Weigeren, niet raden. `None` betekent hier "niet gemeten"; een berekende
+    # onwaarde zou als "niet gesnurkt" doorwerken en criterium 1 stilzwijgend
+    # laten vuren op een kanaal dat het verschijnsel niet kan bevatten.
+    if float(sf_snore) <= SNORE_MIN_SF_HZ:
         return None
     win = max(1, int(sf_snore))                       # 1 s-vensters
     n_win = len(snore_data) // win

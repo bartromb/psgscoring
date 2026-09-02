@@ -34,7 +34,14 @@ import pytest
 
 from psgscoring.respiratory import _snore_during
 
-SF = 32.0
+# 200 Hz, niet de 32 Hz die MESA levert.
+#
+# Deze fixtures stonden aanvankelijk op 32 Hz OMDAT MESA dat levert. Dat was
+# de fout: bij 32 Hz ligt Nyquist op 16 Hz en kan het kanaal de snurkband
+# (grondtoon 30-250 Hz) helemaal niet dragen, dus toetste dit bestand een
+# maat op een signaal dat de vraag niet kan beantwoorden. `_snore_during`
+# weigert zo'n kanaal nu — zie `test_snore_band_reachable.py`.
+SF = 200.0
 
 
 def _signaal(n_s, snurk_overal=False, snurk_venster=None, sf=SF, seed=1):
