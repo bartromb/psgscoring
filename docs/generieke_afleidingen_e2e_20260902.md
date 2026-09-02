@@ -64,3 +64,53 @@ terwijl de klinische doelmontage er drie heeft.
 Dat maakt die metingen niet ongeldig, maar wel smaller dan ze leken: ze zeggen
 iets over één-kanaals-MESA, niet over een klinische opname. Verschillende van
 die knoppen verdienen een herhaling zodra deze vlag aanstaat.
+
+
+---
+
+# Bevestiging op de derde set: GESLAAGD
+
+*Toegevoegd 2026-09-02, 87 opnames, disjunct van beide eerdere sets.*
+
+| arm | n events | index | bias | F1 |
+|---|---:|---:|---:|---:|
+| mens | 124 | 20,9 | — | — |
+| EEG1 alleen | 122 | 21,1 | −1,8 | 0,438 |
+| alle drie | 152 | 25,2 | +3,3 | **0,517** |
+
+ΔF1 mediaan **+0,0666**, beter op **83 van de 87**, p < 0,0001.
+|bias| 3,57 → 5,11 met **p = 0,61** — niet aantoonbaar slechter, dus de
+gecorrigeerde symmetrische regel is **GEHAALD**.
+
+## De twee sets naast elkaar
+
+| | set 2 (n=90) | set 3 (n=87) |
+|---|---|---|
+| F1 | 0,425 → 0,512 | 0,438 → 0,517 |
+| fractie van het plafond | 63 % → 75 % | 65 % → 76 % |
+| beter op | 85/90 | 83/87 |
+| getekende bias | −2,83 → +1,44 | −1,76 → +3,35 |
+| RMS-bias | 11,05 → 9,80 | 8,75 → 8,86 |
+| **binnen ±5/u** | 52 % → 51 % | **61 % → 49 %** |
+| telling stijgt op | 90/90 | 87/87 |
+
+**De localisatie verbetert groot en consistent. De telling stijgt op élke
+opname.** Waar de basislijn al goed geijkt was kost dat de index: op set 3
+valt het aandeel opnames binnen ±5/u van 61 % naar 49 %.
+
+Dat is geen ruis maar een systematisch effect, en de Wilcoxon op |bias| ziet
+het niet omdat de spreiding groot is. Eén statistiek zou hier misleiden.
+
+## Waarom de vlag nog steeds niet aan gaat
+
+Het LGBM-werkpunt van 0,80 is geijkt toen er **één** afleiding was. Met drie
+komt een ruimere kandidaatpool bij dezelfde drempel aan, dus overleven er meer
+events. De drempel hoort mee omhoog.
+
+Er draait nu een herijking op set 3: één-afleiding-op-0,80 als anker, plus
+drie afleidingen op 0,80 / 0,85 / 0,88 / 0,90 / 0,93. De vraag is of er een
+werkpunt bestaat dat de F1-winst grotendeels behoudt én de index terugbrengt.
+
+* Zo ja — dan levert de vlag beide en kan hij aan.
+* Zo nee — dan is het een ruil tussen localisatie en telling, en die keuze
+  hoort bij de gebruiker, niet bij mij.
