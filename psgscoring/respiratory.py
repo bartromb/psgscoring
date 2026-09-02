@@ -312,6 +312,10 @@ def detect_respiratory_events(
     phase_angle_needs_effort: bool = False,
     #: (aan, schaal) -- zie profiles.shape_evidence_grading
     shape_evidence: tuple[bool, float] = (False, 1.0),
+    #: Snurkkanaal voor AASM v3 VIII.D.2.a. `None` = niet gemeten, en dat is
+    #: iets anders dan niet gesnurkt.
+    snore_data:        np.ndarray | None = None,
+    sf_snore:          float | None = None,
     _precomputed:      dict | None = None,
 ) -> dict:
     """
@@ -771,6 +775,7 @@ def detect_respiratory_events(
             hypopnea_subtype_aasm=hypopnea_subtype_aasm,
             phase_angle_needs_effort=phase_angle_needs_effort,
             shape_evidence=shape_evidence,
+            snore_data=snore_data, sf_snore=sf_snore,
         )
         events = new_events
 
@@ -1946,6 +1951,46 @@ def _detect_apneas(
     return events
 
 
+def _snore_during(snore_data, sf_snore, onset_s, duration_s,
+                  baseline_percentile: float = 60.0) -> bool | None:
+    """Snurkt de patiënt tijdens dit event?
+
+    AASM v3 VIII.D.2.a: snurken tijdens het event is een obstructiekenmerk.
+    VIII.A.8 noemt een akoestische sensor, een piëzo-element of de neusdruk als
+    aanvaarde snurksensor.
+
+    Dezelfde drempel als `analyze_snore`: het 60e percentiel van de RMS over
+    het HELE signaal. Die keuze is bewust -- hij hangt niet van het hypnogram
+    of van het event af, dus alle events worden aan dezelfde lat gelegd. Een
+    drempel per event zou een stil deel van de nacht zijn eigen lat omlaag
+    laten trekken.
+
+    Geeft `None` wanneer er geen snurkkanaal is: dat betekent "niet gemeten",
+    en dat is iets anders dan "niet gesnurkt". Het verschil bepaalt of
+    `classify_hypopnea_type` een centrale hypopnee mág aanwijzen.
+    """
+    if snore_data is None or not sf_snore or len(snore_data) < 2:
+        return None
+    a = int(onset_s * sf_snore)
+    b = int((onset_s + duration_s) * sf_snore)
+    if b <= a or a < 0 or b > len(snore_data):
+        return None
+    win = max(1, int(sf_snore))                       # 1 s-vensters
+    n_win = len(snore_data) // win
+    if n_win < 10:
+        return None
+    rms = np.sqrt(np.mean(
+        snore_data[:n_win * win].reshape(n_win, win) ** 2, axis=1))
+    drempel = float(np.percentile(rms, baseline_percentile))
+    i0, i1 = a // win, max(a // win + 1, b // win)
+    seg = rms[i0:min(i1, n_win)]
+    if not len(seg):
+        return None
+    # Snurken telt wanneer een MEERDERHEID van de seconden erboven ligt; één
+    # piek is een geluid, geen snurkperiode.
+    return bool(np.mean(seg > drempel) > 0.5)
+
+
 def _detect_hypopneas(
     hypopnea_raw, sleep_mask_hy, hypop_env, hypop_norm, hypop_baseline,
     sf_hy, sf_flow, sf_spo2, hypno,
@@ -1979,6 +2024,8 @@ def _detect_hypopneas(
     hypopnea_subtype_aasm: bool = False,
     phase_angle_needs_effort: bool = False,
     shape_evidence: tuple[bool, float] = (False, 1.0),
+    snore_data: np.ndarray | None = None,
+    sf_snore: float | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Return (all_events_including_new_hypopneas, rejected_candidates)."""
     # Build apnea exclusion mask (±5 s around each confirmed apnea)
@@ -2161,7 +2208,8 @@ def _detect_hypopneas(
                 hy_sub, hy_conf, hy_det = classify_hypopnea_type(
                     onset_s=onset_s, duration_s=sub_dur, breaths=breaths,
                     thorax_env=thorax_env, abdomen_env=abdomen_env, sf=sf_flow,
-                    snore_present=None,   # zie de vlagdocstring: 3 Hz-filter
+                    snore_present=_snore_during(
+                        snore_data, sf_snore, onset_s, sub_dur),
                 )
             hy_label = f"hypopnea_{hy_sub}" if hy_sub != "obstructive" else "hypopnea"
             flow_red_ratio = safe_r(

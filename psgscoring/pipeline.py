@@ -391,6 +391,8 @@ def run_pneumo_analysis(
             hypopnea_subtype_aasm=_hypopnea_subtype_aasm(profile),
             phase_angle_needs_effort=_phase_angle_needs_effort(profile),
             shape_evidence=_shape_evidence(profile),
+            # AASM v3 VIII.D.2.a: snurken tijdens het event.
+            snore_data=snore_data, sf_snore=sf_snore,
             flow_data    = apnea_flow,
             hypop_flow   = hypop_flow,
             sf_hypop     = sf_hypop,

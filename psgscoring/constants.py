@@ -248,8 +248,14 @@ CHANNEL_PATTERNS: dict[str, list[str]] = {
     "ecg":      ["ecg", "ekg", "cardiac", "einthoven", "ii", "ecg ii"],
     "position": ["position", "positie", "pos", "body pos", "lage",
                  "body position", "bpos"],
+    # SOMNOmedics (Randersacker) exporteert Duitse labels: DOMINO schrijft
+    # "Schnarchen" en soms "Mikro". Zonder die patronen bleef het snurkkanaal
+    # ongebruikt op precies de opnames waar het WEL aanwezig is -- en daarmee
+    # was criterium 1 van de hypopnee-subtypering (AASM v3 VIII.D.2.a)
+    # onbereikbaar op de klinische opnames.
     "snore":    ["snore", "snoring", "ronfle", "ronchus", "micro",
-                 "snurk", "snore mic", "microphone"],
+                 "snurk", "snore mic", "microphone",
+                 "schnarch", "mikro", "geraeusch", "geräusch"],
     # "plml"/"plmr" zonder scheidingsteken: SOMNOmedics exporteert de
     # beenkanalen als "PLMl"/"PLMr", en substring-matching op "plml" vindt
     # geen enkel patroon met een spatie of streepje. Auto-detectie leverde
