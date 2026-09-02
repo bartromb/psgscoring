@@ -413,6 +413,13 @@ BETA_BAND             = (16, 30)   # >16 Hz (AASM definitie)
 DELTA_BAND            = (0.5, 4)
 ALPHA_BAND            = (8, 13)    # Breed alpha (voor backward compat in stats)
 
+#: AASM v3 V.A.1 noemt "alpha" zonder versmalling; conventioneel 8-13 Hz. Onze
+#: 8-11 is een tweede spindelbeveiliging bovenop Check C, die per event al
+#: verwerpt wanneer sigma verhoogd is en alfa+beta eronder blijft. De prijs is
+#: gevoeligheid in 11-13 Hz -- precies waar alfa en spindels elkaar raken.
+#: Zie de profielvlag `arousal_alpha_band_wide`.
+ALPHA_MANUAL_BAND     = (8, 13)
+
 # v0.8.11: Drempels
 AROUSAL_RATIO_THRESH  = 2.0     # v0.8.11: verlaagd van 3.0 → 2.0 (v0.8.11: verder verlaagd)
 ABRUPT_RATIO_THRESH   = 1.5     # v0.8.11: verlaagd van 2.0 → 1.5 (2s FFT-vensters smoothen te veel)
@@ -647,6 +654,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                     min_interval_s: float = 0.0,
                     rem_alpha_baseline: bool = False,
                     score_wake_arousals: bool = False,
+                    alpha_band_wide: bool = False,
                     _no_hybrid: bool = False) -> dict:
     """
     Detecteer EEG-arousals conform AASM, Sectie 5.
@@ -788,7 +796,8 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
             logger.debug("Arousal EEG: V→µV conversie (max=%.1f µV)", np.max(np.abs(eeg_uv)))
 
         # ── Bandvermogen tijdreeksen (v0.8.11: theta + alpha_narrow + beta) ──
-        alpha_pow = _bandpower_instant(eeg_uv, sf, ALPHA_NARROW_BAND, win_s=2.0)
+        _alpha_band = ALPHA_MANUAL_BAND if alpha_band_wide else ALPHA_NARROW_BAND
+        alpha_pow = _bandpower_instant(eeg_uv, sf, _alpha_band, win_s=2.0)
         theta_pow = _bandpower_instant(eeg_uv, sf, THETA_BAND, win_s=2.0)
         beta_pow  = _bandpower_instant(eeg_uv, sf, BETA_BAND,  win_s=2.0)
         sigma_pow = _bandpower_instant(eeg_uv, sf, SIGMA_BAND, win_s=2.0)
@@ -1600,7 +1609,8 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                           event_locked_threshold: float | None = None,
                           min_interval_s: float = 0.0,
                           rem_alpha_baseline: bool = False,
-                          score_wake_arousals: bool = False) -> dict:
+                          score_wake_arousals: bool = False,
+                          alpha_band_wide: bool = False) -> dict:
     """Multi-derivatie arousal-detectie via event-level union.
 
     ``derivations``: geordende lijst ``[(naam, eeg_data[, sf]), ...]`` — element 0
@@ -1620,6 +1630,7 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
         rt, at = pct.get(name, (None, None))
         res = detect_arousals(eeg, sf, hypno,
                               score_wake_arousals=score_wake_arousals,
+                              alpha_band_wide=alpha_band_wide,
                               emg_data=emg_data,
                               artifact_epochs=artifact_epochs,
                               hr_data=hr_data, sf_hr=sf_hr,
@@ -2221,6 +2232,7 @@ def run_arousal_respiratory_analysis(
     min_interval_s: float = 0.0,
     rem_alpha_baseline: bool = False,
     score_wake_arousals: bool = False,
+    alpha_band_wide: bool = False,
 ) -> dict:
     """
     Master-functie: detecteer arousals, RERAs en koppel aan respiratoire events.
@@ -2266,6 +2278,7 @@ def run_arousal_respiratory_analysis(
     if derivations:
         ar_result = detect_arousals_multi(derivations, sf_eeg, hypno,
                                           score_wake_arousals=score_wake_arousals,
+                              alpha_band_wide=alpha_band_wide,
                                           emg_data=emg_data,
                                           artifact_epochs=artifact_epochs,
                                           hr_data=hr_data, sf_hr=sf_hr,
@@ -2281,6 +2294,7 @@ def run_arousal_respiratory_analysis(
     else:
         ar_result = detect_arousals(eeg_data, sf_eeg, hypno,
                                     score_wake_arousals=score_wake_arousals,
+                              alpha_band_wide=alpha_band_wide,
                                     emg_data=emg_data,
                                     artifact_epochs=artifact_epochs,
                                     hr_data=hr_data, sf_hr=sf_hr,

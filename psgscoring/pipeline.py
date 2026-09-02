@@ -878,6 +878,8 @@ def run_pneumo_analysis(
                     profile.get("AROUSAL_REM_BASELINE_ALPHA", False)),
                 # AASM v3 V.A Note 3: arousals in wake-epochs tellen mee.
                 score_wake_arousals = _score_wake_arousals(profile),
+                # AASM v3 V.A.1: alfa zonder versmalling.
+                alpha_band_wide = _alpha_band_wide(profile),
             )
         except Exception as e:  # noqa: BLE001 — arousal failure must not abort the run
             logger.warning("[pneumo] arousal analysis failed, continuing: %s", e)
@@ -2562,6 +2564,15 @@ def _shape_evidence(profile: dict) -> tuple[bool, float]:
             logger.warning("[pneumo] PSGSCORING_SHAPE_EVIDENCE_SCALE=%r is "
                            "geen getal; %.2f blijft staan", env_s, schaal)
     return aan, schaal
+
+
+def _alpha_band_wide(profile: dict) -> bool:
+    """Alfaband van de manual (8-13 Hz)? Profielvlag, env wint."""
+    v = bool(profile.get("AROUSAL_ALPHA_BAND_WIDE", False))
+    env = os.environ.get("PSGSCORING_AROUSAL_ALPHA_BAND_WIDE")
+    if env is not None:
+        v = env == "1"
+    return v
 
 
 def _score_wake_arousals(profile: dict) -> bool:

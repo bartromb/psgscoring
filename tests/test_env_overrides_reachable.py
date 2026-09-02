@@ -126,6 +126,7 @@ PIPELINE_ONLY = {
     # Argument aan detect_arousals(); een harnas dat die functie direct
     # aanroept moet de vlag zelf meegeven.
     "PSGSCORING_SCORE_WAKE_AROUSALS",
+    "PSGSCORING_AROUSAL_ALPHA_BAND_WIDE",
     "PSGSCORING_THERMISTOR_GATE",
     "PSGSCORING_PLM_EVENT_LIST_CAP",
     "PSGSCORING_PLM_OFFSET_AASM",

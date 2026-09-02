@@ -792,6 +792,22 @@ class PostProcessingRules:
     Aanzetten neemt bovendien events weg, en dat verlaagt de AHI.
     """
 
+    arousal_alpha_band_wide: bool = False
+    """Gebruik de alfaband van de manual (8-13 Hz) in plaats van 8-11.
+
+    AASM v3 V.A.1 noemt *"alpha, theta and/or frequencies greater than 16 Hz
+    (but not spindles)"* -- zonder de alfaband te versmallen. Onze 8-11 is een
+    tweede spindelbeveiliging bovenop Check C, die per event al verwerpt
+    wanneer sigma verhoogd is en alfa+beta eronder blijft.
+
+    De prijs is gevoeligheid in 11-13 Hz, precies waar alfa en spindels elkaar
+    raken. Relevant omdat 62,7 % van de menselijke arousals bij ons nooit als
+    kandidaat wordt voorgesteld.
+
+    Default uit tot de cohortmeting er is.
+    Env: `PSGSCORING_AROUSAL_ALPHA_BAND_WIDE`.
+    """
+
     score_wake_arousals: bool = False
     """Score arousals die in een WAKE-epoch vallen (AASM v3, V.A Note 3).
 
