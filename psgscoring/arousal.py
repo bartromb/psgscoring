@@ -646,6 +646,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                     event_locked_threshold: float | None = None,
                     min_interval_s: float = 0.0,
                     rem_alpha_baseline: bool = False,
+                    score_wake_arousals: bool = False,
                     _no_hybrid: bool = False) -> dict:
     """
     Detecteer EEG-arousals conform AASM, Sectie 5.
@@ -979,10 +980,25 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
         n_te_lang = 0          # regio's boven AROUSAL_MAX_DUR_S
         te_lang_s = 0.0        # en hoeveel slaaptijd daarin zat
 
-        # Slaap-mask per sample
+        # Slaap-mask per sample.
+        #
+        # AASM v3, V.A Note 3 (RECOMMENDED): "Arousals meeting all scoring
+        # criteria but occurring during an AWAKE epoch in the recorded time
+        # between 'lights out' and 'lights on' should be scored and used for
+        # computation of the arousal index."
+        #
+        # Met `score_wake_arousals` telt een wake-epoch dus als zoekgebied. De
+        # NOEMER blijft de slaaptijd -- dat is wat de regel voorschrijft en de
+        # enige lezing die niet circulair is: een gefragmenteerde nacht zou
+        # zichzelf anders wegdelen.
+        #
+        # Artefact-epochs blijven uitgesloten in beide standen. Die zijn geen
+        # wake maar onmeetbaar.
         sleep_sample_mask = np.zeros(n_samples, dtype=bool)
         for ep_i, stage in enumerate(hypno):
-            if _is_sleep(stage) and ep_i not in artifact_set:
+            if ep_i in artifact_set:
+                continue
+            if _is_sleep(stage) or score_wake_arousals:
                 s2 = ep_i * spe
                 e2 = min(s2 + spe, n_samples)
                 sleep_sample_mask[s2:e2] = True
@@ -993,7 +1009,19 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                 continue
             s = ep_i * spe
             e = min(s + spe, n_samples)
-            if _is_nrem(stage):
+            # V.A Note 3: een arousal in een WAKE-epoch tussen lights out en
+            # lights on telt mee. Zonder deze regel krijgt zo'n epoch geen
+            # masker en bestaat de arousal niet -- ook niet als het slaapmasker
+            # hem wel toelaat. Dat kostte de eerste implementatie: het
+            # zoekgebied was verruimd, maar fase 1 vulde er niets in.
+            #
+            # Een wakkere epoch krijgt de NREM-basislijn: er is geen aparte
+            # wake-basislijn, en NREM is de conservatieve keuze (die ligt
+            # hoger dan REM, dus er wordt minder snel iets gevonden).
+            _als_nrem = _is_nrem(stage) or (score_wake_arousals
+                                            and not _is_rem(stage)
+                                            and not _is_sleep(stage))
+            if _als_nrem:
                 # v0.8.11: vergelijk met rolling baseline i.p.v. globaal
                 local_bl = arousal_bl_nrem_arr[s:e]
                 if spectral_shift:
@@ -1571,7 +1599,8 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                           resp_event_ends: list | None = None,
                           event_locked_threshold: float | None = None,
                           min_interval_s: float = 0.0,
-                          rem_alpha_baseline: bool = False) -> dict:
+                          rem_alpha_baseline: bool = False,
+                          score_wake_arousals: bool = False) -> dict:
     """Multi-derivatie arousal-detectie via event-level union.
 
     ``derivations``: geordende lijst ``[(naam, eeg_data[, sf]), ...]`` — element 0
@@ -1589,7 +1618,9 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
     for item in derivations:
         name, eeg = item[0], item[1]
         rt, at = pct.get(name, (None, None))
-        res = detect_arousals(eeg, sf, hypno, emg_data=emg_data,
+        res = detect_arousals(eeg, sf, hypno,
+                              score_wake_arousals=score_wake_arousals,
+                              emg_data=emg_data,
                               artifact_epochs=artifact_epochs,
                               hr_data=hr_data, sf_hr=sf_hr,
                               ratio_thresh=rt, abrupt_thresh=at,
@@ -2189,6 +2220,7 @@ def run_arousal_respiratory_analysis(
     onset_offset_s: float = 0.0,
     min_interval_s: float = 0.0,
     rem_alpha_baseline: bool = False,
+    score_wake_arousals: bool = False,
 ) -> dict:
     """
     Master-functie: detecteer arousals, RERAs en koppel aan respiratoire events.
@@ -2232,7 +2264,9 @@ def run_arousal_respiratory_analysis(
                         "respiratoire event-eindes",
                         event_locked_threshold, len(_ends))
     if derivations:
-        ar_result = detect_arousals_multi(derivations, sf_eeg, hypno, emg_data=emg_data,
+        ar_result = detect_arousals_multi(derivations, sf_eeg, hypno,
+                                          score_wake_arousals=score_wake_arousals,
+                                          emg_data=emg_data,
                                           artifact_epochs=artifact_epochs,
                                           hr_data=hr_data, sf_hr=sf_hr,
                                           per_channel_thresh=per_channel_thresh,
@@ -2245,7 +2279,9 @@ def run_arousal_respiratory_analysis(
                                           min_interval_s=min_interval_s,
                                           rem_alpha_baseline=rem_alpha_baseline)
     else:
-        ar_result = detect_arousals(eeg_data, sf_eeg, hypno, emg_data=emg_data,
+        ar_result = detect_arousals(eeg_data, sf_eeg, hypno,
+                                    score_wake_arousals=score_wake_arousals,
+                                    emg_data=emg_data,
                                     artifact_epochs=artifact_epochs,
                                     hr_data=hr_data, sf_hr=sf_hr,
                                     spectral_shift=spectral_shift,

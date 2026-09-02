@@ -876,6 +876,8 @@ def run_pneumo_analysis(
                 min_interval_s = _arousal_min_interval_s(profile),
                 rem_alpha_baseline = bool(
                     profile.get("AROUSAL_REM_BASELINE_ALPHA", False)),
+                # AASM v3 V.A Note 3: arousals in wake-epochs tellen mee.
+                score_wake_arousals = _score_wake_arousals(profile),
             )
         except Exception as e:  # noqa: BLE001 — arousal failure must not abort the run
             logger.warning("[pneumo] arousal analysis failed, continuing: %s", e)
@@ -2560,6 +2562,15 @@ def _shape_evidence(profile: dict) -> tuple[bool, float]:
             logger.warning("[pneumo] PSGSCORING_SHAPE_EVIDENCE_SCALE=%r is "
                            "geen getal; %.2f blijft staan", env_s, schaal)
     return aan, schaal
+
+
+def _score_wake_arousals(profile: dict) -> bool:
+    """Arousals in wake-epochs meescoren? Profielvlag, env wint."""
+    v = bool(profile.get("SCORE_WAKE_AROUSALS", False))
+    env = os.environ.get("PSGSCORING_SCORE_WAKE_AROUSALS")
+    if env is not None:
+        v = env == "1"
+    return v
 
 
 def _phase_angle_needs_effort(profile: dict) -> bool:

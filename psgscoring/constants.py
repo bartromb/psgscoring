@@ -110,6 +110,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "HYPOPNEA_SUBTYPE_AASM": pp.hypopnea_subtype_aasm,
         "PHASE_ANGLE_NEEDS_EFFORT": pp.phase_angle_needs_effort,
         "SHAPE_EVIDENCE_GRADING": pp.shape_evidence_grading,
+        "SCORE_WAKE_AROUSALS": pp.score_wake_arousals,
         "SHAPE_EVIDENCE_SCALE": pp.shape_evidence_scale,
         "FLOW_GAP_SCALE_FREE": pp.flow_gap_scale_free,
         "AROUSAL_LGBM": pp.arousal_lgbm,

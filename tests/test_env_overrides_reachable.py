@@ -123,6 +123,9 @@ PIPELINE_ONLY = {
     "PSGSCORING_PHASE_ANGLE_NEEDS_EFFORT",
     "PSGSCORING_SHAPE_EVIDENCE_GRADING",
     "PSGSCORING_SHAPE_EVIDENCE_SCALE",
+    # Argument aan detect_arousals(); een harnas dat die functie direct
+    # aanroept moet de vlag zelf meegeven.
+    "PSGSCORING_SCORE_WAKE_AROUSALS",
     "PSGSCORING_THERMISTOR_GATE",
     "PSGSCORING_PLM_EVENT_LIST_CAP",
     "PSGSCORING_PLM_OFFSET_AASM",

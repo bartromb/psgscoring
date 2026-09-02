@@ -792,6 +792,30 @@ class PostProcessingRules:
     Aanzetten neemt bovendien events weg, en dat verlaagt de AHI.
     """
 
+    score_wake_arousals: bool = False
+    """Score arousals die in een WAKE-epoch vallen (AASM v3, V.A Note 3).
+
+    De manual, RECOMMENDED: *"Arousals meeting all scoring criteria but
+    occurring during an AWAKE epoch in the recorded time between 'lights out'
+    and 'lights on' should be scored and used for computation of the arousal
+    index."*
+
+    Onze keten zoekt alleen in slaap-epochs. Bij een gefragmenteerde nacht valt
+    een arousal vaak in een epoch die als W gescoord wordt -- juist omdat die
+    arousal er is -- en die epochs zijn precies waarvoor de regel bestaat.
+
+    Relevant omdat wij ~6/u ONDER de menselijke arousalindex zitten (bias
+    -7,1 / -6,1 / +0,2 over drie MESA-scoorders) en 62,7 % van de menselijke
+    arousals nooit als kandidaat voorstellen.
+
+    **De noemer verandert niet**: de arousalindex deelt door totale slaaptijd.
+    Extra arousals in wake verhogen de teller, niet de noemer -- de enige
+    lezing die niet circulair is.
+
+    Default uit tot de cohortmeting er is.
+    Env: `PSGSCORING_SCORE_WAKE_AROUSALS`.
+    """
+
     shape_evidence_grading: bool = True
     """Weeg vormmaten naar rato van het signaal eronder, in plaats van ze aan
     of uit te zetten.
