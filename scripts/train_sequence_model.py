@@ -177,7 +177,12 @@ def main():
         print("FOUT: geen vensters -- staat het slaapmasker goed?")
         return 1
 
-    model = _bouw_unet(torch, nn).to(dev)
+    # Het aantal kanalen komt UIT de dataset. Vastpinnen op 4 (de respiratoire
+    # set) liet de arousalset van 3 kanalen falen met een conv1d-fout die de
+    # oorzaak niet noemt.
+    n_kan = int(X[0].shape[0])
+    model = _bouw_unet(torch, nn, n_in=n_kan).to(dev)
+    print(f"  {n_kan} kanalen: {', '.join(str(k) for k in d['kanalen'])}")
     n_par = sum(p.numel() for p in model.parameters())
     print(f"  model: {n_par/1000:.0f}k parameters")
 

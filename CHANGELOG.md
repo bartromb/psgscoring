@@ -1,3 +1,82 @@
+# v0.31.6 — 2026-09-02 — de subtypering van apneus is gerepareerd
+
+**Dit verandert een klinisch getal.** De verdeling obstructief/centraal
+verschuift; de AHI niet. Bij een heranalyse van een oudere opname kan een
+patiënt die eerder als overwegend obstructief werd getypeerd nu overwegend
+centraal lezen. Dat onderscheid bepaalt de therapiekeuze — CPAP tegen ASV.
+
+## Wat er mis was
+
+Op PSG-IPA noemden wij 60 van de 75 menselijk-centrale apneus obstructief. De
+omgekeerde richting klopte bijna perfect (153 van 154): geen classificatiefout
+dus, maar een eenzijdige bias. Per beslisregel uitgesplitst was het 33× de
+fasehoek en 27× de restcategorie.
+
+Fasehoek, paradoxcorrelatie en ruwe variabiliteit zijn **vormmaten**. Ze
+beschrijven de structuur van een signaal en zeggen niets over of er signaal
+*is*. Onder de effortdrempel meten ze ruis — en ruis heeft vorm. Bij een
+centrale apneu bewegen thorax en abdomen per definitie nauwelijks, dus daar
+beslisten drie regels op ruis.
+
+## Wat er nu gebeurt
+
+`shape_evidence_weight()` schaalt de zeggingskracht van elke vormmaat met
+`effort_ratio / EFFORT_PRESENT_RATIO`. Vol gewicht bij volle inspanning, nul
+bij afwezige, geleidelijk daartussen — dezelfde behandeling die AASM Rule 1A in
+dit pakket al kreeg.
+
+Een harde poort werkte niet: die ruilde de ene bias voor de andere (centrale
+recall 98,7 %, obstructieve 44,8 %). `EFFORT_ABSENT_RATIO` is geen natuurlijke
+grens; een obstructief event met een slecht zittende band heeft een lage
+effortverhouding en toch echte paradox.
+
+## De meting
+
+| cohort | arm | recall centraal | recall obstructief | κ |
+|---|---|---:|---:|---:|
+| PSG-IPA | huidig | 20,0 % | 99,4 % | 0,139 |
+| PSG-IPA | **s=0,25** | **66,7 %** | **98,7 %** | **0,434** |
+| MESA | huidig | 30,6 % | 88,9 % | 0,195 |
+| MESA | **s=0,25** | **61,4 %** | **71,9 %** | **0,260** |
+
+MESA op 2108 gekoppelde apneus waarvan 519 menselijk-centraal, PSG-IPA op 286.
+Het criterium lag vooraf vast: hogere κ **én** beide recalls boven 60 %. Van de
+vijf gemeten werkpunten haalden er twee dat; 0,25 is het hoogste dat op
+**beide** cohorten slaagt.
+
+Op PSG-IPA is 0,30 de top (κ 0,463), maar daar zakt de obstructieve recall op
+MESA naar 66,5 %. Vandaar 0,25: geijkt op twee cohorten, niet gekozen op één.
+
+## De prijs, expliciet
+
+Op MESA daalt de obstructieve recall van 88,9 naar 71,9 %. Dat is een echte
+afruil en geen gratis winst. Ze is aanvaard omdat de andere kant zwaarder weegt:
+wij noemden vier op de vijf centrale apneus obstructief, en dat stuurt een
+patiënt naar de verkeerde therapie.
+
+`mesa_shhs` en `chicago_1999` blijven op het oude gedrag — die reproduceren
+gepubliceerde resultaten.
+
+## Ook in deze release
+
+* `expected_scorer_agreement()` — elke AHI draagt nu de gemeten
+  mens-tegen-mens overeenstemming bij die ziektelast. Op PSG-IPA halen twaalf
+  scoorders onderling F1 0,948 op de zwaarste opname en 0,553 op de lichtste,
+  waar de ene expert één event scoorde en de andere achtendertig. Een AHI van 8
+  en een AHI van 40 dragen niet dezelfde zekerheid.
+* `classify_hypopnea_type()` — de eigen subtyperingsregel van de manual
+  (§6.1), default uit. Onbruikbaar zonder snurkkanaal: het bandfilter haalt
+  snurktrillingen weg, en uit de neusdruk is snurken niet af te leiden
+  (AUC 0,48 tegen flow-gematchte ademhaling). Abstineert met `uncertain` in
+  plaats van te gokken.
+* `plm_bilateral_window_s` — de manual zegt 5 s onset-tot-onset, de code stond
+  op 0,5 s. Vlag, default op het oude gedrag; op PSG-IPA scheelt het −15 tot
+  −22 % in de LM-telling.
+* `ahi_rule_conformity()` — welke AASM-regel deze AHI draagt, naast het getal.
+* `pre_lgbm_events` — de arousalkandidaten, niet alleen hun aantal.
+
+1394 tests, golden 9/9, mypy schoon.
+
 # v0.31.5 — 2026-08-31 — ook de houding en het snurken per deel van de nacht
 
 Sluit aan op 0.31.4, dat de arousalindex, de RDI en de PLM-index splitste. Daar

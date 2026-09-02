@@ -184,6 +184,16 @@ def main():
     ids = [p.stem.replace("-nsrr", "") for p in sorted(xml_dir.glob("*.xml"))]
     if args.limit:
         ids = ids[:args.limit]
+    # Hervatten: sla over wat al als los deel op schijf staat. Zonder dit kost
+    # een onderbroken bouw alles opnieuw, en bij 64 Hz is dat uren.
+    _tmp = args.output.parent / (args.output.stem + "_delen")
+    if _tmp.exists():
+        _klaar = {p.stem for p in _tmp.glob("*.npy")}
+        _over = [i for i in ids if i not in _klaar]
+        if len(_over) < len(ids):
+            print(f"  {len(ids) - len(_over)} opnames al gebouwd, "
+                  f"{len(_over)} te gaan")
+            ids = _over
     print(f"{len(ids)} opnames -> {FS:.0f} Hz, {len(KANALEN)} kanalen")
 
     tmp_dir = args.output.parent / (args.output.stem + "_delen")

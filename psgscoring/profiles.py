@@ -792,7 +792,7 @@ class PostProcessingRules:
     Aanzetten neemt bovendien events weg, en dat verlaagt de AHI.
     """
 
-    shape_evidence_grading: bool = False
+    shape_evidence_grading: bool = True
     """Weeg vormmaten naar rato van het signaal eronder, in plaats van ze aan
     of uit te zetten.
 
@@ -811,10 +811,13 @@ class PostProcessingRules:
     Env: `PSGSCORING_SHAPE_EVIDENCE_GRADING`.
     """
 
-    shape_evidence_scale: float = 1.0
+    shape_evidence_scale: float = 0.25
     """Werkpunt van de weging: kleiner betekent eerder vol gewicht.
 
-    Hoort geijkt te worden tegen de matrix hierboven, niet gekozen.
+    0,25 is geijkt op beide cohorten, niet gekozen. Op PSG-IPA is 0,30 de top
+    (kappa 0,463) maar op MESA valt de obstructieve recall daar naar 66,5 %;
+    0,25 is het hoogste punt dat op BEIDE cohorten zijn criteria haalt.
+
     Env: `PSGSCORING_SHAPE_EVIDENCE_SCALE`.
     """
 
@@ -2185,6 +2188,9 @@ _mesa_shhs = Profile(
         # event dat centraal genoemd wordt valt eruit -- en dit profiel
         # reproduceert paper v31/v37.
         csr_reclassification=True,
+        # Gepind op het oude gedrag: dit profiel reproduceert
+        # gepubliceerde resultaten.
+        shape_evidence_grading=False,
         # En de arousal-classifier: paper v31/v37 draaide op het
         # regelgebaseerde pad.
         stability_filter_all_hypopnea_subtypes=False,
@@ -2283,6 +2289,9 @@ _chicago_1999 = Profile(
         # OAHI. Dit profiel bevriest het gedrag van 1999.
         arousal_min_interval_s=0.0,
         csr_reclassification=True,
+        # Gepind op het oude gedrag: dit profiel reproduceert
+        # gepubliceerde resultaten.
+        shape_evidence_grading=False,
         stability_filter_all_hypopnea_subtypes=False,
         thermistor_gate="envelope_agreement",
     ),
