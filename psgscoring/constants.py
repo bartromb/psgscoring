@@ -111,6 +111,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "PHASE_ANGLE_NEEDS_EFFORT": pp.phase_angle_needs_effort,
         "SHAPE_EVIDENCE_GRADING": pp.shape_evidence_grading,
         "SCORE_WAKE_AROUSALS": pp.score_wake_arousals,
+        "AROUSAL_GENERIC_DERIVATIONS": pp.arousal_generic_derivations,
         "AROUSAL_ALPHA_BAND_WIDE": pp.arousal_alpha_band_wide,
         "SHAPE_EVIDENCE_SCALE": pp.shape_evidence_scale,
         "FLOW_GAP_SCALE_FREE": pp.flow_gap_scale_free,

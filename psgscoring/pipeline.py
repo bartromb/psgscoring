@@ -810,7 +810,18 @@ def run_pneumo_analysis(
         _eog_arousal = None
         _eog_reject = False
         if _ar_mode == "multi":
-            _multi = _pick_eeg_multi(raw, ch)
+            # Profielvlag `arousal_generic_derivations`, env-override
+            # PSGSCORING_AROUSAL_GENERIC_DERIVATIONS=0/1 om beide armen op één
+            # cohort te meten zonder de registry te muteren.
+            _gen = bool(profile.get("AROUSAL_GENERIC_DERIVATIONS", False))
+            _gen_env = os.environ.get("PSGSCORING_AROUSAL_GENERIC_DERIVATIONS")
+            if _gen_env is not None:
+                _gen = _gen_env == "1"
+            _multi = _pick_eeg_multi(raw, ch, include_generic=_gen)
+            if _gen and len(_multi) > 1:
+                logger.info(
+                    "[pneumo] generieke EEG-afleidingen meegenomen: %s",
+                    [n for n, _d, _s in _multi])
             if len(_multi) > 1:
                 _derivations = _multi
                 _eog_arousal = _pick_eog(raw, ch)
@@ -1807,8 +1818,8 @@ _EEG_REGION_ORDER = (
 )
 
 
-def arousal_derivation_channels(ch_names: list, channel_map: dict | None = None
-                                ) -> list[str]:
+def arousal_derivation_channels(ch_names: list, channel_map: dict | None = None,
+                                include_generic: bool = False) -> list[str]:
     """De EEG-kanalen die de arousalstap als afleidingen zou kiezen.
 
     Publiek, en met opzet op NAMEN in plaats van op een geladen ``raw``: een
@@ -1849,10 +1860,42 @@ def arousal_derivation_channels(ch_names: list, channel_map: dict | None = None
                 uit.append(m)
                 gebruikt.add(m)
                 break
+
+    # ── Terugval voor generieke namen (`include_generic`) ────────────────
+    #
+    # De regiovolgorde hierboven werkt op namen. Een opname die zijn kanalen
+    # EEG1/EEG2/EEG3 noemt draagt geen enkele regiosleutel, dus blijft het bij
+    # de eerste pick -- terwijl er drie afleidingen liggen.
+    #
+    # Gemeten op 24 MESA-opnames, kandidaatdekking van menselijke arousals:
+    #   EEG1 alleen 47,5 %   EEG2 42,5 %   EEG3 47,8 %   alle drie 61,5 %
+    # +14,3 procentpunt, beter op 24 van de 24, p < 0,0001.
+    #
+    # Alleen als de regiovolgorde NIETS vond. Waar zij wel regio's vindt, is
+    # haar keuze bewust en mag een terugval er niet stilletjes langs.
+    #
+    # `_Off` eruit: MESA draagt EEG1_Off/EEG2_Off/EEG3_Off, offsetkanalen op
+    # 1 Hz. `_NOT_EEG_TOKENS` vangt die niet, en een gelijkstroomlijn als
+    # arousal-afleiding is erger dan één kanaal te weinig.
+    #
+    # BEPERKING, met opzet zichtbaar: deze functie ziet alleen NAMEN, geen
+    # bemonsteringsfrequenties. Zij kan een generiek kanaal dus niet op zijn
+    # signaal beoordelen, alleen op hoe het heet.
+    if include_generic and len(uit) == 1:
+        for c in namen:
+            if len(uit) >= 3:
+                break
+            u = c.upper()
+            if c in gebruikt or _is_not_eeg(u) or "EEG" not in u:
+                continue
+            if u.endswith("_OFF") or u.endswith("-OFF") or u.endswith(" OFF"):
+                continue
+            uit.append(c)
+            gebruikt.add(c)
     return uit
 
 
-def _pick_eeg_multi(raw, ch) -> list:
+def _pick_eeg_multi(raw, ch, include_generic: bool = False) -> list:
     """Geordende [(naam, data, sf), ...] voor de arousal-afleidingsset in ``raw``.
 
     Element 0 is de single-channel pick, zodat single-modus een strikte subset
@@ -1863,7 +1906,8 @@ def _pick_eeg_multi(raw, ch) -> list:
     data0, sf0 = _pick_eeg(raw, ch)
     if data0 is None:
         return []
-    namen = arousal_derivation_channels(raw.ch_names, ch)
+    namen = arousal_derivation_channels(
+        raw.ch_names, ch, include_generic=include_generic)
     if not namen:
         return []
     out = [(namen[0], data0, sf0)]

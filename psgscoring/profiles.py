@@ -792,6 +792,29 @@ class PostProcessingRules:
     Aanzetten neemt bovendien events weg, en dat verlaagt de AHI.
     """
 
+    arousal_generic_derivations: bool = False
+    """Neem generiek benoemde EEG-kanalen mee als extra arousal-afleidingen.
+
+    De regiovolgorde in `arousal_derivation_channels` werkt op NAMEN: C4-M1,
+    O2, F4 en verwanten. Een opname die zijn kanalen EEG1/EEG2/EEG3 noemt
+    draagt geen enkele van die sleutels, dus blijft het bij de eerste pick --
+    terwijl er drie afleidingen liggen. MESA is zo'n opname, en het hele
+    MESA-cohort is daarom altijd op één kanaal gescoord.
+
+    Gemeten op 24 MESA-opnames, kandidaatdekking van menselijke arousals:
+
+        EEG1 (huidig)  47,5 %      EEG2  42,5 %      EEG3  47,8 %
+        alle drie      61,5 %      +14,3 procentpunt, 24/24, p < 0,0001
+
+    Dekking is een BOVENGRENS, geen resultaat: een grotere pool (908 -> 1366)
+    kan de precisie na de classifier evengoed schaden. Daarom default uit tot
+    de end-to-end-meting er ligt.
+
+    Vuurt alleen wanneer de regiovolgorde niets vond, en slaat `_Off`-kanalen
+    over -- MESA's EEG1_Off is een 1 Hz gelijkstroomlijn.
+
+    Env: `PSGSCORING_AROUSAL_GENERIC_DERIVATIONS`.
+    """
     arousal_alpha_band_wide: bool = False
     """Gebruik de alfaband van de manual (8-13 Hz) in plaats van 8-11.
 

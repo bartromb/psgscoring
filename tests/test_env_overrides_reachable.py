@@ -93,6 +93,11 @@ PIPELINE_ONLY = {
     # afleidingen samenstelt bepaalt dit al met zijn eigen argumenten.
     "PSGSCORING_AROUSAL_DERIVATION",
     "PSGSCORING_AROUSAL_USES_ARTIFACT_EPOCHS",
+    # Kiest WELKE kanalen afleiding worden bij generieke namen (EEG1/EEG2/
+    # EEG3). Een harnas dat detect_arousals rechtstreeks aanroept geeft zijn
+    # kanalen zelf mee en gaat hier per definitie aan voorbij. Bewuste keuze;
+    # de end-to-end-meting gaat via run_pneumo_analysis en ziet hem daar wel.
+    "PSGSCORING_AROUSAL_GENERIC_DERIVATIONS",
     # Detectorgedrag, doorgegeven als ARGUMENT aan detect_arousals(_multi).
     # Een harnas dat die functie direct aanroept moet ze zelf meegeven; de
     # env bereikt hem niet. Dit is precies de val van 29-08 en de reden dat
