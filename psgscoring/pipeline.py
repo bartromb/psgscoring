@@ -809,6 +809,7 @@ def run_pneumo_analysis(
         _derivations = None
         _eog_arousal = None
         _eog_reject = False
+        _gen_verruimd = False       # ook gedefinieerd in single-modus
         if _ar_mode == "multi":
             # Profielvlag `arousal_generic_derivations`, env-override
             # PSGSCORING_AROUSAL_GENERIC_DERIVATIONS=0/1 om beide armen op één
@@ -818,10 +819,20 @@ def run_pneumo_analysis(
             if _gen_env is not None:
                 _gen = _gen_env == "1"
             _multi = _pick_eeg_multi(raw, ch, include_generic=_gen)
+            # De drempel hoort bij het PAD. Alleen wanneer de terugval de
+            # afleidingsset daadwerkelijk verruimde geldt het generieke
+            # werkpunt (0,80): drie afleidingen op 0,70 overtellen (MESA
+            # set 3: index 25,2 tegen menselijk 20,9), terwijl 0,80 op een
+            # klinische montage 19 % te laag telt (PSG-IPA 30-08, regel aan).
+            # De env-override op de drempel wint van beide, zodat een
+            # meetharnas twee armen op een cohort kan draaien.
             if _gen and len(_multi) > 1:
-                logger.info(
-                    "[pneumo] generieke EEG-afleidingen meegenomen: %s",
-                    [n for n, _d, _s in _multi])
+                _basis = arousal_derivation_channels(raw.ch_names, ch)
+                _gen_verruimd = len(_basis) < len(_multi)
+                if _gen_verruimd:
+                    logger.info(
+                        "[pneumo] generieke EEG-afleidingen meegenomen: %s",
+                        [n for n, _d, _s in _multi])
             if len(_multi) > 1:
                 _derivations = _multi
                 _eog_arousal = _pick_eog(raw, ch)
@@ -851,6 +862,12 @@ def run_pneumo_analysis(
                     logger.warning(
                         "[pneumo] PSGSCORING_AROUSAL_LGBM_THRESHOLD=%r is geen "
                         "getal; profielwaarde aangehouden", _env_thr)
+            if _gen_verruimd and _env_thr is None:
+                _thr_gen = profile.get("AROUSAL_LGBM_THRESHOLD_GENERIC")
+                if _thr_gen is not None:
+                    _ar_thr = float(_thr_gen)
+                    logger.info("[pneumo] generiek afleidingspad: werkpunt %s",
+                                _ar_thr)
             _ar_use_art = bool(profile.get("AROUSAL_USES_ARTIFACT_EPOCHS", True))
             _env_art = os.environ.get("PSGSCORING_AROUSAL_USES_ARTIFACT_EPOCHS")
             if _env_art is not None:

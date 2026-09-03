@@ -1,3 +1,68 @@
+# v0.32.0 — 2026-09-03 — MESA-achtige montages krijgen alle drie de EEG-afleidingen
+
+**Dit verandert een klinisch getal op montages met generieke EEG-namen.** De
+arousal-index en de event-F1 veranderen daar; op montages met regionale namen
+(F4-M1, C4-M1, O2-M1 …) verandert er niets — daar koos de picker al drie
+afleidingen en blijft het werkpunt het besluit van 30-08.
+
+## Wat er mis was
+
+`arousal_derivation_channels` loopt na de eerste keuze een regiovolgorde af
+met sleutels als `C4-M1`, `O2` en `F4`. Een opname die zijn kanalen
+`EEG1/EEG2/EEG3` noemt draagt geen enkele sleutel, dus bleef het bij één
+afleiding waar er drie lagen. Het hele MESA-cohort is zo jarenlang op één
+kanaal gescoord — inclusief elk arousalgetal dat wij eruit rapporteerden.
+
+## Wat er nu gebeurt
+
+Twee gekoppelde wijzigingen, beide default aan:
+
+* `arousal_generic_derivations = True` — vindt de regiovolgorde niets, dan
+  vullen generiek benoemde EEG-kanalen de afleidingsset aan tot drie.
+  `_Off`-kanalen (1 Hz gelijkstroomlijnen in MESA) blijven erbuiten.
+* `arousal_lgbm_threshold_generic = 0.80` — het werkpunt hoort bij het pad:
+  de ruimere kandidaatpool van drie afleidingen vraagt een hogere drempel.
+  Drie afleidingen op de klinische 0,70 overtellen (index 25,2 tegen
+  menselijk 20,9); een globale 0,80 zou de kliniek 19 % te laag laten tellen
+  (PSG-IPA, 30-08, 10 s-regel aan). Alleen waar de terugval vuurt geldt 0,80.
+
+## De cijfers
+
+End-to-end op twee disjuncte MESA-sets, huidige stand tegen drie afleidingen
+op 0,80, beslisregel vooraf vastgelegd:
+
+| set | n | ΔF1 | beter op | \|bias\| |
+|---|---:|---:|---:|---|
+| 3 | 87 | +0,0943 | 85/87 (p=6,1e-16) | 3,57 → 3,11 (p=0,042) |
+| 5 | 89 | +0,1079 | **89/89** (p=2,6e-16) | 5,75 → 4,37 (p<1e-4) |
+
+Event-F1 van 0,44 naar 0,56 — van 65 % naar **82 % van het menselijke
+plafond** (0,679; 330 scoorderparen, PSG-IPA). De index komt op 20,8 tegen
+een menselijke 20,9. Anders dan bij eerdere arousalknoppen verbetert de
+telling mee met de localisatie in plaats van ertegenin.
+
+## Wat expliciet NIET verandert
+
+* `mesa_shhs` en `chicago_1999` blijven gepind op het oude gedrag
+  (byte-identiteit voor paper v31/v37), net als `aasm_v1_rec`, `aasm_v2_rec`
+  en `cms_medicare`.
+* Het klinische werkpunt blijft 0,70 — de meting die 0,80 ook daar aanwees
+  bleek zonder de 10 s-regel te hebben gedraaid en is ongeldig verklaard.
+* `arousal_alpha_band_wide` blijft uit: in de eindconfiguratie is het effect
+  niet van nul te onderscheiden (ΔF1 +0,0027, p=0,14; dossier gesloten).
+
+## Verder in deze release
+
+* `_snore_during` weigert een kanaal waarvan de Nyquist onder de snurkband
+  ligt (`SNORE_MIN_SF_HZ = 60`): het MESA-kanaal dat `Snore` heet staat op
+  32 Hz en kan het verschijnsel niet dragen. `None` betekent "niet gemeten",
+  geen berekende onwaarde die als "niet gesnurkt" zou doorwerken.
+* Snurkcriterium 1 (§6.1) meet nu tegen de 120 s vóór het event in plaats van
+  tegen een nachtpercentiel — dezelfde contrastvorm als de andere twee
+  criteria. Ongevalideerd: er bestaat geen cohort met snurkkanaal én
+  menselijke hypopnee-subtypes (zie
+  docs/hypopnee_subtypering_geen_referentie.md).
+
 # v0.31.6 — 2026-09-02 — de subtypering van apneus is gerepareerd
 
 **Dit verandert een klinisch getal.** De verdeling obstructief/centraal

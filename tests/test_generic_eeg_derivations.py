@@ -81,8 +81,9 @@ def test_de_vlag_bereikt_de_pipeline():
 
     d = L(PROFILES["aasm_v3_rec"])
     assert "AROUSAL_GENERIC_DERIVATIONS" in d
-    assert d["AROUSAL_GENERIC_DERIVATIONS"] is False, (
-        "default moet bestaand gedrag zijn")
+    # Default True sinds 2026-09-03 (gebruikersbesluit), gekoppeld aan het
+    # generieke werkpunt 0,80 -- zie test_generic_threshold_coupling.py.
+    assert d["AROUSAL_GENERIC_DERIVATIONS"] is True
     assert L(PROFILES["mesa_shhs"])["AROUSAL_GENERIC_DERIVATIONS"] is False, (
         "mesa_shhs moet byte-identiek blijven voor paper v31/v37")
 

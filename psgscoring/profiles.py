@@ -630,6 +630,24 @@ class PostProcessingRules:
     Verslag: docs/arousal_10s_regel_20260830.md.
     """
 
+    arousal_lgbm_threshold_generic: float | None = 0.80
+    """Werkpunt wanneer de GENERIEKE afleidingsterugval kanalen toevoegde.
+
+    De drempel hoort bij het PAD, niet bij het profiel. Drie afleidingen op de
+    klinische drempel 0,70 overtellen (MESA set 3: index 25,2 tegen menselijk
+    20,9, bias +3,3); op 0,80 klopt de telling (20,8) en wint de F1 op 85/87
+    en 89/89 opnames over twee disjuncte sets.
+
+    Maar op PSG-IPA -- echte afleidingsnamen, dus dit pad NIET actief -- zegt
+    de meting van 30-08 met de 10 s-regel aan: 0,70 geeft count-ratio 1,000 en
+    0,80 geeft 0,810. Een globale 0,80 zou de kliniek 19 procent te laag laten
+    tellen. Vandaar de koppeling: alleen waar de terugval vuurt, geldt 0,80.
+
+    `None` = volg `arousal_lgbm_threshold`. De env-override
+    `PSGSCORING_AROUSAL_LGBM_THRESHOLD` wint van beide, zodat een meetharnas
+    twee armen op een cohort kan draaien.
+    """
+
     arousal_onset_offset_s: float = 2.0
     """Vaste verschuiving (s) van elke arousal-onset, VOOR koppeling en RERA.
 
@@ -792,7 +810,7 @@ class PostProcessingRules:
     Aanzetten neemt bovendien events weg, en dat verlaagt de AHI.
     """
 
-    arousal_generic_derivations: bool = False
+    arousal_generic_derivations: bool = True
     """Neem generiek benoemde EEG-kanalen mee als extra arousal-afleidingen.
 
     De regiovolgorde in `arousal_derivation_channels` werkt op NAMEN: C4-M1,
@@ -812,6 +830,18 @@ class PostProcessingRules:
 
     Vuurt alleen wanneer de regiovolgorde niets vond, en slaat `_Off`-kanalen
     over -- MESA's EEG1_Off is een 1 Hz gelijkstroomlijn.
+
+    **Default True sinds 2026-09-03** (gebruikersbesluit), GEKOPPELD aan
+    `arousal_lgbm_threshold_generic = 0.80`: de ruimere kandidaatpool vraagt
+    een hogere drempel. End-to-end op twee disjuncte MESA-sets, huidige
+    productie tegen drie afleidingen op 0,80:
+
+        set 3 (87)  dF1 +0,0943  beter op 85/87  |bias| -0,40 (p=0,042)
+        set 5 (89)  dF1 +0,1079  beter op 89/89  |bias| 5,75->4,37 (p<1e-4)
+
+    F1 van 65 naar 82 procent van het menselijke plafond (0,679), index 20,8
+    tegen menselijk 20,9. Op een klinische montage doet deze vlag per
+    constructie niets -- daar vindt de regiovolgorde al drie afleidingen.
 
     Env: `PSGSCORING_AROUSAL_GENERIC_DERIVATIONS`.
     """
@@ -2082,7 +2112,11 @@ _aasm_v2_rec = Profile(
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
         # MESA), maar dat verschuift de arousaldetectie en dus de uitkomst van
         # een gereproduceerde regelset.
-        arousal_uses_artifact_epochs=True,summary_after_reclassification=True),
+        arousal_uses_artifact_epochs=True,
+        # 2026-09-03 idem gepind: de generieke afleidingsterugval zou de
+        # afleidingsset -- en dus de arousals -- van een bevroren regelset
+        # veranderen.
+        arousal_generic_derivations=False,summary_after_reclassification=True),
 )
 
 # ---- AASM v1 RECOMMENDED (2007) ----
@@ -2122,7 +2156,11 @@ _aasm_v1_rec = Profile(
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
         # MESA), maar dat verschuift de arousaldetectie en dus de uitkomst van
         # een gereproduceerde regelset.
-        arousal_uses_artifact_epochs=True,summary_after_reclassification=True),
+        arousal_uses_artifact_epochs=True,
+        # 2026-09-03 idem gepind: de generieke afleidingsterugval zou de
+        # afleidingsset -- en dus de arousals -- van een bevroren regelset
+        # veranderen.
+        arousal_generic_derivations=False,summary_after_reclassification=True),
 )
 
 # ---- CMS / Medicare (AASM v3 1B OPTIONAL) ----
@@ -2165,7 +2203,11 @@ _cms_medicare = Profile(
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
         # MESA), maar dat verschuift de arousaldetectie en dus de uitkomst van
         # een gereproduceerde regelset.
-        arousal_uses_artifact_epochs=True,summary_after_reclassification=True),
+        arousal_uses_artifact_epochs=True,
+        # 2026-09-03 idem gepind: de generieke afleidingsterugval zou de
+        # afleidingsset -- en dus de arousals -- van een bevroren regelset
+        # veranderen.
+        arousal_generic_derivations=False,summary_after_reclassification=True),
 )
 
 # ---- MESA / NSRR convention ----
@@ -2221,6 +2263,10 @@ _mesa_shhs = Profile(
         # MESA), maar dat verschuift de arousaldetectie en dus de uitkomst van
         # een gereproduceerde regelset.
         arousal_uses_artifact_epochs=True,
+        # 2026-09-03 idem gepind: de generieke afleidingsterugval zou de
+        # afleidingsset -- en dus de arousals -- van een bevroren regelset
+        # veranderen.
+        arousal_generic_derivations=False,
         stability_filter_enabled=True,
         stability_filter_cv=0.45,
         # GEPIND. De herclassificatie raakt de OAHI (`_oahi_at` selecteert
@@ -2340,6 +2386,10 @@ _chicago_1999 = Profile(
         # MESA), maar dat verschuift de arousaldetectie en dus de uitkomst van
         # een gereproduceerde regelset.
         arousal_uses_artifact_epochs=True,
+        # 2026-09-03 idem gepind: de generieke afleidingsterugval zou de
+        # afleidingsset -- en dus de arousals -- van een bevroren regelset
+        # veranderen.
+        arousal_generic_derivations=False,
         # GEPIND op het gedrag van vóór 13-08-2026: dit profiel reproduceert
         # de Chicago-criteria van 1999 en hoort niet mee te bewegen met
         # reparaties aan de sensorpoorten. Zie
