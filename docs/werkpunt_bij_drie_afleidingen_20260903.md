@@ -109,3 +109,44 @@ Als dat ook op PSG-IPA geldt, dan draait élke klinische opname nu op een
 werkpunt dat voor één afleiding was geijkt. Dat is een grotere zaak dan de vlag
 zelf, en het is meteen te meten: PSG-IPA heeft drie echte afleidingen en twaalf
 scoorders.
+
+
+---
+
+# PSG-IPA bevestigt: 0,80 is ook op klinische montages het juiste werkpunt
+
+*Toegevoegd 2026-09-03, 5 opnames × 12 scoorders, multi-afleidingen (zoals de
+picker op klinische montages nu al kiest).*
+
+| werkpunt | binnen de scoordersspreiding | count-ratio (mediaan) |
+|---|---:|---:|
+| kandidaatregels | 1/5 | 1,60 |
+| 0,60 | 3/5 | 1,47 |
+| **0,70 (huidige productie)** | 4/5 | **1,21** |
+| 0,75 | 4/5 | 1,15 |
+| **0,80** | **4/5** | **1,01** |
+| 0,85 | 4/5 | 0,86 |
+| 0,90 | 3/5 | 0,60 |
+
+Op 0,80 is de telling vrijwel exact menselijk (ratio 1,01); op de huidige 0,70
+tellen we 21 % te veel. De vijfde opname die nooit binnen valt is SN3 — daar
+liggen zelfs de rauwe kandidaatregels (135) onder de scoordersmediaan (142),
+het bekende recall-plafond van die opname, geen drempelkwestie.
+
+**Conclusie: de drempel 0,80 is niet MESA-specifiek.** Twee onafhankelijke
+cohorten met verschillende montagetypen wijzen dezelfde kant op. Op klinische
+montages kiest de picker nu al drie afleidingen maar draait hij op 0,70 — de
+huidige productie telt daar dus structureel te veel arousals.
+
+## Het uitrolvoorstel dat hieruit volgt
+
+1. `arousal_lgbm_threshold` 0,70 → **0,80** — raakt élke multi-afleidingsopname,
+   dus ook de kliniek; herstelt de telling (ratio 1,21 → 1,01).
+2. `arousal_generic_derivations` → **True** — geeft MESA-achtige montages
+   (generieke kanaalnamen) dezelfde drie afleidingen; op vijf disjuncte sets
+   F1 +0,07 tot +0,11 met betere bias.
+3. `mesa_shhs` en `chicago_1999` blijven gepind op het oude gedrag
+   (byte-identiteit voor paper v31/v37).
+
+Beide knoppen zijn gemeten; de combinatie is bevestigd op twee sets (85/87 en
+89/89 opnames beter). Uitrol vraagt de gebruikelijke uitdrukkelijke toestemming.
