@@ -374,6 +374,53 @@ def run_pneumo_analysis(
     # the 3-profile AHI-interval reruns below — envelopes / dynamic baseline /
     # position changes are computed once (byte-identical, same signals + params).
     _precomp: dict = {}
+
+    # ── CSR-poort op de gegradeerde vormmaten (`shape_evidence_csr_gate`) ──
+    #
+    # De gradering is basiskansafhankelijk: winst alleen op opnames met
+    # periodieke ademhaling (450-run: ruil 1:0,5 boven 15 % centrale
+    # prevalentie, 1:11 tot 1:21 daaronder). Staat de poort aan, dan beslist
+    # een CSR-voorcontrole VOOR de classificatie of er gegradeerd wordt.
+    #
+    # De voorcontrole spiegelt stap 9 (zelfde preprocess, zelfde detector)
+    # maar draait op `apnea_flow` -- het signaal waarop de classificatie
+    # straks werkt. Beide uitkomsten worden gerapporteerd; ze kunnen
+    # verschillen wanneer stap 9 een andere referentie kiest.
+    _se = _shape_evidence(profile)
+    _se_gate_info = None
+    _csr_gate = bool(profile.get("SHAPE_EVIDENCE_CSR_GATE", False))
+    _env_gate = os.environ.get("PSGSCORING_SHAPE_EVIDENCE_CSR_GATE")
+    if _env_gate is not None:
+        _csr_gate = _env_gate == "1"
+    if _se[0] and _csr_gate and apnea_flow is not None:
+        try:
+            _csr_pre = detect_cheyne_stokes(
+                preprocess_flow(apnea_flow, sf_apnea,
+                                envelope_method=_env_method,
+                                envelope_fs=_env_fs, denoise=_denoise),
+                sf_apnea, hypno)
+        except Exception as _e:                                  # noqa: BLE001
+            # Onmeetbaar is NIET hetzelfde als "geen CSR". Zonder oordeel
+            # valt de poort terug op niet graderen -- de kant met de kleinste
+            # gemeten schade -- en zegt dat erbij.
+            logger.warning("[pneumo] CSR-voorcontrole mislukt (%s); "
+                           "gradering uit voor deze opname", _e)
+            _csr_pre = {"success": False, "csr_detected": False,
+                        "error": str(_e)[:120]}
+        _graded = bool(_csr_pre.get("csr_detected"))
+        _se_gate_info = {
+            "enabled": True,
+            "csr_detected": _graded,
+            "graded": _graded,
+            "csr_periodicity_s": _csr_pre.get("periodicity_s"),
+            "csr_pct_sleep": _csr_pre.get("csr_pct_sleep"),
+            "precheck_success": bool(_csr_pre.get("success")),
+        }
+        if not _graded:
+            _se = (False, _se[1])
+        logger.info("[pneumo] CSR-poort: csr_detected=%s -> gradering %s",
+                    _graded, "AAN" if _graded else "UIT")
+
     if apnea_flow is not None:
         resp = detect_respiratory_events(
             # Draagt de thermistor de apneus? Dan mag een profiel er een
@@ -390,7 +437,7 @@ def run_pneumo_analysis(
             # Profielvlag, env-override zoals bij de andere meetvlaggen.
             hypopnea_subtype_aasm=_hypopnea_subtype_aasm(profile),
             phase_angle_needs_effort=_phase_angle_needs_effort(profile),
-            shape_evidence=_shape_evidence(profile),
+            shape_evidence=_se,
             # AASM v3 VIII.D.2.a: snurken tijdens het event.
             snore_data=snore_data, sf_snore=sf_snore,
             flow_data    = apnea_flow,
@@ -1290,6 +1337,12 @@ def run_pneumo_analysis(
         )
         n_flagged = sum(1 for e in events_flagged if e.get("csr_flagged"))
         logger.info("Fix3 (pipeline): %d events gemarkeerd als CSR-gerelateerd", n_flagged)
+
+    # De CSR-poort-provenance NA de herberekening hierboven aanhechten:
+    # eerder gezet zou zij precies in het csr_detected-geval verloren gaan.
+    if _se_gate_info is not None and isinstance(
+            output.get("respiratory", {}).get("summary"), dict):
+        output["respiratory"]["summary"]["shape_evidence_gate"] = _se_gate_info
 
     # ── Step 9b (v0.8.16): RERA index and RDI ─────────────────────────────
     # MUST run AFTER the CSR summary recompute above: Fix 3 replaces

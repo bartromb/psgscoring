@@ -98,6 +98,10 @@ PIPELINE_ONLY = {
     # kanalen zelf mee en gaat hier per definitie aan voorbij. Bewuste keuze;
     # de end-to-end-meting gaat via run_pneumo_analysis en ziet hem daar wel.
     "PSGSCORING_AROUSAL_GENERIC_DERIVATIONS",
+    # Poortbeslissing die VOOR detect_respiratory_events valt en alleen daar
+    # kan vallen: een harnas dat classify_apnea_type of de detector direct
+    # aanroept, geeft shape_evidence zelf mee en is dus zijn eigen poort.
+    "PSGSCORING_SHAPE_EVIDENCE_CSR_GATE",
     # Detectorgedrag, doorgegeven als ARGUMENT aan detect_arousals(_multi).
     # Een harnas dat die functie direct aanroept moet ze zelf meegeven; de
     # env bereikt hem niet. Dit is precies de val van 29-08 en de reden dat

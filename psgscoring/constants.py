@@ -115,6 +115,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "AROUSAL_LGBM_THRESHOLD_GENERIC": pp.arousal_lgbm_threshold_generic,
         "AROUSAL_ALPHA_BAND_WIDE": pp.arousal_alpha_band_wide,
         "SHAPE_EVIDENCE_SCALE": pp.shape_evidence_scale,
+        "SHAPE_EVIDENCE_CSR_GATE": pp.shape_evidence_csr_gate,
         "FLOW_GAP_SCALE_FREE": pp.flow_gap_scale_free,
         "AROUSAL_LGBM": pp.arousal_lgbm,
         "AROUSAL_USES_ARTIFACT_EPOCHS": pp.arousal_uses_artifact_epochs,

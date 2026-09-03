@@ -913,6 +913,42 @@ class PostProcessingRules:
 
     Env: `PSGSCORING_SHAPE_EVIDENCE_SCALE`.
     """
+    shape_evidence_csr_gate: bool = False
+    """Gradeer vormmaten alleen op opnames met gedetecteerde periodieke ademhaling.
+
+    **Waarom deze poort bestaat.** De gradering is basiskansafhankelijk, en dat
+    verklaarde waarom vier gepoolde MESA-runs vier oordelen gaven (Simpson).
+    Per opname, 450-run 2026-09-03 (375 opnames, 4551 gekoppelde apneus),
+    wat s=0,25 per prevalentiestratum koopt en kost:
+
+        < 2 %    +4 juist  +86 vals   1:21,5
+        2-5 %    +1        +15        1:15,0
+        5-15 %   +11       +121       1:11,0
+        > 15 %   +115      +57        1:0,5   <- periodieke ademhaling
+
+    Gepaard over opnames met beide klassen: delta-kappa +0,003, 11/22, p=0,29.
+    De winst bestaat alleen waar centrale apneus frequent zijn; de schade
+    overal elders. Zie docs/gegradeerde_subtypering_basiskans_20260902.md.
+
+    **Wat de poort doet.** Staat hij aan, dan geldt `shape_evidence_grading`
+    alleen wanneer de bestaande CSR-detector (`detect_cheyne_stokes`,
+    autocorrelatie van het VLF-envelope) op deze opname periodieke ademhaling
+    ziet. De voorcontrole draait VOOR de classificatie op hetzelfde
+    flow-envelope; de beslissing en de reden staan in
+    `summary["shape_evidence_gate"]`.
+
+    Dit is een binaire contextpoort op een bestaande detector -- geen continu
+    adaptief werkpunt; dat idee is bij de hypopneu-strictness op zijn
+    orakelplafond weerlegd.
+
+    **Default False = het uitgerolde gedrag** (s=0,25 overal). Aanzetten is
+    een meetbeslissing: de poortkwaliteit zelf (vuurt de detector op de juiste
+    opnames?) is nog niet gevalideerd, en de detectordrempel (autocorr > 0,3)
+    is gevoeliger dan de literatuur (0,4-0,5) -- overvlaggen betekent hier
+    graderen op nachten waar dat 1:11 of slechter ruilt.
+
+    Env: `PSGSCORING_SHAPE_EVIDENCE_CSR_GATE`.
+    """
 
     phase_angle_needs_effort: bool = False
     """Vertrouw vormmaten alleen wanneer er inspanning onder ligt.
