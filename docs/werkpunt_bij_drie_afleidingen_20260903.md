@@ -60,3 +60,52 @@ Commit 9d79dc0 verplaatste het werkpunt op 2026-08-30 bewust van 0,80 naar 0,70,
 samen met de 10 s-intervalregel. Met drie afleidingen komt 0,80 dus terug als
 de juiste waarde — niet als terugdraaiing, maar omdat de pool waarop de drempel
 werkt is veranderd.
+
+
+---
+
+# Bevestigd op de vijfde set: GESLAAGD op elke maat
+
+*Toegevoegd 2026-09-03, 89 opnames, vijfde disjuncte set, regel vooraf vastgelegd.*
+
+| arm | index | bias | \|bias\| | ≤5/u | F1 |
+|---|---:|---:|---:|---:|---:|
+| mens | 22,2 | — | — | — | — |
+| huidige productie (één afleiding, 0,70) | 20,9 | −3,5 | 5,75 | 46 % | 0,441 |
+| **drie afleidingen, 0,80** | 21,6 | **−2,6** | **4,37** | **57 %** | **0,555** |
+
+Gepaard: **ΔF1 +0,1079, beter op 89 van de 89**, p = 2,6e-16.
+**\|bias\| 5,75 → 4,37, p < 0,0001** — significant beter.
+Binnen ±5/u: **46 % → 57 %**.
+
+**PREREGISTRATIE: GESLAAGD.**
+
+## Het totaalbeeld over vijf disjuncte sets
+
+| set | n | vergelijking | ΔF1 | beter op |
+|---|---:|---|---:|---:|
+| 2 | 90 | drie tegen één, drempel 0,70 | +0,0706 | 85/90 |
+| 3 | 87 | drie tegen één, drempel 0,70 | +0,0666 | 83/87 |
+| 3 | 87 | drie op 0,80 tegen productie | +0,0943 | 85/87 |
+| **5** | **89** | **drie op 0,80 tegen productie** | **+0,1079** | **89/89** |
+
+Beter op élke opname van de vijfde set. De F1 gaat van 65 % naar 82 % van het
+menselijke plafond, en anders dan bij alle eerdere arousalknoppen verbetert de
+index mee in plaats van eronder te lijden.
+
+## Wat dit voor uitrol betekent
+
+De twee wijzigingen zijn **gekoppeld**: `arousal_generic_derivations = True`
+zonder de drempel op 0,80 geeft juist overtelling (index 25,2 tegen 20,9).
+Ze horen samen aan of samen uit.
+
+## De vraag die hier direct uit volgt
+
+Op een KLINISCHE montage (F4-M1, C4-M1, O2-M1) kiest de picker **nu al** drie
+afleidingen — daar verandert de vlag niets. Maar die opnames draaien wél op
+drempel 0,70, en dit werk laat zien dat 0,80 bij drie afleidingen beter is.
+
+Als dat ook op PSG-IPA geldt, dan draait élke klinische opname nu op een
+werkpunt dat voor één afleiding was geijkt. Dat is een grotere zaak dan de vlag
+zelf, en het is meteen te meten: PSG-IPA heeft drie echte afleidingen en twaalf
+scoorders.
