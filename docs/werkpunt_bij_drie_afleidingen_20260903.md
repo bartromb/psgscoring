@@ -150,3 +150,33 @@ huidige productie telt daar dus structureel te veel arousals.
 
 Beide knoppen zijn gemeten; de combinatie is bevestigd op twee sets (85/87 en
 89/89 opnames beter). Uitrol vraagt de gebruikelijke uitdrukkelijke toestemming.
+
+
+---
+
+# Herhaling MÉT de 10 s-regel: de kliniek blijft terecht op 0,70
+
+*Toegevoegd 2026-09-03, na de ontdekking dat de sweep hierboven zonder de
+10 s-regel draaide (`min_interval_s` default 0,0 bij directe aanroep).*
+
+| werkpunt | binnen de scoordersspreiding | count-ratio (mediaan) |
+|---|---:|---:|
+| kandidaatregels | 2/5 | 1,41 |
+| 0,60 | 5/5 | 1,13 |
+| **0,70 (productie)** | 4/5 | **1,00** |
+| 0,80 | 4/5 | 0,81 |
+| 0,90 | 2/5 | 0,56 |
+
+Mét de regel reproduceert dit de 30-08-meting exact: **0,70 geeft ratio 1,00,
+0,80 telt 19 % te laag.** De sweep zonder regel gaf 0,80 → 1,01 — beide
+uitkomsten zijn dus consistent en het verschil was volledig de regel.
+
+Daarmee is de gekoppelde uitrol van v0.32.0 aan beide kanten gedekt:
+
+* **klinische montages** (regionale namen, drie afleidingen, regel aan):
+  0,70 blijft — ratio 1,00, besluit van 30-08 herbevestigd;
+* **generieke montages** (EEG1/2/3, terugval actief): 0,80 — end-to-end
+  gemeten met de regel aan, index 20,8 tegen menselijk 20,9.
+
+(0,60 haalt 5/5 maar telt 13 % te hoog; 0,70 zit op 4/5 doordat SN3 zelfs op
+kandidaatniveau onder de scoordersmediaan ligt — het bekende recall-plafond.)
