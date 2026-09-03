@@ -60,3 +60,70 @@ opname** wegschrijft. Dat geeft eindelijk:
 Tot die er is, is het eerlijke oordeel: **de winst van s = 0,25 is aangetoond
 op een verrijkte set en omgekeerd op een schone. Terugrol is een reële optie en
 de beslissing ligt bij de gebruiker.**
+
+---
+
+# De 450-run: per opname is de tegenspraak opgelost
+
+*Toegevoegd 2026-09-03 (avond). 375 verwerkte opnames, 4551 gekoppelde apneus,
+per opname bewaard — de eerste run waarop een gepaarde toets kán.*
+
+## Gepoold gaf ook deze run weer een ander antwoord
+
+| arm | centraal | obstr. | κ (gepoold) |
+|---|---:|---:|---:|
+| oud | 25,1 % | 92,9 % | 0,197 |
+| s=0,25 | 56,2 % | 85,7 % | 0,310 |
+| s=0,3 | 66,5 % | 82,6 % | **0,323 — GESLAAGD** |
+
+Vier gepoolde runs, vier oordelen. De verklaring staat hieronder, en ze maakt
+alle vier de uitkomsten begrijpelijk.
+
+## Per opname, gestratificeerd op centrale prevalentie
+
+Wat s=0,25 per stratum koopt (+juist centraal) en kost (+vals centraal):
+
+| prevalentie | opnames | centrale apneus | +juist | +vals | ruil |
+|---|---:|---:|---:|---:|---|
+| < 2 % | 58 | 12 | +4 | +86 | **1 : 21,5** |
+| 2–5 % | 8 | 12 | +1 | +15 | 1 : 15,0 |
+| 5–15 % | 20 | 57 | +11 | +121 | 1 : 11,0 |
+| **> 15 %** | 12 | **316** | **+115** | +57 | **1 : 0,5** |
+
+De twaalf opnames met > 15 % centrale apneus — periodieke ademhaling — dragen
+316 van de ~400 centrale apneus en domineren élke gepoolde matrix. Dáár wint
+de gradering ruim (twee juiste per valse). Overal daaronder verliest hij met
+1 : 11 tot 1 : 21. De vier gepoolde runs verschilden simpelweg in hoeveel van
+zulke opnames de steekproef trof: Simpson's paradox, klassiek.
+
+## De gepaarde toets
+
+Op opnames met ≥ 3 apneus van beide klassen (n = 22): κ 0,088 → 0,131,
+mediaan Δ **+0,003, beter op 11/22, p = 0,29**. Gepaard is er GEEN bewijs
+dat de gradering opnames beter subtypeert.
+
+## De gewone kliniek (prevalentie < 5 %, n = 66)
+
+| | menselijk | oud gedrag | s=0,25 |
+|---|---:|---:|---:|
+| centrale telling | **24** | 128 | **234** |
+
+Twee dingen tegelijk: de gradering **verdubbelt** de valse centrale telling
+(121 → 222), én het oude gedrag zat er zélf al een factor 5 boven. Het
+centrale-tellingprobleem bij lage prevalentie is dus ouder dan s=0,25 — de
+gradering maakt een bestaand probleem twee keer zo groot.
+
+## Wat dit betekent
+
+1. **De uitgerolde s=0,25 heeft gepaard geen aantoonbaar voordeel en
+   verdubbelt de valse centrale apneus in het klinisch gewone stratum.**
+2. **Kaal terugrollen lost het niet op** — ook het oude gedrag telt bij lage
+   prevalentie vijf keer te veel centrale apneus.
+3. Het mechanisme wijst precies naar de conditionele variant uit het
+   denkstuk: gradering wáár periodieke ademhaling is gedetecteerd (de
+   CSR-detector bestaat), oud gedrag of nog strenger daarbuiten. De winst
+   boven 15 % prevalentie is reëel (+115 juiste, ruil 1:0,5) en het verlies
+   daarbuiten is even reëel.
+
+De beslissing — terugrollen, laten staan, of de conditionele poort bouwen en
+meten — ligt bij de gebruiker.
