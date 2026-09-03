@@ -116,3 +116,38 @@ draait daarom een zesde run: dezelfde vraag, beide armen op drie afleidingen én
 +0,0066 tegen +0,0943 voor de afleidingen zelf, beter op 59 van de 88 tegen 85
 van de 87. Klein mag — maar het moet in de juiste stand gemeten zijn, en het
 mag de aandacht niet wegtrekken van de wijziging die tien keer zo groot is.
+
+
+---
+
+# In de eindconfiguratie: het effect is weg — dossier gesloten
+
+*Toegevoegd 2026-09-03, 88 opnames, zesde disjuncte set, beide armen op drie
+afleidingen én drempel 0,80.*
+
+| arm | n events | index | bias | F1 |
+|---|---:|---:|---:|---:|
+| mens | 142 | 22,2 | — | — |
+| 8–11 Hz | 133 | 22,2 | −1,1 | 0,537 |
+| 8–13 Hz | 136 | 23,0 | −0,2 | 0,540 |
+
+Gepaard: ΔF1 **+0,0027, beter op 50/88, p = 0,14** — niet te onderscheiden van
+nul. **PREREGISTRATIE: MISLUKT.**
+
+## Het verloop over de drie metingen
+
+| configuratie | ΔF1 | beter op | p |
+|---|---:|---:|---:|
+| één afleiding, 0,70 | +0,0049 | 56/90 | 0,024 |
+| drie afleidingen, 0,70 | +0,0066 | 59/88 | 0,0019 |
+| **drie afleidingen, 0,80 (eindconfig)** | **+0,0027** | **50/88** | **0,14** |
+
+Het patroon is leesbaar: de brede band voegt vooral zwakke kandidaten toe. Op
+drempel 0,70 overleven die en tellen ze licht mee in de F1; op 0,80 filtert de
+classifier ze weg en blijft er niets over. De verbeterde detector heeft de
+marginale winst van de bredere band opgegeten.
+
+**Besluit: `arousal_alpha_band_wide` blijft uit, en dit dossier is gesloten.**
+Geen verdere metingen — drie disjuncte sets zijn genoeg voor een effect van
+deze grootte. Merk op dat de eindconfiguratie zelf hier opnieuw sterk staat:
+index 22,2 tegen menselijk 22,2 met F1 0,537, op een zesde onafhankelijke set.
