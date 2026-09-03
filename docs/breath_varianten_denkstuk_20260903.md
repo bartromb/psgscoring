@@ -93,3 +93,21 @@ haar weg te middelen.
 2. breath-beslissing (beide cohorten naast elkaar, aan de gebruiker);
 3. bij een breath-keuze: meteen variant 1 meten vóór enige uitrol;
 4. variant 5 kan parallel, want hij verandert geen scoring.
+
+
+---
+
+# Bijwerking na de avondmetingen (2026-09-03/04, nacht)
+
+| variant | status na vanavond |
+|---|---|
+| 1. breath@0,30 | **vervallen als uitrolpad** — breath verloor de MESA-replicatie op 0.32.0 (ΔF1 −0,014, p=0,19; zie rec_vs_breath_0320_20260903.md). Blijft alleen interessant als de laag-AHI-niche ooit een eigen werkstroom wordt |
+| 2. p_scored-kalibratie | onveranderd — onderzoekskaart, wacht op opdracht |
+| 3. conditionele poort | **CSR-detector faalt op elk werkpunt** (κ vlak 0,26 terwijl gevlagd 228→22 loopt); vervangen door de **tweepassagepoort** (passage-1-fractie > 0,15): κ 0,300 tegen 0,287, vals −33 %, ρ=0,456 met menselijke prevalentie. Replicatie op 400 verse opnames loopt |
+| 4. breath_dual | vervalt met variant 1 |
+| 5. spreidingsband | **fase 1 in bouw** (rapportbedrading, geen meting, geen scoringswijziging); fase 2 (echte band) vergt het spreidingsmodel en blijft een aparte beslissing |
+
+De rode draad van de avond: de cohorten spraken elkaar niet tegen — ze
+bemonsteren verschillende delen van het ziektespectrum. Breath wint bij lage
+AHI (PSG-IPA), verliest bij hoge (MESA-tertiel −0,021). Elke toekomstige
+profielvergelijking hoort die tertielsplitsing standaard te rapporteren.
