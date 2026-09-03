@@ -73,3 +73,46 @@ onderhandelen nadat de cijfers binnen zijn.
 De bias verschilt sterk tussen de twee sets: −5,8 op de afleidingsset van 24,
 −2,8 op de disjuncte 90. Zelfde detector, zelfde profiel, zelfde scoorders.
 Dat is een waarschuwing voor elk arousalgetal uit een kleine MESA-steekproef.
+
+
+---
+
+# Opnieuw, met drie afleidingen — nu GESLAAGD, maar in de verkeerde stand
+
+*Toegevoegd 2026-09-03, 88 opnames, vierde disjuncte set.*
+
+De afwijzing hierboven draaide op MESA, en MESA liep daar op **één** van de
+drie EEG-kanalen. De alfaband werkt op de spectrale samenstelling per
+afleiding, dus die meting stond op een smallere basis dan de klinische montage
+biedt. Daarom opnieuw, met alle drie de afleidingen:
+
+| arm | n events | index | bias | F1 |
+|---|---:|---:|---:|---:|
+| mens | 144 | 24,4 | — | — |
+| 8–11 Hz | 166 | 28,0 | +2,9 | 0,512 |
+| 8–13 Hz | 170 | 28,7 | +2,9 | 0,515 |
+
+Gepaard: **ΔF1 +0,0066, beter op 59/88, p = 0,0019**; |bias| 4,97 → 5,35 met
+**p = 0,13** — niet aantoonbaar slechter. Onder de gecorrigeerde symmetrische
+regel: **GESLAAGD**.
+
+*(Met één afleiding zou hij ook onder de gecorrigeerde regel gezakt zijn: daar
+was p = 0,046 voor de bias, net onder de grens.)*
+
+## Waarom de vlag toch niet aan gaat
+
+Deze run draaide op de **profieldrempel 0,70** — precies de stand die overtelt:
+index 28,0 tegen een menselijke 24,4, bias +2,9. De configuratie die we willen
+uitrollen is drie afleidingen op **0,80**, waar de index klopt (20,8 tegen
+20,9).
+
+Twee wijzigingen die in verschillende configuraties zijn gemeten op elkaar
+stapelen is precies hoe dit project eerder een arm kreeg die niets deed. Er
+draait daarom een zesde run: dezelfde vraag, beide armen op drie afleidingen én
+0,80.
+
+## En het effect blijft klein
+
++0,0066 tegen +0,0943 voor de afleidingen zelf, beter op 59 van de 88 tegen 85
+van de 87. Klein mag — maar het moet in de juiste stand gemeten zijn, en het
+mag de aandacht niet wegtrekken van de wijziging die tien keer zo groot is.
