@@ -127,3 +127,58 @@ gradering maakt een bestaand probleem twee keer zo groot.
 
 De beslissing — terugrollen, laten staan, of de conditionele poort bouwen en
 meten — ligt bij de gebruiker.
+
+---
+
+# De poortzoektocht: VLF-autocorrelatie faalt, de tweepassagepoort werkt
+
+*Toegevoegd 2026-09-03 (avond), offline op de per-opname-matrices van de 450-run.*
+
+## Orakelplafond
+
+Gradering exact waar de menselijke prevalentie > 15 % is: **κ 0,371** — boven
+beide uitersten (oud 0,158; s=0,25 overal 0,287), met 94 % van de winst en
+235 van de 297 extra valse centrale apneus weggehaald. Een prevalentiepoort
+is dus geen compensatieknop maar een echte verbetering — mits realiseerbaar.
+
+## De CSR-detector kan hem niet dragen
+
+`detect_cheyne_stokes` (VLF-autocorrelatie) vlagt op zijn eigen drempel 0,3
+het merendeel van de opnames; de drempelveeg over de ruwe piek laat zien dat
+géén werkpunt helpt:
+
+| drempel | gevlagd | κ | vals |
+|---|---:|---:|---:|
+| 0,30 | 228 | 0,264 | 507 |
+| 0,40 | 111 | 0,262 | 383 |
+| 0,50 | 22 | 0,264 | 302 |
+| 0,60 | 7 | 0,154 | 290 |
+
+De kappa is vlak terwijl het aantal gevlagde opnames een factor tien varieert:
+de piek meet iets anders dan centrale-apneuprevalentie. (Nevenbevinding: de
+eerste validatie telde 332 gevlagd op 0,3, de piekreplicatie 228 — onverklaard
+verschil, genoteerd; de conclusie staat op elk werkpunt.)
+
+De gebouwde `shape_evidence_csr_gate` blijft bestaan en default uit; hij is
+correct gebouwd maar zijn sensor deugt niet voor dit doel.
+
+## De tweepassagepoort: onze eigen eerste passage als prevalentiesensor
+
+De centrale fractie die de ÓNGEgradeerde classificatie zelf al vindt, volgt de
+menselijke prevalentie met **ρ = 0,456 (p = 2,3e-06)** — beter dan de
+autocorrelatie. Poort: gradeer alleen wanneer passage 1 (oud gedrag) op deze
+opname > 15 % centraal ziet (en er ≥ 5 apneus zijn):
+
+| poort | gevlagd | κ | juist | vals |
+|---|---:|---:|---:|---:|
+| s=0,25 overal | — | 0,287 | 260 | 548 |
+| **passage-1 > 0,15** | 36 | **0,300** | 218 | **367** |
+| orakel | — | 0,371 | 244 | 313 |
+
+Wint op beide assen van het uitgerolde gedrag: +0,013 kappa én −33 % valse
+centrale apneus, met 84 % van de graderingswinst behouden. Geen externe
+detector, geen extra signaal — twee keer classificeren.
+
+**Statuut: afleiding op deze 375 opnames.** De drempel 0,15 en de winst moeten
+op een verse set repliceren voor er iets gebouwd of veranderd wordt; de
+replicatie is geketend achter de rec-tegen-breath-run op Obelix.
