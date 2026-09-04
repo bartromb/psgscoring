@@ -182,3 +182,51 @@ detector, geen extra signaal — twee keer classificeren.
 **Statuut: afleiding op deze 375 opnames.** De drempel 0,15 en de winst moeten
 op een verse set repliceren voor er iets gebouwd of veranderd wordt; de
 replicatie is geketend achter de rec-tegen-breath-run op Obelix.
+
+---
+
+# Replicatie van de tweepassagepoort: MISLUKT op de kappa, gehaald op de valse tellingen
+
+*Toegevoegd 2026-09-04. Verse set: 235 opnames met data uit 400 aangeboden
+(mesa-sleep-2903..4223), vier armen, per opname bewaard. Drempel 0,15 en
+minimum 5 apneus lagen VAST uit de afleiding.*
+
+| arm | κ | juist-centraal | vals-centraal | gevlagd |
+|---|---:|---:|---:|---:|
+| oud | 0,099 | 66/247 | 195 | — |
+| s=0,25 overal (uitgerold) | **0,191** | 119 | 344 | — |
+| poort (passage-1 > 0,15) | 0,180 | 102 | **271** | 18 |
+| orakel (mens > 15 %) | 0,215 | 114 | 272 | — |
+
+Criterium (b) — minder valse centrale — ruim gehaald (−21 %). Criterium (a) —
+hogere kappa — **niet**: 0,180 tegen 0,191. Zelfde beeld als de tussenstand op
+171; het oordeel is stabiel.
+
+## De eerlijke samenvatting van de poort
+
+Op de afleidingsset won de poort op beide assen; op de verse set is hij een
+**ruil**: ~0,01 kappa inleveren voor ~20 % minder valse centrale apneus. Merk
+op dat zelfs het orakel hier maar 0,215 haalt en op valse tellingen (272)
+niet beter is dan de poort (271): deze ID-range draagt wéér een andere
+prevalentiemix. Er bestaat op onselecte MESA géén instelling die overal
+domineert — dat is de structurele les van vijf runs subtypering.
+
+## De beslissing die nu op tafel ligt (drie gemeten opties)
+
+| optie | κ (verse set) | valse centrale | karakter |
+|---|---:|---:|---|
+| terugrollen naar oud | 0,099 | **195** | minste valse, minste juiste |
+| **laten staan** (s=0,25) | **0,191** | 344 | beste kappa, meeste valse |
+| tweepassagepoort | 0,180 | 271 | middenweg, gerepliceerd als ruil |
+
+Wat de keuze klinisch weegt: de valse centrale tellingen zitten vrijwel
+allemaal in laag-prevalentie-opnames, waar ze de indruk van centrale
+slaapapneu kunnen wekken. De kappa-winst van s=0,25 komt vrijwel volledig uit
+de periodieke-ademhalingsnachten. Wie vooral vals-centraal-in-de-gewone-
+kliniek vreest kiest de poort of terugrol; wie de CSR-nachten het zwaarst
+weegt laat s=0,25 staan.
+
+De gebouwde `shape_evidence_csr_gate` (VLF-detector) blijft default uit en is
+door deze uitkomsten niet meer de kandidaat; een eventuele poort hoort op de
+tweepassagefractie te werken. Die is NIET gebouwd — eerst deze
+gebruikersbeslissing.
