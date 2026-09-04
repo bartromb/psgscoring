@@ -990,6 +990,29 @@ class PostProcessingRules:
     """Minimumaantal apneus voor een poortoordeel; daaronder draagt de
     fractie geen informatie en blijft passage 1 staan."""
 
+    local_baseline_recovery_anchor: bool = False
+    """Anker de pre-event-validator op hersteladem in plaats van het kale
+    venstergemiddelde.
+
+    Verliesrekening 2026-09-04 (15 zwaarste hoge-AHI-nachten, 3706 menselijke
+    events): het eindresultaat dekte 15,9 %, en van de terughaalbare
+    verliezen sneuvelde 62,8 % op deze validator -- ruim een kwart met een
+    NEGATIEVE reductie, want op een AHI-60-nacht bestaat het 30 s-venster
+    grotendeels uit vórige events en zakt het kale gemiddelde in. Een lokale
+    referentie die aanneemt dat de omgeving gezond is, breekt waar de ziekte
+    het ergst is -- de vierde gedaante van die fout in één week.
+
+    De vlag zet exact de beveiliging die `compute_dynamic_baseline` al jaren
+    draagt (95e-percentiel-anker, samples <= 30 % daarvan uitgesloten) ook op
+    het pre-event-venster. Minder dan 3 s herkenbare ademhaling over: "niet
+    gemeten", geen afwijzing.
+
+    **Default False tot de meting er ligt** (gepland: de 15 nachten plus een
+    laag-AHI-controle, gepaard, symmetrische regel).
+
+    Env: `PSGSCORING_LOCAL_BASELINE_RECOVERY_ANCHOR`.
+    """
+
     phase_angle_needs_effort: bool = False
     """Vertrouw vormmaten alleen wanneer er inspanning onder ligt.
 

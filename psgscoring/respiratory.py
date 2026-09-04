@@ -768,6 +768,12 @@ def detect_respiratory_events(
             flow_reduction_threshold=1.0 - float(sp.get("HYPOPNEA_THRESHOLD", 0.70)),
             local_bl_cv_threshold=sp.get("LOCAL_BL_CV_THRESHOLD", 0.30),
             local_bl_strict_reduction=sp.get("LOCAL_BL_STRICT_RED", 30.0),
+            # env wint van het profiel, zodat een meetharnas twee armen op
+            # één cohort kan draaien -- zelfde patroon als de pipeline-vlaggen.
+            local_bl_recovery_anchor=(
+                os.environ.get("PSGSCORING_LOCAL_BASELINE_RECOVERY_ANCHOR") == "1"
+                if os.environ.get("PSGSCORING_LOCAL_BASELINE_RECOVERY_ANCHOR") is not None
+                else bool(sp.get("LOCAL_BASELINE_RECOVERY_ANCHOR", False))),
             # v0.5.0: profile-aware floors previously hard-coded
             local_bl_min_reduction_pct=sp.get("LOCAL_BL_MIN_REDUCTION_PCT", 20.0),
             local_bl_pre_win_s=sp.get("LOCAL_BL_PRE_WIN_S", 30.0),
@@ -2145,6 +2151,7 @@ def _detect_hypopneas(
     pre_event_n_largest: int = 3,
     local_bl_cv_threshold: float = 0.30,        # v0.4.2: profile-aware
     local_bl_strict_reduction: float = 30.0,    # v0.4.2: profile-aware
+    local_bl_recovery_anchor: bool = False,     # verliesrekening 2026-09-04
     local_bl_min_reduction_pct: float = 20.0,   # v0.5.0: profile-aware
     local_bl_pre_win_s: float = 30.0,           # v0.5.0: profile-aware
     # v0.31.0: duurtolerantie, default uit (0 s = ongewijzigd masker).
@@ -2245,6 +2252,7 @@ def _detect_hypopneas(
                 pre_win_s=local_bl_pre_win_s,
                 stability_cv_threshold=local_bl_cv_threshold,
                 stability_strict_reduction=local_bl_strict_reduction,
+                recovery_anchor=local_bl_recovery_anchor,
             ))
             if not local_valid:
                 rejected.append({
@@ -2417,6 +2425,7 @@ def _validate_local_reduction(
     pre_win_s: float = 30.0,
     stability_cv_threshold: float = 0.30,    # v0.4.2: profile-aware
     stability_strict_reduction: float = 30.0,  # v0.4.2: profile-aware
+    recovery_anchor: bool = False,
 ) -> tuple[bool, float]:
     """v0.8.22/v0.2.8: validate that an event shows a real flow reduction
     relative to immediately-preceding breathing.
@@ -2498,7 +2507,23 @@ def _validate_local_reduction(
     if len(pre_seg) == 0 or len(event_seg) == 0:
         return True, float("nan"), effective_min
 
-    pre_mean   = float(np.mean(pre_seg))
+    if recovery_anchor:
+        # Herstel-anker (verliesrekening 2026-09-04): op een dichte nacht
+        # bestaat het pre-venster grotendeels uit vórige events en zakt het
+        # kale gemiddelde in -- 62,8 % van de terughaalbare verliezen op de
+        # 15 zwaarste hoge-AHI-nachten, ruim een kwart met een NEGATIEVE
+        # reductie. Exact dezelfde beveiliging als compute_dynamic_baseline
+        # al jaren draagt: 95e-percentiel-anker, samples <= 30 % daarvan
+        # (event-ademhaling) uitgesloten.
+        _anchor = float(np.percentile(pre_seg, 95))
+        _adem = pre_seg[pre_seg > 0.30 * _anchor]
+        if len(_adem) < int(3 * sf):
+            # Geen 3 s herkenbare ademhaling in het venster: niet gemeten,
+            # niet afgewezen -- zelfde filosofie als de dropout-tak.
+            return True, float("nan"), effective_min
+        pre_mean = float(np.mean(_adem))
+    else:
+        pre_mean = float(np.mean(pre_seg))
     event_mean = float(np.mean(event_seg))
 
     if pre_mean < 1e-9:
