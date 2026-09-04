@@ -312,6 +312,9 @@ def detect_respiratory_events(
     phase_angle_needs_effort: bool = False,
     #: (aan, schaal) -- zie profiles.shape_evidence_grading
     shape_evidence: tuple[bool, float] = (False, 1.0),
+    two_pass: bool = False,
+    two_pass_central_fraction: float = 0.15,
+    two_pass_min_apneas: int = 5,
     #: Snurkkanaal voor AASM v3 VIII.D.2.a. `None` = niet gemeten, en dat is
     #: iets anders dan niet gesnurkt.
     snore_data:        np.ndarray | None = None,
@@ -678,6 +681,7 @@ def detect_respiratory_events(
             desat_global_bl_min_local_pct=_DESAT_GBL,
             phase_angle_needs_effort=phase_angle_needs_effort,
             shape_evidence=shape_evidence,
+            two_pass=two_pass,
         )
 
         # ── Fix 1: Herbereken hypopnea-basislijn zonder post-apnea recovery ─
@@ -837,6 +841,20 @@ def detect_respiratory_events(
                 "hypopnea":  _gap_stats_hy,
             }
 
+        # ── Tweepassagepoort (gebruikersbesluit 2026-09-04) ──────────────
+        # NA alle her-classificaties en samenvoegingen, VOOR de summary in de
+        # pipeline: de beslissing hoort over exact de events te gaan die
+        # gerapporteerd worden.
+        if two_pass and shape_evidence[0]:
+            events, _tp_prov = apply_two_pass_gate(
+                events,
+                central_fraction=two_pass_central_fraction,
+                min_apneas=two_pass_min_apneas)
+            result["two_pass_gate"] = _tp_prov
+        else:
+            # alternatieven nooit naar buiten laten lekken
+            for _e in events:
+                _e.pop("_graded_alt", None)
         result["events"]             = events
         result["rejected_hypopneas"] = rejected
         result["summary"]            = _compute_summary(events, hypno, artifact_epochs,
@@ -1859,6 +1877,51 @@ def _snap_to_breath_boundaries(
     return snapped_onset, snapped_end
 
 
+APNEU_TYPEN = ("obstructive", "central", "mixed", "uncertain")
+
+
+def apply_two_pass_gate(events: list,
+                        central_fraction: float = 0.15,
+                        min_apneas: int = 5) -> tuple[list, dict]:
+    """Tweepassagepoort over de apneu-subtypering (gebruikersbesluit 2026-09-04).
+
+    Passage 1 is de classificatie ZONDER gradering; elk apneu-event draagt het
+    gegradeerde alternatief in ``_graded_alt``. Ziet passage 1 op deze opname
+    meer dan ``central_fraction`` centrale apneus bij ten minste
+    ``min_apneas`` apneus, dan gelden de gegradeerde oordelen; anders blijven
+    de passage-1-oordelen staan.
+
+    WAAROM DE POORT OP ONZE EIGEN EERSTE PASSAGE WERKT
+    --------------------------------------------------
+    De gradering is basiskansafhankelijk (Simpson over vijf runs): winst
+    alleen op periodieke-ademhalingsnachten (ruil 1:0,5 boven 15 % centrale
+    prevalentie), schade daaronder (1:11 tot 1:21). De VLF-CSR-detector kan de
+    poort niet dragen (kappa vlak over elke drempel), maar de centrale fractie
+    die passage 1 zelf vindt volgt de menselijke prevalentie met rho 0,456
+    (p=2,3e-06). Gerepliceerd op een verse set als RUIL: kappa 0,180 tegen
+    0,191 voor s=0,25-overal, valse centrale 271 tegen 344. Die ruil is een
+    klinische keuze en is expliciet zo genomen: valse centrale apneus in de
+    gewone kliniek wegen zwaarder dan 0,01 kappa.
+
+    Drempels 0,15 en 5 liggen vast uit de afleiding (450-run, per opname).
+    Hypopneus blijven onaangeraakt; dit gaat uitsluitend over apneu-subtypen.
+    """
+    apneus = [e for e in events
+              if e.get("type") in APNEU_TYPEN and "_graded_alt" in e]
+    n = len(apneus)
+    frac = (sum(1 for e in apneus if e["type"] == "central") / n) if n else 0.0
+    gated = n >= min_apneas and frac > central_fraction
+    for e in events:
+        alt = e.pop("_graded_alt", None)
+        if gated and alt is not None:
+            e["type"], e["confidence"], e["classify_detail"] = alt
+    prov = {"gated": gated, "n_apneas": n,
+            "pass1_central_fraction": round(frac, 3),
+            "central_fraction_threshold": central_fraction,
+            "min_apneas": min_apneas}
+    return events, prov
+
+
 def _detect_apneas(
     apnea_raw, sleep_mask_ap, flow_env, flow_norm, baseline,
     sf_flow, sf_spo2, hypno,
@@ -1878,6 +1941,7 @@ def _detect_apneas(
     desat_global_bl_min_local_pct: float | None = None,
     phase_angle_needs_effort: bool = False,
     shape_evidence: tuple[bool, float] = (False, 1.0),
+    two_pass: bool = False,
 ) -> list[dict]:
     """Detecteer apnea-events: ≥90% flow-reductie gedurende ≥10s (AASM)."""
     events: list[dict] = []
@@ -1915,21 +1979,37 @@ def _detect_apneas(
             flow_mean  = float(np.mean(flow_env[sub_idx[0] : sub_idx[-1] + 1]))
             flow_red   = safe_r((1 - flow_mean / pre_bl) * 100) if pre_bl > 0 else None
 
-            ev_type, conf, detail = classify_apnea_type(
+            _ecg_ass = _get_ecg_assessment(
+                ecg_data, tecg, r_peaks, thorax_raw, abdomen_raw,
+                sf_flow, sf_ecg or sf_flow, sub_idx[0], sub_idx[-1] + 1
+            ) if tecg is not None else None
+            _cls = dict(
                 onset_idx=sub_idx[0], end_idx=sub_idx[-1] + 1,
                 thorax_env=thorax_env, abdomen_env=abdomen_env,
                 thorax_raw=thorax_raw, abdomen_raw=abdomen_raw,
                 effort_baseline=effort_bl, sf=sf_flow,
-                ecg_assessment=_get_ecg_assessment(
-                    ecg_data, tecg, r_peaks, thorax_raw, abdomen_raw,
-                    sf_flow, sf_ecg or sf_flow, sub_idx[0], sub_idx[-1] + 1
-                ) if tecg is not None else None,
+                ecg_assessment=_ecg_ass,
                 signal_quality=signal_quality,  # v0.3.001 BUG2 gate
                 use_rhythm=use_rhythm,
                 phase_angle_needs_effort=phase_angle_needs_effort,
-                shape_evidence_grading=shape_evidence[0],
-                shape_evidence_scale=shape_evidence[1],
             )
+            if two_pass and shape_evidence[0]:
+                # Tweepassagepoort: passage 1 is ONgegradeerd, het gegradeerde
+                # oordeel reist mee als alternatief. `apply_two_pass_gate`
+                # beslist straks over de HELE opname welk stel geldt -- de
+                # classificatie zelf is goedkoop rekenwerk op al berekende
+                # envelopes, dus twee keer roepen kost vrijwel niets.
+                ev_type, conf, detail = classify_apnea_type(
+                    **_cls, shape_evidence_grading=False,
+                    shape_evidence_scale=shape_evidence[1])
+                _alt = classify_apnea_type(
+                    **_cls, shape_evidence_grading=True,
+                    shape_evidence_scale=shape_evidence[1])
+            else:
+                ev_type, conf, detail = classify_apnea_type(
+                    **_cls, shape_evidence_grading=shape_evidence[0],
+                    shape_evidence_scale=shape_evidence[1])
+                _alt = None
             desat, min_spo2 = get_desaturation(
                 spo2_data, onset_s, sub_dur, sf_spo2, global_spo2_bl,
                 global_baseline_min_local_pct=desat_global_bl_min_local_pct,
@@ -1947,6 +2027,7 @@ def _detect_apneas(
                 "confidence":         conf,
                 "classify_detail":    detail,
                 "epoch":              ep_idx,
+                **({"_graded_alt": _alt} if _alt is not None else {}),
             })
     return events
 

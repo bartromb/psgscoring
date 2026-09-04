@@ -950,6 +950,46 @@ class PostProcessingRules:
     Env: `PSGSCORING_SHAPE_EVIDENCE_CSR_GATE`.
     """
 
+    shape_evidence_two_pass: bool = False
+    """Tweepassagepoort op de apneu-subtypering (gebruikersbesluit 2026-09-04).
+
+    Passage 1 classificeert ZONDER gradering; ziet die > 15 % centrale apneus
+    bij >= 5 apneus, dan gelden de gegradeerde oordelen (de periodieke-
+    ademhalingsnachten, waar de gradering ruil 1:0,5 wint), anders blijven de
+    passage-1-oordelen staan (de gewone kliniek, waar de gradering 1:11 tot
+    1:21 valse centrale per juiste kost -- Simpson over vijf runs).
+
+    Gerepliceerd op een verse set als RUIL, niet als dominantie: kappa 0,180
+    tegen 0,191 voor s=0,25-overal, valse centrale 271 tegen 344. De keuze
+    voor de poort weegt valse centrale apneus in laag-prevalentie-nachten
+    (die centrale slaapapneu suggereren) zwaarder dan 0,01 kappa.
+
+    **Default (nog) False — leveringsproef 2026-09-04.** De afleiding en de
+    replicatie rekenden de fractie over apneus die aan een MENSELIJK event
+    gekoppeld zijn; productie kan alleen over AL onze apneus rekenen, en
+    ongematchte detecties verdunnen die fractie (mesa-sleep-3012: gekoppeld
+    0,583, alles 0,087). Met 0,15 op de productievariabele zou de poort zich
+    bijna overal als kale terugrol gedragen -- niet de gemeten middenweg. De
+    drempel wordt herafgeleid op de productievariabele (Obelix-run met
+    totaaltellingen per arm) en moet dan opnieuw repliceren; pas daarna kan
+    de default om. Het gebruikersbesluit vóór de poort staat; de uitvoering
+    wacht op de juiste drempel.
+
+    Zie docs/gegradeerde_subtypering_basiskans_20260902.md. Provenance per
+    opname in `summary["two_pass_gate"]`.
+
+    Env: `PSGSCORING_SHAPE_EVIDENCE_TWO_PASS`.
+    """
+
+    two_pass_central_fraction: float = 0.15
+    """Poortdrempel op de passage-1-fractie. Vastgelegd uit de afleiding
+    (450-run, per opname); NIET herijken op een set waarop ook geoordeeld
+    wordt."""
+
+    two_pass_min_apneas: int = 5
+    """Minimumaantal apneus voor een poortoordeel; daaronder draagt de
+    fractie geen informatie en blijft passage 1 staan."""
+
     phase_angle_needs_effort: bool = False
     """Vertrouw vormmaten alleen wanneer er inspanning onder ligt.
 
@@ -2152,7 +2192,8 @@ _aasm_v2_rec = Profile(
         # 2026-09-03 idem gepind: de generieke afleidingsterugval zou de
         # afleidingsset -- en dus de arousals -- van een bevroren regelset
         # veranderen.
-        arousal_generic_derivations=False,summary_after_reclassification=True),
+        arousal_generic_derivations=False,
+        shape_evidence_two_pass=False,summary_after_reclassification=True),
 )
 
 # ---- AASM v1 RECOMMENDED (2007) ----
@@ -2196,7 +2237,8 @@ _aasm_v1_rec = Profile(
         # 2026-09-03 idem gepind: de generieke afleidingsterugval zou de
         # afleidingsset -- en dus de arousals -- van een bevroren regelset
         # veranderen.
-        arousal_generic_derivations=False,summary_after_reclassification=True),
+        arousal_generic_derivations=False,
+        shape_evidence_two_pass=False,summary_after_reclassification=True),
 )
 
 # ---- CMS / Medicare (AASM v3 1B OPTIONAL) ----
@@ -2243,7 +2285,8 @@ _cms_medicare = Profile(
         # 2026-09-03 idem gepind: de generieke afleidingsterugval zou de
         # afleidingsset -- en dus de arousals -- van een bevroren regelset
         # veranderen.
-        arousal_generic_derivations=False,summary_after_reclassification=True),
+        arousal_generic_derivations=False,
+        shape_evidence_two_pass=False,summary_after_reclassification=True),
 )
 
 # ---- MESA / NSRR convention ----
@@ -2303,6 +2346,7 @@ _mesa_shhs = Profile(
         # afleidingsset -- en dus de arousals -- van een bevroren regelset
         # veranderen.
         arousal_generic_derivations=False,
+        shape_evidence_two_pass=False,
         stability_filter_enabled=True,
         stability_filter_cv=0.45,
         # GEPIND. De herclassificatie raakt de OAHI (`_oahi_at` selecteert
@@ -2426,6 +2470,7 @@ _chicago_1999 = Profile(
         # afleidingsset -- en dus de arousals -- van een bevroren regelset
         # veranderen.
         arousal_generic_derivations=False,
+        shape_evidence_two_pass=False,
         # GEPIND op het gedrag van vóór 13-08-2026: dit profiel reproduceert
         # de Chicago-criteria van 1999 en hoort niet mee te bewegen met
         # reparaties aan de sensorpoorten. Zie

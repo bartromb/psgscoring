@@ -438,6 +438,10 @@ def run_pneumo_analysis(
             hypopnea_subtype_aasm=_hypopnea_subtype_aasm(profile),
             phase_angle_needs_effort=_phase_angle_needs_effort(profile),
             shape_evidence=_se,
+            two_pass=_two_pass(profile),
+            two_pass_central_fraction=float(
+                profile.get("TWO_PASS_CENTRAL_FRACTION", 0.15)),
+            two_pass_min_apneas=int(profile.get("TWO_PASS_MIN_APNEAS", 5)),
             # AASM v3 VIII.D.2.a: snurken tijdens het event.
             snore_data=snore_data, sf_snore=sf_snore,
             flow_data    = apnea_flow,
@@ -1343,6 +1347,12 @@ def run_pneumo_analysis(
     if _se_gate_info is not None and isinstance(
             output.get("respiratory", {}).get("summary"), dict):
         output["respiratory"]["summary"]["shape_evidence_gate"] = _se_gate_info
+    # Tweepassagepoort-provenance: zelfde aanhechtpunt en om dezelfde reden
+    # (stap 9 herberekent de summary precies in het csr_detected-geval).
+    _tp = output.get("respiratory", {}).get("two_pass_gate")
+    if _tp is not None and isinstance(
+            output.get("respiratory", {}).get("summary"), dict):
+        output["respiratory"]["summary"]["two_pass_gate"] = _tp
 
     # ── Step 9b (v0.8.16): RERA index and RDI ─────────────────────────────
     # MUST run AFTER the CSR summary recompute above: Fix 3 replaces
@@ -2663,6 +2673,15 @@ def _thermistor_gate(profile: dict) -> str:
                 "(%s); profielwaarde %r blijft staan",
                 raw, ", ".join(sorted(_THERMISTOR_GATES)), gate)
     return gate
+
+
+def _two_pass(profile: dict) -> bool:
+    """Tweepassagepoort aan? Profielvlag, env wint."""
+    v = bool(profile.get("SHAPE_EVIDENCE_TWO_PASS", False))
+    env = os.environ.get("PSGSCORING_SHAPE_EVIDENCE_TWO_PASS")
+    if env is not None:
+        v = env == "1"
+    return v
 
 
 def _shape_evidence(profile: dict) -> tuple[bool, float]:
