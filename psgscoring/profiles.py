@@ -1013,6 +1013,27 @@ class PostProcessingRules:
     Env: `PSGSCORING_LOCAL_BASELINE_RECOVERY_ANCHOR`.
     """
 
+    rule1b_graded: bool = False
+    """Gegradeerde Rule 1B: een arousalKANS mag een hypopneu bevestigen.
+
+    Verliesrekening 2026-09-04: 18,7 % van de terughaalbare verliezen op de
+    zwaarste hoge-AHI-nachten was een `no_desaturation`-afwijzing -- de
+    arousal die er fysiologisch was haalde het werkpunt (0,70/0,80) niet.
+    ABED (Nat Commun 2026) voedt arousalkansen als invoer; dit is de
+    regelgebaseerde vorm: kandidaten met p >= `rule1b_min_proba` mogen in het
+    koppelvenster een afgewezen hypopneu HERSTELLEN, maar komen nooit in de
+    arousal-index of de eventlijst. Bevestigen vraagt minder zekerheid dan
+    tellen; `coupled_arousal_proba` houdt elk zo gekoppeld event herkenbaar.
+
+    Default False tot de meting (15 hoge-AHI-nachten + controle) er ligt.
+    Env: `PSGSCORING_RULE1B_GRADED`.
+    """
+
+    rule1b_min_proba: float = 0.50
+    """Koppelkansdrempel voor de gegradeerde Rule 1B. Startwaarde 0,50 --
+    onder het telwerkpunt (0,70/0,80), boven munt-opgooien; de meting moet
+    hem ijken voor er iets default aan gaat."""
+
     phase_angle_needs_effort: bool = False
     """Vertrouw vormmaten alleen wanneer er inspanning onder ligt.
 

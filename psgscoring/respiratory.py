@@ -1392,6 +1392,8 @@ def reinstate_rule1a_arousal_hypopneas(
     arousal_window_s: float | None = None,
     gap_max_breaths: int = 1,
     stats:          dict | None = None,
+    graded_candidates: list | None = None,
+    graded_min_proba: float = 0.50,
 ) -> tuple[list, list]:
     """
     Reinstate hypopnea candidates that are coupled to an arousal
@@ -1418,13 +1420,22 @@ def reinstate_rule1a_arousal_hypopneas(
     -------
     (reinstated_events, all_events_sorted)
     """
-    if not rejected or not arousal_events:
+    if not rejected or (not arousal_events and not graded_candidates):
         return [], resp_events
 
     arousal_times = [
         (float(a.get("onset_s", 0)), float(a.get("duration_s", 3)))
         for a in arousal_events
     ]
+    # Gegradeerde Rule 1B: kandidaten met p >= graded_min_proba mogen een
+    # hypopneu BEVESTIGEN maar komen nergens anders binnen -- niet in de
+    # arousal-index, niet in de eventlijst. Een bevestiging vraagt minder
+    # zekerheid dan een telling; de provenance (coupled_arousal_proba) houdt
+    # elk gegradeerd gekoppeld event herkenbaar. Volle events winnen altijd.
+    graded_times = sorted(
+        (float(c.get("onset_s", 0.0)), float(c.get("proba", 0.0)))
+        for c in (graded_candidates or [])
+        if float(c.get("proba", 0.0)) >= float(graded_min_proba))
     breath_onsets = (
         sorted(b["onset_s"] for b in breaths if b.get("amplitude", 0) > 0)
         if breaths else None
@@ -1435,7 +1446,7 @@ def reinstate_rule1a_arousal_hypopneas(
     _arousal_win = (RULE1B_AROUSAL_WINDOW_S if arousal_window_s is None
                     else float(arousal_window_s))
 
-    n_tested = n_coupled = 0
+    n_tested = n_coupled = n_graded = 0
     n_ineligible = 0
     ineligible: dict[str, int] = {}
     reinstated: list[dict] = []
@@ -1455,6 +1466,13 @@ def reinstate_rule1a_arousal_hypopneas(
              if onset <= a_onset <= end + _arousal_win),
             None,
         )
+        graded_proba = None
+        if matched_arousal is None and graded_times:
+            _g = next((g for g in graded_times
+                       if onset <= g[0] <= end + _arousal_win), None)
+            if _g is not None:
+                matched_arousal, graded_proba = _g[0], _g[1]
+                n_graded += 1
         if matched_arousal is None:
             continue
         n_coupled += 1
@@ -1486,6 +1504,8 @@ def reinstate_rule1a_arousal_hypopneas(
             "epoch":            cand["epoch"],
             "rule1a_arousal":   True,
             "rule1b":           True,   # deprecated alias
+            **({"coupled_arousal_proba": graded_proba}
+               if graded_proba is not None else {}),
         })
 
     if n_ineligible:
@@ -1498,6 +1518,7 @@ def reinstate_rule1a_arousal_hypopneas(
         stats.update({
             # Alleen de kandidaten die de tak WERKELIJK heeft beoordeeld.
             "n_candidates_tested": n_tested,
+            "n_graded_coupled": n_graded,
             "n_arousal_coupled":   n_coupled,
             "n_qualified":         len(reinstated),
             # ... en wat er buiten viel, met reden. Een tak die op nul staat

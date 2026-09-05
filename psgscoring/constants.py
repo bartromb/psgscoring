@@ -120,6 +120,8 @@ def _profile_to_legacy_dict(profile) -> dict:
         "TWO_PASS_CENTRAL_FRACTION": pp.two_pass_central_fraction,
         "TWO_PASS_MIN_APNEAS": pp.two_pass_min_apneas,
         "LOCAL_BASELINE_RECOVERY_ANCHOR": pp.local_baseline_recovery_anchor,
+        "RULE1B_GRADED": pp.rule1b_graded,
+        "RULE1B_MIN_PROBA": pp.rule1b_min_proba,
         "FLOW_GAP_SCALE_FREE": pp.flow_gap_scale_free,
         "AROUSAL_LGBM": pp.arousal_lgbm,
         "AROUSAL_USES_ARTIFACT_EPOCHS": pp.arousal_uses_artifact_epochs,

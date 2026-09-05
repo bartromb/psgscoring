@@ -105,6 +105,10 @@ PIPELINE_ONLY = {
     # Zelfde vorm: de tweepassagepoort valt in de pipeline; een harnas dat de
     # detectoren direct aanroept geeft two_pass zelf mee als argument.
     "PSGSCORING_SHAPE_EVIDENCE_TWO_PASS",
+    # Gegradeerde Rule 1B valt in de pipeline (koppelt arousal-uitvoer aan de
+    # reinstatement); een harnas dat reinstate_... direct aanroept geeft
+    # graded_candidates zelf mee.
+    "PSGSCORING_RULE1B_GRADED",
     # Detectorgedrag, doorgegeven als ARGUMENT aan detect_arousals(_multi).
     # Een harnas dat die functie direct aanroept moet ze zelf meegeven; de
     # env bereikt hem niet. Dit is precies de val van 29-08 en de reden dat

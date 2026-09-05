@@ -1348,6 +1348,17 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                      "duration_s": float(c.get("duration_s", 0.0))}
                     for c in result["events"]
                 ]
+                # Gegradeerde Rule 1B leest de kandidaten MET hun kans: een
+                # tussenkans mag een hypopneu bevestigen zonder ooit in de
+                # index te komen. Zelfde lijst als pre_lgbm_events, plus
+                # proba -- een aparte lijst zodat bestaande lezers van
+                # pre_lgbm_events niets zien veranderen.
+                result["lgbm_candidates"] = [
+                    {"onset_s": float(c.get("onset_s", 0.0)),
+                     "duration_s": float(c.get("duration_s", 0.0)),
+                     "proba": float(pr)}
+                    for c, pr in zip(result["events"], proba)
+                ]
                 result["events"] = kept
                 result["summary"] = _recompute_arousal_summary(
                     kept, hypno, set(artifact_epochs or []),
@@ -1727,6 +1738,14 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                "event_locked_threshold"):
         if _k in _first:
             summ[_k] = _first[_k]
+
+    # Kandidaten met kans, over ALLE afleidingen samengevoegd. De gegradeerde
+    # Rule 1B leest deze lijst, en multi is de default op de klinische
+    # profielen -- alleen het single-pad exporteren was precies het gat dat
+    # de leveringstest ving (thr in de summary, nul kandidaten). Duplicaten
+    # tussen afleidingen zijn onschadelijk: de koppeling vraagt alleen "ligt
+    # er EEN kandidaat met p >= drempel in het venster".
+    _alle_kand = [c for _, r in per for c in (r.get("lgbm_candidates") or [])]
     if any("lgbm_n_pre" in (r.get("summary") or {}) for _, r in per):
         summ["lgbm_n_pre"] = sum((r.get("summary") or {}).get("lgbm_n_pre", 0)
                                  for _, r in per)
@@ -1737,6 +1756,8 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
         # wil; tellen op de samengevoegde lijst.
         summ["n_event_locked"] = sum(1 for e in merged if e.get("event_locked"))
     out = {"success": True, "events": merged, "summary": summ, "error": None}
+    if _alle_kand:
+        out["lgbm_candidates"] = sorted(_alle_kand, key=lambda c: c["onset_s"])
     _pre = [r["pre_lgbm_n_arousals"] for _, r in per
             if r.get("pre_lgbm_n_arousals") is not None]
     if _pre:

@@ -1156,6 +1156,9 @@ def run_pneumo_analysis(
             arousal_window_s = profile.get("RULE1B_AROUSAL_WINDOW_S"),
             gap_max_breaths  = int(profile.get("RULE1A_GAP_MAX_BREATHS", 1)),
             stats            = ar_stats,
+            graded_candidates = _rule1b_graded_kandidaten(
+                profile, output.get("arousal") or {}),
+            graded_min_proba  = float(profile.get("RULE1B_MIN_PROBA", 0.50)),
         )
         if reinstated:
             logger.info("[pneumo 8] Rule 1B: %d hypopneas reinstated", len(reinstated))
@@ -2673,6 +2676,26 @@ def _thermistor_gate(profile: dict) -> str:
                 "(%s); profielwaarde %r blijft staan",
                 raw, ", ".join(sorted(_THERMISTOR_GATES)), gate)
     return gate
+
+
+def _rule1b_graded_kandidaten(profile: dict, ar_block: dict) -> list | None:
+    """Kandidatenlijst voor de gegradeerde Rule 1B, of None wanneer uit.
+
+    Profielvlag `rule1b_graded`, env `PSGSCORING_RULE1B_GRADED` wint. None in
+    plaats van [] wanneer de vlag uit staat: de reinstatement-functie leest
+    None als "bestaand gedrag" en een lege lijst als "graded maar niets
+    boven de drempel" -- dat onderscheid hoort zichtbaar te blijven.
+    """
+    v = bool(profile.get("RULE1B_GRADED", False))
+    env = os.environ.get("PSGSCORING_RULE1B_GRADED")
+    if env is not None:
+        v = env == "1"
+    if not v:
+        return None
+    # Het detect-resultaat nest in de wrapper onder ["arousals"] -- de
+    # leveringstest ving dit: sleutel op het buitenniveau bestond niet.
+    _binnen = ar_block.get("arousals") or {}
+    return _binnen.get("lgbm_candidates") or []
 
 
 def _two_pass(profile: dict) -> bool:
