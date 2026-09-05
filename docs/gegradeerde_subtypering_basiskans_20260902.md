@@ -230,3 +230,28 @@ De gebouwde `shape_evidence_csr_gate` (VLF-detector) blijft default uit en is
 door deze uitkomsten niet meer de kandidaat; een eventuele poort hoort op de
 tweepassagefractie te werken. Die is NIET gebouwd — eerst deze
 gebruikersbeslissing.
+
+---
+
+# Slotstuk: de productiedrempelveeg (2026-09-05) — het dossier is compleet
+
+227 opnames met data (v4-run, oude arousalconfiguratie voor vergelijkbaarheid).
+De productievariabele (p1-fractie over ál onze apneus) correleert zwak maar
+significant met de menselijke prevalentie (ρ 0,237, p=3e-4; gekoppeld was
+0,456 — de verdunning halveert het signaal). Geen enkele drempel verslaat
+s=0,25-overal op kappa; de beste (0,03) is kappa-neutraal met −16 % valse
+centrale tegen −9 % juiste. Het orakel haalt hier 0,207.
+
+| optie | κ | juist | vals | opmerking |
+|---|---:|---:|---:|---|
+| terugrollen | 0,095 | 92 | 258 | |
+| **s=0,25 (uitgerold)** | **0,180** | **161** | 429 | op PSG-IPA de duidelijke winnaar |
+| productiepoort 0,03 | 0,179 | 147 | 362 | zou verse replicatie vergen |
+
+**Advies (2026-09-05): s=0,25 laten staan en de poort archiveren.** De
+implementeerbare poort levert te weinig voor zijn machinerie; de
+valse-centrale-zorg is beter te adresseren door de provenance in het rapport
+te tonen dan door de scoring te veranderen. De gebouwde
+`shape_evidence_two_pass` blijft beschikbaar (default uit) mocht een cohort
+met minder vals-positieve verdunning hem ooit rechtvaardigen. Klinische
+eindkeuze bij de gebruiker.
