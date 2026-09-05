@@ -66,3 +66,29 @@ globale-percentielvloer onder de lokale referentie.
 2. **Gegradeerde Rule 1B** (gepland punt 6) — gericht op de 18,7 %.
 3. **Stabiliteitsfilter lastbewust maken** — pas na 1, want mogelijk lost
    1 dit mee op.
+
+---
+
+# Vervolg: Rule-1B-tak driearmig gemeten (2026-09-05)
+
+De reinstatement-tak bleek op `aasm_v3_rec` default UIT (29-08: onselect MESA
+F1 0,438→0,382, afgewezen) én vergt de plumbing-vlag (issue #16) — de
+`no_desaturation`-bak was dus nooit bereikbaar. `breath` had de plumbing wél
+aan: een deel van het rec/breath-gedragsverschil verklaard.
+
+Drie armen op 15 hoog + 10 laag (A=productie, B=tak aan, C=B+kandidaatkansen
+p≥0,50):
+
+| | HOOG bias | HOOG F1 | LAAG bias | LAAG F1 |
+|---|---|---|---|---|
+| A | −29,6 | 0,175 | +4,0 | 0,085 |
+| B | −27,9 (p=0,0015) | 0,173 | +4,4 (p=0,065) | 0,103 |
+| C | −27,6 (p=0,0010) | 0,172 | **+5,3 (p=0,049)** | 0,105 |
+
+**B slaagt** (bescheiden: 1,7/u van de 29,6); **C faalt zijn eigen regel** —
+72 extra gegradeerde herstellingen kopen +0,3/u op HOOG en blazen LAAG
+aantoonbaar op. `rule1b_graded` blijft gebouwd, getest en UIT.
+
+B default aanzetten blijft een aparte beslissing: de 29-08-afwijzing op
+onselect MESA staat, en zou met de 0.32.0-arousalketen opnieuw gemeten moeten
+worden (afleiding + replicatie) voor er iets verandert.
