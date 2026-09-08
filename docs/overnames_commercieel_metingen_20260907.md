@@ -106,3 +106,45 @@ YF-release; draaiboek §9b draagt de eindpuntdefinities voor multicenter.
 2. **RIP-failover**: gearchiveerd op 0,83 %; heropenen op klinische data?
 3. YF-release met de CSA-noot (geen indexverandering) wanneer de
    volgende uitrol toch plaatsvindt.
+
+---
+
+## Aanvulling 2026-09-08: pleth fase 1 — GESLAAGD op de vooraf vastgelegde regel
+
+Ontwerp: logistische re-ranker op kandidaatniveau bóvenop de LGBM-kans,
+features [proba, PWA-min-ratio, PWA-vlag, HR-stijging, duur, REM];
+matched-count-vergelijking (top-K met K = de 0,80-drempelkeuze, beide
+armen door `enforce_min_arousal_interval(10 s)`); afleiding en oordeel op
+strikt disjuncte verse seeded-random sets (2026-09-08, geregistreerd).
+Harnas: meetscripts/pleth_fase1_extract.py + analyse_pleth_fase1.py;
+bevroren model meetscripts/f1_model.json. NB: de kandidatenexport
+(`lgbm_candidates`) zit pas in de repo ná v0.32.0 — Obelix kreeg hiervoor
+een aparte venv-fase1 met de repoversie; venv-dl en fase 0 onaangeroerd.
+
+**Afleiding (n=39, GroupKFold(5), indicatief):** mediaan ΔF1 +0,006,
+beter op 24/39, p = 0,0018. Coëfficiënten (gestandaardiseerd): proba
+2,15, duur 0,43, **HR-stijging 0,35**, PWA-min-ratio −0,13, PWA-vlag
+0,08, REM 0,06 — de hartslagversnelling draagt de autonome winst, de
+kale PWA-daling weinig.
+
+**Replicatie (n=40, bevroren model — HET oordeel):**
+- Criterium 1: mediaan **ΔF1 +0,0097**, beter op **30/40**, Wilcoxon
+  **p = 0,0001** → GEHAALD (en groter dan de afleidingsschatting — geen
+  overfit-artefact).
+- Criterium 2: |count-ratio − 1| re-ranker vs baseline mediaan +0,0000,
+  p = 0,20 (0,913 tegen 0,894, eerder iets dichter bij 1) → geen
+  aantoonbare tellingsschade. GEHAALD.
+
+**Eerlijke effectgrootte:** ~+0,010 F1 mediaan op een baseline van ~0,50
+— ongeveer anderhalve procentpunt van het gat naar het menselijke plafond
+(0,679). Echt, gerepliceerd, klein. Het bevestigt de Philips-richting op
+onze eigen keten met een mínimale getuige; een getrainde autonome
+detector (hun ICC 0,73) laat vermoedelijk meer liggen dan deze zes
+features.
+
+**Voorstel productisering (beslissing gebruiker):** vlag
+`arousal_autonomic_rerank` in psgscoring (default UIT), actief alleen
+wanneer Pleth/HR in de montage zit (klinische SOMNOscreen-montages
+dragen Pleth + Pulse; PSG-IPA niet). Kandidaat voor de eerstvolgende
+psgscoring-release; MESA/NSRR-byte-identiteit onaangetast zolang de vlag
+uit staat.
