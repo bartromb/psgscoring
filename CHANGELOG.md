@@ -1,3 +1,19 @@
+# v0.34.0 — 2026-09-08 — de autonome re-ranker staat AAN op aasm_v3_rec
+
+**Dit verandert een klinisch getal op montages met Pleth + hartslagreeks:
+de arousalselectie.** De AHI verandert nooit (de re-ranker raakt alleen
+de arousalstap; reinstatement staat default uit), en op montages zonder
+Pleth of bruikbare hartslag verandert er níets — de provenance in
+`summary["autonomic_rerank"]` zegt dan waarom.
+
+Gebruikersbeslissing 2026-09-08, op het bewijs van 0.33.0: replicatie met
+bevroren model op 40 disjuncte verse MESA-nachten (ΔF1 +0,0097 mediaan,
+30/40 beter, p=0,0001; telling niet slechter, p=0,20) en een klinische
+aan/uit-controle op een SOMNO-achtige split-night (respiratoir
+byte-gelijk, arousals 209→212, jaccard 0,78 — zachte herordening binnen
+dezelfde K). Alleen `aasm_v3_rec`; alle andere profielen, inclusief de
+bevroren (mesa_shhs, chicago_1999), blijven uit.
+
 # v0.33.0 — 2026-09-08 — autonome arousal-re-ranker (opt-in) + gegradeerde Rule 1B en poorten, alles default uit
 
 **Gedragsidentiek aan 0.32.0 zolang geen vlag wordt aangezet.** Golden 9/9

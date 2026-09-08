@@ -2014,6 +2014,17 @@ _aasm_v3_rec = Profile(
     ),
     post_processing=PostProcessingRules(
         summary_after_reclassification=True,
+        # AAN sinds 2026-09-08 (gebruikersbeslissing, alleen op dit
+        # standaardprofiel): de autonome re-ranker herordent de
+        # LGBM-kandidaten met PWA- en hartslagfeatures binnen dezelfde K.
+        # Gerepliceerd met bevroren model op 40 disjuncte verse
+        # MESA-nachten (ΔF1 +0,0097, 30/40, p=0,0001; telling niet
+        # slechter) en klinisch aan/uit-gecontroleerd op een
+        # SOMNO-achtige split-night (respiratoir byte-gelijk, telling
+        # 209→212, jaccard 0,78). Op montages ZONDER Pleth/hartslagreeks
+        # verandert er niets (provenance meldt de reden); de AHI raakt
+        # hij nooit. Zie docs/overnames_commercieel_metingen_20260907.md.
+        arousal_autonomic_rerank=True,
     ),
 )
 
@@ -2952,6 +2963,8 @@ _aasm_v3_amplitude = Profile(
     post_processing=PostProcessingRules(
         summary_after_reclassification=True,
         single_channel_rhythm=False,
+        # Volgt het anker aasm_v3_rec (re-ranker aan 08-09-2026).
+        arousal_autonomic_rerank=True,
     ),
 )
 
@@ -2998,6 +3011,9 @@ _aasm_v3_pair_scalefree = Profile(
     post_processing=PostProcessingRules(
         summary_after_reclassification=True,
         rip_pair_scale_free=True,
+        # Volgt het anker aasm_v3_rec (re-ranker aan 08-09-2026):
+        # een meetarm mag alleen in zijn eigen knop verschillen.
+        arousal_autonomic_rerank=True,
     ),
 )
 
@@ -3023,6 +3039,8 @@ _aasm_v3_env_chunked = Profile(
     post_processing=PostProcessingRules(
         summary_after_reclassification=True,
         envelope_method="hilbert_chunked",
+        # Volgt het anker aasm_v3_rec (re-ranker aan 08-09-2026).
+        arousal_autonomic_rerank=True,
     ),
 )
 
@@ -3045,6 +3063,9 @@ _aasm_v3_env_rectify = Profile(
     post_processing=PostProcessingRules(
         summary_after_reclassification=True,
         envelope_method="rectify_lowpass",
+        # Volgt het anker aasm_v3_rec (re-ranker aan 08-09-2026):
+        # een meetarm mag alleen in zijn eigen knop verschillen.
+        arousal_autonomic_rerank=True,
     ),
 )
 
@@ -3069,6 +3090,9 @@ _aasm_v3_env_breath = Profile(
     post_processing=PostProcessingRules(
         summary_after_reclassification=True,
         envelope_method="breath_amplitude",
+        # Volgt het anker aasm_v3_rec (re-ranker aan 08-09-2026):
+        # een meetarm mag alleen in zijn eigen knop verschillen.
+        arousal_autonomic_rerank=True,
     ),
 )
 
@@ -3092,6 +3116,8 @@ _aasm_v3_env_decimated = Profile(
     post_processing=PostProcessingRules(
         summary_after_reclassification=True,
         envelope_fs=10.0,
+        # Volgt het anker aasm_v3_rec (re-ranker aan 08-09-2026).
+        arousal_autonomic_rerank=True,
     ),
 )
 

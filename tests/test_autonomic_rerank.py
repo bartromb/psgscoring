@@ -58,13 +58,22 @@ def _hr_vlak(n_s=1200, sf=SF, stijg_bij=None):
     return r
 
 
-# ── 1. default uit ───────────────────────────────────────────────────────
+# ── 1. vlagstand per profiel ─────────────────────────────────────────────
 
-def test_default_uit_in_alle_profielen():
+def test_vlag_alleen_aan_op_rec_en_zijn_meetarmen():
+    """Gebruikersbeslissing 2026-09-08: AAN op aasm_v3_rec (het klinische
+    standaardprofiel) én op de meetarmen die per contract "rec + precies
+    één knop" zijn — die moeten het anker volgen, anders is elke gepaarde
+    meting voortaan een twee-knopsvergelijking. UIT op al het andere; de
+    bevroren profielen (mesa_shhs, chicago_1999, ...) blijven gepind
+    False voor byte-identiteit."""
+    AAN = {"aasm_v3_rec", "aasm_v3_pair_scalefree", "aasm_v3_amplitude",
+           "aasm_v3_env_chunked", "aasm_v3_env_rectify",
+           "aasm_v3_env_breath", "aasm_v3_env_decimated"}
     for naam, p in PROFILES.items():
-        assert p.post_processing.arousal_autonomic_rerank is False, (
-            f"{naam}: de re-ranker is gevalideerd als opt-in; default aan "
-            "zou klinisch gedrag ongevraagd wijzigen")
+        verwacht = naam in AAN
+        assert p.post_processing.arousal_autonomic_rerank is verwacht, (
+            f"{naam}: verwacht {verwacht}")
 
 
 # ── 4. bevroren model ────────────────────────────────────────────────────
@@ -192,9 +201,18 @@ def test_pipeline_levert_de_provenance(monkeypatch):
     assert "autonomic_rerank" in s, (
         "de vlagstatus hoort op het leveringsoppervlak")
 
+    # Sinds 08-09 staat de vlag AAN op aasm_v3_rec: zonder env hoort de
+    # provenance er dus ook te staan, en env=0 dwingt hem uit.
     monkeypatch.delenv("PSGSCORING_AROUSAL_AUTONOMIC_RERANK")
     uit2 = psgscoring.run_pneumo_analysis(
         mne.io.RawArray(data, info, verbose=False), hypno=hypno,
         scoring_profile="aasm_v3_rec")
     s2 = (uit2.get("arousal") or {}).get("summary") or {}
-    assert "autonomic_rerank" not in s2
+    assert "autonomic_rerank" in s2
+
+    monkeypatch.setenv("PSGSCORING_AROUSAL_AUTONOMIC_RERANK", "0")
+    uit3 = psgscoring.run_pneumo_analysis(
+        mne.io.RawArray(data, info, verbose=False), hypno=hypno,
+        scoring_profile="aasm_v3_rec")
+    s3 = (uit3.get("arousal") or {}).get("summary") or {}
+    assert "autonomic_rerank" not in s3
