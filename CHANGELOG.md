@@ -1,3 +1,41 @@
+# v0.33.0 — 2026-09-08 — autonome arousal-re-ranker (opt-in) + gegradeerde Rule 1B en poorten, alles default uit
+
+**Gedragsidentiek aan 0.32.0 zolang geen vlag wordt aangezet.** Golden 9/9
+byte-identiek; mesa_shhs en de bevroren profielen zijn extra gepind.
+
+## Nieuw: `arousal_autonomic_rerank` (default uit)
+
+De eerste externe getuige voor arousals: een logistische re-ranker op de
+LGBM-kandidaten met [kans, PWA-min-ratio, PWA-vlag, HR-stijging, duur,
+REM], top-K met K = de drempelkeuze, daarna de bestaande
+10s-samenvoeging. Gevalideerd volgens de huisregel: afleiding op 39 verse
+MESA-nachten (kruisgevalideerd ΔF1 +0,006, p=0,0018), replicatie met
+BEVROREN model op 40 disjuncte verse nachten: **ΔF1 +0,0097 mediaan,
+beter op 30/40, Wilcoxon p=0,0001; telling niet slechter (p=0,20)**. De
+hartslagversnelling draagt de winst. Model bevroren in
+`data/autonomic_rerank_v1.json` met coëfficiëntenwacht in de tests.
+Vergt Pleth + hartslagreeks (nieuwe kanaalrol "pleth"); niet toepasbaar
+= ongewijzigd pad met reden in `summary["autonomic_rerank"]`.
+Dossier: docs/overnames_commercieel_metingen_20260907.md.
+
+## Nieuw, allemaal default uit (gebouwd en gemeten, niet gepromoveerd)
+
+- `rule1b_graded` + `lgbm_candidates`-export: een arousalkans mag een
+  hypopneu bevestigen, nooit meetellen (dossier verliesrekening 04-09).
+- `shape_evidence_two_pass` + `shape_evidence_csr_gate`: de
+  tweepassagepoort en de conditionele CSR-poort op de gegradeerde
+  subtypering (dossier basiskans 02/05-09; s=0,25 blijft de uitrol).
+- `local_baseline_recovery_anchor`: het herstel-anker tegen de
+  basislijncollaps bij hoge AHI (replicatie: uniforme +8,6/u-ruil,
+  beslissing open).
+- `plm`/overige: geen wijzigingen.
+
+## Meetverslagen in docs/
+
+Consensus-PPA tegen 2/3-panels (FDA-valuta), pleth fase 0+1,
+canule-uitvalprevalentie, CAISR/ABED-benchmark, hoge-AHI-verliesrekening,
+commerciële-systemenoverzicht.
+
 # v0.32.0 — 2026-09-03 — MESA-achtige montages krijgen alle drie de EEG-afleidingen
 
 **Dit verandert een klinisch getal op montages met generieke EEG-namen.** De
