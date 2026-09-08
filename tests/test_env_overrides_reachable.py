@@ -109,6 +109,11 @@ PIPELINE_ONLY = {
     # reinstatement); een harnas dat reinstate_... direct aanroept geeft
     # graded_candidates zelf mee.
     "PSGSCORING_RULE1B_GRADED",
+    # De autonome re-ranker valt in de pipeline (die kiest het pleth- en
+    # hartslagkanaal); een harnas dat detect_arousals_multi of
+    # autonomic_rerank_selection direct aanroept geeft de signalen en de
+    # vlag zelf mee — precies wat het fase-1-meetharnas deed.
+    "PSGSCORING_AROUSAL_AUTONOMIC_RERANK",
     # Detectorgedrag, doorgegeven als ARGUMENT aan detect_arousals(_multi).
     # Een harnas dat die functie direct aanroept moet ze zelf meegeven; de
     # env bereikt hem niet. Dit is precies de val van 29-08 en de reden dat

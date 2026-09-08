@@ -846,6 +846,13 @@ class PostProcessingRules:
     Env: `PSGSCORING_AROUSAL_GENERIC_DERIVATIONS`.
     """
     arousal_alpha_band_wide: bool = False
+    # Pleth fase 1 (2026-09-08): autonome re-ranker (PWA + hartslag) op de
+    # LGBM-kandidaten, top-K met K = de drempelkeuze. Gerepliceerd op 40
+    # disjuncte verse MESA-nachten (ΔF1 +0,0097, 30/40, p=0,0001; telling
+    # niet slechter). Opt-in: vergt Pleth + hartslagreeks in de montage en
+    # is buiten dat domein niet gevalideerd. Env:
+    # PSGSCORING_AROUSAL_AUTONOMIC_RERANK.
+    arousal_autonomic_rerank: bool = False
     """Gebruik de alfaband van de manual (8-13 Hz) in plaats van 8-11.
 
     AASM v3 V.A.1 noemt *"alpha, theta and/or frequencies greater than 16 Hz
@@ -2237,7 +2244,8 @@ _aasm_v2_rec = Profile(
         # afleidingsset -- en dus de arousals -- van een bevroren regelset
         # veranderen.
         arousal_generic_derivations=False,
-        shape_evidence_two_pass=False,summary_after_reclassification=True),
+        shape_evidence_two_pass=False,arousal_autonomic_rerank=False,
+        summary_after_reclassification=True),
 )
 
 # ---- AASM v1 RECOMMENDED (2007) ----
@@ -2282,7 +2290,8 @@ _aasm_v1_rec = Profile(
         # afleidingsset -- en dus de arousals -- van een bevroren regelset
         # veranderen.
         arousal_generic_derivations=False,
-        shape_evidence_two_pass=False,summary_after_reclassification=True),
+        shape_evidence_two_pass=False,arousal_autonomic_rerank=False,
+        summary_after_reclassification=True),
 )
 
 # ---- CMS / Medicare (AASM v3 1B OPTIONAL) ----
@@ -2330,7 +2339,8 @@ _cms_medicare = Profile(
         # afleidingsset -- en dus de arousals -- van een bevroren regelset
         # veranderen.
         arousal_generic_derivations=False,
-        shape_evidence_two_pass=False,summary_after_reclassification=True),
+        shape_evidence_two_pass=False,arousal_autonomic_rerank=False,
+        summary_after_reclassification=True),
 )
 
 # ---- MESA / NSRR convention ----
@@ -2391,6 +2401,7 @@ _mesa_shhs = Profile(
         # veranderen.
         arousal_generic_derivations=False,
         shape_evidence_two_pass=False,
+        arousal_autonomic_rerank=False,
         stability_filter_enabled=True,
         stability_filter_cv=0.45,
         # GEPIND. De herclassificatie raakt de OAHI (`_oahi_at` selecteert
@@ -2515,6 +2526,7 @@ _chicago_1999 = Profile(
         # veranderen.
         arousal_generic_derivations=False,
         shape_evidence_two_pass=False,
+        arousal_autonomic_rerank=False,
         # GEPIND op het gedrag van vóór 13-08-2026: dit profiel reproduceert
         # de Chicago-criteria van 1999 en hoort niet mee te bewegen met
         # reparaties aan de sensorpoorten. Zie

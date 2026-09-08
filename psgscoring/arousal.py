@@ -20,6 +20,7 @@ Klinisch verband:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import traceback
@@ -1624,6 +1625,175 @@ def _eog_reject_occipital(events, eog_data, sf, factor: float = 3.0):
     return kept, dropped
 
 
+# ── Autonome re-ranker (pleth fase 1, 2026-09-08) ──────────────────────────
+#
+# Gevalideerd recept, bevroren in data/autonomic_rerank_v1.json: logistische
+# herordening van de LGBM-kandidaten op [proba, PWA-min-ratio, PWA-vlag,
+# HR-stijging, duur, REM], top-K met K = de drempelkeuze, daarna dezelfde
+# 10s-samenvoeging. Replicatie op 40 disjuncte verse MESA-nachten: ΔF1
+# +0,0097 mediaan, 30/40 beter, p=0,0001; telling niet slechter (p=0,20).
+# De HR-stijging draagt de winst (coëf 0,35), de kale PWA-daling weinig.
+# Zie docs/overnames_commercieel_metingen_20260907.md.
+#
+# De numeriek hieronder is bewust identiek aan het meetharnas
+# (meetscripts/pleth_fase1_extract.py): elk verschil zou een ander model
+# uitrollen dan er gevalideerd is.
+
+_AUTONOMIC_MODEL: dict = json.loads(
+    (Path(__file__).parent / "data" / "autonomic_rerank_v1.json").read_text())
+
+
+def _autonomic_score(feats: np.ndarray) -> np.ndarray:
+    """sigmoid(coef·z + intercept) met de bevroren standaardisatie."""
+    m = _AUTONOMIC_MODEL
+    z = (feats - np.asarray(m["mu"])) / np.asarray(m["sd"])
+    return 1.0 / (1.0 + np.exp(-(z @ np.asarray(m["coef"]) + m["intercept"])))
+
+
+def _pwa_series(pleth: np.ndarray, sf: float):
+    """1 Hz per-slag-amplitudereeks + basislijn + daalintervallen.
+
+    Identiek aan het fase-1-harnas: lowpass 5 Hz, pieken >=0,4 s uit
+    elkaar, amplitude = piek minus minimum in de 0,5 s ervoor, per-seconde
+    mediaan, rollende mediaan 60 s als basislijn (schaalvrij, in tijd),
+    daling = <70 % basislijn gedurende >=3 s. Minder dan 1000 pieken of
+    minder dan 50 % dekking = onbruikbaar.
+    """
+    from scipy.ndimage import median_filter
+    from scipy.signal import butter, filtfilt, find_peaks
+    x = np.nan_to_num(pleth.astype(np.float64) - np.nanmean(pleth))
+    b, a = butter(3, min(5.0, 0.45 * sf) / (sf / 2), btype="low")
+    x = filtfilt(b, a, x)
+    pieken, _ = find_peaks(x, distance=int(0.4 * sf))
+    if len(pieken) < 1000:
+        return None, None, [], False
+    half = int(0.5 * sf)
+    amp = np.array([x[p] - x[max(0, p - half):p + 1].min() for p in pieken])
+    t_piek = pieken / sf
+    dur = int(t_piek[-1]) + 1
+    reeks = np.full(dur, np.nan)
+    sec = t_piek.astype(int)
+    for s in np.unique(sec):
+        reeks[s] = np.median(amp[sec == s])
+    idx = np.where(~np.isnan(reeks))[0]
+    if len(idx) < dur * 0.5:
+        return None, None, [], False
+    reeks = np.interp(np.arange(dur), idx, reeks[idx])
+    basis = median_filter(reeks, size=61, mode="nearest")
+    laag = reeks < 0.70 * np.maximum(basis, 1e-12)
+    dalingen, i = [], 0
+    while i < dur:
+        if laag[i]:
+            j = i
+            while j < dur and laag[j]:
+                j += 1
+            if j - i >= 3:
+                dalingen.append((float(i), float(j)))
+            i = j
+        else:
+            i += 1
+    return reeks, basis, dalingen, True
+
+
+def _hr_series_1hz(hr_raw: np.ndarray, sf: float):
+    """HR (bpm, bv. oximeterkanaal) naar 1 Hz met plausibiliteitsfilter.
+
+    Een ruw ECG faalt hier vanzelf (waarden buiten 30-180 bpm) en zet
+    hr_ok=False -- de re-ranker weigert dan, want het gevalideerde domein
+    had een echte bpm-reeks.
+    """
+    n = int(len(hr_raw) // sf)
+    if n < 600:
+        return None, False
+    r = np.nanmedian(np.asarray(hr_raw[:int(n * sf)], dtype=float)
+                     .reshape(n, int(sf)), axis=1)
+    r[(r < 30) | (r > 180)] = np.nan
+    return r, bool(np.mean(np.isnan(r)) < 0.5)
+
+
+def _dedup_candidates(kands: list[dict]) -> list[dict]:
+    """Overlappende kandidaten uit de derivatie-union: max proba wint.
+
+    Zelfde regel als het harnas -- de union levert per afleiding een eigen
+    kandidaat voor hetzelfde event, en dubbel meedingen zou K opblazen.
+    """
+    kands = sorted(kands, key=lambda c: c["onset_s"])
+    uit: list[dict] = []
+    for c in kands:
+        if uit and c["onset_s"] < uit[-1]["onset_s"] + uit[-1]["duration_s"]:
+            if c["proba"] > uit[-1]["proba"]:
+                uit[-1] = dict(c)
+            continue
+        uit.append(dict(c))
+    return uit
+
+
+def autonomic_rerank_selection(candidates, threshold, pleth, sf_pleth,
+                               hr, sf_hr, hypno, min_interval_s):
+    """Het bevroren fase-1-recept. -> (events | None, provenance).
+
+    ``None`` betekent: niet toepasbaar (reden in provenance), val terug op
+    het ongewijzigde pad. Een lege lijst is wél een uitspraak (K=0).
+    """
+    prov: dict = {"active": False, "model": "autonomic_rerank_v1"}
+    if not candidates:
+        prov["reason"] = "geen kandidaten"
+        return None, prov
+    if threshold is None:
+        prov["reason"] = "geen drempel bekend voor K"
+        return None, prov
+    if pleth is None or sf_pleth is None:
+        prov["reason"] = "pleth ontbreekt"
+        return None, prov
+    if hr is None:
+        prov["reason"] = "hartslagreeks ontbreekt"
+        return None, prov
+    reeks, basis, dalingen, pwa_ok = _pwa_series(np.asarray(pleth), float(sf_pleth))
+    if not pwa_ok:
+        prov["reason"] = "pleth onbruikbaar"
+        return None, prov
+    hr1, hr_ok = _hr_series_1hz(np.asarray(hr), float(sf_hr or 1.0))
+    if not hr_ok:
+        prov["reason"] = "hartslagreeks onbruikbaar"
+        return None, prov
+
+    kands = _dedup_candidates(list(candidates))
+    feats = np.zeros((len(kands), 6), dtype=float)
+    for i, c in enumerate(kands):
+        o = float(c["onset_s"]); d = float(c["duration_s"])
+        pwa_min_ratio, pwa_flag = 1.0, 0.0
+        i0, i1 = int(max(0, o)), int(min(len(reeks), o + 10))
+        ib = int(min(len(basis) - 1, max(0, o)))
+        if i1 > i0 and basis[ib] > 0:
+            pwa_min_ratio = float(np.min(reeks[i0:i1]) / basis[ib])
+        if any(o - 5 <= d0 <= o + 10 for d0, _ in dalingen):
+            pwa_flag = 1.0
+        hr_rise = 0.0
+        j0, j1 = int(max(0, o)), int(min(len(hr1), o + 10))
+        b0, b1 = int(max(0, o - 15)), int(max(1, o - 5))
+        if j1 > j0 and b1 > b0:
+            piek = np.nanmax(hr1[j0:j1]); ref = np.nanmean(hr1[b0:b1])
+            if not (np.isnan(piek) or np.isnan(ref)):
+                hr_rise = float(piek - ref)
+        stage = hypno[min(len(hypno) - 1, int(o // 30))] if hypno else "N2"
+        feats[i] = [float(c["proba"]), pwa_min_ratio, pwa_flag, hr_rise,
+                    min(d, 30.0), 1.0 if stage == "R" else 0.0]
+
+    k = int(np.sum(feats[:, 0] >= float(threshold)))
+    scores = _autonomic_score(feats)
+    idx = np.argsort(-scores)[:k]
+    ev = [{"onset_s": float(kands[i]["onset_s"]),
+           "duration_s": float(kands[i]["duration_s"]),
+           "autonomic_score": float(scores[i]),
+           "lgbm_proba": float(kands[i]["proba"])}
+          for i in sorted(idx, key=lambda i: kands[i]["onset_s"])]
+    ev = enforce_min_arousal_interval(ev, float(min_interval_s or 0.0))
+    prov.update({"active": True, "k": k, "n_candidates": len(kands),
+                 "n_selected": len(ev), "threshold": float(threshold),
+                 "n_pwa_drops": len(dalingen)})
+    return ev, prov
+
+
 def detect_arousals_multi(derivations, sf: float, hypno: list,
                           emg_data: np.ndarray | None = None,
                           artifact_epochs: list | None = None,
@@ -1641,7 +1811,10 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
                           min_interval_s: float = 0.0,
                           rem_alpha_baseline: bool = False,
                           score_wake_arousals: bool = False,
-                          alpha_band_wide: bool = False) -> dict:
+                          alpha_band_wide: bool = False,
+                          pleth_data: np.ndarray | None = None,
+                          sf_pleth: float | None = None,
+                          autonomic_rerank: bool = False) -> dict:
     """Multi-derivatie arousal-detectie via event-level union.
 
     ``derivations``: geordende lijst ``[(naam, eeg_data[, sf]), ...]`` — element 0
@@ -1762,6 +1935,36 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
             if r.get("pre_lgbm_n_arousals") is not None]
     if _pre:
         out["pre_lgbm_n_arousals"] = sum(_pre)
+
+    # ── Autonome re-ranker (opt-in, pleth fase 1) ─────────────────────────
+    # Vervangt de drempelselectie door het bevroren top-K-recept op de
+    # samengevoegde kandidatenlijst. Niet toepasbaar (geen pleth/HR, geen
+    # kandidaten) = het ongewijzigde pad hierboven, mét reden in de
+    # provenance -- de vlagstatus hoort altijd op het leveringsoppervlak.
+    # NB: EOG-reject en per-kanaaldrempels gelden hier niet; het recept is
+    # gevalideerd op de kale kandidatenlijst (MESA-keten, 2026-09-08).
+    if autonomic_rerank:
+        try:
+            _thr = lgbm_threshold if lgbm_threshold is not None \
+                else summ.get("lgbm_threshold")
+            _ev, _prov = autonomic_rerank_selection(
+                out.get("lgbm_candidates") or [], _thr,
+                pleth_data, sf_pleth, hr_data, sf_hr, hypno,
+                _min_interval_from_env(min_interval_s))
+        except Exception as e:  # noqa: BLE001 — opt-in mag de run nooit breken
+            _ev, _prov = None, {"active": False,
+                                "reason": f"{type(e).__name__}: {e}"}
+        if _ev is not None:
+            out["events"] = _ev
+            _summ_new = _recompute_arousal_summary(
+                _ev, hypno, set(artifact_epochs or []))
+            # Verse tellingen winnen; provenance-sleutels die de recompute
+            # niet kent (derivations, lgbm_*, min_interval_*) blijven staan
+            # -- de bekende val van de verse-dict-recompute.
+            behouden = {k: v for k, v in summ.items() if k not in _summ_new}
+            summ = {**_summ_new, **behouden}
+            out["summary"] = summ
+        out["summary"]["autonomic_rerank"] = _prov
     return out
 
 
@@ -2274,6 +2477,9 @@ def run_arousal_respiratory_analysis(
     rem_alpha_baseline: bool = False,
     score_wake_arousals: bool = False,
     alpha_band_wide: bool = False,
+    pleth_data: np.ndarray | None = None,
+    sf_pleth: float | None = None,
+    autonomic_rerank: bool = False,
 ) -> dict:
     """
     Master-functie: detecteer arousals, RERAs en koppel aan respiratoire events.
@@ -2331,8 +2537,13 @@ def run_arousal_respiratory_analysis(
                                           resp_event_ends=_ends,
                                           event_locked_threshold=event_locked_threshold,
                                           min_interval_s=min_interval_s,
-                                          rem_alpha_baseline=rem_alpha_baseline)
+                                          rem_alpha_baseline=rem_alpha_baseline,
+                                          pleth_data=pleth_data,
+                                          sf_pleth=sf_pleth,
+                                          autonomic_rerank=autonomic_rerank)
     else:
+        # De re-ranker is gevalideerd op de multi-kandidatenlijst; op het
+        # single-pad is hij bewust niet actief (buiten gevalideerd domein).
         ar_result = detect_arousals(eeg_data, sf_eeg, hypno,
                                     score_wake_arousals=score_wake_arousals,
                               alpha_band_wide=alpha_band_wide,
@@ -2427,7 +2638,7 @@ def run_arousal_respiratory_analysis(
                "lgbm_n_pre", "lgbm_n_post", "n_event_locked",
                "event_locked_threshold", "min_interval_s", "n_interval_merged",
                "n_too_long_discarded", "too_long_discarded_s",
-               "max_duration_s"):
+               "max_duration_s", "autonomic_rerank"):
         if _k in ar_sum:
             output["summary"][_k] = ar_sum[_k]
 

@@ -284,6 +284,7 @@ def run_pneumo_analysis(
     abdomen_data, _        = get("abdomen")
     spo2_data,    sf_spo2  = get("spo2")
     pulse_data,   sf_pulse = get("pulse")
+    pleth_data,   sf_pleth = get("pleth")
     pos_data,     sf_pos   = get("position")
     snore_data,   sf_snore = get("snore")
     leg_l_data,   sf_leg   = get("leg_l")
@@ -961,6 +962,12 @@ def run_pneumo_analysis(
                 score_wake_arousals = _score_wake_arousals(profile),
                 # AASM v3 V.A.1: alfa zonder versmalling.
                 alpha_band_wide = _alpha_band_wide(profile),
+                # Pleth fase 1: autonome re-ranker (opt-in). Zonder Pleth-
+                # of hartslagkanaal weigert de selectie zelf, met reden in
+                # summary["autonomic_rerank"].
+                pleth_data = pleth_data,
+                sf_pleth = sf_pleth,
+                autonomic_rerank = _autonomic_rerank(profile),
             )
         except Exception as e:  # noqa: BLE001 — arousal failure must not abort the run
             logger.warning("[pneumo] arousal analysis failed, continuing: %s", e)
@@ -2722,6 +2729,15 @@ def _shape_evidence(profile: dict) -> tuple[bool, float]:
             logger.warning("[pneumo] PSGSCORING_SHAPE_EVIDENCE_SCALE=%r is "
                            "geen getal; %.2f blijft staan", env_s, schaal)
     return aan, schaal
+
+
+def _autonomic_rerank(profile: dict) -> bool:
+    """Autonome arousal-re-ranker (pleth fase 1)? Profielvlag, env wint."""
+    v = bool(profile.get("AROUSAL_AUTONOMIC_RERANK", False))
+    env = os.environ.get("PSGSCORING_AROUSAL_AUTONOMIC_RERANK")
+    if env is not None:
+        v = env == "1"
+    return v
 
 
 def _alpha_band_wide(profile: dict) -> bool:

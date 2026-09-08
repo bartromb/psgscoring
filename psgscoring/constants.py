@@ -114,6 +114,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "AROUSAL_GENERIC_DERIVATIONS": pp.arousal_generic_derivations,
         "AROUSAL_LGBM_THRESHOLD_GENERIC": pp.arousal_lgbm_threshold_generic,
         "AROUSAL_ALPHA_BAND_WIDE": pp.arousal_alpha_band_wide,
+        "AROUSAL_AUTONOMIC_RERANK": pp.arousal_autonomic_rerank,
         "SHAPE_EVIDENCE_SCALE": pp.shape_evidence_scale,
         "SHAPE_EVIDENCE_CSR_GATE": pp.shape_evidence_csr_gate,
         "SHAPE_EVIDENCE_TWO_PASS": pp.shape_evidence_two_pass,
@@ -255,6 +256,9 @@ CHANNEL_PATTERNS: dict[str, list[str]] = {
     # substring-based en per rol first-match-wins, dus volgorde is semantiek.
     "pulse":    ["pulse", "heart rate", "hr", "puls rate", "pr"],
     "ecg":      ["ecg", "ekg", "cardiac", "einthoven", "ii", "ecg ii"],
+    # Vingerplethysmogram (PPG) — voedt de autonome arousal-re-ranker
+    # (pleth fase 1). "pleth" is als substring nergens anders in gebruik.
+    "pleth":    ["pleth", "ppg", "pulswelle"],
     "position": ["position", "positie", "pos", "body pos", "lage",
                  "body position", "bpos"],
     # SOMNOmedics (Randersacker) exporteert Duitse labels: DOMINO schrijft

@@ -1,0 +1,38 @@
+{
+ "coef": [
+  2.152465310304989,
+  -0.12788186908057322,
+  0.07554129284878583,
+  0.34576540873813844,
+  0.4250866550693723,
+  0.06402284195552176
+ ],
+ "intercept": -5.381246712500639,
+ "mu": [
+  0.24430847219668148,
+  0.7300171566579196,
+  0.08559108154635557,
+  1.6694940749778404,
+  5.296000401129803,
+  0.004863699420033093
+ ],
+ "sd": [
+  0.3168018731333507,
+  0.2146303772785691,
+  0.2797592684902003,
+  3.7475524511112863,
+  2.615137902073868,
+  0.06957042365821535
+ ],
+ "features": [
+  "proba",
+  "pwa_min_ratio",
+  "pwa_flag",
+  "hr_rise",
+  "d",
+  "is_rem"
+ ],
+ "n_kandidaten": 59831,
+ "n_tp": 4213,
+ "_provenance": "Pleth fase 1, 2026-09-08: logistische re-ranker op LGBM-kandidaten. Afleiding 39 verse MESA-nachten (GroupKFold +0,006, p=0,0018); replicatie 40 disjuncte verse nachten met DIT bevroren model: \u0394F1 +0,0097 mediaan, 30/40 beter, Wilcoxon p=0,0001, telling niet slechter (p=0,20). Zie docs/overnames_commercieel_metingen_20260907.md. Features gestandaardiseerd met mu/sd; score = sigmoid(coef\u00b7z + intercept)."
+}

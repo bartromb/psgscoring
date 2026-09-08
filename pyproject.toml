@@ -63,7 +63,7 @@ Changelog = "https://github.com/bartromb/psgscoring/blob/main/CHANGELOG.md"
 include = ["psgscoring*"]
 
 [tool.setuptools.package-data]
-"psgscoring" = ["data/*.txt", "py.typed"]
+"psgscoring" = ["data/*.txt", "data/*.json", "py.typed"]
 
 [tool.mypy]
 # Pragmatisch, en bewust GESCOPEERD. Een gate die bij invoering rood staat
