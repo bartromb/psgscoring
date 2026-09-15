@@ -36,10 +36,10 @@ target: *Physiological Measurement* (the earlier JCSM/JSR targets were retired).
 
 ## 2. Directory Structure
 
-### Working tree (this workstation — `/home/bart/CODE/`)
+### Working tree (this workstation — `/srv/CODE/`)
 
 ```
-/home/bart/CODE/
+/srv/CODE/
 ├── psgscoring/                  # psgscoring library repo (git, GitHub bartromb/psgscoring)
 │   ├── psgscoring/              # 18 submodules
 │   │   ├── __init__.py          # __version__ = "0.7.2"
@@ -177,7 +177,7 @@ PyPI's rendered README/description only updates on a **new release** (it lags Gi
 Standard git flow — **no more ZIP-upload dance**:
 
 ```bash
-cd /home/bart/CODE/psgscoring          # or YASAFlaskified
+cd /srv/CODE/psgscoring          # or YASAFlaskified
 git checkout -b my/branch
 # ... edits ...
 git commit -m "..."                    # NO Claude/AI attribution in messages or PRs
@@ -363,13 +363,13 @@ convention (the library excludes `uncertain` apneas).
 
 ```bash
 # versions
-grep 'version = ' /home/bart/CODE/psgscoring/pyproject.toml
-grep '__version__' /home/bart/CODE/psgscoring/psgscoring/__init__.py
-grep -E '__version__|PSGSCORING' /home/bart/CODE/YASAFlaskified/myproject/version.py
+grep 'version = ' /srv/CODE/psgscoring/pyproject.toml
+grep '__version__' /srv/CODE/psgscoring/psgscoring/__init__.py
+grep -E '__version__|PSGSCORING' /srv/CODE/YASAFlaskified/myproject/version.py
 pip index versions psgscoring                      # expect 0.7.2
 
 # psgscoring tests + golden
-cd /home/bart/CODE/psgscoring && .venv/bin/python -m pytest -q
+cd /srv/CODE/psgscoring && .venv/bin/python -m pytest -q
 PSGSCORING_GOLDEN=1 .venv/bin/python -m pytest tests/test_golden_output.py -q
 
 # Hetzner production version (read-only)
@@ -397,4 +397,4 @@ v0.12.4) + what you're working on. Key standing context:
   PHI never in git/PyPI/logs/chat.
 - Docker: always `build`, never `restart`, for Python changes.
 - No Claude/AI attribution in commit messages or PR bodies.
-- Memory location: `/home/bart/.claude/projects/-home-bart-CODE/memory/`.
+- Memory location: `/home/claude/.claude/projects/-home-bart-CODE/memory/`.

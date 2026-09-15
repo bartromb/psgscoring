@@ -23,8 +23,8 @@ mne.set_log_level("ERROR")
 # tijdelijke map -- een harnas in de repo dat naar /tmp schrijft is bij
 # de volgende sessie stuk.
 _UIT = Path(os.environ.get("PSGSCORING_MEETUITVOER", "."))
-sys.path.insert(0, "/home/bart/CODE/psgscoring")
-sys.path.insert(0, "/home/bart/CODE/psgscoring/scripts")
+sys.path.insert(0, "/srv/CODE/psgscoring")
+sys.path.insert(0, "/srv/CODE/psgscoring/scripts")
 
 MESA = Path("/home/bart/MESA/mesa")
 SHIFTS = [-2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 6.0]

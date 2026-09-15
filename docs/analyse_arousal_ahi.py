@@ -24,7 +24,7 @@ import json
 import statistics as st
 from pathlib import Path
 
-DOCS = Path("/home/bart/CODE/docs")
+DOCS = Path("/srv/CODE/docs")
 STEM = "mesa_arousal_ahi_lgbm{arm}_n150"
 PROFILES = ("aasm_v3_rec", "aasm_v3_breath")
 BIAS_LIMIT = 1.0        # /u verslechtering

@@ -12,8 +12,8 @@ speelt. Alleen het SpO2-kanaal wordt gelezen.
 Drift = 95e percentiel SpO2 in het eerste uur slaap minus dat in het laatste uur.
 """
 import sys
-sys.path.insert(0, "/home/bart/CODE/psgscoring-dev")
-sys.path.insert(0, "/home/bart/CODE/docs")
+sys.path.insert(0, "/srv/CODE/psgscoring-dev")
+sys.path.insert(0, "/srv/CODE/docs")
 import mne; mne.set_log_level("ERROR")
 import numpy as np
 from mesa_arousal_harness import read_annotations, ANNS, EDFS

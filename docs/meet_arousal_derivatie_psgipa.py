@@ -5,7 +5,7 @@ verwachting is dat multi dekking koopt met precisie.
 """
 import os, statistics as st, sys, json
 from pathlib import Path
-sys.path.insert(0, "/home/bart/CODE/psgscoring")
+sys.path.insert(0, "/srv/CODE/psgscoring")
 import mne; mne.set_log_level("ERROR")
 import numpy as np
 import psgscoring.arousal as A

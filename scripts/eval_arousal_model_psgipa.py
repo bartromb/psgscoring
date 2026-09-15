@@ -24,8 +24,8 @@ from statistics import median
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import numpy as np, mne
 mne.set_log_level("ERROR")
-sys.path.insert(0, "/home/bart/CODE/psgscoring")
-sys.path.insert(0, "/home/bart/CODE/psgscoring/scripts")
+sys.path.insert(0, "/srv/CODE/psgscoring")
+sys.path.insert(0, "/srv/CODE/psgscoring/scripts")
 
 AB = Path("/home/bart/MESA-ab-test")
 ROOT = Path("/home/bart/PSG-IPA/EEG_arousals")

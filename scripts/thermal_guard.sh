@@ -42,7 +42,7 @@ UNIT="${1:?geef de te bewaken unit}"
 MAX_C="${2:-78}"
 NEED="${3:-3}"
 IVAL="${4:-10}"
-LOG="${LOG:-/home/bart/CODE/docs/thermal_guard.log}"
+LOG="${LOG:-/srv/CODE/docs/thermal_guard.log}"
 
 # Schrijft naar TWEE plekken, en dat is geen luxe. Het vaste pad overleeft een
 # aanroep zonder redirect; stdout zorgt dat het bewijs óók landt waar de

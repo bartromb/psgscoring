@@ -11,7 +11,7 @@ Voorspelling: de ratio default/specificatie loopt mee met het aandeel events
 dat de 120 s-grens haalt.
 """
 import sys
-sys.path.insert(0,"/home/bart/CODE/psgscoring-dev"); sys.path.insert(0,"/home/bart/CODE/docs")
+sys.path.insert(0,"/srv/CODE/psgscoring-dev"); sys.path.insert(0,"/srv/CODE/docs")
 import mne; mne.set_log_level("ERROR")
 import numpy as np, xml.etree.ElementTree as ET, statistics as st
 from mesa_arousal_harness import read_annotations, ANNS, EDFS

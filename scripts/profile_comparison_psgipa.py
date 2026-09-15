@@ -10,7 +10,7 @@ Neem altijd minstens één BEKEND profiel mee als anker. PSG-IPA-AHI's zijn
 harnasgevoelig: cijfers uit twee runs naast elkaar leggen verandert twee dingen
 tegelijk. Met een anker in dezelfde run is elke vergelijking intern.
 
-    cd /home/bart/CODE/psgscoring
+    cd /srv/CODE/psgscoring
     PYTHONPATH=$PWD python scripts/profile_comparison_psgipa.py \
         --data-dir /home/bart/PSG-IPA \
         --profiles aasm_v3_rec aasm_v3_breath aasm_v3_prob \
