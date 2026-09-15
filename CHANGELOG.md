@@ -1,3 +1,22 @@
+# v0.34.1 — 2026-09-15 — documentatierelease: demovideo's + actuele cijfers op de PyPI-landingspagina
+
+**Gedragsidentiek aan 0.34.0 — geen enkele codewijziging.** PyPI rendert de
+README alleen bij een nieuwe release; deze release brengt de landingspagina
+bij met wat er sinds de 0.34.0-upload op GitHub bijkwam:
+
+- Demo-sectie: vier ~90 s walkthrough-video's (en/nl/fr/de, Full-HD,
+  synthetische opname — geen patiëntdata) als release-assets aan
+  YASAFlaskified v0.38.6, met de Herkomst-tabel en de autonome
+  re-ranking-rij in beeld.
+- De zes onderscheidende punten uit de GitHub-README van 08-09 (o.a. de
+  FDA-valuta-meting: mediane PPA 78,8 % over 220 drie-scoorderpanelen, en
+  de autonome arousal-getuige die sinds 0.34.0 default AAN staat op
+  aasm_v3_rec) bereiken nu ook PyPI.
+- Architectuurcijfers bijgewerkt (23 submodules, ~21k regels, 1474
+  unittests) en het versie-pin-voorbeeld wijst naar deze release.
+- Padverwijzingen in docs/scripts volgen de werkstation-herconfiguratie
+  (/home/bart/CODE -> /srv/CODE).
+
 # v0.34.0 — 2026-09-08 — de autonome re-ranker staat AAN op aasm_v3_rec
 
 **Dit verandert een klinisch getal op montages met Pleth + hartslagreeks:

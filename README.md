@@ -13,6 +13,15 @@
 
 Technical details (signal processing chain, classification logic, bias corrections): **[Technical Reference (Online Supplement)](https://github.com/bartromb/psgscoring/wiki/Technical-Reference)**
 
+## Demo
+
+A ~90-second walkthrough of the reference application ([YASAFlaskified](https://github.com/bartromb/YASAFlaskified)) running this library end-to-end — anonymised upload, channel selection, the report with its provenance table (including the autonomic arousal re-ranking row), and event review on the signals themselves. Available in
+🇬🇧 [English](https://github.com/bartromb/YASAFlaskified/releases/download/v0.38.6/en.mp4) ·
+🇧🇪 [Dutch](https://github.com/bartromb/YASAFlaskified/releases/download/v0.38.6/nl.mp4) ·
+🇫🇷 [French](https://github.com/bartromb/YASAFlaskified/releases/download/v0.38.6/fr.mp4) ·
+🇩🇪 [German](https://github.com/bartromb/YASAFlaskified/releases/download/v0.38.6/de.mp4)
+(Full-HD, ~9 MB each; the recording in the video is synthetic — no patient data).
+
 ## What this library does
 
 `psgscoring` detects and classifies respiratory events (apneas, hypopneas, RERAs) in polysomnography recordings following AASM rules. It extends [YASA](https://github.com/raphaelvallat/yasa) (Vallat & Walker, *eLife* 2021) from sleep staging into a complete clinical respiratory scoring pipeline.
@@ -93,7 +102,7 @@ The stability guarantee lives in the **profiles**, not in the version number:
   it, and is pinned by a test.
 
 If you need scored values to stay identical across time — for a study, a
-regulatory submission, or a paper — **pin the version** (`psgscoring==0.19.1`)
+regulatory submission, or a paper — **pin the version** (`psgscoring==0.34.1`)
 and record which profile you used. Do not rely on a profile name alone.
 
 ## Installation
@@ -442,9 +451,9 @@ per idea evaluated, including the ones rejected.
 
 ## Architecture
 
-~15,000 lines across 21 submodules, 868 unit tests (CI: Python 3.9–3.12):
+~21,000 lines across 23 submodules, 1,474 unit tests (CI: Python 3.9–3.12):
 
-`constants` · `utils` · `signal` · `breath` · `breath_scoring` · `classify` · `spo2` · `plm` · `ancillary` · `arousal` · `respiratory` · `indices` · `ventilation` · `pipeline` · `ml_classifier` · `profiles` · `postprocess` · `signal_quality` · `signal_quality_channels` · `ecg_effort` · `_types`
+`constants` · `utils` · `signal` · `breath` · `breath_scoring` · `classify` · `spo2` · `plm` · `ancillary` · `arousal` · `agreement` · `respiratory` · `indices` · `ventilation` · `pipeline` · `ml_classifier` · `profiles` · `postprocess` · `signal_quality` · `signal_quality_channels` · `split_night` · `ecg_effort` · `_types`
 
 Behaviour is pinned by a golden-output harness (`PSGSCORING_GOLDEN=1`) that
 scores fixed synthetic recordings and compares a digest. Every release runs it
