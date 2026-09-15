@@ -1,3 +1,10 @@
+# v0.34.2rc1 — 2026-09-15 — testrelease van de publicatiepijplijn (trusted publishing)
+
+**Gedragsidentiek aan 0.34.1 — alleen het versienummer.** Eerste release
+die niet met twine maar door GitHub Actions via trusted publishing
+(OIDC, environment "pypi") naar PyPI gaat; een rc zodat `pip install
+psgscoring` hem niet oppikt terwijl de pijplijn wordt beproefd.
+
 # v0.34.1 — 2026-09-15 — documentatierelease: demovideo's + actuele cijfers op de PyPI-landingspagina
 
 **Gedragsidentiek aan 0.34.0 — geen enkele codewijziging.** PyPI rendert de
