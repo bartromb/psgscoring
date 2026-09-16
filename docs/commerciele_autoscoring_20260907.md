@@ -151,7 +151,7 @@ Wat er sinds dit overzicht veranderd is, per as:
 | As | Wij (nu) | Beste commercieel | Stand |
 |----|----------|-------------------|-------|
 | Respiratoire events | PPA 78,8 % [74,7-83,2] tegen 2/3-consensus (PSG-IPA, mild spectrum) | EnsoSleep SDB 75,4 %, hypopneu 66,3 % (n=100) | **op/boven 510(k)-niveau**, zelfde valuta |
-| Arousal-localisatie | PPA 55,6 %; MESA-F1 0,543 = 82 % van het menselijke plafond; re-ranker (+0,010 F1, gerepliceerd) nu in productie-image, default uit | EnsoSleep PA 73,6 % (getrainde DL) | **achterstand blijft**, maar wij hebben nu dezelfde autonome-getuigenklasse als Philips — als opt-in, klinisch aan/uit-gecontroleerd |
+| Arousal-localisatie | PPA 55,6 %; MESA-F1 0,543 = 82 % van het menselijke plafond; re-ranker (+0,010 F1, gerepliceerd) **sinds 0.34.0 default AAN op `aasm_v3_rec`** (uit op montages zonder Pleth/HR — `summary["autonomic_rerank"]` zegt waarom) | EnsoSleep PA 73,6 % (getrainde DL) | **achterstand blijft**, maar wij hebben nu dezelfde autonome-getuigenklasse als Philips — klinisch aan/uit-gecontroleerd |
 | Arousal-telling | count-ratio ~1,0 op het kliniekwerkpunt | MICHELE index-bias −9/u, ICC 0,57; Neurobit ICC 0,46 | **voordeel wij** |
 | Ernstklasse | 100 % op ≥15/≥30 tegen 60 scoorderoordelen | EnsoSleep ≥15: PPA 94/NPA 96 (per patiënt) | gelijkwaardig (n=5-voorbehoud) |
 | Centrale subtypering | zwak bij lage prevalentie — sinds 0.38.4 stáát dat als noot bij het getal | iedereen zwak (CA PA 63-65 %); EnsoSleep zegt het in de IFU, niet in het rapport | gelijk spel, wij transparanter |

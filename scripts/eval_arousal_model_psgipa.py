@@ -27,8 +27,8 @@ mne.set_log_level("ERROR")
 sys.path.insert(0, "/srv/CODE/psgscoring")
 sys.path.insert(0, "/srv/CODE/psgscoring/scripts")
 
-AB = Path("/home/bart/MESA-ab-test")
-ROOT = Path("/home/bart/PSG-IPA/EEG_arousals")
+AB = Path("/srv/DATA/MESA-ab-test")
+ROOT = Path("/srv/DATA/PSG-IPA/EEG_arousals")
 EPOCH_S = 30.0
 SNS = ["SN1", "SN2", "SN3", "SN4", "SN5"]
 

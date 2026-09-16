@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 warnings.filterwarnings("ignore")
 mne.set_log_level("ERROR")
 
-PSG = Path("/home/bart/PSGs")
+PSG = Path("/srv/DATA/PSGs")
 RECS = ["CSASofOSAS01", "CSASofOAS02"]
 RESP = ["Snore", "Pressure Flow", "Flow Th.", "RIP Thora", "RIP Abdom",
         "SpO2", "Pos.", "Pulse", "ECG II", "C4:A1", "O2:A1", "F4:A1",

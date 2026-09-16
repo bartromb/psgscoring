@@ -24,7 +24,7 @@ _UIT = Path(os.environ.get("PSGSCORING_MEETUITVOER", "."))
 sys.path.insert(0, "/srv/CODE/psgscoring")
 sys.path.insert(0, "/srv/CODE/psgscoring/scripts")
 
-ROOT = Path("/home/bart/PSG-IPA/EEG_arousals")
+ROOT = Path("/srv/DATA/PSG-IPA/EEG_arousals")
 EPOCH_S = 30.0
 SNS = ["SN1", "SN2", "SN3", "SN4", "SN5"]
 SHIFTS = [-2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 6.0]

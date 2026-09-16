@@ -6,12 +6,12 @@
 **Key Features:**
 - Extends YASA (sleep staging) into respiratory scoring
 - 12 systematic bias corrections for over/under-counting
-- Three scoring profiles: strict/standard/sensitive
+- 19-profile registry (`list_profiles()`): AASM v1/v2/v3, CMS, Chicago 1999, NSRR, exploratory arms; clinical default `aasm_v3_rec`. The legacy names strict/standard/sensitive resolve as aliases to `aasm_v3_*`.
 - Confidence-scored events with classification details
 - MNE-Python integration for EDF processing
 
 ## Architecture
-**10 submodules** organized by signal processing pipeline:
+**23 submodules** organized by signal processing pipeline (authoritative list in README §Architecture):
 - `pipeline` - MNE-facing master function (`run_pneumo_analysis`)
 - `respiratory` - Event detection orchestration
 - `signal` - Preprocessing (bandpass, baselines, MMSD)
@@ -78,7 +78,7 @@
 
 ### Modifying Scoring Thresholds
 - Update `SCORING_PROFILES` in `constants.py`
-- Profiles: `strict` (research), `standard` (AASM), `sensitive` (screening)
+- Profiles: use canonical `aasm_v3_*` names; `mesa_shhs` and `chicago_1999` are frozen for reproduction
 - Test impact on validation datasets
 
 ### Adding Bias Corrections

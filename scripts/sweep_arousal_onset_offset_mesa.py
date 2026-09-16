@@ -26,7 +26,7 @@ _UIT = Path(os.environ.get("PSGSCORING_MEETUITVOER", "."))
 sys.path.insert(0, "/srv/CODE/psgscoring")
 sys.path.insert(0, "/srv/CODE/psgscoring/scripts")
 
-MESA = Path("/home/bart/MESA/mesa")
+MESA = Path("/srv/DATA/MESA/mesa")
 SHIFTS = [-2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 6.0]
 N_DEFAULT = 30
 

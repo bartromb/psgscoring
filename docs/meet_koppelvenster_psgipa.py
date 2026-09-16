@@ -18,7 +18,7 @@ from pathlib import Path
 import mne; mne.set_log_level("ERROR")
 import numpy as np
 
-D = Path("/home/bart/PSG-IPA/Resp_events/Annotations/manual")
+D = Path("/srv/DATA/PSG-IPA/Resp_events/Annotations/manual")
 VENSTERS = [0, 2, 5, 10, 15, 20, 30, 45, 60]
 SHIFT = 120.0
 

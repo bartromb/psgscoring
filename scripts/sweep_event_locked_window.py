@@ -240,7 +240,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cohort", choices=["psgipa", "mesa"], required=True)
     ap.add_argument("--data-dir", default=str(Path.home() / "PSG-IPA"))
-    ap.add_argument("--mesa-dir", default="/home/bart/MESA/mesa")
+    ap.add_argument("--mesa-dir", default="/srv/DATA/MESA/mesa")
     ap.add_argument("--profile", default="aasm_v3_breath")
     ap.add_argument("--arms", default="uit,0.75,0.70,0.65,0.60")
     ap.add_argument("--n", type=int, default=20)

@@ -1,6 +1,6 @@
 # YASAFlaskified & psgscoring — Developer Handbook
 
-**Last updated:** June 2026 · **Versions:** psgscoring **v0.7.2** (PyPI + GitHub), YASAFlaskified **v0.12.4** (GitHub + Hetzner production + test VM)
+**Last updated:** September 2026 · **Versions:** the authoritative numbers live in `pyproject.toml` (psgscoring) and `myproject/version.py` (YASAFlaskified) — at this update: psgscoring **v0.34.x**, YASAFlaskified **v0.38.6**. Hard-coding them here made the whole document read as stale the moment a release shipped, and this file went 27 releases without an update.
 
 ---
 
@@ -41,8 +41,8 @@ target: *Physiological Measurement* (the earlier JCSM/JSR targets were retired).
 ```
 /srv/CODE/
 ├── psgscoring/                  # psgscoring library repo (git, GitHub bartromb/psgscoring)
-│   ├── psgscoring/              # 18 submodules
-│   │   ├── __init__.py          # __version__ = "0.7.2"
+│   ├── psgscoring/              # 23 submodules (see README §Architecture)
+│   │   ├── __init__.py          # __version__ (single source: pyproject.toml)
 │   │   ├── respiratory.py       # Main scoring engine (~1,700 lines)
 │   │   ├── pipeline.py          # run_pneumo_analysis() master function (MNE-facing)
 │   │   ├── signal.py            # linearisation, baseline, MMSD, Hilbert envelope
@@ -56,8 +56,12 @@ target: *Physiological Measurement* (the earlier JCSM/JSR targets were retired).
 │   │   ├── ml_classifier.py     # LightGBM candidate re-classifier (mesa_shhs)
 │   │   ├── profiles.py          # profile registry + legacy-alias resolution
 │   │   ├── constants.py         # AASM thresholds + SCORING_PROFILES
+│   │   ├── arousal.py           # arousal/RERA detection + autonomic re-ranker
+│   │   ├── split_night.py · agreement.py · indices.py · ventilation.py
+│   │   ├── breath_scoring.py · signal_quality.py · signal_quality_channels.py
 │   │   └── utils.py             # sleep mask, channel detection
-│   ├── tests/                   # 115 tests (incl. golden harness, gated by PSGSCORING_GOLDEN)
+│   ├── tests/                   # ~1,470 tests (incl. golden harness, gated by PSGSCORING_GOLDEN;
+│   │                            #  exact count pinned by tests/test_readme_test_count.py)
 │   ├── scripts/golden_snapshot.py
 │   ├── docs/developer_handbook.md   # ← this file
 │   ├── docs/performance_policy.md   # measured profile; why Rust/Polars/GPU/mmap are out
@@ -87,9 +91,11 @@ target: *Physiological Measurement* (the earlier JCSM/JSR targets were retired).
     ├── draaiboek_multicenter_aasm3_validatie.md
     └── psgscoring_pitch_v0.12.4*.pptx
 
-External (not in the repos): MESA harness `/home/bart/MESA-ab-test/`,
-PSG-IPA validators `/home/bart/psgscoring-ab-test/`, datasets `/home/bart/MESA`,
-`/home/bart/PSG-IPA`, `/home/bart/SHHS`. See the `reference_paths` memory.
+External (not in the repos, all under `/srv/DATA` since the 2026-09-14
+reconfiguration): MESA harness `/srv/DATA/MESA-ab-test/`, PSG-IPA validators
+`/srv/DATA/psgscoring-ab-test/`, datasets `/srv/DATA/MESA`, `/srv/DATA/PSG-IPA`,
+`/srv/DATA/SHHS`. The old `/home/bart` paths are permission-denied for the
+session user. See the `reference_paths` memory.
 ```
 
 ### Hetzner production server
@@ -366,7 +372,7 @@ convention (the library excludes `uncertain` apneas).
 grep 'version = ' /srv/CODE/psgscoring/pyproject.toml
 grep '__version__' /srv/CODE/psgscoring/psgscoring/__init__.py
 grep -E '__version__|PSGSCORING' /srv/CODE/YASAFlaskified/myproject/version.py
-pip index versions psgscoring                      # expect 0.7.2
+pip index versions psgscoring                      # expect the version in pyproject.toml
 
 # psgscoring tests + golden
 cd /srv/CODE/psgscoring && .venv/bin/python -m pytest -q
@@ -384,8 +390,9 @@ Release cycle: see §3 (bump → PR → CI), §4 (psgscoring PyPI via GitHub Rel
 
 ## 13. Starting a new chat session
 
-Provide this document + the current versions (psgscoring v0.7.2, YASAFlaskified
-v0.12.4) + what you're working on. Key standing context:
+Provide this document + the current versions (read them from `pyproject.toml`
+and `myproject/version.py` — do not trust any number typed in prose) + what
+you're working on. Key standing context:
 
 - Paper target: *Physiological Measurement* (v37, pre-submission review).
 - **Vallat and Mallett are confirmed co-authors.**
@@ -397,4 +404,6 @@ v0.12.4) + what you're working on. Key standing context:
   PHI never in git/PyPI/logs/chat.
 - Docker: always `build`, never `restart`, for Python changes.
 - No Claude/AI attribution in commit messages or PR bodies.
-- Memory location: `/home/claude/.claude/projects/-home-bart-CODE/memory/`.
+- Memory location: `/home/claude/.claude/projects/-srv-CODE/memory/` (the
+  project slug follows the working directory; `-home-bart-CODE` is the
+  pre-reconfiguration location and no longer exists).

@@ -60,12 +60,27 @@ say() {
 
 pkg_temp() {
     # Package id 0 is de sensor waar `crit` op slaat. Val terug op de heetste
-    # core als de package-sensor ontbreekt: te weinig meten is erger dan een
-    # graad naast zitten.
+    # core als de package-sensor ontbreekt, en daarna op de kernel-thermal-zone
+    # (x86_pkg_temp) — op de verse OS-installatie van 09-2026 ontbreekt
+    # lm-sensors terwijl /sys/class/thermal gewoon werkt.
+    # GEEN stille 0 meer: een onleesbare temperatuur was met ${t:-0} niet te
+    # onderscheiden van een koude CPU, en dan logt de guard eeuwig gezond
+    # ogende regels zonder ooit in te grijpen — precies de stille poort
+    # waar de header van dit script voor waarschuwt.
     local t
     t=$(sensors -u 2>/dev/null | awk '/^Package id 0:/{f=1} f&&/temp[0-9]+_input:/{print int($2); exit}')
-    [ -z "$t" ] && t=$(sensors -u 2>/dev/null | awk '/temp[0-9]+_input:/{if($2+0>m)m=$2+0} END{print int(m)}')
-    echo "${t:-0}"
+    [ -z "$t" ] && t=$(sensors -u 2>/dev/null | awk '/temp[0-9]+_input:/{if($2+0>m)m=$2+0} END{if(m)print int(m)}')
+    if [ -z "$t" ]; then
+        local z
+        for z in /sys/class/thermal/thermal_zone*; do
+            [ -r "$z/type" ] || continue
+            if grep -q "x86_pkg_temp" "$z/type" 2>/dev/null; then
+                t=$(( $(cat "$z/temp") / 1000 ))
+                break
+            fi
+        done
+    fi
+    echo "${t:-}"
 }
 
 say "start: bewaakt ${UNIT}, drempel ${MAX_C}C, ${NEED} opeenvolgende metingen, elke ${IVAL}s"
@@ -75,6 +90,13 @@ n=0; peak=0; sum=0
 over=0
 while systemctl --user is-active --quiet "$UNIT"; do
     t=$(pkg_temp)
+    if [ -z "$t" ]; then
+        # Blind bewaken is erger dan niet bewaken: de bewaakte run denkt dat
+        # er een vangnet is. Stop de unit en zeg het luid.
+        say "SENSOR-FAIL: geen parseerbare temperatuur (sensors ontbreekt en geen x86_pkg_temp-zone) — ${UNIT} wordt uit voorzorg gestopt"
+        systemctl --user stop "$UNIT"
+        exit 2
+    fi
     load=$(awk '{print $1}' /proc/loadavg)
     memg=$(awk '/MemAvailable/{printf "%.0f", $2/1048576}' /proc/meminfo)
     mhz=$(awk '/cpu MHz/{s+=$4; n++} END{if(n)printf "%.0f", s/n}' /proc/cpuinfo)

@@ -11,7 +11,11 @@ Voorspelling: de ratio default/specificatie loopt mee met het aandeel events
 dat de 120 s-grens haalt.
 """
 import sys
-sys.path.insert(0,"/srv/CODE/psgscoring-dev"); sys.path.insert(0,"/srv/CODE/docs")
+from pathlib import Path
+# Zelf-lokaliserend (zie meet_hypoxic_burden_varianten.py): een onbestaand
+# sys.path-entry is een stille no-op en mat de release i.p.v. de dev-boom.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, "/srv/CODE/docs")
 import mne; mne.set_log_level("ERROR")
 import numpy as np, xml.etree.ElementTree as ET, statistics as st
 from mesa_arousal_harness import read_annotations, ANNS, EDFS

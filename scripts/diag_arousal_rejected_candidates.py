@@ -32,7 +32,7 @@ mne.set_log_level("ERROR")
 # de volgende sessie stuk.
 _UIT = Path(os.environ.get("PSGSCORING_MEETUITVOER", "."))
 sys.path.insert(0,"/srv/CODE/psgscoring"); sys.path.insert(0,"/srv/CODE/psgscoring/scripts")
-ROOT=Path("/home/bart/PSG-IPA/EEG_arousals"); EPOCH_S=30.0; THR=0.80
+ROOT=Path("/srv/DATA/PSG-IPA/EEG_arousals"); EPOCH_S=30.0; THR=0.80
 
 def _uv(x):
     x=np.asarray(x,dtype=float).copy()

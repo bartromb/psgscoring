@@ -12,7 +12,7 @@ tegelijk. Met een anker in dezelfde run is elke vergelijking intern.
 
     cd /srv/CODE/psgscoring
     PYTHONPATH=$PWD python scripts/profile_comparison_psgipa.py \
-        --data-dir /home/bart/PSG-IPA \
+        --data-dir /srv/DATA/PSG-IPA \
         --profiles aasm_v3_rec aasm_v3_breath aasm_v3_prob \
         --out /tmp/vergelijking.json
 
@@ -155,7 +155,7 @@ def report(rows, profiles):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--data-dir", default="/home/bart/PSG-IPA")
+    ap.add_argument("--data-dir", default="/srv/DATA/PSG-IPA")
     ap.add_argument("--profiles", nargs="+", required=True,
                     help="minstens één bekend profiel als anker")
     ap.add_argument("--recordings", nargs="+", default=RECORDINGS)

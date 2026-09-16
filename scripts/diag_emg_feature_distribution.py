@@ -90,7 +90,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--clinical", required=True)
     ap.add_argument("--ctx", required=True)
-    ap.add_argument("--mesa-dir", default="/home/bart/MESA/mesa")
+    ap.add_argument("--mesa-dir", default="/srv/DATA/MESA/mesa")
     ap.add_argument("--mesa-n", type=int, default=6)
     ap.add_argument("--out", default=None)
     a = ap.parse_args()

@@ -62,7 +62,7 @@ def ref_arousals(xml_path: Path) -> tuple[int, float]:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mesa-dir", default="/home/bart/MESA/mesa")
+    ap.add_argument("--mesa-dir", default="/srv/DATA/MESA/mesa")
     ap.add_argument("--n", type=int, default=20)
     ap.add_argument("--sweep", default="0.50,0.60,0.70,0.80,0.90")
     ap.add_argument("--out", default=None)

@@ -30,7 +30,7 @@ REPO = Path(__file__).resolve().parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
-EDF_DIR = Path("/home/bart/MESA/mesa/polysomnography/edfs")
+EDF_DIR = Path("/srv/DATA/MESA/mesa/polysomnography/edfs")
 
 
 def _hypno_uit_nsrr(xml_path, dur_s):

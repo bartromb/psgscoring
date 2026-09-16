@@ -66,10 +66,14 @@ A ~90-second walkthrough of the reference application ([YASAFlaskified](https://
    MESA/NSRR (held out, nothing tuned on it). In the currency FDA-cleared
    autoscorers report (percent agreement on pooled 30-s epochs against a
    2-of-3 scorer consensus), respiratory events score a median PPA of 78.8 %
-   [74.7–83.2 across all 220 three-scorer panels] — at or above the published
-   510(k) figures, on a milder disease spectrum. Metrics are not identical
-   across populations; the comparison lives with its caveats in
-   `docs/commerciele_autoscoring_20260907.md`.
+   (2.5–97.5 percentile band 74.7–83.2 over the C(12,3) = 220 three-scorer
+   panels — *dependent* resamples of the same 12 scorers on the same five
+   PSG-IPA recordings, measured on v0.32.0). The *currency* matches the
+   published 510(k) figures and the level sits at or above them, but the
+   breadth does not: those clearances rest on 30–100 patients, this
+   reference set on five recordings. Full construction and caveats:
+   [measurement notes](https://github.com/bartromb/psgscoring/blob/main/docs/overnames_commercieel_metingen_20260907.md)
+   and [comparison table](https://github.com/bartromb/psgscoring/blob/main/docs/commerciele_autoscoring_20260907.md).
 6. **An autonomic witness for arousals** — on montages carrying a finger
    plethysmogram and a heart-rate series, the arousal candidates are
    re-ranked by a *frozen* logistic model over pulse-wave-amplitude and

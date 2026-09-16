@@ -35,7 +35,7 @@ absolute schaal, en 88 % betekent overal hetzelfde.
 `scripts/validate_mesa.py` voor de reconstructie.
 
 Gebruik (in de DL-venv, want torch en psgscoring naast elkaar):
-    ~/CODE/.venv-dl/bin/python scripts/build_sequence_dataset.py \\
+    /srv/CODE/.venv-dl/bin/python scripts/build_sequence_dataset.py \\
         --data-dir ~/MESA/mesa --limit 150 --output seq_mesa.npz
 """
 from __future__ import annotations

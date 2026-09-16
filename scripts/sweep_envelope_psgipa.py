@@ -51,7 +51,7 @@ REPO = Path(__file__).resolve().parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
-DATA = Path("/home/bart/PSG-IPA")
+DATA = Path("/srv/DATA/PSG-IPA")
 RECS = [f"SN{i}" for i in range(1, 6)]
 
 # Anker eerst. De vier armen daarna, in de volgorde van de opties.

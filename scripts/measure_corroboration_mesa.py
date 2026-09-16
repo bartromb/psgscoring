@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.append(str(Path(__file__).resolve().parent))
 mne.set_log_level("ERROR")
 
-D = Path("/home/bart/MESA/mesa/polysomnography")
+D = Path("/srv/DATA/MESA/mesa/polysomnography")
 
 
 def run(args):

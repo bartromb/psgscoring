@@ -39,7 +39,7 @@ de enige regel die het model krijgt opgelegd -- de rest mag het zelf vinden.
 Zo verhuizen de AASM-regels van de ingang naar de uitgang.
 
 Gebruik:
-    ~/CODE/.venv-dl/bin/python scripts/train_sequence_model.py \\
+    /srv/CODE/.venv-dl/bin/python scripts/train_sequence_model.py \\
         --dataset seq_mesa.npz --epochs 40 --output unet.pt
 """
 from __future__ import annotations

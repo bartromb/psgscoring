@@ -72,7 +72,7 @@ def ref_counts(xml_path: Path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mesa-dir", default="/home/bart/MESA/mesa")
+    ap.add_argument("--mesa-dir", default="/srv/DATA/MESA/mesa")
     ap.add_argument("--n", type=int, default=20)
     ap.add_argument("--threshold", type=float, default=0.80)
     ap.add_argument("--out", default=None)

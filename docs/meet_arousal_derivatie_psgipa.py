@@ -11,7 +11,7 @@ import numpy as np
 import psgscoring.arousal as A
 from psgscoring.arousal import detect_arousals, detect_arousals_multi
 
-D = Path("/home/bart/PSG-IPA/EEG_arousals")
+D = Path("/srv/DATA/PSG-IPA/EEG_arousals")
 def iou(a0,a1,b0,b1):
     i=max(0.0,min(a1,b1)-max(a0,b0)); u=max(a1,b1)-min(a0,b0)
     return i/u if u>0 else 0.0

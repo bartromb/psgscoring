@@ -1,0 +1,10 @@
+# De sdist scheept tests/ mee, en tests/test_changelog_field_names.py leest
+# CHANGELOG.md bij collectie. Zonder deze regel is de geadverteerde suite
+# vanuit het gepubliceerde artifact niet uitvoerbaar (0.34.1: collection-time
+# FileNotFoundError) — de publish-poort draait de sdist-suite nu expliciet.
+include CHANGELOG.md
+# Drie testmodules importeren deze harnasscripts via sys.path; zonder ze
+# crasht de sdist-collectie op ModuleNotFoundError (3 errors, 63 tests weg).
+include validate_psgipa.py
+include diagnose_hypopnea.py
+include scripts/measure_boundary_offsets.py

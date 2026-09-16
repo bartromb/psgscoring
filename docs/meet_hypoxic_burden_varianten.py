@@ -12,7 +12,11 @@ speelt. Alleen het SpO2-kanaal wordt gelezen.
 Drift = 95e percentiel SpO2 in het eerste uur slaap minus dat in het laatste uur.
 """
 import sys
-sys.path.insert(0, "/srv/CODE/psgscoring-dev")
+from pathlib import Path
+# Zelf-lokaliserend: de dev-boom is de repo waar dit script in staat. Een
+# absoluut pad naar een onbestaande map was een stille no-op en dan mat dit
+# script de geinstalleerde release onder de vlag van de dev-boom.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, "/srv/CODE/docs")
 import mne; mne.set_log_level("ERROR")
 import numpy as np

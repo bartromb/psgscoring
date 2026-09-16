@@ -1,9 +1,58 @@
+# v0.34.2 — 2026-09-16 — ultra-reviewcorrecties: claims, paden, publicatiepoort
+
+**Gedragsidentiek aan 0.34.0/0.34.1 — geen wijziging aan de scoringscode.**
+Vijftien bevindingen uit een max-effort review van de vier commits sinds
+0.34.0, alle verholpen behalve de attributiekwestie (aparte beslissing):
+
+- **README-claims rechtgezet (PyPI is per release onwijzigbaar, vandaar
+  deze release):** de FDA-valutaband staat nu correct als 2,5–97,5-
+  percentielband over C(12,3)=220 *afhankelijke* drie-scoorderpanels uit
+  dezelfde 12 scoorders op vijf PSG-IPA-opnames (gemeten op 0.32.0), met
+  de breedte-beperking t.o.v. 510(k)-studies (n=30–100) expliciet; de
+  caveats zijn nu klikbare GitHub-links; de vergelijkingstabel meldt niet
+  langer dat de re-ranker "default uit" staat (AAN sinds 0.34.0).
+- **Testaantal gepind i.p.v. met de hand geteld:** nieuwe test
+  `test_readme_test_count.py` vergelijkt de README-claim met de echte
+  collectie (0.34.1 claimde 1474 waar de commit 1464 meldde).
+- **Padmigratie afgemaakt:** ~25 meetscripts wezen nog naar /home/bart-
+  dataroots (sinds de herconfiguratie Permission denied; data staat op
+  /srv/DATA) of naar ~/CODE/.venv-dl; twee hypoxic-burden-scripts hadden
+  een sys.path naar het onbestaande psgscoring-dev — een stille no-op
+  die de geïnstalleerde release mat onder de vlag van de dev-boom; nu
+  zelf-lokaliserend via Path(__file__).
+- **Publicatiepoort valideert nu de artifacts zelf:** twine check,
+  wheel-installatie + smoke-import, en de volledige suite vanuit de
+  uitgepakte sdist. De sdist van 0.34.1 scheepte een suite die bij
+  collectie crashte (CHANGELOG.md en drie harnasscripts ontbraken —
+  nu in MANIFEST.in).
+- **Workflow-hardening:** top-level `permissions: contents: read`;
+  alle actions SHA-gepind (de publish-stap draagt de OIDC-identiteit);
+  `skip-existing` voor het her-uploadpad; versieverificatie canoniek
+  (PEP 440) vanuit pyproject i.p.v. een sed op de wheelnaam, en de
+  tag-vergelijking alleen op het release-event (workflow_dispatch vanaf
+  een branch faalde gegarandeerd op TAG_VER="main").
+- **thermal_guard faalt luid:** een onleesbare temperatuur is niet
+  langer 0 °C (= nooit ingrijpen) maar SENSOR-FAIL + unit-stop, met
+  /sys/class/thermal-fallback nu lm-sensors op de verse OS ontbreekt.
+- **developer_handbook/copilot-instructions bij de tijd:** versies
+  verwijzen naar pyproject i.p.v. hardcoded v0.7.2, 23 submodules,
+  dataroots /srv/DATA, geheugenlocatie -srv-CODE, en de .venv is
+  herbouwd op een gedeelde interpreter onder /srv/CODE (de oude
+  symlinkte in het ontoegankelijke /home/bart).
+- **CHANGELOG 0.34.2rc1 gecorrigeerd:** die noemde zich de eerste
+  trusted-publishing-release; v0.32.0 en v0.34.1 gingen al door de
+  workflow.
+
 # v0.34.2rc1 — 2026-09-15 — testrelease van de publicatiepijplijn (trusted publishing)
 
-**Gedragsidentiek aan 0.34.1 — alleen het versienummer.** Eerste release
-die niet met twine maar door GitHub Actions via trusted publishing
-(OIDC, environment "pypi") naar PyPI gaat; een rc zodat `pip install
-psgscoring` hem niet oppikt terwijl de pijplijn wordt beproefd.
+**Gedragsidentiek aan 0.34.1 — alleen het versienummer.** Bewuste
+oefenrelease van de trusted-publishing-pijplijn (OIDC, environment
+"pypi"); een rc zodat `pip install psgscoring` hem niet oppikt terwijl
+de keten wordt beproefd. Correctie 16-09: de oorspronkelijke entry
+noemde dit "de eerste release die via trusted publishing gaat" — dat is
+onjuist; v0.32.0 (03-09) en v0.34.1 (43 minuten eerder) publiceerden al
+via dezelfde workflow, alle jobs groen. Dit was de eerste *bewust als
+pijplijntest opgezette* release, niet de eerste door de pijplijn.
 
 # v0.34.1 — 2026-09-15 — documentatierelease: demovideo's + actuele cijfers op de PyPI-landingspagina
 

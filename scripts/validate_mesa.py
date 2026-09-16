@@ -53,7 +53,7 @@ tussen de profielen alleen de respiratoire scoring betreft.
 
 Gebruik
 -------
-    python scripts/validate_mesa.py --data-dir /home/bart/MESA/mesa \\
+    python scripts/validate_mesa.py --data-dir /srv/DATA/MESA/mesa \\
         --n 50 --seed 20260801 --workers 5 --output-json mesa_holdout.json
 """
 from __future__ import annotations

@@ -239,7 +239,7 @@ def rapport(rows, titel):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data-dir", type=Path, default=Path("/home/bart/MESA/mesa"))
+    ap.add_argument("--data-dir", type=Path, default=Path("/srv/DATA/MESA/mesa"))
     ap.add_argument("--profile", default="aasm_v3_rec")
     ap.add_argument("--n", type=int, default=60)
     ap.add_argument("--seed", type=int, default=20260801)
