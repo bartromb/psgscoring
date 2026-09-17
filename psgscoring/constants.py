@@ -149,6 +149,9 @@ def _profile_to_legacy_dict(profile) -> dict:
         "HYPOPNEA_AROUSAL_LATENCY": pp.hypopnea_arousal_latency_grading,
         "RULE1A_AROUSAL_ENABLED": pp.rule1a_arousal_enabled,
         "RULE1A_GAP_MAX_BREATHS": pp.rule1a_gap_max_breaths,
+        "RULE1A_AROUSAL_MIN_FLOW_RED_PCT": pp.rule1a_arousal_min_flow_reduction_pct,
+        "RULE1A_AROUSAL_MAX_DUR_S": pp.rule1a_arousal_max_duration_s,
+        "RULE1A_AROUSAL_MIN_LOCAL_RED_PCT": pp.rule1a_arousal_min_local_reduction_pct,
         "LOCAL_BL_CV_THRESHOLD":  pp.local_baseline_cv_threshold,
         "LOCAL_BL_STRICT_RED":    pp.local_baseline_strict_reduction,
         # v0.5.0: profile-aware floors previously hard-coded in respiratory.py

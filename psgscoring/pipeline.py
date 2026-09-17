@@ -1162,6 +1162,15 @@ def run_pneumo_analysis(
             breaths        = resp.get("_breaths", []),
             arousal_window_s = profile.get("RULE1B_AROUSAL_WINDOW_S"),
             gap_max_breaths  = int(profile.get("RULE1A_GAP_MAX_BREATHS", 1)),
+            min_flow_reduction_pct = _rule1a_gate_param(
+                profile.get("RULE1A_AROUSAL_MIN_FLOW_RED_PCT"),
+                os.environ.get("PSGSCORING_RULE1A_GATE_MIN_RED")),
+            max_duration_s = _rule1a_gate_param(
+                profile.get("RULE1A_AROUSAL_MAX_DUR_S"),
+                os.environ.get("PSGSCORING_RULE1A_GATE_MAX_DUR")),
+            min_local_reduction_pct = _rule1a_gate_param(
+                profile.get("RULE1A_AROUSAL_MIN_LOCAL_RED_PCT"),
+                os.environ.get("PSGSCORING_RULE1A_GATE_MIN_LOCAL_RED")),
             stats            = ar_stats,
             graded_candidates = _rule1b_graded_kandidaten(
                 profile, output.get("arousal") or {}),
@@ -2683,6 +2692,19 @@ def _thermistor_gate(profile: dict) -> str:
                 "(%s); profielwaarde %r blijft staan",
                 raw, ", ".join(sorted(_THERMISTOR_GATES)), gate)
     return gate
+
+
+def _rule1a_gate_param(profielwaarde, envwaarde: str | None) -> float | None:
+    """Kandidaatpoort-parameter: profielwaarde, env wint (leeg = profiel;
+    "none"/"off"/"uit" = expliciet uit).
+
+    Zelfde patroon als PSGSCORING_RULE1A_AROUSAL: de meetharnassen zetten de
+    poort per arm zonder het profielregister te muteren. De env-reads staan
+    letterlijk bij de aanroeper, zodat test_env_overrides_reachable ze ziet."""
+    v = profielwaarde
+    if envwaarde is not None and envwaarde.strip() != "":
+        v = None if envwaarde.strip().lower() in ("none", "off", "uit") else float(envwaarde)
+    return None if v is None else float(v)
 
 
 def _rule1b_graded_kandidaten(profile: dict, ar_block: dict) -> list | None:

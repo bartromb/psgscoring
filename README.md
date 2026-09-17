@@ -455,7 +455,7 @@ per idea evaluated, including the ones rejected.
 
 ## Architecture
 
-~21,000 lines across 23 submodules, 1,474 unit tests (CI: Python 3.9–3.12):
+~21,000 lines across 23 submodules, 1,484 unit tests (CI: Python 3.9–3.12):
 
 `constants` · `utils` · `signal` · `breath` · `breath_scoring` · `classify` · `spo2` · `plm` · `ancillary` · `arousal` · `agreement` · `respiratory` · `indices` · `ventilation` · `pipeline` · `ml_classifier` · `profiles` · `postprocess` · `signal_quality` · `signal_quality_channels` · `split_night` · `ecg_effort` · `_types`
 

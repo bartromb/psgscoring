@@ -1581,6 +1581,30 @@ class PostProcessingRules:
     rule1a_gap_max_breaths: int = 1
     """Maximaal aantal ademteugen tussen eventeinde en arousal (gap-check)."""
 
+    rule1a_arousal_min_flow_reduction_pct: Optional[float] = None
+    """Kandidaatpoort voor arousal-kwalificatie: minimale debietdaling (%,
+    t.o.v. de rollende basislijn) die een `no_desaturation`-kandidaat moet
+    hebben om via een arousal te mogen kwalificeren.
+
+    Orakel-decompositie 17-09-2026 (docs/orakel_rule1a_20260917.md): met
+    PERFECTE (referentie-)arousals matcht 44 % van de herstellingen een
+    referentie-hypopneu, terwijl elke koppeling een echte arousal heeft —
+    venster en gap zijn getrouw; de bijvangst zit in de kandidaat zelf
+    (lang, zwak). Deze drie velden zijn de poort daarop; None = uit =
+    byte-identiek. Waarden komen uit de afleiding op verse nachten
+    (docs/orakel_rule1a_poort_preregistratie_20260917.md), niet uit gevoel.
+    Env: `PSGSCORING_RULE1A_GATE_MIN_RED`."""
+
+    rule1a_arousal_max_duration_s: Optional[float] = None
+    """Kandidaatpoort: maximale duur (s) van een via arousal te herstellen
+    kandidaat. Herstelde events waren mediaan 25 s, 90e percentiel 50 s.
+    None = geen plafond. Env: `PSGSCORING_RULE1A_GATE_MAX_DUR`."""
+
+    rule1a_arousal_min_local_reduction_pct: Optional[float] = None
+    """Kandidaatpoort: minimale LOKALE debietdaling (%, t.o.v. de ademhaling
+    direct vóór het event, `_validate_local_reduction`). None = uit.
+    Env: `PSGSCORING_RULE1A_GATE_MIN_LOCAL_RED`."""
+
     baseline_mode: str = "rolling"
     """v0.12.3+: welke baseline de hypopnee-drempelbeoordeling gebruikt.
 

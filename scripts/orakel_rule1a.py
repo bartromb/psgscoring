@@ -39,7 +39,7 @@ from validate_psgipa import (LEGACY_MATCHER, event_set, find_scorer_files,  # no
                              match_events, parse_scorer_file, severity)
 from validate_mesa import parse_nsrr  # noqa: E402
 
-ARMEN = ("A", "B", "C")
+ARMEN = tuple(os.environ.get("ORAKEL_ARMEN", "ABC"))
 PROFIEL = "aasm_v3_rec"
 DATA_PSGIPA = Path(os.environ.get("PSGSCORING_DATA_ROOT", "/srv/DATA")) / "PSG-IPA"
 DATA_MESA = Path(os.environ.get("PSGSCORING_DATA_ROOT", "/srv/DATA")) / "MESA" / "mesa"
@@ -84,6 +84,12 @@ def draai_arm(raw, hypno, arm, ref_arousals):
     evs = [e for e in (r.get("events") or []) if e.get("onset_s") is not None]
     algo = [_tup(e) for e in evs]
     herst = [_tup(e) for e in evs if e.get("rule1a_arousal")]
+    # Debietbewijs per herstelling, voor de post-hoc poortafleiding
+    # (docs/orakel_rule1a_poort_preregistratie_20260917.md): dezelfde
+    # velden die de kandidaatpoort in de bibliotheek leest.
+    herst_velden = [(e.get("flow_reduction"), e.get("local_reduction_pct"),
+                     float(e.get("duration_s") or 0.0))
+                    for e in evs if e.get("rule1a_arousal")]
     summ = r.get("summary", {}) or {}
     ar = res.get("arousal") or {}
     return {
@@ -96,6 +102,7 @@ def draai_arm(raw, hypno, arm, ref_arousals):
         "wall_s": round(time.monotonic() - t0, 1),
         "events": algo,
         "reinstated": herst,
+        "reinstated_fields": herst_velden,
     }
 
 
@@ -269,6 +276,7 @@ def main():
     ap.add_argument("--ids", type=Path, default=None, help="MESA: bestand met één rec-id per regel")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--workers", type=int, default=5)
+    ap.add_argument("--arms", default="ABC", help="welke armen (bv. AC voor de poortafleiding)")
     ap.add_argument("--output-json", type=Path, required=True)
     a = ap.parse_args()
 
@@ -280,6 +288,9 @@ def main():
         fn = mesa_een
     if a.limit:
         ids = ids[:a.limit]
+    global ARMEN
+    ARMEN = tuple(a.arms)
+    os.environ["ORAKEL_ARMEN"] = a.arms   # workers lezen dit bij import
 
     partial = a.output_json.with_suffix(".partial.jsonl")
     klaar = {}

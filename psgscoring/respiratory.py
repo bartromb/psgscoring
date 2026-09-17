@@ -1394,6 +1394,9 @@ def reinstate_rule1a_arousal_hypopneas(
     stats:          dict | None = None,
     graded_candidates: list | None = None,
     graded_min_proba: float = 0.50,
+    min_flow_reduction_pct: float | None = None,
+    max_duration_s: float | None = None,
+    min_local_reduction_pct: float | None = None,
 ) -> tuple[list, list]:
     """
     Reinstate hypopnea candidates that are coupled to an arousal
@@ -1449,12 +1452,40 @@ def reinstate_rule1a_arousal_hypopneas(
     n_tested = n_coupled = n_graded = 0
     n_ineligible = 0
     ineligible: dict[str, int] = {}
+    n_gate = 0
+    gate_by_reason: dict[str, int] = {}
     reinstated: list[dict] = []
     for cand in rejected:
         reden = str(cand.get("reject_reason") or "")
         if reden not in REINSTATABLE_REJECTIONS:
             n_ineligible += 1
             ineligible[reden] = ineligible.get(reden, 0) + 1
+            continue
+        # Kandidaatpoort (orakel-decompositie 17-09-2026): een arousal mag
+        # alleen een kandidaat bevestigen waarvan de debietdaling zelf
+        # overtuigend is en die niet te lang is. Vóór de koppeling, zodat de
+        # koppelstatistiek de tak niet zwakker laat lijken dan hij is. Een
+        # ontbrekend debietveld haalt de poort NIET: een poort die bij
+        # ontbrekende invoer openstaat is geen poort.
+        _gate_reden = None
+        if min_flow_reduction_pct is not None:
+            _fr = cand.get("flow_reduction_pct")
+            if _fr is None:
+                _gate_reden = "flow_reduction_missing"
+            elif float(_fr) < float(min_flow_reduction_pct):
+                _gate_reden = "flow_reduction"
+        if _gate_reden is None and max_duration_s is not None \
+                and float(cand["duration_s"]) > float(max_duration_s):
+            _gate_reden = "duration"
+        if _gate_reden is None and min_local_reduction_pct is not None:
+            _lr = cand.get("local_reduction_pct")
+            if _lr is None:
+                _gate_reden = "local_reduction_missing"
+            elif float(_lr) < float(min_local_reduction_pct):
+                _gate_reden = "local_reduction"
+        if _gate_reden is not None:
+            n_gate += 1
+            gate_by_reason[_gate_reden] = gate_by_reason.get(_gate_reden, 0) + 1
             continue
         n_tested += 1
         onset = float(cand["onset_s"])
@@ -1493,7 +1524,8 @@ def reinstate_rule1a_arousal_hypopneas(
             "stage":            cand["stage"],
             "desaturation_pct": cand.get("desat"),
             "min_spo2":         cand.get("min_spo2"),
-            "flow_reduction":   None,
+            "flow_reduction":   cand.get("flow_reduction_pct"),
+            "local_reduction_pct": cand.get("local_reduction_pct"),
             "confidence":       0.7,
             # v0.12.3+: 1A is de correcte AASM-regel. `rule_legacy` en de
             # vlag `rule1b` blijven staan als deprecatie-alias — die laatste
@@ -1526,6 +1558,8 @@ def reinstate_rule1a_arousal_hypopneas(
             # alles werd geweerd.
             "n_ineligible":        n_ineligible,
             "ineligible_by_reason": ineligible,
+            "n_gate_rejected":     n_gate,
+            "gate_rejected_by_reason": gate_by_reason,
         })
 
     if reinstated:
@@ -2320,6 +2354,12 @@ def _detect_hypopneas(
                     # vergeet zichzelf te benoemen zou stilzwijgend
                     # kwalificeren.
                     "reject_reason": "no_desaturation",
+                    # Debietbewijs mee: de kandidaatpoort van de arousaltak
+                    # (rule1a_arousal_min_*) leest dit, en zonder deze velden
+                    # is elke uitspraak over "zwakke" herstellingen achteraf
+                    # niet te controleren.
+                    "flow_reduction_pct": flow_red,
+                    "local_reduction_pct": local_red,
                 })
                 continue
 
