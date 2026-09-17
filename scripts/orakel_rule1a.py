@@ -246,7 +246,7 @@ def samenvatting_mesa(rows, ref="aasm15"):
                                      / max(1, sum(r["n_gat"] for r in ok if r["arms"][arm]["gat_recall"] is not None))),
             "severity_match": sum(1 for r in ok if r["arms"][arm]["severity"] == r["severity_ref"]),
         }
-    for arm in ("B", "C"):
+    for arm in [a for a in ("B", "C") if a in ARMEN]:
         d = [r["arms"][arm]["match"][ref]["f1"] - r["arms"]["A"]["match"][ref]["f1"] for r in ok]
         S[f"R2_dF1_{arm}_min_A"] = {"median": median(d), "mean": float(np.mean(d)),
                                     "n_beter": sum(1 for x in d if x > 0),

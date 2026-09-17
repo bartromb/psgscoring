@@ -52,3 +52,14 @@ in-pipeline hercontroleerd op identieke eventlijsten.
 Afleiding 40 × 2 armen (~15 min, 20 workers); replicatie 150 × 2 armen
 (~65 min). Temperatuurbewaker 85 °C; 20 workers is het plafond (piek 82 °C
 op 17-09).
+
+## Bevroren werkpunt (na de afleiding, vóór de replicatie — 17-09 11:35)
+
+Afleiding op 40 verse nachten (`orakel_rule1a_afl40.json`, sweep in
+`orakel_rule1a_poort_sweep.json`; getrouwheid A ∪ herstellingen = C op alle
+40): zonder poort 341 herstellingen, R1 0,455, ΔF1 +0,027. Keuzeregel →
+**min_flow_reduction 55 %, max_duration 45 s, min_local_reduction 30 %**:
+169 herstellingen, R1 0,604, ΔF1 +0,020 (beter op 25/40). De lokale daling
+is de dragende knop (min_local 40 alleen: R1 0,68 maar ΔF1 +0,012).
+Replicatie op n150 met exact deze drie waarden via
+`PSGSCORING_RULE1A_GATE_MIN_RED=55 _MAX_DUR=45 _MIN_LOCAL_RED=30`.
