@@ -62,6 +62,6 @@ arousalpoort kan oplossen.
 ## Rekenkundig
 
 Afleiding 40 × 2 armen in 17 min; replicatie 150 × 2 armen in 56 min, 20
-workers, piek ~74 °C (bewaker herstart om 11:57 na een stille uitval —
+workers, piek 80 °C (bewaker herstart om 11:57 na een stille uitval —
 zie `thermal_guard_poort.log`). Sets geregistreerd in
 `gebruikte_mesa_ids.txt`.
