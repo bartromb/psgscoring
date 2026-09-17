@@ -89,6 +89,15 @@ def test_elke_genoemde_vlag_wordt_ergens_gelezen(kaart):
 # deze in een meting gebruikt: controleer eerst of het harnas de pipeline
 # gebruikt, of geef de waarde expliciet als argument mee.
 PIPELINE_ONLY = {
+    # Kandidaatpoort van de Rule-1A-arousaltak (17-09-2026). De tak zelf is
+    # pipeline-niveau (stap 8, reinstatement); een harnas dat de detector
+    # direct aanroept bereikt de tak niet, en een harnas dat
+    # reinstate_rule1a_arousal_hypopneas direct aanroept geeft de poort als
+    # argument mee (min_flow_reduction_pct/max_duration_s/
+    # min_local_reduction_pct). Bewuste keuze, geen vergeten doorgifte.
+    "PSGSCORING_RULE1A_GATE_MIN_RED",
+    "PSGSCORING_RULE1A_GATE_MAX_DUR",
+    "PSGSCORING_RULE1A_GATE_MIN_LOCAL_RED",
     # Kiezen WELKE detector/afleidingen draaien; een harnas dat zelf
     # afleidingen samenstelt bepaalt dit al met zijn eigen argumenten.
     "PSGSCORING_AROUSAL_DERIVATION",
