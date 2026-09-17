@@ -1,0 +1,9680 @@
+{
+ "meta": {
+  "cohort": "psgipa",
+  "profiel": "aasm_v3_rec",
+  "psgscoring": "0.34.2",
+  "git_sha": "8dac397",
+  "datum": "2026-09-17 09:08:23",
+  "matcher": {
+   "iou_thresh": 0.2,
+   "type_aware": false,
+   "optimal": false
+  },
+  "preregistratie": "docs/orakel_rule1a_preregistratie_20260917.md"
+ },
+ "samenvatting": {
+  "n": 5,
+  "arms": {
+   "A": {
+    "ahi": {
+     "SN1": 8.1,
+     "SN2": 9.3,
+     "SN3": 53.8,
+     "SN4": 4.3,
+     "SN5": 11.0
+    },
+    "delta_ahi": {
+     "SN1": 2.14,
+     "SN2": 4.97,
+     "SN3": -0.18,
+     "SN4": 0.48,
+     "SN5": 1.02
+    },
+    "bias_mean": 1.686,
+    "f1_median_per_rec": {
+     "SN1": 0.47,
+     "SN2": 0.317,
+     "SN3": 0.886,
+     "SN4": 0.286,
+     "SN5": 0.349
+    },
+    "f1_median": 0.3491573033707865,
+    "n_reinstated": {
+     "SN1": 0,
+     "SN2": 0,
+     "SN3": 0,
+     "SN4": 0,
+     "SN5": 0
+    },
+    "reinst_precision": {
+     "SN1": null,
+     "SN2": null,
+     "SN3": null,
+     "SN4": null,
+     "SN5": null
+    }
+   },
+   "B": {
+    "ahi": {
+     "SN1": 8.3,
+     "SN2": 9.5,
+     "SN3": 53.8,
+     "SN4": 5.3,
+     "SN5": 12.1
+    },
+    "delta_ahi": {
+     "SN1": 2.34,
+     "SN2": 5.17,
+     "SN3": -0.18,
+     "SN4": 1.48,
+     "SN5": 2.12
+    },
+    "bias_mean": 2.186,
+    "f1_median_per_rec": {
+     "SN1": 0.464,
+     "SN2": 0.312,
+     "SN3": 0.886,
+     "SN4": 0.268,
+     "SN5": 0.342
+    },
+    "f1_median": 0.341534536176417,
+    "n_reinstated": {
+     "SN1": 1,
+     "SN2": 1,
+     "SN3": 0,
+     "SN4": 6,
+     "SN5": 8
+    },
+    "reinst_precision": {
+     "SN1": 0.0,
+     "SN2": 0.0,
+     "SN3": null,
+     "SN4": 0.0,
+     "SN5": 0.125
+    }
+   },
+   "C": {
+    "ahi": {
+     "SN1": 8.1,
+     "SN2": 9.3,
+     "SN3": 53.8,
+     "SN4": 4.8,
+     "SN5": 11.3
+    },
+    "delta_ahi": {
+     "SN1": 2.14,
+     "SN2": 4.97,
+     "SN3": -0.18,
+     "SN4": 0.98,
+     "SN5": 1.32
+    },
+    "bias_mean": 1.846,
+    "f1_median_per_rec": {
+     "SN1": 0.47,
+     "SN2": 0.317,
+     "SN3": 0.886,
+     "SN4": 0.282,
+     "SN5": 0.353
+    },
+    "f1_median": 0.3532163742690059,
+    "n_reinstated": {
+     "SN1": 0,
+     "SN2": 0,
+     "SN3": 0,
+     "SN4": 3,
+     "SN5": 2
+    },
+    "reinst_precision": {
+     "SN1": null,
+     "SN2": null,
+     "SN3": null,
+     "SN4": 0.0,
+     "SN5": 0.5
+    }
+   }
+  }
+ },
+ "results": [
+  {
+   "recording": "SN1",
+   "n_scorers": 12,
+   "ref_median_ahi": 5.96,
+   "ref_range": [
+    4.66,
+    6.56
+   ],
+   "n_ref_arousals": 37,
+   "arms": {
+    "A": {
+     "ahi": 8.1,
+     "n_events": 47,
+     "n_reinstated": 0,
+     "stats": {
+      "enabled": false,
+      "n_arousals_available": 0,
+      "n_candidates_tested": 0,
+      "n_arousal_coupled": 0,
+      "n_qualified": 0,
+      "skipped_reason": "disabled_by_profile"
+     },
+     "arousal_source": null,
+     "n_arousals": 41,
+     "wall_s": 116.0,
+     "events": [
+      [
+       2031.2,
+       2043.6,
+       "hypopnea"
+      ],
+      [
+       2044.6,
+       2058.7,
+       "hypopnea"
+      ],
+      [
+       2347.8,
+       2375.8,
+       "hypopnea"
+      ],
+      [
+       2470.1,
+       2486.8,
+       "hypopnea"
+      ],
+      [
+       2587.4,
+       2598.5,
+       "hypopnea"
+      ],
+      [
+       3132.7,
+       3148.2,
+       "obstructive"
+      ],
+      [
+       3410.4,
+       3424.1,
+       "hypopnea"
+      ],
+      [
+       3436.2,
+       3448.4,
+       "hypopnea"
+      ],
+      [
+       3661.7,
+       3675.8,
+       "hypopnea"
+      ],
+      [
+       3676.8,
+       3686.9,
+       "hypopnea"
+      ],
+      [
+       4897.2,
+       4908.2,
+       "hypopnea"
+      ],
+      [
+       4908.7,
+       4919.1,
+       "hypopnea"
+      ],
+      [
+       4946.0,
+       4959.3,
+       "hypopnea"
+      ],
+      [
+       5018.3,
+       5050.4,
+       "hypopnea"
+      ],
+      [
+       5200.2,
+       5215.0,
+       "hypopnea"
+      ],
+      [
+       5262.1,
+       5283.6,
+       "hypopnea"
+      ],
+      [
+       5342.3,
+       5364.6,
+       "hypopnea"
+      ],
+      [
+       5388.8,
+       5402.3,
+       "hypopnea"
+      ],
+      [
+       5522.1,
+       5539.7,
+       "hypopnea"
+      ],
+      [
+       5861.1,
+       5881.4,
+       "hypopnea"
+      ],
+      [
+       6992.4,
+       7005.0,
+       "obstructive"
+      ],
+      [
+       7041.8,
+       7055.9,
+       "obstructive"
+      ],
+      [
+       7109.1,
+       7119.4,
+       "obstructive"
+      ],
+      [
+       7199.4,
+       7216.1,
+       "obstructive"
+      ],
+      [
+       8040.2,
+       8055.6,
+       "obstructive"
+      ],
+      [
+       8106.7,
+       8117.0,
+       "obstructive"
+      ],
+      [
+       8676.0,
+       8690.2,
+       "obstructive"
+      ],
+      [
+       8713.9,
+       8732.0,
+       "obstructive"
+      ],
+      [
+       8760.4,
+       8772.1,
+       "obstructive"
+      ],
+      [
+       8805.3,
+       8818.5,
+       "obstructive"
+      ],
+      [
+       8859.6,
+       8871.0,
+       "obstructive"
+      ],
+      [
+       8899.6,
+       8917.0,
+       "obstructive"
+      ],
+      [
+       8948.8,
+       8961.8,
+       "obstructive"
+      ],
+      [
+       8978.3,
+       9001.5,
+       "obstructive"
+      ],
+      [
+       10326.5,
+       10345.7,
+       "hypopnea"
+      ],
+      [
+       10395.5,
+       10408.0,
+       "hypopnea"
+      ],
+      [
+       15934.8,
+       15950.6,
+       "hypopnea"
+      ],
+      [
+       17428.3,
+       17441.0,
+       "hypopnea"
+      ],
+      [
+       18048.8,
+       18076.8,
+       "hypopnea"
+      ],
+      [
+       18110.0,
+       18120.0,
+       "hypopnea"
+      ],
+      [
+       20747.0,
+       20769.1,
+       "hypopnea"
+      ],
+      [
+       20867.4,
+       20878.2,
+       "hypopnea"
+      ],
+      [
+       22285.4,
+       22319.7,
+       "hypopnea"
+      ],
+      [
+       22602.5,
+       22616.2,
+       "hypopnea"
+      ],
+      [
+       22625.0,
+       22635.8,
+       "hypopnea"
+      ],
+      [
+       22705.7,
+       22716.0,
+       "hypopnea"
+      ],
+      [
+       22846.4,
+       22859.7,
+       "hypopnea"
+      ]
+     ],
+     "reinstated": [],
+     "f1_median": 0.4698620188816267,
+     "precision_median": 0.4148936170212766,
+     "recall_median": 0.5694980694980695,
+     "reinst_precision_median": null,
+     "delta_ahi": 2.14
+    },
+    "B": {
+     "ahi": 8.3,
+     "n_events": 48,
+     "n_reinstated": 1,
+     "stats": {
+      "enabled": true,
+      "n_arousals_available": 41,
+      "n_candidates_tested": 14,
+      "n_arousal_coupled": 1,
+      "n_qualified": 1,
+      "skipped_reason": null,
+      "n_graded_coupled": 0,
+      "n_ineligible": 60,
+      "ineligible_by_reason": {
+       "local_reduction_-14.1pct<20.0pct": 1,
+       "local_reduction_-25.0pct<20.0pct": 2,
+       "local_reduction_-4.5pct<20.0pct": 1,
+       "local_reduction_-0.6pct<20.0pct": 1,
+       "local_reduction_1.3pct<20.0pct": 1,
+       "local_reduction_8.7pct<20.0pct": 1,
+       "local_reduction_0.9pct<20.0pct": 1,
+       "local_reduction_5.7pct<20.0pct": 1,
+       "local_reduction_13.6pct<20.0pct": 1,
+       "local_reduction_-9.9pct<20.0pct": 1,
+       "local_reduction_18.3pct<20.0pct": 1,
+       "local_reduction_-31.5pct<20.0pct": 1,
+       "local_reduction_-3.3pct<20.0pct": 2,
+       "local_reduction_16.0pct<20.0pct": 1,
+       "local_reduction_-3.2pct<20.0pct": 1,
+       "local_reduction_-3.7pct<20.0pct": 1,
+       "local_reduction_0.8pct<20.0pct": 1,
+       "local_reduction_8.6pct<20.0pct": 1,
+       "local_reduction_18.8pct<20.0pct": 1,
+       "local_reduction_3.9pct<20.0pct": 1,
+       "local_reduction_6.0pct<20.0pct": 2,
+       "local_reduction_-7.9pct<20.0pct": 1,
+       "local_reduction_-13.0pct<20.0pct": 1,
+       "local_reduction_4.1pct<20.0pct": 1,
+       "local_reduction_14.2pct<20.0pct": 1,
+       "local_reduction_1.8pct<20.0pct": 2,
+       "local_reduction_7.7pct<20.0pct": 1,
+       "local_reduction_15.0pct<20.0pct": 1,
+       "local_reduction_13.9pct<20.0pct": 1,
+       "local_reduction_8.4pct<20.0pct": 1,
+       "local_reduction_19.6pct<20.0pct": 1,
+       "local_reduction_-4.0pct<20.0pct": 1,
+       "local_reduction_-9.2pct<20.0pct": 1,
+       "local_reduction_9.3pct<20.0pct": 1,
+       "local_reduction_-8.2pct<20.0pct": 1,
+       "local_reduction_11.6pct<20.0pct": 1,
+       "local_reduction_16.5pct<20.0pct": 1,
+       "local_reduction_15.3pct<20.0pct": 1,
+       "local_reduction_14.7pct<20.0pct": 1,
+       "local_reduction_5.2pct<20.0pct": 1,
+       "local_reduction_12.1pct<20.0pct": 1,
+       "local_reduction_3.3pct<20.0pct": 1,
+       "local_reduction_-4.3pct<20.0pct": 1,
+       "local_reduction_10.0pct<20.0pct": 1,
+       "local_reduction_0.6pct<20.0pct": 1,
+       "local_reduction_8.8pct<20.0pct": 1,
+       "local_reduction_-3.4pct<20.0pct": 1,
+       "local_reduction_-24.6pct<20.0pct": 1,
+       "local_reduction_-22.0pct<20.0pct": 1,
+       "local_reduction_-17.5pct<20.0pct": 1,
+       "local_reduction_-14.2pct<20.0pct": 1,
+       "local_reduction_10.8pct<20.0pct": 1,
+       "stable_breathing_cv_0.36<0.45": 1,
+       "stable_breathing_cv_0.24<0.45": 1,
+       "stable_breathing_cv_0.42<0.45": 1,
+       "stable_breathing_cv_0.40<0.45": 1
+      }
+     },
+     "arousal_source": null,
+     "n_arousals": 41,
+     "wall_s": 114.2,
+     "events": [
+      [
+       815.6,
+       863.8,
+       "hypopnea"
+      ],
+      [
+       2031.2,
+       2043.6,
+       "hypopnea"
+      ],
+      [
+       2044.6,
+       2058.7,
+       "hypopnea"
+      ],
+      [
+       2347.8,
+       2375.8,
+       "hypopnea"
+      ],
+      [
+       2470.1,
+       2486.8,
+       "hypopnea"
+      ],
+      [
+       2587.4,
+       2598.5,
+       "hypopnea"
+      ],
+      [
+       3132.7,
+       3148.2,
+       "obstructive"
+      ],
+      [
+       3410.4,
+       3424.1,
+       "hypopnea"
+      ],
+      [
+       3436.2,
+       3448.4,
+       "hypopnea"
+      ],
+      [
+       3661.7,
+       3675.8,
+       "hypopnea"
+      ],
+      [
+       3676.8,
+       3686.9,
+       "hypopnea"
+      ],
+      [
+       4897.2,
+       4908.2,
+       "hypopnea"
+      ],
+      [
+       4908.7,
+       4919.1,
+       "hypopnea"
+      ],
+      [
+       4946.0,
+       4959.3,
+       "hypopnea"
+      ],
+      [
+       5018.3,
+       5050.4,
+       "hypopnea"
+      ],
+      [
+       5200.2,
+       5215.0,
+       "hypopnea"
+      ],
+      [
+       5262.1,
+       5283.6,
+       "hypopnea"
+      ],
+      [
+       5342.3,
+       5364.6,
+       "hypopnea"
+      ],
+      [
+       5388.8,
+       5402.3,
+       "hypopnea"
+      ],
+      [
+       5522.1,
+       5539.7,
+       "hypopnea"
+      ],
+      [
+       5861.1,
+       5881.4,
+       "hypopnea"
+      ],
+      [
+       6992.4,
+       7005.0,
+       "obstructive"
+      ],
+      [
+       7041.8,
+       7055.9,
+       "obstructive"
+      ],
+      [
+       7109.1,
+       7119.4,
+       "obstructive"
+      ],
+      [
+       7199.4,
+       7216.1,
+       "obstructive"
+      ],
+      [
+       8040.2,
+       8055.6,
+       "obstructive"
+      ],
+      [
+       8106.7,
+       8117.0,
+       "obstructive"
+      ],
+      [
+       8676.0,
+       8690.2,
+       "obstructive"
+      ],
+      [
+       8713.9,
+       8732.0,
+       "obstructive"
+      ],
+      [
+       8760.4,
+       8772.1,
+       "obstructive"
+      ],
+      [
+       8805.3,
+       8818.5,
+       "obstructive"
+      ],
+      [
+       8859.6,
+       8871.0,
+       "obstructive"
+      ],
+      [
+       8899.6,
+       8917.0,
+       "obstructive"
+      ],
+      [
+       8948.8,
+       8961.8,
+       "obstructive"
+      ],
+      [
+       8978.3,
+       9001.5,
+       "obstructive"
+      ],
+      [
+       10326.5,
+       10345.7,
+       "hypopnea"
+      ],
+      [
+       10395.5,
+       10408.0,
+       "hypopnea"
+      ],
+      [
+       15934.8,
+       15950.6,
+       "hypopnea"
+      ],
+      [
+       17428.3,
+       17441.0,
+       "hypopnea"
+      ],
+      [
+       18048.8,
+       18076.8,
+       "hypopnea"
+      ],
+      [
+       18110.0,
+       18120.0,
+       "hypopnea"
+      ],
+      [
+       20747.0,
+       20769.1,
+       "hypopnea"
+      ],
+      [
+       20867.4,
+       20878.2,
+       "hypopnea"
+      ],
+      [
+       22285.4,
+       22319.7,
+       "hypopnea"
+      ],
+      [
+       22602.5,
+       22616.2,
+       "hypopnea"
+      ],
+      [
+       22625.0,
+       22635.8,
+       "hypopnea"
+      ],
+      [
+       22705.7,
+       22716.0,
+       "hypopnea"
+      ],
+      [
+       22846.4,
+       22859.7,
+       "hypopnea"
+      ]
+     ],
+     "reinstated": [
+      [
+       815.6,
+       863.8,
+       "hypopnea"
+      ]
+     ],
+     "f1_median": 0.46426545660805446,
+     "precision_median": 0.40625,
+     "recall_median": 0.5694980694980695,
+     "reinst_precision_median": 0.0,
+     "delta_ahi": 2.34
+    },
+    "C": {
+     "ahi": 8.1,
+     "n_events": 47,
+     "n_reinstated": 0,
+     "stats": {
+      "enabled": true,
+      "n_arousals_available": 37,
+      "n_candidates_tested": 14,
+      "n_arousal_coupled": 0,
+      "n_qualified": 0,
+      "skipped_reason": null,
+      "n_graded_coupled": 0,
+      "n_ineligible": 60,
+      "ineligible_by_reason": {
+       "local_reduction_-14.1pct<20.0pct": 1,
+       "local_reduction_-25.0pct<20.0pct": 2,
+       "local_reduction_-4.5pct<20.0pct": 1,
+       "local_reduction_-0.6pct<20.0pct": 1,
+       "local_reduction_1.3pct<20.0pct": 1,
+       "local_reduction_8.7pct<20.0pct": 1,
+       "local_reduction_0.9pct<20.0pct": 1,
+       "local_reduction_5.7pct<20.0pct": 1,
+       "local_reduction_13.6pct<20.0pct": 1,
+       "local_reduction_-9.9pct<20.0pct": 1,
+       "local_reduction_18.3pct<20.0pct": 1,
+       "local_reduction_-31.5pct<20.0pct": 1,
+       "local_reduction_-3.3pct<20.0pct": 2,
+       "local_reduction_16.0pct<20.0pct": 1,
+       "local_reduction_-3.2pct<20.0pct": 1,
+       "local_reduction_-3.7pct<20.0pct": 1,
+       "local_reduction_0.8pct<20.0pct": 1,
+       "local_reduction_8.6pct<20.0pct": 1,
+       "local_reduction_18.8pct<20.0pct": 1,
+       "local_reduction_3.9pct<20.0pct": 1,
+       "local_reduction_6.0pct<20.0pct": 2,
+       "local_reduction_-7.9pct<20.0pct": 1,
+       "local_reduction_-13.0pct<20.0pct": 1,
+       "local_reduction_4.1pct<20.0pct": 1,
+       "local_reduction_14.2pct<20.0pct": 1,
+       "local_reduction_1.8pct<20.0pct": 2,
+       "local_reduction_7.7pct<20.0pct": 1,
+       "local_reduction_15.0pct<20.0pct": 1,
+       "local_reduction_13.9pct<20.0pct": 1,
+       "local_reduction_8.4pct<20.0pct": 1,
+       "local_reduction_19.6pct<20.0pct": 1,
+       "local_reduction_-4.0pct<20.0pct": 1,
+       "local_reduction_-9.2pct<20.0pct": 1,
+       "local_reduction_9.3pct<20.0pct": 1,
+       "local_reduction_-8.2pct<20.0pct": 1,
+       "local_reduction_11.6pct<20.0pct": 1,
+       "local_reduction_16.5pct<20.0pct": 1,
+       "local_reduction_15.3pct<20.0pct": 1,
+       "local_reduction_14.7pct<20.0pct": 1,
+       "local_reduction_5.2pct<20.0pct": 1,
+       "local_reduction_12.1pct<20.0pct": 1,
+       "local_reduction_3.3pct<20.0pct": 1,
+       "local_reduction_-4.3pct<20.0pct": 1,
+       "local_reduction_10.0pct<20.0pct": 1,
+       "local_reduction_0.6pct<20.0pct": 1,
+       "local_reduction_8.8pct<20.0pct": 1,
+       "local_reduction_-3.4pct<20.0pct": 1,
+       "local_reduction_-24.6pct<20.0pct": 1,
+       "local_reduction_-22.0pct<20.0pct": 1,
+       "local_reduction_-17.5pct<20.0pct": 1,
+       "local_reduction_-14.2pct<20.0pct": 1,
+       "local_reduction_10.8pct<20.0pct": 1,
+       "stable_breathing_cv_0.36<0.45": 1,
+       "stable_breathing_cv_0.24<0.45": 1,
+       "stable_breathing_cv_0.42<0.45": 1,
+       "stable_breathing_cv_0.40<0.45": 1
+      }
+     },
+     "arousal_source": "external",
+     "n_arousals": 37,
+     "wall_s": 30.0,
+     "events": [
+      [
+       2031.2,
+       2043.6,
+       "hypopnea"
+      ],
+      [
+       2044.6,
+       2058.7,
+       "hypopnea"
+      ],
+      [
+       2347.8,
+       2375.8,
+       "hypopnea"
+      ],
+      [
+       2470.1,
+       2486.8,
+       "hypopnea"
+      ],
+      [
+       2587.4,
+       2598.5,
+       "hypopnea"
+      ],
+      [
+       3132.7,
+       3148.2,
+       "obstructive"
+      ],
+      [
+       3410.4,
+       3424.1,
+       "hypopnea"
+      ],
+      [
+       3436.2,
+       3448.4,
+       "hypopnea"
+      ],
+      [
+       3661.7,
+       3675.8,
+       "hypopnea"
+      ],
+      [
+       3676.8,
+       3686.9,
+       "hypopnea"
+      ],
+      [
+       4897.2,
+       4908.2,
+       "hypopnea"
+      ],
+      [
+       4908.7,
+       4919.1,
+       "hypopnea"
+      ],
+      [
+       4946.0,
+       4959.3,
+       "hypopnea"
+      ],
+      [
+       5018.3,
+       5050.4,
+       "hypopnea"
+      ],
+      [
+       5200.2,
+       5215.0,
+       "hypopnea"
+      ],
+      [
+       5262.1,
+       5283.6,
+       "hypopnea"
+      ],
+      [
+       5342.3,
+       5364.6,
+       "hypopnea"
+      ],
+      [
+       5388.8,
+       5402.3,
+       "hypopnea"
+      ],
+      [
+       5522.1,
+       5539.7,
+       "hypopnea"
+      ],
+      [
+       5861.1,
+       5881.4,
+       "hypopnea"
+      ],
+      [
+       6992.4,
+       7005.0,
+       "obstructive"
+      ],
+      [
+       7041.8,
+       7055.9,
+       "obstructive"
+      ],
+      [
+       7109.1,
+       7119.4,
+       "obstructive"
+      ],
+      [
+       7199.4,
+       7216.1,
+       "obstructive"
+      ],
+      [
+       8040.2,
+       8055.6,
+       "obstructive"
+      ],
+      [
+       8106.7,
+       8117.0,
+       "obstructive"
+      ],
+      [
+       8676.0,
+       8690.2,
+       "obstructive"
+      ],
+      [
+       8713.9,
+       8732.0,
+       "obstructive"
+      ],
+      [
+       8760.4,
+       8772.1,
+       "obstructive"
+      ],
+      [
+       8805.3,
+       8818.5,
+       "obstructive"
+      ],
+      [
+       8859.6,
+       8871.0,
+       "obstructive"
+      ],
+      [
+       8899.6,
+       8917.0,
+       "obstructive"
+      ],
+      [
+       8948.8,
+       8961.8,
+       "obstructive"
+      ],
+      [
+       8978.3,
+       9001.5,
+       "obstructive"
+      ],
+      [
+       10326.5,
+       10345.7,
+       "hypopnea"
+      ],
+      [
+       10395.5,
+       10408.0,
+       "hypopnea"
+      ],
+      [
+       15934.8,
+       15950.6,
+       "hypopnea"
+      ],
+      [
+       17428.3,
+       17441.0,
+       "hypopnea"
+      ],
+      [
+       18048.8,
+       18076.8,
+       "hypopnea"
+      ],
+      [
+       18110.0,
+       18120.0,
+       "hypopnea"
+      ],
+      [
+       20747.0,
+       20769.1,
+       "hypopnea"
+      ],
+      [
+       20867.4,
+       20878.2,
+       "hypopnea"
+      ],
+      [
+       22285.4,
+       22319.7,
+       "hypopnea"
+      ],
+      [
+       22602.5,
+       22616.2,
+       "hypopnea"
+      ],
+      [
+       22625.0,
+       22635.8,
+       "hypopnea"
+      ],
+      [
+       22705.7,
+       22716.0,
+       "hypopnea"
+      ],
+      [
+       22846.4,
+       22859.7,
+       "hypopnea"
+      ]
+     ],
+     "reinstated": [],
+     "f1_median": 0.4698620188816267,
+     "precision_median": 0.4148936170212766,
+     "recall_median": 0.5694980694980695,
+     "reinst_precision_median": null,
+     "delta_ahi": 2.14
+    }
+   }
+  },
+  {
+   "recording": "SN2",
+   "n_scorers": 12,
+   "ref_median_ahi": 4.33,
+   "ref_range": [
+    1.65,
+    6.8
+   ],
+   "n_ref_arousals": 96,
+   "arms": {
+    "A": {
+     "ahi": 9.3,
+     "n_events": 45,
+     "n_reinstated": 0,
+     "stats": {
+      "enabled": false,
+      "n_arousals_available": 0,
+      "n_candidates_tested": 0,
+      "n_arousal_coupled": 0,
+      "n_qualified": 0,
+      "skipped_reason": "disabled_by_profile"
+     },
+     "arousal_source": null,
+     "n_arousals": 137,
+     "wall_s": 100.5,
+     "events": [
+      [
+       2960.3,
+       2972.2,
+       "hypopnea"
+      ],
+      [
+       2988.0,
+       3020.7,
+       "hypopnea"
+      ],
+      [
+       3429.2,
+       3439.4,
+       "hypopnea"
+      ],
+      [
+       3445.2,
+       3458.8,
+       "hypopnea"
+      ],
+      [
+       4391.2,
+       4418.9,
+       "hypopnea"
+      ],
+      [
+       5040.0,
+       5052.3,
+       "hypopnea"
+      ],
+      [
+       6512.0,
+       6540.9,
+       "hypopnea"
+      ],
+      [
+       7318.1,
+       7340.8,
+       "hypopnea"
+      ],
+      [
+       8632.0,
+       8675.7,
+       "hypopnea"
+      ],
+      [
+       8812.1,
+       8824.4,
+       "hypopnea"
+      ],
+      [
+       8830.7,
+       8863.2,
+       "hypopnea"
+      ],
+      [
+       8863.7,
+       8916.7,
+       "hypopnea"
+      ],
+      [
+       9371.4,
+       9430.9,
+       "hypopnea"
+      ],
+      [
+       9490.8,
+       9550.3,
+       "hypopnea"
+      ],
+      [
+       9572.2,
+       9617.7,
+       "hypopnea"
+      ],
+      [
+       9689.1,
+       9723.8,
+       "hypopnea"
+      ],
+      [
+       9737.2,
+       9785.3,
+       "hypopnea"
+      ],
+      [
+       9852.3,
+       9904.2,
+       "hypopnea"
+      ],
+      [
+       10174.7,
+       10215.7,
+       "hypopnea"
+      ],
+      [
+       10232.9,
+       10260.5,
+       "hypopnea"
+      ],
+      [
+       10287.9,
+       10311.2,
+       "hypopnea"
+      ],
+      [
+       11441.3,
+       11480.9,
+       "hypopnea"
+      ],
+      [
+       11872.8,
+       11883.5,
+       "hypopnea"
+      ],
+      [
+       11898.2,
+       11943.6,
+       "hypopnea"
+      ],
+      [
+       12012.0,
+       12051.0,
+       "hypopnea"
+      ],
+      [
+       12065.6,
+       12124.7,
+       "hypopnea"
+      ],
+      [
+       12448.7,
+       12493.6,
+       "hypopnea"
+      ],
+      [
+       14704.5,
+       14717.5,
+       "hypopnea"
+      ],
+      [
+       14718.2,
+       14731.2,
+       "hypopnea"
+      ],
+      [
+       14736.2,
+       14750.6,
+       "obstructive"
+      ],
+      [
+       14761.7,
+       14782.2,
+       "hypopnea"
+      ],
+      [
+       14791.8,
+       14803.2,
+       "hypopnea"
+      ],
+      [
+       14803.9,
+       14819.3,
+       "hypopnea"
+      ],
+      [
+       14824.3,
+       14837.0,
+       "obstructive"
+      ],
+      [
+       14942.6,
+       14954.8,
+       "obstructive"
+      ],
+      [
+       15048.1,
+       15058.3,
+       "hypopnea"
+      ],
+      [
+       15506.5,
+       15540.4,
+       "hypopnea"
+      ],
+      [
+       18349.8,
+       18360.0,
+       "hypopnea"
+      ],
+      [
+       18490.1,
+       18503.9,
+       "hypopnea"
+      ],
+      [
+       18540.3,
+       18557.2,
+       "hypopnea"
+      ],
+      [
+       18557.2,
+       18568.7,
+       "hypopnea"
+      ],
+      [
+       18568.8,
+       18582.5,
+       "hypopnea"
+      ],
+      [
+       18582.5,
+       18599.2,
+       "hypopnea"
+      ],
+      [
+       20567.5,
+       20592.4,
+       "hypopnea"
+      ],
+      [
+       20619.9,
+       20646.5,
+       "hypopnea"
+      ]
+     ],
+     "reinstated": [],
+     "f1_median": 0.31677018633540377,
+     "precision_median": 0.2222222222222222,
+     "recall_median": 0.4907407407407407,
+     "reinst_precision_median": null,
+     "delta_ahi": 4.97
+    },
+    "B": {
+     "ahi": 9.5,
+     "n_events": 46,
+     "n_reinstated": 1,
+     "stats": {
+      "enabled": true,
+      "n_arousals_available": 137,
+      "n_candidates_tested": 3,
+      "n_arousal_coupled": 1,
+      "n_qualified": 1,
+      "skipped_reason": null,
+      "n_graded_coupled": 0,
+      "n_ineligible": 301,
+      "ineligible_by_reason": {
+       "local_reduction_-17.3pct<20.0pct": 1,
+       "local_reduction_8.9pct<20.0pct": 2,
+       "local_reduction_13.1pct<20.0pct": 3,
+       "local_reduction_12.4pct<20.0pct": 2,
+       "local_reduction_2.6pct<20.0pct": 2,
+       "local_reduction_7.1pct<20.0pct": 1,
+       "local_reduction_17.4pct<20.0pct": 2,
+       "local_reduction_11.4pct<20.0pct": 2,
+       "local_reduction_19.6pct<20.0pct": 1,
+       "local_reduction_8.0pct<20.0pct": 1,
+       "local_reduction_6.7pct<20.0pct": 1,
+       "local_reduction_-3.4pct<20.0pct": 1,
+       "local_reduction_11.6pct<20.0pct": 1,
+       "local_reduction_8.6pct<20.0pct": 1,
+       "local_reduction_13.9pct<20.0pct": 3,
+       "local_reduction_0.2pct<20.0pct": 1,
+       "local_reduction_12.2pct<25.0pct": 1,
+       "local_reduction_9.2pct<25.0pct": 1,
+       "local_reduction_0.9pct<20.0pct": 1,
+       "local_reduction_3.0pct<20.0pct": 1,
+       "local_reduction_-1.5pct<20.0pct": 2,
+       "local_reduction_4.5pct<20.0pct": 1,
+       "local_reduction_8.2pct<20.0pct": 2,
+       "local_reduction_13.3pct<20.0pct": 3,
+       "local_reduction_7.0pct<20.0pct": 1,
+       "local_reduction_8.5pct<20.0pct": 2,
+       "local_reduction_14.9pct<20.0pct": 1,
+       "local_reduction_5.6pct<20.0pct": 2,
+       "local_reduction_-7.5pct<20.0pct": 2,
+       "local_reduction_15.0pct<20.0pct": 3,
+       "local_reduction_15.2pct<20.0pct": 1,
+       "local_reduction_9.2pct<20.0pct": 1,
+       "local_reduction_12.2pct<20.0pct": 2,
+       "local_reduction_15.6pct<20.0pct": 2,
+       "local_reduction_6.9pct<20.0pct": 2,
+       "local_reduction_5.7pct<20.0pct": 1,
+       "local_reduction_-11.0pct<20.0pct": 1,
+       "local_reduction_1.2pct<20.0pct": 2,
+       "local_reduction_14.8pct<25.0pct": 1,
+       "local_reduction_-6.6pct<25.0pct": 1,
+       "local_reduction_15.7pct<20.0pct": 3,
+       "local_reduction_-9.0pct<20.0pct": 3,
+       "local_reduction_11.2pct<20.0pct": 1,
+       "local_reduction_-10.2pct<20.0pct": 1,
+       "local_reduction_-3.9pct<20.0pct": 1,
+       "local_reduction_14.8pct<20.0pct": 2,
+       "local_reduction_17.5pct<20.0pct": 2,
+       "local_reduction_16.1pct<20.0pct": 1,
+       "local_reduction_10.1pct<20.0pct": 2,
+       "local_reduction_-8.0pct<20.0pct": 2,
+       "local_reduction_9.1pct<20.0pct": 1,
+       "local_reduction_4.3pct<20.0pct": 1,
+       "local_reduction_5.0pct<20.0pct": 3,
+       "local_reduction_6.5pct<20.0pct": 1,
+       "local_reduction_7.5pct<20.0pct": 1,
+       "local_reduction_12.7pct<20.0pct": 1,
+       "local_reduction_-2.2pct<20.0pct": 2,
+       "local_reduction_14.3pct<20.0pct": 1,
+       "local_reduction_4.7pct<20.0pct": 1,
+       "local_reduction_18.5pct<20.0pct": 1,
+       "local_reduction_3.4pct<20.0pct": 1,
+       "local_reduction_16.6pct<20.0pct": 1,
+       "local_reduction_4.0pct<20.0pct": 1,
+       "local_reduction_8.5pct<25.0pct": 1,
+       "local_reduction_2.8pct<25.0pct": 3,
+       "local_reduction_7.0pct<25.0pct": 1,
+       "local_reduction_19.0pct<25.0pct": 1,
+       "local_reduction_12.3pct<25.0pct": 1,
+       "local_reduction_-0.1pct<25.0pct": 1,
+       "local_reduction_6.8pct<25.0pct": 1,
+       "local_reduction_-1.8pct<25.0pct": 2,
+       "local_reduction_-0.3pct<20.0pct": 1,
+       "local_reduction_17.0pct<20.0pct": 1,
+       "local_reduction_12.5pct<20.0pct": 3,
+       "local_reduction_-6.3pct<20.0pct": 1,
+       "local_reduction_-25.9pct<20.0pct": 1,
+       "local_reduction_-0.6pct<20.0pct": 1,
+       "local_reduction_5.9pct<25.0pct": 1,
+       "local_reduction_3.6pct<25.0pct": 1,
+       "local_reduction_3.1pct<25.0pct": 2,
+       "local_reduction_16.9pct<25.0pct": 1,
+       "local_reduction_5.2pct<25.0pct": 1,
+       "local_reduction_-5.7pct<25.0pct": 1,
+       "local_reduction_4.4pct<25.0pct": 1,
+       "local_reduction_13.0pct<25.0pct": 1,
+       "local_reduction_-7.3pct<25.0pct": 1,
+       "local_reduction_0.5pct<25.0pct": 1,
+       "local_reduction_5.0pct<25.0pct": 1,
+       "local_reduction_4.3pct<25.0pct": 2,
+       "local_reduction_13.8pct<20.0pct": 4,
+       "local_reduction_-4.1pct<20.0pct": 1,
+       "local_reduction_-0.4pct<20.0pct": 1,
+       "local_reduction_8.4pct<20.0pct": 1,
+       "local_reduction_11.0pct<20.0pct": 1,
+       "local_reduction_10.3pct<20.0pct": 1,
+       "local_reduction_0.5pct<20.0pct": 2,
+       "local_reduction_3.5pct<25.0pct": 1,
+       "local_reduction_9.6pct<25.0pct": 1,
+       "local_reduction_8.0pct<25.0pct": 1,
+       "local_reduction_-2.7pct<25.0pct": 1,
+       "local_reduction_4.1pct<25.0pct": 1,
+       "local_reduction_2.7pct<25.0pct": 2,
+       "local_reduction_-3.5pct<25.0pct": 1,
+       "local_reduction_6.4pct<20.0pct": 1,
+       "local_reduction_-6.9pct<20.0pct": 1,
+       "local_reduction_8.7pct<20.0pct": 2,
+       "local_reduction_-5.2pct<20.0pct": 1,
+       "local_reduction_-15.0pct<20.0pct": 1,
+       "local_reduction_7.4pct<20.0pct": 1,
+       "local_reduction_6.0pct<20.0pct": 1,
+       "local_reduction_3.8pct<25.0pct": 1,
+       "local_reduction_-0.3pct<25.0pct": 2,
+       "local_reduction_6.6pct<25.0pct": 1,
+       "local_reduction_-2.6pct<25.0pct": 1,
+       "local_reduction_-2.9pct<20.0pct": 2,
+       "local_reduction_6.3pct<20.0pct": 1,
+       "local_reduction_0.3pct<20.0pct": 1,
+       "local_reduction_-0.9pct<20.0pct": 1,
+       "local_reduction_1.8pct<20.0pct": 2,
+       "local_reduction_19.1pct<20.0pct": 1,
+       "local_reduction_-5.1pct<20.0pct": 2,
+       "local_reduction_8.8pct<20.0pct": 1,
+       "local_reduction_-11.3pct<20.0pct": 1,
+       "local_reduction_-6.6pct<20.0pct": 1,
+       "local_reduction_-7.7pct<20.0pct": 1,
+       "local_reduction_7.6pct<20.0pct": 1,
+       "local_reduction_-1.8pct<20.0pct": 2,
+       "local_reduction_-7.3pct<20.0pct": 1,
+       "local_reduction_-31.2pct<20.0pct": 1,
+       "local_reduction_-54.1pct<20.0pct": 1,
+       "local_reduction_-21.6pct<20.0pct": 1,
+       "local_reduction_2.2pct<20.0pct": 1,
+       "local_reduction_15.1pct<20.0pct": 1,
+       "local_reduction_14.1pct<20.0pct": 1,
+       "local_reduction_1.1pct<20.0pct": 1,
+       "local_reduction_15.9pct<20.0pct": 2,
+       "local_reduction_-8.4pct<20.0pct": 1,
+       "local_reduction_-18.5pct<20.0pct": 1,
+       "local_reduction_-21.1pct<20.0pct": 1,
+       "local_reduction_-18.3pct<20.0pct": 1,
+       "local_reduction_13.5pct<20.0pct": 1,
+       "local_reduction_7.3pct<20.0pct": 1,
+       "local_reduction_-4.5pct<20.0pct": 1,
+       "local_reduction_-9.3pct<20.0pct": 1,
+       "local_reduction_-35.0pct<20.0pct": 1,
+       "local_reduction_0.4pct<20.0pct": 1,
+       "local_reduction_-1.2pct<20.0pct": 1,
+       "local_reduction_3.6pct<20.0pct": 1,
+       "local_reduction_9.7pct<20.0pct": 2,
+       "local_reduction_18.2pct<20.0pct": 1,
+       "local_reduction_-32.4pct<20.0pct": 1,
+       "local_reduction_9.9pct<20.0pct": 1,
+       "local_reduction_2.3pct<20.0pct": 1,
+       "local_reduction_-33.3pct<20.0pct": 1,
+       "local_reduction_-3.5pct<20.0pct": 1,
+       "local_reduction_-12.2pct<20.0pct": 1,
+       "local_reduction_-26.6pct<20.0pct": 1,
+       "local_reduction_0.6pct<20.0pct": 1,
+       "local_reduction_-2.0pct<20.0pct": 1,
+       "local_reduction_16.4pct<20.0pct": 2,
+       "local_reduction_15.3pct<20.0pct": 2,
+       "local_reduction_3.7pct<20.0pct": 2,
+       "local_reduction_3.9pct<20.0pct": 1,
+       "local_reduction_-12.9pct<20.0pct": 1,
+       "local_reduction_11.5pct<20.0pct": 1,
+       "local_reduction_-0.7pct<20.0pct": 2,
+       "local_reduction_6.6pct<20.0pct": 1,
+       "local_reduction_19.9pct<20.0pct": 1,
+       "local_reduction_6.1pct<20.0pct": 1,
+       "local_reduction_9.5pct<20.0pct": 1,
+       "local_reduction_10.2pct<20.0pct": 1,
+       "local_reduction_17.7pct<20.0pct": 1,
+       "local_reduction_7.7pct<20.0pct": 1,
+       "local_reduction_-9.7pct<20.0pct": 1,
+       "local_reduction_0.8pct<20.0pct": 1,
+       "local_reduction_16.0pct<20.0pct": 1,
+       "local_reduction_-11.3pct<25.0pct": 1,
+       "local_reduction_12.1pct<25.0pct": 1,
+       "local_reduction_14.2pct<25.0pct": 1,
+       "local_reduction_4.0pct<25.0pct": 1,
+       "local_reduction_14.6pct<20.0pct": 1,
+       "local_reduction_-14.0pct<20.0pct": 1,
+       "local_reduction_-1.4pct<20.0pct": 1,
+       "stable_breathing_cv_0.18<0.45": 2,
+       "stable_breathing_cv_0.33<0.45": 2,
+       "stable_breathing_cv_0.34<0.45": 2,
+       "stable_breathing_cv_0.35<0.45": 6,
+       "stable_breathing_cv_0.40<0.45": 6,
+       "stable_breathing_cv_0.41<0.45": 2,
+       "stable_breathing_cv_0.43<0.45": 7,
+       "stable_breathing_cv_0.36<0.45": 2,
+       "stable_breathing_cv_0.26<0.45": 1,
+       "stable_breathing_cv_0.39<0.45": 4,
+       "stable_breathing_cv_0.27<0.45": 1,
+       "stable_breathing_cv_0.16<0.45": 1,
+       "stable_breathing_cv_0.38<0.45": 5,
+       "stable_breathing_cv_0.44<0.45": 4,
+       "stable_breathing_cv_0.25<0.45": 2,
+       "stable_breathing_cv_0.28<0.45": 1,
+       "stable_breathing_cv_0.30<0.45": 1,
+       "stable_breathing_cv_0.42<0.45": 1,
+       "stable_breathing_cv_0.32<0.45": 1,
+       "stable_breathing_cv_0.31<0.45": 2,
+       "stable_breathing_cv_0.45<0.45": 1,
+       "stable_breathing_cv_0.37<0.45": 1,
+       "stable_breathing_cv_0.21<0.45": 1,
+       "stable_breathing_cv_0.22<0.45": 1,
+       "stable_breathing_cv_0.14<0.45": 2,
+       "stable_breathing_cv_0.23<0.45": 2
+      }
+     },
+     "arousal_source": null,
+     "n_arousals": 137,
+     "wall_s": 93.1,
+     "events": [
+      [
+       1062.9,
+       1080.8,
+       "hypopnea"
+      ],
+      [
+       2960.3,
+       2972.2,
+       "hypopnea"
+      ],
+      [
+       2988.0,
+       3020.7,
+       "hypopnea"
+      ],
+      [
+       3429.2,
+       3439.4,
+       "hypopnea"
+      ],
+      [
+       3445.2,
+       3458.8,
+       "hypopnea"
+      ],
+      [
+       4391.2,
+       4418.9,
+       "hypopnea"
+      ],
+      [
+       5040.0,
+       5052.3,
+       "hypopnea"
+      ],
+      [
+       6512.0,
+       6540.9,
+       "hypopnea"
+      ],
+      [
+       7318.1,
+       7340.8,
+       "hypopnea"
+      ],
+      [
+       8632.0,
+       8675.7,
+       "hypopnea"
+      ],
+      [
+       8812.1,
+       8824.4,
+       "hypopnea"
+      ],
+      [
+       8830.7,
+       8863.2,
+       "hypopnea"
+      ],
+      [
+       8863.7,
+       8916.7,
+       "hypopnea"
+      ],
+      [
+       9371.4,
+       9430.9,
+       "hypopnea"
+      ],
+      [
+       9490.8,
+       9550.3,
+       "hypopnea"
+      ],
+      [
+       9572.2,
+       9617.7,
+       "hypopnea"
+      ],
+      [
+       9689.1,
+       9723.8,
+       "hypopnea"
+      ],
+      [
+       9737.2,
+       9785.3,
+       "hypopnea"
+      ],
+      [
+       9852.3,
+       9904.2,
+       "hypopnea"
+      ],
+      [
+       10174.7,
+       10215.7,
+       "hypopnea"
+      ],
+      [
+       10232.9,
+       10260.5,
+       "hypopnea"
+      ],
+      [
+       10287.9,
+       10311.2,
+       "hypopnea"
+      ],
+      [
+       11441.3,
+       11480.9,
+       "hypopnea"
+      ],
+      [
+       11872.8,
+       11883.5,
+       "hypopnea"
+      ],
+      [
+       11898.2,
+       11943.6,
+       "hypopnea"
+      ],
+      [
+       12012.0,
+       12051.0,
+       "hypopnea"
+      ],
+      [
+       12065.6,
+       12124.7,
+       "hypopnea"
+      ],
+      [
+       12448.7,
+       12493.6,
+       "hypopnea"
+      ],
+      [
+       14704.5,
+       14717.5,
+       "hypopnea"
+      ],
+      [
+       14718.2,
+       14731.2,
+       "hypopnea"
+      ],
+      [
+       14736.2,
+       14750.6,
+       "obstructive"
+      ],
+      [
+       14761.7,
+       14782.2,
+       "hypopnea"
+      ],
+      [
+       14791.8,
+       14803.2,
+       "hypopnea"
+      ],
+      [
+       14803.9,
+       14819.3,
+       "hypopnea"
+      ],
+      [
+       14824.3,
+       14837.0,
+       "obstructive"
+      ],
+      [
+       14942.6,
+       14954.8,
+       "obstructive"
+      ],
+      [
+       15048.1,
+       15058.3,
+       "hypopnea"
+      ],
+      [
+       15506.5,
+       15540.4,
+       "hypopnea"
+      ],
+      [
+       18349.8,
+       18360.0,
+       "hypopnea"
+      ],
+      [
+       18490.1,
+       18503.9,
+       "hypopnea"
+      ],
+      [
+       18540.3,
+       18557.2,
+       "hypopnea"
+      ],
+      [
+       18557.2,
+       18568.7,
+       "hypopnea"
+      ],
+      [
+       18568.8,
+       18582.5,
+       "hypopnea"
+      ],
+      [
+       18582.5,
+       18599.2,
+       "hypopnea"
+      ],
+      [
+       20567.5,
+       20592.4,
+       "hypopnea"
+      ],
+      [
+       20619.9,
+       20646.5,
+       "hypopnea"
+      ]
+     ],
+     "reinstated": [
+      [
+       1062.9,
+       1080.8,
+       "hypopnea"
+      ]
+     ],
+     "f1_median": 0.3120535714285714,
+     "precision_median": 0.2173913043478261,
+     "recall_median": 0.4907407407407407,
+     "reinst_precision_median": 0.0,
+     "delta_ahi": 5.17
+    },
+    "C": {
+     "ahi": 9.3,
+     "n_events": 45,
+     "n_reinstated": 0,
+     "stats": {
+      "enabled": true,
+      "n_arousals_available": 96,
+      "n_candidates_tested": 3,
+      "n_arousal_coupled": 0,
+      "n_qualified": 0,
+      "skipped_reason": null,
+      "n_graded_coupled": 0,
+      "n_ineligible": 301,
+      "ineligible_by_reason": {
+       "local_reduction_-17.3pct<20.0pct": 1,
+       "local_reduction_8.9pct<20.0pct": 2,
+       "local_reduction_13.1pct<20.0pct": 3,
+       "local_reduction_12.4pct<20.0pct": 2,
+       "local_reduction_2.6pct<20.0pct": 2,
+       "local_reduction_7.1pct<20.0pct": 1,
+       "local_reduction_17.4pct<20.0pct": 2,
+       "local_reduction_11.4pct<20.0pct": 2,
+       "local_reduction_19.6pct<20.0pct": 1,
+       "local_reduction_8.0pct<20.0pct": 1,
+       "local_reduction_6.7pct<20.0pct": 1,
+       "local_reduction_-3.4pct<20.0pct": 1,
+       "local_reduction_11.6pct<20.0pct": 1,
+       "local_reduction_8.6pct<20.0pct": 1,
+       "local_reduction_13.9pct<20.0pct": 3,
+       "local_reduction_0.2pct<20.0pct": 1,
+       "local_reduction_12.2pct<25.0pct": 1,
+       "local_reduction_9.2pct<25.0pct": 1,
+       "local_reduction_0.9pct<20.0pct": 1,
+       "local_reduction_3.0pct<20.0pct": 1,
+       "local_reduction_-1.5pct<20.0pct": 2,
+       "local_reduction_4.5pct<20.0pct": 1,
+       "local_reduction_8.2pct<20.0pct": 2,
+       "local_reduction_13.3pct<20.0pct": 3,
+       "local_reduction_7.0pct<20.0pct": 1,
+       "local_reduction_8.5pct<20.0pct": 2,
+       "local_reduction_14.9pct<20.0pct": 1,
+       "local_reduction_5.6pct<20.0pct": 2,
+       "local_reduction_-7.5pct<20.0pct": 2,
+       "local_reduction_15.0pct<20.0pct": 3,
+       "local_reduction_15.2pct<20.0pct": 1,
+       "local_reduction_9.2pct<20.0pct": 1,
+       "local_reduction_12.2pct<20.0pct": 2,
+       "local_reduction_15.6pct<20.0pct": 2,
+       "local_reduction_6.9pct<20.0pct": 2,
+       "local_reduction_5.7pct<20.0pct": 1,
+       "local_reduction_-11.0pct<20.0pct": 1,
+       "local_reduction_1.2pct<20.0pct": 2,
+       "local_reduction_14.8pct<25.0pct": 1,
+       "local_reduction_-6.6pct<25.0pct": 1,
+       "local_reduction_15.7pct<20.0pct": 3,
+       "local_reduction_-9.0pct<20.0pct": 3,
+       "local_reduction_11.2pct<20.0pct": 1,
+       "local_reduction_-10.2pct<20.0pct": 1,
+       "local_reduction_-3.9pct<20.0pct": 1,
+       "local_reduction_14.8pct<20.0pct": 2,
+       "local_reduction_17.5pct<20.0pct": 2,
+       "local_reduction_16.1pct<20.0pct": 1,
+       "local_reduction_10.1pct<20.0pct": 2,
+       "local_reduction_-8.0pct<20.0pct": 2,
+       "local_reduction_9.1pct<20.0pct": 1,
+       "local_reduction_4.3pct<20.0pct": 1,
+       "local_reduction_5.0pct<20.0pct": 3,
+       "local_reduction_6.5pct<20.0pct": 1,
+       "local_reduction_7.5pct<20.0pct": 1,
+       "local_reduction_12.7pct<20.0pct": 1,
+       "local_reduction_-2.2pct<20.0pct": 2,
+       "local_reduction_14.3pct<20.0pct": 1,
+       "local_reduction_4.7pct<20.0pct": 1,
+       "local_reduction_18.5pct<20.0pct": 1,
+       "local_reduction_3.4pct<20.0pct": 1,
+       "local_reduction_16.6pct<20.0pct": 1,
+       "local_reduction_4.0pct<20.0pct": 1,
+       "local_reduction_8.5pct<25.0pct": 1,
+       "local_reduction_2.8pct<25.0pct": 3,
+       "local_reduction_7.0pct<25.0pct": 1,
+       "local_reduction_19.0pct<25.0pct": 1,
+       "local_reduction_12.3pct<25.0pct": 1,
+       "local_reduction_-0.1pct<25.0pct": 1,
+       "local_reduction_6.8pct<25.0pct": 1,
+       "local_reduction_-1.8pct<25.0pct": 2,
+       "local_reduction_-0.3pct<20.0pct": 1,
+       "local_reduction_17.0pct<20.0pct": 1,
+       "local_reduction_12.5pct<20.0pct": 3,
+       "local_reduction_-6.3pct<20.0pct": 1,
+       "local_reduction_-25.9pct<20.0pct": 1,
+       "local_reduction_-0.6pct<20.0pct": 1,
+       "local_reduction_5.9pct<25.0pct": 1,
+       "local_reduction_3.6pct<25.0pct": 1,
+       "local_reduction_3.1pct<25.0pct": 2,
+       "local_reduction_16.9pct<25.0pct": 1,
+       "local_reduction_5.2pct<25.0pct": 1,
+       "local_reduction_-5.7pct<25.0pct": 1,
+       "local_reduction_4.4pct<25.0pct": 1,
+       "local_reduction_13.0pct<25.0pct": 1,
+       "local_reduction_-7.3pct<25.0pct": 1,
+       "local_reduction_0.5pct<25.0pct": 1,
+       "local_reduction_5.0pct<25.0pct": 1,
+       "local_reduction_4.3pct<25.0pct": 2,
+       "local_reduction_13.8pct<20.0pct": 4,
+       "local_reduction_-4.1pct<20.0pct": 1,
+       "local_reduction_-0.4pct<20.0pct": 1,
+       "local_reduction_8.4pct<20.0pct": 1,
+       "local_reduction_11.0pct<20.0pct": 1,
+       "local_reduction_10.3pct<20.0pct": 1,
+       "local_reduction_0.5pct<20.0pct": 2,
+       "local_reduction_3.5pct<25.0pct": 1,
+       "local_reduction_9.6pct<25.0pct": 1,
+       "local_reduction_8.0pct<25.0pct": 1,
+       "local_reduction_-2.7pct<25.0pct": 1,
+       "local_reduction_4.1pct<25.0pct": 1,
+       "local_reduction_2.7pct<25.0pct": 2,
+       "local_reduction_-3.5pct<25.0pct": 1,
+       "local_reduction_6.4pct<20.0pct": 1,
+       "local_reduction_-6.9pct<20.0pct": 1,
+       "local_reduction_8.7pct<20.0pct": 2,
+       "local_reduction_-5.2pct<20.0pct": 1,
+       "local_reduction_-15.0pct<20.0pct": 1,
+       "local_reduction_7.4pct<20.0pct": 1,
+       "local_reduction_6.0pct<20.0pct": 1,
+       "local_reduction_3.8pct<25.0pct": 1,
+       "local_reduction_-0.3pct<25.0pct": 2,
+       "local_reduction_6.6pct<25.0pct": 1,
+       "local_reduction_-2.6pct<25.0pct": 1,
+       "local_reduction_-2.9pct<20.0pct": 2,
+       "local_reduction_6.3pct<20.0pct": 1,
+       "local_reduction_0.3pct<20.0pct": 1,
+       "local_reduction_-0.9pct<20.0pct": 1,
+       "local_reduction_1.8pct<20.0pct": 2,
+       "local_reduction_19.1pct<20.0pct": 1,
+       "local_reduction_-5.1pct<20.0pct": 2,
+       "local_reduction_8.8pct<20.0pct": 1,
+       "local_reduction_-11.3pct<20.0pct": 1,
+       "local_reduction_-6.6pct<20.0pct": 1,
+       "local_reduction_-7.7pct<20.0pct": 1,
+       "local_reduction_7.6pct<20.0pct": 1,
+       "local_reduction_-1.8pct<20.0pct": 2,
+       "local_reduction_-7.3pct<20.0pct": 1,
+       "local_reduction_-31.2pct<20.0pct": 1,
+       "local_reduction_-54.1pct<20.0pct": 1,
+       "local_reduction_-21.6pct<20.0pct": 1,
+       "local_reduction_2.2pct<20.0pct": 1,
+       "local_reduction_15.1pct<20.0pct": 1,
+       "local_reduction_14.1pct<20.0pct": 1,
+       "local_reduction_1.1pct<20.0pct": 1,
+       "local_reduction_15.9pct<20.0pct": 2,
+       "local_reduction_-8.4pct<20.0pct": 1,
+       "local_reduction_-18.5pct<20.0pct": 1,
+       "local_reduction_-21.1pct<20.0pct": 1,
+       "local_reduction_-18.3pct<20.0pct": 1,
+       "local_reduction_13.5pct<20.0pct": 1,
+       "local_reduction_7.3pct<20.0pct": 1,
+       "local_reduction_-4.5pct<20.0pct": 1,
+       "local_reduction_-9.3pct<20.0pct": 1,
+       "local_reduction_-35.0pct<20.0pct": 1,
+       "local_reduction_0.4pct<20.0pct": 1,
+       "local_reduction_-1.2pct<20.0pct": 1,
+       "local_reduction_3.6pct<20.0pct": 1,
+       "local_reduction_9.7pct<20.0pct": 2,
+       "local_reduction_18.2pct<20.0pct": 1,
+       "local_reduction_-32.4pct<20.0pct": 1,
+       "local_reduction_9.9pct<20.0pct": 1,
+       "local_reduction_2.3pct<20.0pct": 1,
+       "local_reduction_-33.3pct<20.0pct": 1,
+       "local_reduction_-3.5pct<20.0pct": 1,
+       "local_reduction_-12.2pct<20.0pct": 1,
+       "local_reduction_-26.6pct<20.0pct": 1,
+       "local_reduction_0.6pct<20.0pct": 1,
+       "local_reduction_-2.0pct<20.0pct": 1,
+       "local_reduction_16.4pct<20.0pct": 2,
+       "local_reduction_15.3pct<20.0pct": 2,
+       "local_reduction_3.7pct<20.0pct": 2,
+       "local_reduction_3.9pct<20.0pct": 1,
+       "local_reduction_-12.9pct<20.0pct": 1,
+       "local_reduction_11.5pct<20.0pct": 1,
+       "local_reduction_-0.7pct<20.0pct": 2,
+       "local_reduction_6.6pct<20.0pct": 1,
+       "local_reduction_19.9pct<20.0pct": 1,
+       "local_reduction_6.1pct<20.0pct": 1,
+       "local_reduction_9.5pct<20.0pct": 1,
+       "local_reduction_10.2pct<20.0pct": 1,
+       "local_reduction_17.7pct<20.0pct": 1,
+       "local_reduction_7.7pct<20.0pct": 1,
+       "local_reduction_-9.7pct<20.0pct": 1,
+       "local_reduction_0.8pct<20.0pct": 1,
+       "local_reduction_16.0pct<20.0pct": 1,
+       "local_reduction_-11.3pct<25.0pct": 1,
+       "local_reduction_12.1pct<25.0pct": 1,
+       "local_reduction_14.2pct<25.0pct": 1,
+       "local_reduction_4.0pct<25.0pct": 1,
+       "local_reduction_14.6pct<20.0pct": 1,
+       "local_reduction_-14.0pct<20.0pct": 1,
+       "local_reduction_-1.4pct<20.0pct": 1,
+       "stable_breathing_cv_0.18<0.45": 2,
+       "stable_breathing_cv_0.33<0.45": 2,
+       "stable_breathing_cv_0.34<0.45": 2,
+       "stable_breathing_cv_0.35<0.45": 6,
+       "stable_breathing_cv_0.40<0.45": 6,
+       "stable_breathing_cv_0.41<0.45": 2,
+       "stable_breathing_cv_0.43<0.45": 7,
+       "stable_breathing_cv_0.36<0.45": 2,
+       "stable_breathing_cv_0.26<0.45": 1,
+       "stable_breathing_cv_0.39<0.45": 4,
+       "stable_breathing_cv_0.27<0.45": 1,
+       "stable_breathing_cv_0.16<0.45": 1,
+       "stable_breathing_cv_0.38<0.45": 5,
+       "stable_breathing_cv_0.44<0.45": 4,
+       "stable_breathing_cv_0.25<0.45": 2,
+       "stable_breathing_cv_0.28<0.45": 1,
+       "stable_breathing_cv_0.30<0.45": 1,
+       "stable_breathing_cv_0.42<0.45": 1,
+       "stable_breathing_cv_0.32<0.45": 1,
+       "stable_breathing_cv_0.31<0.45": 2,
+       "stable_breathing_cv_0.45<0.45": 1,
+       "stable_breathing_cv_0.37<0.45": 1,
+       "stable_breathing_cv_0.21<0.45": 1,
+       "stable_breathing_cv_0.22<0.45": 1,
+       "stable_breathing_cv_0.14<0.45": 2,
+       "stable_breathing_cv_0.23<0.45": 2
+      }
+     },
+     "arousal_source": "external",
+     "n_arousals": 96,
+     "wall_s": 27.1,
+     "events": [
+      [
+       2960.3,
+       2972.2,
+       "hypopnea"
+      ],
+      [
+       2988.0,
+       3020.7,
+       "hypopnea"
+      ],
+      [
+       3429.2,
+       3439.4,
+       "hypopnea"
+      ],
+      [
+       3445.2,
+       3458.8,
+       "hypopnea"
+      ],
+      [
+       4391.2,
+       4418.9,
+       "hypopnea"
+      ],
+      [
+       5040.0,
+       5052.3,
+       "hypopnea"
+      ],
+      [
+       6512.0,
+       6540.9,
+       "hypopnea"
+      ],
+      [
+       7318.1,
+       7340.8,
+       "hypopnea"
+      ],
+      [
+       8632.0,
+       8675.7,
+       "hypopnea"
+      ],
+      [
+       8812.1,
+       8824.4,
+       "hypopnea"
+      ],
+      [
+       8830.7,
+       8863.2,
+       "hypopnea"
+      ],
+      [
+       8863.7,
+       8916.7,
+       "hypopnea"
+      ],
+      [
+       9371.4,
+       9430.9,
+       "hypopnea"
+      ],
+      [
+       9490.8,
+       9550.3,
+       "hypopnea"
+      ],
+      [
+       9572.2,
+       9617.7,
+       "hypopnea"
+      ],
+      [
+       9689.1,
+       9723.8,
+       "hypopnea"
+      ],
+      [
+       9737.2,
+       9785.3,
+       "hypopnea"
+      ],
+      [
+       9852.3,
+       9904.2,
+       "hypopnea"
+      ],
+      [
+       10174.7,
+       10215.7,
+       "hypopnea"
+      ],
+      [
+       10232.9,
+       10260.5,
+       "hypopnea"
+      ],
+      [
+       10287.9,
+       10311.2,
+       "hypopnea"
+      ],
+      [
+       11441.3,
+       11480.9,
+       "hypopnea"
+      ],
+      [
+       11872.8,
+       11883.5,
+       "hypopnea"
+      ],
+      [
+       11898.2,
+       11943.6,
+       "hypopnea"
+      ],
+      [
+       12012.0,
+       12051.0,
+       "hypopnea"
+      ],
+      [
+       12065.6,
+       12124.7,
+       "hypopnea"
+      ],
+      [
+       12448.7,
+       12493.6,
+       "hypopnea"
+      ],
+      [
+       14704.5,
+       14717.5,
+       "hypopnea"
+      ],
+      [
+       14718.2,
+       14731.2,
+       "hypopnea"
+      ],
+      [
+       14736.2,
+       14750.6,
+       "obstructive"
+      ],
+      [
+       14761.7,
+       14782.2,
+       "hypopnea"
+      ],
+      [
+       14791.8,
+       14803.2,
+       "hypopnea"
+      ],
+      [
+       14803.9,
+       14819.3,
+       "hypopnea"
+      ],
+      [
+       14824.3,
+       14837.0,
+       "obstructive"
+      ],
+      [
+       14942.6,
+       14954.8,
+       "obstructive"
+      ],
+      [
+       15048.1,
+       15058.3,
+       "hypopnea"
+      ],
+      [
+       15506.5,
+       15540.4,
+       "hypopnea"
+      ],
+      [
+       18349.8,
+       18360.0,
+       "hypopnea"
+      ],
+      [
+       18490.1,
+       18503.9,
+       "hypopnea"
+      ],
+      [
+       18540.3,
+       18557.2,
+       "hypopnea"
+      ],
+      [
+       18557.2,
+       18568.7,
+       "hypopnea"
+      ],
+      [
+       18568.8,
+       18582.5,
+       "hypopnea"
+      ],
+      [
+       18582.5,
+       18599.2,
+       "hypopnea"
+      ],
+      [
+       20567.5,
+       20592.4,
+       "hypopnea"
+      ],
+      [
+       20619.9,
+       20646.5,
+       "hypopnea"
+      ]
+     ],
+     "reinstated": [],
+     "f1_median": 0.31677018633540377,
+     "precision_median": 0.2222222222222222,
+     "recall_median": 0.4907407407407407,
+     "reinst_precision_median": null,
+     "delta_ahi": 4.97
+    }
+   }
+  },
+  {
+   "recording": "SN3",
+   "n_scorers": 12,
+   "ref_median_ahi": 53.98,
+   "ref_range": [
+    45.06,
+    55.96
+   ],
+   "n_ref_arousals": 241,
+   "arms": {
+    "A": {
+     "ahi": 53.8,
+     "n_events": 326,
+     "n_reinstated": 0,
+     "stats": {
+      "enabled": false,
+      "n_arousals_available": 0,
+      "n_candidates_tested": 0,
+      "n_arousal_coupled": 0,
+      "n_qualified": 0,
+      "skipped_reason": "disabled_by_profile"
+     },
+     "arousal_source": null,
+     "n_arousals": 200,
+     "wall_s": 129.4,
+     "events": [
+      [
+       240.0,
+       268.8,
+       "hypopnea_mixed"
+      ],
+      [
+       318.1,
+       332.5,
+       "obstructive"
+      ],
+      [
+       358.8,
+       369.5,
+       "central"
+      ],
+      [
+       385.9,
+       401.6,
+       "obstructive"
+      ],
+      [
+       434.6,
+       453.1,
+       "obstructive"
+      ],
+      [
+       466.7,
+       485.8,
+       "obstructive"
+      ],
+      [
+       503.2,
+       531.8,
+       "obstructive"
+      ],
+      [
+       551.1,
+       583.3,
+       "obstructive"
+      ],
+      [
+       604.4,
+       639.0,
+       "obstructive"
+      ],
+      [
+       666.7,
+       685.4,
+       "obstructive"
+      ],
+      [
+       796.0,
+       823.4,
+       "hypopnea"
+      ],
+      [
+       842.9,
+       855.4,
+       "hypopnea"
+      ],
+      [
+       996.1,
+       1053.0,
+       "obstructive"
+      ],
+      [
+       1148.4,
+       1188.0,
+       "obstructive"
+      ],
+      [
+       1220.2,
+       1277.6,
+       "hypopnea"
+      ],
+      [
+       1282.6,
+       1301.1,
+       "obstructive"
+      ],
+      [
+       1328.4,
+       1361.4,
+       "hypopnea"
+      ],
+      [
+       1396.5,
+       1408.1,
+       "hypopnea"
+      ],
+      [
+       1414.6,
+       1460.4,
+       "hypopnea"
+      ],
+      [
+       1480.2,
+       1498.4,
+       "hypopnea"
+      ],
+      [
+       1501.5,
+       1517.9,
+       "hypopnea"
+      ],
+      [
+       1529.9,
+       1549.6,
+       "hypopnea"
+      ],
+      [
+       1550.5,
+       1581.1,
+       "hypopnea"
+      ],
+      [
+       1612.8,
+       1639.8,
+       "hypopnea"
+      ],
+      [
+       1652.7,
+       1664.6,
+       "hypopnea"
+      ],
+      [
+       1740.7,
+       1764.2,
+       "hypopnea"
+      ],
+      [
+       1802.3,
+       1846.9,
+       "hypopnea"
+      ],
+      [
+       1873.6,
+       1895.8,
+       "hypopnea"
+      ],
+      [
+       2066.0,
+       2101.5,
+       "hypopnea"
+      ],
+      [
+       2160.1,
+       2170.3,
+       "hypopnea"
+      ],
+      [
+       2172.2,
+       2193.6,
+       "hypopnea"
+      ],
+      [
+       3215.5,
+       3248.4,
+       "hypopnea"
+      ],
+      [
+       3252.6,
+       3267.1,
+       "hypopnea"
+      ],
+      [
+       3272.1,
+       3283.9,
+       "obstructive"
+      ],
+      [
+       3313.4,
+       3330.8,
+       "obstructive"
+      ],
+      [
+       3351.9,
+       3372.3,
+       "obstructive"
+      ],
+      [
+       3391.2,
+       3410.9,
+       "obstructive"
+      ],
+      [
+       3433.1,
+       3459.6,
+       "obstructive"
+      ],
+      [
+       3484.9,
+       3517.8,
+       "obstructive"
+      ],
+      [
+       3546.0,
+       3576.8,
+       "obstructive"
+      ],
+      [
+       3598.0,
+       3630.8,
+       "obstructive"
+      ],
+      [
+       3655.1,
+       3688.0,
+       "obstructive"
+      ],
+      [
+       3715.6,
+       3743.1,
+       "obstructive"
+      ],
+      [
+       3765.6,
+       3783.9,
+       "obstructive"
+      ],
+      [
+       3810.4,
+       3830.6,
+       "hypopnea"
+      ],
+      [
+       3896.0,
+       3912.7,
+       "obstructive"
+      ],
+      [
+       3946.3,
+       3963.7,
+       "obstructive"
+      ],
+      [
+       3998.4,
+       4022.8,
+       "obstructive"
+      ],
+      [
+       4044.0,
+       4077.2,
+       "obstructive"
+      ],
+      [
+       4108.7,
+       4149.1,
+       "obstructive"
+      ],
+      [
+       4170.4,
+       4206.6,
+       "obstructive"
+      ],
+      [
+       4232.4,
+       4262.6,
+       "obstructive"
+      ],
+      [
+       4282.6,
+       4316.2,
+       "obstructive"
+      ],
+      [
+       4331.2,
+       4374.1,
+       "obstructive"
+      ],
+      [
+       4397.9,
+       4432.5,
+       "obstructive"
+      ],
+      [
+       4445.2,
+       4487.2,
+       "obstructive"
+      ],
+      [
+       4507.3,
+       4548.2,
+       "obstructive"
+      ],
+      [
+       4570.2,
+       4602.6,
+       "obstructive"
+      ],
+      [
+       4626.5,
+       4657.7,
+       "obstructive"
+      ],
+      [
+       4678.6,
+       4716.5,
+       "obstructive"
+      ],
+      [
+       4734.0,
+       4772.4,
+       "obstructive"
+      ],
+      [
+       4790.3,
+       4834.2,
+       "obstructive"
+      ],
+      [
+       4854.4,
+       4893.3,
+       "obstructive"
+      ],
+      [
+       4916.9,
+       4952.9,
+       "obstructive"
+      ],
+      [
+       4971.2,
+       4993.9,
+       "obstructive"
+      ],
+      [
+       4998.6,
+       5030.7,
+       "obstructive"
+      ],
+      [
+       5049.6,
+       5092.1,
+       "obstructive"
+      ],
+      [
+       5113.4,
+       5153.5,
+       "obstructive"
+      ],
+      [
+       5176.1,
+       5215.0,
+       "obstructive"
+      ],
+      [
+       5235.3,
+       5272.6,
+       "obstructive"
+      ],
+      [
+       5292.5,
+       5333.3,
+       "obstructive"
+      ],
+      [
+       5353.4,
+       5384.7,
+       "obstructive"
+      ],
+      [
+       5399.7,
+       5436.0,
+       "obstructive"
+      ],
+      [
+       5459.6,
+       5502.4,
+       "obstructive"
+      ],
+      [
+       5525.7,
+       5566.6,
+       "obstructive"
+      ],
+      [
+       5593.9,
+       5628.5,
+       "obstructive"
+      ],
+      [
+       5647.7,
+       5691.4,
+       "obstructive"
+      ],
+      [
+       5712.4,
+       5745.2,
+       "obstructive"
+      ],
+      [
+       5768.9,
+       5812.0,
+       "obstructive"
+      ],
+      [
+       5837.4,
+       5877.1,
+       "obstructive"
+      ],
+      [
+       5899.9,
+       5947.8,
+       "obstructive"
+      ],
+      [
+       5963.7,
+       6022.4,
+       "obstructive"
+      ],
+      [
+       6040.9,
+       6082.4,
+       "obstructive"
+      ],
+      [
+       6097.4,
+       6143.5,
+       "obstructive"
+      ],
+      [
+       6157.9,
+       6184.1,
+       "obstructive"
+      ],
+      [
+       6199.3,
+       6228.4,
+       "obstructive"
+      ],
+      [
+       6245.2,
+       6285.1,
+       "obstructive"
+      ],
+      [
+       6298.2,
+       6351.1,
+       "obstructive"
+      ],
+      [
+       6375.9,
+       6419.7,
+       "obstructive"
+      ],
+      [
+       6444.8,
+       6474.0,
+       "obstructive"
+      ],
+      [
+       6488.7,
+       6518.5,
+       "obstructive"
+      ],
+      [
+       6535.1,
+       6575.1,
+       "obstructive"
+      ],
+      [
+       6595.6,
+       6641.0,
+       "obstructive"
+      ],
+      [
+       6664.9,
+       6695.3,
+       "obstructive"
+      ],
+      [
+       6713.4,
+       6772.1,
+       "obstructive"
+      ],
+      [
+       6799.0,
+       6849.3,
+       "obstructive"
+      ],
+      [
+       6875.9,
+       6914.4,
+       "obstructive"
+      ],
+      [
+       6941.0,
+       6959.8,
+       "obstructive"
+      ],
+      [
+       6977.1,
+       6999.4,
+       "obstructive"
+      ],
+      [
+       7015.0,
+       7059.8,
+       "obstructive"
+      ],
+      [
+       7095.0,
+       7114.2,
+       "obstructive"
+      ],
+      [
+       7143.3,
+       7160.2,
+       "obstructive"
+      ],
+      [
+       7175.3,
+       7196.5,
+       "obstructive"
+      ],
+      [
+       7297.5,
+       7315.2,
+       "central"
+      ],
+      [
+       7335.0,
+       7345.9,
+       "central"
+      ],
+      [
+       7349.3,
+       7360.1,
+       "obstructive"
+      ],
+      [
+       7384.7,
+       7404.9,
+       "hypopnea"
+      ],
+      [
+       7465.6,
+       7496.5,
+       "hypopnea"
+      ],
+      [
+       7534.5,
+       7549.0,
+       "central"
+      ],
+      [
+       7580.4,
+       7593.9,
+       "central"
+      ],
+      [
+       7618.9,
+       7633.6,
+       "central"
+      ],
+      [
+       7662.8,
+       7680.8,
+       "central"
+      ],
+      [
+       7709.9,
+       7728.8,
+       "central"
+      ],
+      [
+       7757.5,
+       7778.0,
+       "central"
+      ],
+      [
+       7803.5,
+       7817.1,
+       "central"
+      ],
+      [
+       7831.3,
+       7841.7,
+       "central"
+      ],
+      [
+       7849.9,
+       7873.6,
+       "obstructive"
+      ],
+      [
+       7890.0,
+       7906.5,
+       "hypopnea"
+      ],
+      [
+       7912.0,
+       7925.9,
+       "central"
+      ],
+      [
+       7946.5,
+       7963.0,
+       "central"
+      ],
+      [
+       7977.1,
+       8003.5,
+       "obstructive"
+      ],
+      [
+       8056.5,
+       8068.0,
+       "central"
+      ],
+      [
+       8094.2,
+       8107.8,
+       "central"
+      ],
+      [
+       8124.3,
+       8135.6,
+       "central"
+      ],
+      [
+       8146.6,
+       8185.6,
+       "obstructive"
+      ],
+      [
+       8220.0,
+       8240.0,
+       "hypopnea"
+      ],
+      [
+       8285.8,
+       8302.0,
+       "hypopnea"
+      ],
+      [
+       8338.5,
+       8350.4,
+       "obstructive"
+      ],
+      [
+       8388.7,
+       8402.3,
+       "obstructive"
+      ],
+      [
+       8422.2,
+       8451.4,
+       "obstructive"
+      ],
+      [
+       8485.1,
+       8500.5,
+       "obstructive"
+      ],
+      [
+       8523.7,
+       8550.9,
+       "obstructive"
+      ],
+      [
+       8583.9,
+       8603.1,
+       "obstructive"
+      ],
+      [
+       8618.2,
+       8647.2,
+       "obstructive"
+      ],
+      [
+       8672.7,
+       8688.3,
+       "obstructive"
+      ],
+      [
+       8698.8,
+       8729.0,
+       "obstructive"
+      ],
+      [
+       8754.6,
+       8775.6,
+       "obstructive"
+      ],
+      [
+       8800.4,
+       8820.9,
+       "central"
+      ],
+      [
+       8843.7,
+       8876.0,
+       "obstructive"
+      ],
+      [
+       8904.7,
+       8918.3,
+       "obstructive"
+      ],
+      [
+       8924.7,
+       8955.6,
+       "obstructive"
+      ],
+      [
+       8989.9,
+       9020.9,
+       "obstructive"
+      ],
+      [
+       9049.6,
+       9080.7,
+       "obstructive"
+      ],
+      [
+       9103.6,
+       9133.9,
+       "obstructive"
+      ],
+      [
+       9164.3,
+       9192.9,
+       "obstructive"
+      ],
+      [
+       9217.9,
+       9254.5,
+       "obstructive"
+      ],
+      [
+       9280.0,
+       9310.9,
+       "obstructive"
+      ],
+      [
+       9336.1,
+       9368.4,
+       "obstructive"
+      ],
+      [
+       9397.3,
+       9428.5,
+       "obstructive"
+      ],
+      [
+       9449.8,
+       9464.7,
+       "obstructive"
+      ],
+      [
+       9478.3,
+       9501.2,
+       "obstructive"
+      ],
+      [
+       9526.5,
+       9549.8,
+       "obstructive"
+      ],
+      [
+       9573.0,
+       9606.0,
+       "obstructive"
+      ],
+      [
+       9633.3,
+       9656.2,
+       "obstructive"
+      ],
+      [
+       9672.3,
+       9697.4,
+       "obstructive"
+      ],
+      [
+       9715.6,
+       9728.8,
+       "hypopnea"
+      ],
+      [
+       9733.8,
+       9762.7,
+       "obstructive"
+      ],
+      [
+       9795.9,
+       9827.3,
+       "obstructive"
+      ],
+      [
+       9854.0,
+       9883.0,
+       "obstructive"
+      ],
+      [
+       9905.1,
+       9936.3,
+       "obstructive"
+      ],
+      [
+       9983.6,
+       10004.1,
+       "obstructive"
+      ],
+      [
+       10030.0,
+       10065.0,
+       "obstructive"
+      ],
+      [
+       10088.8,
+       10106.6,
+       "obstructive"
+      ],
+      [
+       10116.8,
+       10143.1,
+       "obstructive"
+      ],
+      [
+       10161.4,
+       10189.2,
+       "obstructive"
+      ],
+      [
+       10205.8,
+       10232.2,
+       "obstructive"
+      ],
+      [
+       10251.4,
+       10283.4,
+       "obstructive"
+      ],
+      [
+       10310.0,
+       10348.7,
+       "obstructive"
+      ],
+      [
+       10373.1,
+       10386.5,
+       "obstructive"
+      ],
+      [
+       10394.5,
+       10419.6,
+       "obstructive"
+      ],
+      [
+       10435.3,
+       10471.5,
+       "obstructive"
+      ],
+      [
+       10493.8,
+       10514.4,
+       "obstructive"
+      ],
+      [
+       10535.0,
+       10567.9,
+       "obstructive"
+      ],
+      [
+       10599.4,
+       10626.7,
+       "obstructive"
+      ],
+      [
+       10650.9,
+       10681.1,
+       "obstructive"
+      ],
+      [
+       10707.6,
+       10741.4,
+       "obstructive"
+      ],
+      [
+       10764.3,
+       10800.1,
+       "obstructive"
+      ],
+      [
+       10827.5,
+       10838.0,
+       "obstructive"
+      ],
+      [
+       10841.8,
+       10877.9,
+       "obstructive"
+      ],
+      [
+       10906.0,
+       10918.2,
+       "central"
+      ],
+      [
+       10921.8,
+       10946.4,
+       "obstructive"
+      ],
+      [
+       10969.7,
+       10999.4,
+       "obstructive"
+      ],
+      [
+       11024.6,
+       11039.3,
+       "obstructive"
+      ],
+      [
+       11047.4,
+       11077.0,
+       "obstructive"
+      ],
+      [
+       11116.4,
+       11145.7,
+       "obstructive"
+      ],
+      [
+       11169.9,
+       11205.6,
+       "obstructive"
+      ],
+      [
+       11230.5,
+       11256.8,
+       "central"
+      ],
+      [
+       11273.6,
+       11307.9,
+       "obstructive"
+      ],
+      [
+       11329.4,
+       11351.2,
+       "obstructive"
+      ],
+      [
+       11360.0,
+       11389.1,
+       "obstructive"
+      ],
+      [
+       11414.2,
+       11442.3,
+       "obstructive"
+      ],
+      [
+       11461.9,
+       11497.4,
+       "obstructive"
+      ],
+      [
+       11524.9,
+       11558.5,
+       "central"
+      ],
+      [
+       11591.8,
+       11621.5,
+       "obstructive"
+      ],
+      [
+       11663.2,
+       11684.0,
+       "central"
+      ],
+      [
+       11706.7,
+       11743.6,
+       "obstructive"
+      ],
+      [
+       11775.5,
+       11807.3,
+       "obstructive"
+      ],
+      [
+       11840.5,
+       11861.2,
+       "obstructive"
+      ],
+      [
+       11878.5,
+       11914.0,
+       "obstructive"
+      ],
+      [
+       11932.1,
+       11966.0,
+       "obstructive"
+      ],
+      [
+       11985.8,
+       12026.7,
+       "obstructive"
+      ],
+      [
+       12048.7,
+       12088.9,
+       "obstructive"
+      ],
+      [
+       12105.9,
+       12151.7,
+       "obstructive"
+      ],
+      [
+       12175.6,
+       12211.7,
+       "obstructive"
+      ],
+      [
+       12229.6,
+       12264.0,
+       "obstructive"
+      ],
+      [
+       12287.5,
+       12312.0,
+       "obstructive"
+      ],
+      [
+       12329.1,
+       12360.6,
+       "obstructive"
+      ],
+      [
+       12382.7,
+       12417.5,
+       "obstructive"
+      ],
+      [
+       12440.1,
+       12471.8,
+       "obstructive"
+      ],
+      [
+       12495.3,
+       12539.4,
+       "obstructive"
+      ],
+      [
+       12566.6,
+       12585.4,
+       "central"
+      ],
+      [
+       12598.9,
+       12625.6,
+       "obstructive"
+      ],
+      [
+       12641.2,
+       12677.6,
+       "obstructive"
+      ],
+      [
+       12700.9,
+       12738.6,
+       "obstructive"
+      ],
+      [
+       12761.3,
+       12782.0,
+       "obstructive"
+      ],
+      [
+       12791.3,
+       12826.8,
+       "obstructive"
+      ],
+      [
+       12846.8,
+       12857.1,
+       "obstructive"
+      ],
+      [
+       12866.8,
+       12901.1,
+       "obstructive"
+      ],
+      [
+       12922.6,
+       12950.3,
+       "obstructive"
+      ],
+      [
+       12966.5,
+       12993.3,
+       "obstructive"
+      ],
+      [
+       13012.7,
+       13049.8,
+       "obstructive"
+      ],
+      [
+       13077.1,
+       13108.4,
+       "central"
+      ],
+      [
+       13130.0,
+       13141.1,
+       "obstructive"
+      ],
+      [
+       13144.6,
+       13173.5,
+       "obstructive"
+      ],
+      [
+       13190.4,
+       13228.5,
+       "obstructive"
+      ],
+      [
+       13249.8,
+       13281.3,
+       "obstructive"
+      ],
+      [
+       13310.9,
+       13337.0,
+       "obstructive"
+      ],
+      [
+       13350.8,
+       13388.0,
+       "obstructive"
+      ],
+      [
+       13402.5,
+       13438.7,
+       "obstructive"
+      ],
+      [
+       13452.2,
+       13491.9,
+       "obstructive"
+      ],
+      [
+       13517.4,
+       13563.0,
+       "obstructive"
+      ],
+      [
+       13582.7,
+       13613.3,
+       "obstructive"
+      ],
+      [
+       13625.7,
+       13658.0,
+       "obstructive"
+      ],
+      [
+       13671.9,
+       13699.8,
+       "obstructive"
+      ],
+      [
+       13719.1,
+       13755.9,
+       "obstructive"
+      ],
+      [
+       13775.7,
+       13786.3,
+       "obstructive"
+      ],
+      [
+       13788.4,
+       13821.0,
+       "obstructive"
+      ],
+      [
+       13843.5,
+       13876.4,
+       "obstructive"
+      ],
+      [
+       13894.7,
+       13937.0,
+       "obstructive"
+      ],
+      [
+       13960.5,
+       13995.4,
+       "obstructive"
+      ],
+      [
+       14017.6,
+       14056.6,
+       "obstructive"
+      ],
+      [
+       14087.2,
+       14138.6,
+       "obstructive"
+      ],
+      [
+       14162.3,
+       14176.3,
+       "obstructive"
+      ],
+      [
+       14194.3,
+       14223.1,
+       "obstructive"
+      ],
+      [
+       14242.8,
+       14283.0,
+       "obstructive"
+      ],
+      [
+       14304.1,
+       14351.7,
+       "obstructive"
+      ],
+      [
+       14375.5,
+       14417.2,
+       "obstructive"
+      ],
+      [
+       14433.9,
+       14486.9,
+       "obstructive"
+      ],
+      [
+       14528.3,
+       14564.2,
+       "obstructive"
+      ],
+      [
+       14585.6,
+       14625.4,
+       "obstructive"
+      ],
+      [
+       14673.3,
+       14700.0,
+       "obstructive"
+      ],
+      [
+       14760.7,
+       14780.0,
+       "hypopnea"
+      ],
+      [
+       14796.3,
+       14811.7,
+       "obstructive"
+      ],
+      [
+       14829.1,
+       14850.0,
+       "obstructive"
+      ],
+      [
+       14871.7,
+       14900.1,
+       "obstructive"
+      ],
+      [
+       14920.6,
+       14958.8,
+       "obstructive"
+      ],
+      [
+       14981.4,
+       14993.8,
+       "hypopnea"
+      ],
+      [
+       14998.8,
+       15035.8,
+       "obstructive"
+      ],
+      [
+       16046.5,
+       16058.8,
+       "central"
+      ],
+      [
+       16780.3,
+       16791.2,
+       "hypopnea"
+      ],
+      [
+       17222.1,
+       17259.6,
+       "hypopnea"
+      ],
+      [
+       17377.1,
+       17398.4,
+       "hypopnea"
+      ],
+      [
+       17411.7,
+       17421.9,
+       "obstructive"
+      ],
+      [
+       17624.2,
+       17635.8,
+       "obstructive"
+      ],
+      [
+       17716.1,
+       17727.8,
+       "central"
+      ],
+      [
+       17745.5,
+       17756.1,
+       "central"
+      ],
+      [
+       17851.7,
+       17865.4,
+       "central"
+      ],
+      [
+       17924.3,
+       17942.9,
+       "hypopnea"
+      ],
+      [
+       18001.3,
+       18011.6,
+       "central"
+      ],
+      [
+       18117.8,
+       18128.0,
+       "central"
+      ],
+      [
+       18163.8,
+       18175.3,
+       "central"
+      ],
+      [
+       18204.0,
+       18214.3,
+       "central"
+      ],
+      [
+       18263.1,
+       18283.6,
+       "hypopnea"
+      ],
+      [
+       18333.0,
+       18348.1,
+       "central"
+      ],
+      [
+       18597.4,
+       18610.6,
+       "obstructive"
+      ],
+      [
+       18639.3,
+       18655.9,
+       "obstructive"
+      ],
+      [
+       18746.3,
+       18756.8,
+       "obstructive"
+      ],
+      [
+       18870.0,
+       18881.4,
+       "hypopnea"
+      ],
+      [
+       18896.7,
+       18907.8,
+       "central"
+      ],
+      [
+       18922.9,
+       18967.8,
+       "hypopnea"
+      ],
+      [
+       19068.9,
+       19080.7,
+       "obstructive"
+      ],
+      [
+       19202.5,
+       19215.1,
+       "hypopnea"
+      ],
+      [
+       19220.1,
+       19232.3,
+       "central"
+      ],
+      [
+       19249.6,
+       19265.1,
+       "central"
+      ],
+      [
+       19285.4,
+       19300.5,
+       "hypopnea"
+      ],
+      [
+       19307.7,
+       19321.2,
+       "central"
+      ],
+      [
+       19345.8,
+       19356.9,
+       "obstructive"
+      ],
+      [
+       19463.3,
+       19488.5,
+       "hypopnea"
+      ],
+      [
+       19489.5,
+       19515.9,
+       "hypopnea"
+      ],
+      [
+       19545.6,
+       19560.1,
+       "central"
+      ],
+      [
+       19588.3,
+       19602.0,
+       "central"
+      ],
+      [
+       19713.3,
+       19723.3,
+       "central"
+      ],
+      [
+       19735.0,
+       19749.2,
+       "central"
+      ],
+      [
+       19764.8,
+       19780.8,
+       "central"
+      ],
+      [
+       19798.8,
+       19809.4,
+       "central"
+      ],
+      [
+       19833.5,
+       19849.2,
+       "central"
+      ],
+      [
+       19866.7,
+       19888.7,
+       "central"
+      ],
+      [
+       19911.7,
+       19936.5,
+       "central"
+      ],
+      [
+       19957.3,
+       19974.2,
+       "central"
+      ],
+      [
+       19994.6,
+       20007.7,
+       "obstructive"
+      ],
+      [
+       20029.8,
+       20050.4,
+       "central"
+      ],
+      [
+       20066.2,
+       20093.1,
+       "central"
+      ],
+      [
+       20130.0,
+       20155.3,
+       "central"
+      ],
+      [
+       20180.7,
+       20210.5,
+       "central"
+      ],
+      [
+       20233.3,
+       20266.3,
+       "central"
+      ],
+      [
+       20299.1,
+       20313.3,
+       "central"
+      ],
+      [
+       20319.1,
+       20341.6,
+       "obstructive"
+      ],
+      [
+       20360.3,
+       20383.2,
+       "obstructive"
+      ],
+      [
+       20401.5,
+       20436.1,
+       "obstructive"
+      ],
+      [
+       20460.8,
+       20473.2,
+       "central"
+      ],
+      [
+       20485.2,
+       20506.0,
+       "central"
+      ],
+      [
+       20522.3,
+       20562.8,
+       "obstructive"
+      ],
+      [
+       20587.6,
+       20612.5,
+       "obstructive"
+      ],
+      [
+       20630.5,
+       20662.8,
+       "obstructive"
+      ],
+      [
+       20682.3,
+       20720.2,
+       "obstructive"
+      ],
+      [
+       20740.1,
+       20777.9,
+       "obstructive"
+      ],
+      [
+       20814.3,
+       20831.2,
+       "central"
+      ],
+      [
+       20844.6,
+       20860.1,
+       "obstructive"
+      ],
+      [
+       20878.6,
+       20892.8,
+       "central"
+      ],
+      [
+       20912.1,
+       20940.0,
+       "central"
+      ],
+      [
+       21699.4,
+       21713.4,
+       "hypopnea_central"
+      ],
+      [
+       21917.5,
+       21939.6,
+       "hypopnea"
+      ],
+      [
+       22206.7,
+       22224.0,
+       "hypopnea"
+      ],
+      [
+       22546.2,
+       22572.2,
+       "hypopnea"
+      ],
+      [
+       22783.6,
+       22796.4,
+       "central"
+      ],
+      [
+       23119.2,
+       23129.6,
+       "central"
+      ]
+     ],
+     "reinstated": [],
+     "f1_median": 0.8864652797430297,
+     "precision_median": 0.8865030674846626,
+     "recall_median": 0.8876925923761663,
+     "reinst_precision_median": null,
+     "delta_ahi": -0.18
+    },
+    "B": {
+     "ahi": 53.8,
+     "n_events": 326,
+     "n_reinstated": 0,
+     "stats": {
+      "enabled": true,
+      "n_arousals_available": 200,
+      "n_candidates_tested": 2,
+      "n_arousal_coupled": 0,
+      "n_qualified": 0,
+      "skipped_reason": null,
+      "n_graded_coupled": 0,
+      "n_ineligible": 68,
+      "ineligible_by_reason": {
+       "local_reduction_-73.0pct<20.0pct": 1,
+       "local_reduction_-4.0pct<20.0pct": 1,
+       "local_reduction_16.0pct<20.0pct": 1,
+       "local_reduction_-51.8pct<20.0pct": 1,
+       "local_reduction_9.5pct<20.0pct": 1,
+       "local_reduction_-40.1pct<20.0pct": 1,
+       "local_reduction_-5.0pct<20.0pct": 1,
+       "local_reduction_-18.5pct<20.0pct": 1,
+       "local_reduction_14.2pct<20.0pct": 1,
+       "local_reduction_-1.2pct<20.0pct": 1,
+       "local_reduction_11.7pct<20.0pct": 1,
+       "local_reduction_15.2pct<20.0pct": 1,
+       "local_reduction_8.6pct<20.0pct": 2,
+       "local_reduction_9.4pct<20.0pct": 1,
+       "local_reduction_15.8pct<20.0pct": 1,
+       "local_reduction_5.2pct<20.0pct": 1,
+       "local_reduction_12.9pct<20.0pct": 1,
+       "local_reduction_-27.4pct<20.0pct": 1,
+       "local_reduction_-20.8pct<20.0pct": 1,
+       "local_reduction_4.9pct<20.0pct": 1,
+       "local_reduction_-287.4pct<20.0pct": 1,
+       "local_reduction_-11.4pct<20.0pct": 1,
+       "local_reduction_-17.8pct<20.0pct": 1,
+       "local_reduction_14.3pct<20.0pct": 1,
+       "local_reduction_18.3pct<20.0pct": 2,
+       "local_reduction_-40.6pct<20.0pct": 1,
+       "local_reduction_8.9pct<20.0pct": 1,
+       "local_reduction_5.4pct<20.0pct": 1,
+       "local_reduction_-27.1pct<20.0pct": 1,
+       "local_reduction_10.2pct<20.0pct": 1,
+       "local_reduction_14.1pct<20.0pct": 1,
+       "local_reduction_17.1pct<20.0pct": 1,
+       "local_reduction_-14.6pct<20.0pct": 1,
+       "local_reduction_12.0pct<20.0pct": 1,
+       "local_reduction_18.6pct<20.0pct": 1,
+       "local_reduction_11.2pct<20.0pct": 1,
+       "local_reduction_-13.9pct<20.0pct": 1,
+       "local_reduction_2.8pct<20.0pct": 1,
+       "local_reduction_-5.7pct<20.0pct": 1,
+       "local_reduction_-29.1pct<20.0pct": 1,
+       "local_reduction_-43.7pct<20.0pct": 1,
+       "local_reduction_-162.2pct<20.0pct": 1,
+       "local_reduction_-40.8pct<20.0pct": 1,
+       "local_reduction_15.3pct<20.0pct": 1,
+       "local_reduction_-113.6pct<20.0pct": 1,
+       "local_reduction_4.3pct<20.0pct": 1,
+       "local_reduction_-1.0pct<20.0pct": 1,
+       "local_reduction_3.9pct<20.0pct": 1,
+       "local_reduction_-4.2pct<20.0pct": 1,
+       "local_reduction_2.6pct<20.0pct": 1,
+       "local_reduction_2.4pct<20.0pct": 1,
+       "local_reduction_-21.8pct<20.0pct": 1,
+       "local_reduction_14.9pct<20.0pct": 1,
+       "local_reduction_-53.2pct<20.0pct": 1,
+       "local_reduction_-100.1pct<20.0pct": 1,
+       "stable_breathing_cv_0.36<0.45": 2,
+       "stable_breathing_cv_0.33<0.45": 2,
+       "stable_breathing_cv_0.28<0.45": 1,
+       "stable_breathing_cv_0.35<0.45": 2,
+       "stable_breathing_cv_0.40<0.45": 1,
+       "stable_breathing_cv_0.38<0.45": 1,
+       "stable_breathing_cv_0.43<0.45": 2
+      }
+     },
+     "arousal_source": null,
+     "n_arousals": 200,
+     "wall_s": 120.5,
+     "events": [
+      [
+       240.0,
+       268.8,
+       "hypopnea_mixed"
+      ],
+      [
+       318.1,
+       332.5,
+       "obstructive"
+      ],
+      [
+       358.8,
+       369.5,
+       "central"
+      ],
+      [
+       385.9,
+       401.6,
+       "obstructive"
+      ],
+      [
+       434.6,
+       453.1,
+       "obstructive"
+      ],
+      [
+       466.7,
+       485.8,
+       "obstructive"
+      ],
+      [
+       503.2,
+       531.8,
+       "obstructive"
+      ],
+      [
+       551.1,
+       583.3,
+       "obstructive"
+      ],
+      [
+       604.4,
+       639.0,
+       "obstructive"
+      ],
+      [
+       666.7,
+       685.4,
+       "obstructive"
+      ],
+      [
+       796.0,
+       823.4,
+       "hypopnea"
+      ],
+      [
+       842.9,
+       855.4,
+       "hypopnea"
+      ],
+      [
+       996.1,
+       1053.0,
+       "obstructive"
+      ],
+      [
+       1148.4,
+       1188.0,
+       "obstructive"
+      ],
+      [
+       1220.2,
+       1277.6,
+       "hypopnea"
+      ],
+      [
+       1282.6,
+       1301.1,
+       "obstructive"
+      ],
+      [
+       1328.4,
+       1361.4,
+       "hypopnea"
+      ],
+      [
+       1396.5,
+       1408.1,
+       "hypopnea"
+      ],
+      [
+       1414.6,
+       1460.4,
+       "hypopnea"
+      ],
+      [
+       1480.2,
+       1498.4,
+       "hypopnea"
+      ],
+      [
+       1501.5,
+       1517.9,
+       "hypopnea"
+      ],
+      [
+       1529.9,
+       1549.6,
+       "hypopnea"
+      ],
+      [
+       1550.5,
+       1581.1,
+       "hypopnea"
+      ],
+      [
+       1612.8,
+       1639.8,
+       "hypopnea"
+      ],
+      [
+       1652.7,
+       1664.6,
+       "hypopnea"
+      ],
+      [
+       1740.7,
+       1764.2,
+       "hypopnea"
+      ],
+      [
+       1802.3,
+       1846.9,
+       "hypopnea"
+      ],
+      [
+       1873.6,
+       1895.8,
+       "hypopnea"
+      ],
+      [
+       2066.0,
+       2101.5,
+       "hypopnea"
+      ],
+      [
+       2160.1,
+       2170.3,
+       "hypopnea"
+      ],
+      [
+       2172.2,
+       2193.6,
+       "hypopnea"
+      ],
+      [
+       3215.5,
+       3248.4,
+       "hypopnea"
+      ],
+      [
+       3252.6,
+       3267.1,
+       "hypopnea"
+      ],
+      [
+       3272.1,
+       3283.9,
+       "obstructive"
+      ],
+      [
+       3313.4,
+       3330.8,
+       "obstructive"
+      ],
+      [
+       3351.9,
+       3372.3,
+       "obstructive"
+      ],
+      [
+       3391.2,
+       3410.9,
+       "obstructive"
+      ],
+      [
+       3433.1,
+       3459.6,
+       "obstructive"
+      ],
+      [
+       3484.9,
+       3517.8,
+       "obstructive"
+      ],
+      [
+       3546.0,
+       3576.8,
+       "obstructive"
+      ],
+      [
+       3598.0,
+       3630.8,
+       "obstructive"
+      ],
+      [
+       3655.1,
+       3688.0,
+       "obstructive"
+      ],
+      [
+       3715.6,
+       3743.1,
+       "obstructive"
+      ],
+      [
+       3765.6,
+       3783.9,
+       "obstructive"
+      ],
+      [
+       3810.4,
+       3830.6,
+       "hypopnea"
+      ],
+      [
+       3896.0,
+       3912.7,
+       "obstructive"
+      ],
+      [
+       3946.3,
+       3963.7,
+       "obstructive"
+      ],
+      [
+       3998.4,
+       4022.8,
+       "obstructive"
+      ],
+      [
+       4044.0,
+       4077.2,
+       "obstructive"
+      ],
+      [
+       4108.7,
+       4149.1,
+       "obstructive"
+      ],
+      [
+       4170.4,
+       4206.6,
+       "obstructive"
+      ],
+      [
+       4232.4,
+       4262.6,
+       "obstructive"
+      ],
+      [
+       4282.6,
+       4316.2,
+       "obstructive"
+      ],
+      [
+       4331.2,
+       4374.1,
+       "obstructive"
+      ],
+      [
+       4397.9,
+       4432.5,
+       "obstructive"
+      ],
+      [
+       4445.2,
+       4487.2,
+       "obstructive"
+      ],
+      [
+       4507.3,
+       4548.2,
+       "obstructive"
+      ],
+      [
+       4570.2,
+       4602.6,
+       "obstructive"
+      ],
+      [
+       4626.5,
+       4657.7,
+       "obstructive"
+      ],
+      [
+       4678.6,
+       4716.5,
+       "obstructive"
+      ],
+      [
+       4734.0,
+       4772.4,
+       "obstructive"
+      ],
+      [
+       4790.3,
+       4834.2,
+       "obstructive"
+      ],
+      [
+       4854.4,
+       4893.3,
+       "obstructive"
+      ],
+      [
+       4916.9,
+       4952.9,
+       "obstructive"
+      ],
+      [
+       4971.2,
+       4993.9,
+       "obstructive"
+      ],
+      [
+       4998.6,
+       5030.7,
+       "obstructive"
+      ],
+      [
+       5049.6,
+       5092.1,
+       "obstructive"
+      ],
+      [
+       5113.4,
+       5153.5,
+       "obstructive"
+      ],
+      [
+       5176.1,
+       5215.0,
+       "obstructive"
+      ],
+      [
+       5235.3,
+       5272.6,
+       "obstructive"
+      ],
+      [
+       5292.5,
+       5333.3,
+       "obstructive"
+      ],
+      [
+       5353.4,
+       5384.7,
+       "obstructive"
+      ],
+      [
+       5399.7,
+       5436.0,
+       "obstructive"
+      ],
+      [
+       5459.6,
+       5502.4,
+       "obstructive"
+      ],
+      [
+       5525.7,
+       5566.6,
+       "obstructive"
+      ],
+      [
+       5593.9,
+       5628.5,
+       "obstructive"
+      ],
+      [
+       5647.7,
+       5691.4,
+       "obstructive"
+      ],
+      [
+       5712.4,
+       5745.2,
+       "obstructive"
+      ],
+      [
+       5768.9,
+       5812.0,
+       "obstructive"
+      ],
+      [
+       5837.4,
+       5877.1,
+       "obstructive"
+      ],
+      [
+       5899.9,
+       5947.8,
+       "obstructive"
+      ],
+      [
+       5963.7,
+       6022.4,
+       "obstructive"
+      ],
+      [
+       6040.9,
+       6082.4,
+       "obstructive"
+      ],
+      [
+       6097.4,
+       6143.5,
+       "obstructive"
+      ],
+      [
+       6157.9,
+       6184.1,
+       "obstructive"
+      ],
+      [
+       6199.3,
+       6228.4,
+       "obstructive"
+      ],
+      [
+       6245.2,
+       6285.1,
+       "obstructive"
+      ],
+      [
+       6298.2,
+       6351.1,
+       "obstructive"
+      ],
+      [
+       6375.9,
+       6419.7,
+       "obstructive"
+      ],
+      [
+       6444.8,
+       6474.0,
+       "obstructive"
+      ],
+      [
+       6488.7,
+       6518.5,
+       "obstructive"
+      ],
+      [
+       6535.1,
+       6575.1,
+       "obstructive"
+      ],
+      [
+       6595.6,
+       6641.0,
+       "obstructive"
+      ],
+      [
+       6664.9,
+       6695.3,
+       "obstructive"
+      ],
+      [
+       6713.4,
+       6772.1,
+       "obstructive"
+      ],
+      [
+       6799.0,
+       6849.3,
+       "obstructive"
+      ],
+      [
+       6875.9,
+       6914.4,
+       "obstructive"
+      ],
+      [
+       6941.0,
+       6959.8,
+       "obstructive"
+      ],
+      [
+       6977.1,
+       6999.4,
+       "obstructive"
+      ],
+      [
+       7015.0,
+       7059.8,
+       "obstructive"
+      ],
+      [
+       7095.0,
+       7114.2,
+       "obstructive"
+      ],
+      [
+       7143.3,
+       7160.2,
+       "obstructive"
+      ],
+      [
+       7175.3,
+       7196.5,
+       "obstructive"
+      ],
+      [
+       7297.5,
+       7315.2,
+       "central"
+      ],
+      [
+       7335.0,
+       7345.9,
+       "central"
+      ],
+      [
+       7349.3,
+       7360.1,
+       "obstructive"
+      ],
+      [
+       7384.7,
+       7404.9,
+       "hypopnea"
+      ],
+      [
+       7465.6,
+       7496.5,
+       "hypopnea"
+      ],
+      [
+       7534.5,
+       7549.0,
+       "central"
+      ],
+      [
+       7580.4,
+       7593.9,
+       "central"
+      ],
+      [
+       7618.9,
+       7633.6,
+       "central"
+      ],
+      [
+       7662.8,
+       7680.8,
+       "central"
+      ],
+      [
+       7709.9,
+       7728.8,
+       "central"
+      ],
+      [
+       7757.5,
+       7778.0,
+       "central"
+      ],
+      [
+       7803.5,
+       7817.1,
+       "central"
+      ],
+      [
+       7831.3,
+       7841.7,
+       "central"
+      ],
+      [
+       7849.9,
+       7873.6,
+       "obstructive"
+      ],
+      [
+       7890.0,
+       7906.5,
+       "hypopnea"
+      ],
+      [
+       7912.0,
+       7925.9,
+       "central"
+      ],
+      [
+       7946.5,
+       7963.0,
+       "central"
+      ],
+      [
+       7977.1,
+       8003.5,
+       "obstructive"
+      ],
+      [
+       8056.5,
+       8068.0,
+       "central"
+      ],
+      [
+       8094.2,
+       8107.8,
+       "central"
+      ],
+      [
+       8124.3,
+       8135.6,
+       "central"
+      ],
+      [
+       8146.6,
+       8185.6,
+       "obstructive"
+      ],
+      [
+       8220.0,
+       8240.0,
+       "hypopnea"
+      ],
+      [
+       8285.8,
+       8302.0,
+       "hypopnea"
+      ],
+      [
+       8338.5,
+       8350.4,
+       "obstructive"
+      ],
+      [
+       8388.7,
+       8402.3,
+       "obstructive"
+      ],
+      [
+       8422.2,
+       8451.4,
+       "obstructive"
+      ],
+      [
+       8485.1,
+       8500.5,
+       "obstructive"
+      ],
+      [
+       8523.7,
+       8550.9,
+       "obstructive"
+      ],
+      [
+       8583.9,
+       8603.1,
+       "obstructive"
+      ],
+      [
+       8618.2,
+       8647.2,
+       "obstructive"
+      ],
+      [
+       8672.7,
+       8688.3,
+       "obstructive"
+      ],
+      [
+       8698.8,
+       8729.0,
+       "obstructive"
+      ],
+      [
+       8754.6,
+       8775.6,
+       "obstructive"
+      ],
+      [
+       8800.4,
+       8820.9,
+       "central"
+      ],
+      [
+       8843.7,
+       8876.0,
+       "obstructive"
+      ],
+      [
+       8904.7,
+       8918.3,
+       "obstructive"
+      ],
+      [
+       8924.7,
+       8955.6,
+       "obstructive"
+      ],
+      [
+       8989.9,
+       9020.9,
+       "obstructive"
+      ],
+      [
+       9049.6,
+       9080.7,
+       "obstructive"
+      ],
+      [
+       9103.6,
+       9133.9,
+       "obstructive"
+      ],
+      [
+       9164.3,
+       9192.9,
+       "obstructive"
+      ],
+      [
+       9217.9,
+       9254.5,
+       "obstructive"
+      ],
+      [
+       9280.0,
+       9310.9,
+       "obstructive"
+      ],
+      [
+       9336.1,
+       9368.4,
+       "obstructive"
+      ],
+      [
+       9397.3,
+       9428.5,
+       "obstructive"
+      ],
+      [
+       9449.8,
+       9464.7,
+       "obstructive"
+      ],
+      [
+       9478.3,
+       9501.2,
+       "obstructive"
+      ],
+      [
+       9526.5,
+       9549.8,
+       "obstructive"
+      ],
+      [
+       9573.0,
+       9606.0,
+       "obstructive"
+      ],
+      [
+       9633.3,
+       9656.2,
+       "obstructive"
+      ],
+      [
+       9672.3,
+       9697.4,
+       "obstructive"
+      ],
+      [
+       9715.6,
+       9728.8,
+       "hypopnea"
+      ],
+      [
+       9733.8,
+       9762.7,
+       "obstructive"
+      ],
+      [
+       9795.9,
+       9827.3,
+       "obstructive"
+      ],
+      [
+       9854.0,
+       9883.0,
+       "obstructive"
+      ],
+      [
+       9905.1,
+       9936.3,
+       "obstructive"
+      ],
+      [
+       9983.6,
+       10004.1,
+       "obstructive"
+      ],
+      [
+       10030.0,
+       10065.0,
+       "obstructive"
+      ],
+      [
+       10088.8,
+       10106.6,
+       "obstructive"
+      ],
+      [
+       10116.8,
+       10143.1,
+       "obstructive"
+      ],
+      [
+       10161.4,
+       10189.2,
+       "obstructive"
+      ],
+      [
+       10205.8,
+       10232.2,
+       "obstructive"
+      ],
+      [
+       10251.4,
+       10283.4,
+       "obstructive"
+      ],
+      [
+       10310.0,
+       10348.7,
+       "obstructive"
+      ],
+      [
+       10373.1,
+       10386.5,
+       "obstructive"
+      ],
+      [
+       10394.5,
+       10419.6,
+       "obstructive"
+      ],
+      [
+       10435.3,
+       10471.5,
+       "obstructive"
+      ],
+      [
+       10493.8,
+       10514.4,
+       "obstructive"
+      ],
+      [
+       10535.0,
+       10567.9,
+       "obstructive"
+      ],
+      [
+       10599.4,
+       10626.7,
+       "obstructive"
+      ],
+      [
+       10650.9,
+       10681.1,
+       "obstructive"
+      ],
+      [
+       10707.6,
+       10741.4,
+       "obstructive"
+      ],
+      [
+       10764.3,
+       10800.1,
+       "obstructive"
+      ],
+      [
+       10827.5,
+       10838.0,
+       "obstructive"
+      ],
+      [
+       10841.8,
+       10877.9,
+       "obstructive"
+      ],
+      [
+       10906.0,
+       10918.2,
+       "central"
+      ],
+      [
+       10921.8,
+       10946.4,
+       "obstructive"
+      ],
+      [
+       10969.7,
+       10999.4,
+       "obstructive"
+      ],
+      [
+       11024.6,
+       11039.3,
+       "obstructive"
+      ],
+      [
+       11047.4,
+       11077.0,
+       "obstructive"
+      ],
+      [
+       11116.4,
+       11145.7,
+       "obstructive"
+      ],
+      [
+       11169.9,
+       11205.6,
+       "obstructive"
+      ],
+      [
+       11230.5,
+       11256.8,
+       "central"
+      ],
+      [
+       11273.6,
+       11307.9,
+       "obstructive"
+      ],
+      [
+       11329.4,
+       11351.2,
+       "obstructive"
+      ],
+      [
+       11360.0,
+       11389.1,
+       "obstructive"
+      ],
+      [
+       11414.2,
+       11442.3,
+       "obstructive"
+      ],
+      [
+       11461.9,
+       11497.4,
+       "obstructive"
+      ],
+      [
+       11524.9,
+       11558.5,
+       "central"
+      ],
+      [
+       11591.8,
+       11621.5,
+       "obstructive"
+      ],
+      [
+       11663.2,
+       11684.0,
+       "central"
+      ],
+      [
+       11706.7,
+       11743.6,
+       "obstructive"
+      ],
+      [
+       11775.5,
+       11807.3,
+       "obstructive"
+      ],
+      [
+       11840.5,
+       11861.2,
+       "obstructive"
+      ],
+      [
+       11878.5,
+       11914.0,
+       "obstructive"
+      ],
+      [
+       11932.1,
+       11966.0,
+       "obstructive"
+      ],
+      [
+       11985.8,
+       12026.7,
+       "obstructive"
+      ],
+      [
+       12048.7,
+       12088.9,
+       "obstructive"
+      ],
+      [
+       12105.9,
+       12151.7,
+       "obstructive"
+      ],
+      [
+       12175.6,
+       12211.7,
+       "obstructive"
+      ],
+      [
+       12229.6,
+       12264.0,
+       "obstructive"
+      ],
+      [
+       12287.5,
+       12312.0,
+       "obstructive"
+      ],
+      [
+       12329.1,
+       12360.6,
+       "obstructive"
+      ],
+      [
+       12382.7,
+       12417.5,
+       "obstructive"
+      ],
+      [
+       12440.1,
+       12471.8,
+       "obstructive"
+      ],
+      [
+       12495.3,
+       12539.4,
+       "obstructive"
+      ],
+      [
+       12566.6,
+       12585.4,
+       "central"
+      ],
+      [
+       12598.9,
+       12625.6,
+       "obstructive"
+      ],
+      [
+       12641.2,
+       12677.6,
+       "obstructive"
+      ],
+      [
+       12700.9,
+       12738.6,
+       "obstructive"
+      ],
+      [
+       12761.3,
+       12782.0,
+       "obstructive"
+      ],
+      [
+       12791.3,
+       12826.8,
+       "obstructive"
+      ],
+      [
+       12846.8,
+       12857.1,
+       "obstructive"
+      ],
+      [
+       12866.8,
+       12901.1,
+       "obstructive"
+      ],
+      [
+       12922.6,
+       12950.3,
+       "obstructive"
+      ],
+      [
+       12966.5,
+       12993.3,
+       "obstructive"
+      ],
+      [
+       13012.7,
+       13049.8,
+       "obstructive"
+      ],
+      [
+       13077.1,
+       13108.4,
+       "central"
+      ],
+      [
+       13130.0,
+       13141.1,
+       "obstructive"
+      ],
+      [
+       13144.6,
+       13173.5,
+       "obstructive"
+      ],
+      [
+       13190.4,
+       13228.5,
+       "obstructive"
+      ],
+      [
+       13249.8,
+       13281.3,
+       "obstructive"
+      ],
+      [
+       13310.9,
+       13337.0,
+       "obstructive"
+      ],
+      [
+       13350.8,
+       13388.0,
+       "obstructive"
+      ],
+      [
+       13402.5,
+       13438.7,
+       "obstructive"
+      ],
+      [
+       13452.2,
+       13491.9,
+       "obstructive"
+      ],
+      [
+       13517.4,
+       13563.0,
+       "obstructive"
+      ],
+      [
+       13582.7,
+       13613.3,
+       "obstructive"
+      ],
+      [
+       13625.7,
+       13658.0,
+       "obstructive"
+      ],
+      [
+       13671.9,
+       13699.8,
+       "obstructive"
+      ],
+      [
+       13719.1,
+       13755.9,
+       "obstructive"
+      ],
+      [
+       13775.7,
+       13786.3,
+       "obstructive"
+      ],
+      [
+       13788.4,
+       13821.0,
+       "obstructive"
+      ],
+      [
+       13843.5,
+       13876.4,
+       "obstructive"
+      ],
+      [
+       13894.7,
+       13937.0,
+       "obstructive"
+      ],
+      [
+       13960.5,
+       13995.4,
+       "obstructive"
+      ],
+      [
+       14017.6,
+       14056.6,
+       "obstructive"
+      ],
+      [
+       14087.2,
+       14138.6,
+       "obstructive"
+      ],
+      [
+       14162.3,
+       14176.3,
+       "obstructive"
+      ],
+      [
+       14194.3,
+       14223.1,
+       "obstructive"
+      ],
+      [
+       14242.8,
+       14283.0,
+       "obstructive"
+      ],
+      [
+       14304.1,
+       14351.7,
+       "obstructive"
+      ],
+      [
+       14375.5,
+       14417.2,
+       "obstructive"
+      ],
+      [
+       14433.9,
+       14486.9,
+       "obstructive"
+      ],
+      [
+       14528.3,
+       14564.2,
+       "obstructive"
+      ],
+      [
+       14585.6,
+       14625.4,
+       "obstructive"
+      ],
+      [
+       14673.3,
+       14700.0,
+       "obstructive"
+      ],
+      [
+       14760.7,
+       14780.0,
+       "hypopnea"
+      ],
+      [
+       14796.3,
+       14811.7,
+       "obstructive"
+      ],
+      [
+       14829.1,
+       14850.0,
+       "obstructive"
+      ],
+      [
+       14871.7,
+       14900.1,
+       "obstructive"
+      ],
+      [
+       14920.6,
+       14958.8,
+       "obstructive"
+      ],
+      [
+       14981.4,
+       14993.8,
+       "hypopnea"
+      ],
+      [
+       14998.8,
+       15035.8,
+       "obstructive"
+      ],
+      [
+       16046.5,
+       16058.8,
+       "central"
+      ],
+      [
+       16780.3,
+       16791.2,
+       "hypopnea"
+      ],
+      [
+       17222.1,
+       17259.6,
+       "hypopnea"
+      ],
+      [
+       17377.1,
+       17398.4,
+       "hypopnea"
+      ],
+      [
+       17411.7,
+       17421.9,
+       "obstructive"
+      ],
+      [
+       17624.2,
+       17635.8,
+       "obstructive"
+      ],
+      [
+       17716.1,
+       17727.8,
+       "central"
+      ],
+      [
+       17745.5,
+       17756.1,
+       "central"
+      ],
+      [
+       17851.7,
+       17865.4,
+       "central"
+      ],
+      [
+       17924.3,
+       17942.9,
+       "hypopnea"
+      ],
+      [
+       18001.3,
+       18011.6,
+       "central"
+      ],
+      [
+       18117.8,
+       18128.0,
+       "central"
+      ],
+      [
+       18163.8,
+       18175.3,
+       "central"
+      ],
+      [
+       18204.0,
+       18214.3,
+       "central"
+      ],
+      [
+       18263.1,
+       18283.6,
+       "hypopnea"
+      ],
+      [
+       18333.0,
+       18348.1,
+       "central"
+      ],
+      [
+       18597.4,
+       18610.6,
+       "obstructive"
+      ],
+      [
+       18639.3,
+       18655.9,
+       "obstructive"
+      ],
+      [
+       18746.3,
+       18756.8,
+       "obstructive"
+      ],
+      [
+       18870.0,
+       18881.4,
+       "hypopnea"
+      ],
+      [
+       18896.7,
+       18907.8,
+       "central"
+      ],
+      [
+       18922.9,
+       18967.8,
+       "hypopnea"
+      ],
+      [
+       19068.9,
+       19080.7,
+       "obstructive"
+      ],
+      [
+       19202.5,
+       19215.1,
+       "hypopnea"
+      ],
+      [
+       19220.1,
+       19232.3,
+       "central"
+      ],
+      [
+       19249.6,
+       19265.1,
+       "central"
+      ],
+      [
+       19285.4,
+       19300.5,
+       "hypopnea"
+      ],
+      [
+       19307.7,
+       19321.2,
+       "central"
+      ],
+      [
+       19345.8,
+       19356.9,
+       "obstructive"
+      ],
+      [
+       19463.3,
+       19488.5,
+       "hypopnea"
+      ],
+      [
+       19489.5,
+       19515.9,
+       "hypopnea"
+      ],
+      [
+       19545.6,
+       19560.1,
+       "central"
+      ],
+      [
+       19588.3,
+       19602.0,
+       "central"
+      ],
+      [
+       19713.3,
+       19723.3,
+       "central"
+      ],
+      [
+       19735.0,
+       19749.2,
+       "central"
+      ],
+      [
+       19764.8,
+       19780.8,
+       "central"
+      ],
+      [
+       19798.8,
+       19809.4,
+       "central"
+      ],
+      [
+       19833.5,
+       19849.2,
+       "central"
+      ],
+      [
+       19866.7,
+       19888.7,
+       "central"
+      ],
+      [
+       19911.7,
+       19936.5,
+       "central"
+      ],
+      [
+       19957.3,
+       19974.2,
+       "central"
+      ],
+      [
+       19994.6,
+       20007.7,
+       "obstructive"
+      ],
+      [
+       20029.8,
+       20050.4,
+       "central"
+      ],
+      [
+       20066.2,
+       20093.1,
+       "central"
+      ],
+      [
+       20130.0,
+       20155.3,
+       "central"
+      ],
+      [
+       20180.7,
+       20210.5,
+       "central"
+      ],
+      [
+       20233.3,
+       20266.3,
+       "central"
+      ],
+      [
+       20299.1,
+       20313.3,
+       "central"
+      ],
+      [
+       20319.1,
+       20341.6,
+       "obstructive"
+      ],
+      [
+       20360.3,
+       20383.2,
+       "obstructive"
+      ],
+      [
+       20401.5,
+       20436.1,
+       "obstructive"
+      ],
+      [
+       20460.8,
+       20473.2,
+       "central"
+      ],
+      [
+       20485.2,
+       20506.0,
+       "central"
+      ],
+      [
+       20522.3,
+       20562.8,
+       "obstructive"
+      ],
+      [
+       20587.6,
+       20612.5,
+       "obstructive"
+      ],
+      [
+       20630.5,
+       20662.8,
+       "obstructive"
+      ],
+      [
+       20682.3,
+       20720.2,
+       "obstructive"
+      ],
+      [
+       20740.1,
+       20777.9,
+       "obstructive"
+      ],
+      [
+       20814.3,
+       20831.2,
+       "central"
+      ],
+      [
+       20844.6,
+       20860.1,
+       "obstructive"
+      ],
+      [
+       20878.6,
+       20892.8,
+       "central"
+      ],
+      [
+       20912.1,
+       20940.0,
+       "central"
+      ],
+      [
+       21699.4,
+       21713.4,
+       "hypopnea_central"
+      ],
+      [
+       21917.5,
+       21939.6,
+       "hypopnea"
+      ],
+      [
+       22206.7,
+       22224.0,
+       "hypopnea"
+      ],
+      [
+       22546.2,
+       22572.2,
+       "hypopnea"
+      ],
+      [
+       22783.6,
+       22796.4,
+       "central"
+      ],
+      [
+       23119.2,
+       23129.6,
+       "central"
+      ]
+     ],
+     "reinstated": [],
+     "f1_median": 0.8864652797430297,
+     "precision_median": 0.8865030674846626,
+     "recall_median": 0.8876925923761663,
+     "reinst_precision_median": null,
+     "delta_ahi": -0.18
+    },
+    "C": {
+     "ahi": 53.8,
+     "n_events": 326,
+     "n_reinstated": 0,
+     "stats": {
+      "enabled": true,
+      "n_arousals_available": 241,
+      "n_candidates_tested": 2,
+      "n_arousal_coupled": 0,
+      "n_qualified": 0,
+      "skipped_reason": null,
+      "n_graded_coupled": 0,
+      "n_ineligible": 68,
+      "ineligible_by_reason": {
+       "local_reduction_-73.0pct<20.0pct": 1,
+       "local_reduction_-4.0pct<20.0pct": 1,
+       "local_reduction_16.0pct<20.0pct": 1,
+       "local_reduction_-51.8pct<20.0pct": 1,
+       "local_reduction_9.5pct<20.0pct": 1,
+       "local_reduction_-40.1pct<20.0pct": 1,
+       "local_reduction_-5.0pct<20.0pct": 1,
+       "local_reduction_-18.5pct<20.0pct": 1,
+       "local_reduction_14.2pct<20.0pct": 1,
+       "local_reduction_-1.2pct<20.0pct": 1,
+       "local_reduction_11.7pct<20.0pct": 1,
+       "local_reduction_15.2pct<20.0pct": 1,
+       "local_reduction_8.6pct<20.0pct": 2,
+       "local_reduction_9.4pct<20.0pct": 1,
+       "local_reduction_15.8pct<20.0pct": 1,
+       "local_reduction_5.2pct<20.0pct": 1,
+       "local_reduction_12.9pct<20.0pct": 1,
+       "local_reduction_-27.4pct<20.0pct": 1,
+       "local_reduction_-20.8pct<20.0pct": 1,
+       "local_reduction_4.9pct<20.0pct": 1,
+       "local_reduction_-287.4pct<20.0pct": 1,
+       "local_reduction_-11.4pct<20.0pct": 1,
+       "local_reduction_-17.8pct<20.0pct": 1,
+       "local_reduction_14.3pct<20.0pct": 1,
+       "local_reduction_18.3pct<20.0pct": 2,
+       "local_reduction_-40.6pct<20.0pct": 1,
+       "local_reduction_8.9pct<20.0pct": 1,
+       "local_reduction_5.4pct<20.0pct": 1,
+       "local_reduction_-27.1pct<20.0pct": 1,
+       "local_reduction_10.2pct<20.0pct": 1,
+       "local_reduction_14.1pct<20.0pct": 1,
+       "local_reduction_17.1pct<20.0pct": 1,
+       "local_reduction_-14.6pct<20.0pct": 1,
+       "local_reduction_12.0pct<20.0pct": 1,
+       "local_reduction_18.6pct<20.0pct": 1,
+       "local_reduction_11.2pct<20.0pct": 1,
+       "local_reduction_-13.9pct<20.0pct": 1,
+       "local_reduction_2.8pct<20.0pct": 1,
+       "local_reduction_-5.7pct<20.0pct": 1,
+       "local_reduction_-29.1pct<20.0pct": 1,
+       "local_reduction_-43.7pct<20.0pct": 1,
+       "local_reduction_-162.2pct<20.0pct": 1,
+       "local_reduction_-40.8pct<20.0pct": 1,
+       "local_reduction_15.3pct<20.0pct": 1,
+       "local_reduction_-113.6pct<20.0pct": 1,
+       "local_reduction_4.3pct<20.0pct": 1,
+       "local_reduction_-1.0pct<20.0pct": 1,
+       "local_reduction_3.9pct<20.0pct": 1,
+       "local_reduction_-4.2pct<20.0pct": 1,
+       "local_reduction_2.6pct<20.0pct": 1,
+       "local_reduction_2.4pct<20.0pct": 1,
+       "local_reduction_-21.8pct<20.0pct": 1,
+       "local_reduction_14.9pct<20.0pct": 1,
+       "local_reduction_-53.2pct<20.0pct": 1,
+       "local_reduction_-100.1pct<20.0pct": 1,
+       "stable_breathing_cv_0.36<0.45": 2,
+       "stable_breathing_cv_0.33<0.45": 2,
+       "stable_breathing_cv_0.28<0.45": 1,
+       "stable_breathing_cv_0.35<0.45": 2,
+       "stable_breathing_cv_0.40<0.45": 1,
+       "stable_breathing_cv_0.38<0.45": 1,
+       "stable_breathing_cv_0.43<0.45": 2
+      }
+     },
+     "arousal_source": "external",
+     "n_arousals": 241,
+     "wall_s": 36.1,
+     "events": [
+      [
+       240.0,
+       268.8,
+       "hypopnea_mixed"
+      ],
+      [
+       318.1,
+       332.5,
+       "obstructive"
+      ],
+      [
+       358.8,
+       369.5,
+       "central"
+      ],
+      [
+       385.9,
+       401.6,
+       "obstructive"
+      ],
+      [
+       434.6,
+       453.1,
+       "obstructive"
+      ],
+      [
+       466.7,
+       485.8,
+       "obstructive"
+      ],
+      [
+       503.2,
+       531.8,
+       "obstructive"
+      ],
+      [
+       551.1,
+       583.3,
+       "obstructive"
+      ],
+      [
+       604.4,
+       639.0,
+       "obstructive"
+      ],
+      [
+       666.7,
+       685.4,
+       "obstructive"
+      ],
+      [
+       796.0,
+       823.4,
+       "hypopnea"
+      ],
+      [
+       842.9,
+       855.4,
+       "hypopnea"
+      ],
+      [
+       996.1,
+       1053.0,
+       "obstructive"
+      ],
+      [
+       1148.4,
+       1188.0,
+       "obstructive"
+      ],
+      [
+       1220.2,
+       1277.6,
+       "hypopnea"
+      ],
+      [
+       1282.6,
+       1301.1,
+       "obstructive"
+      ],
+      [
+       1328.4,
+       1361.4,
+       "hypopnea"
+      ],
+      [
+       1396.5,
+       1408.1,
+       "hypopnea"
+      ],
+      [
+       1414.6,
+       1460.4,
+       "hypopnea"
+      ],
+      [
+       1480.2,
+       1498.4,
+       "hypopnea"
+      ],
+      [
+       1501.5,
+       1517.9,
+       "hypopnea"
+      ],
+      [
+       1529.9,
+       1549.6,
+       "hypopnea"
+      ],
+      [
+       1550.5,
+       1581.1,
+       "hypopnea"
+      ],
+      [
+       1612.8,
+       1639.8,
+       "hypopnea"
+      ],
+      [
+       1652.7,
+       1664.6,
+       "hypopnea"
+      ],
+      [
+       1740.7,
+       1764.2,
+       "hypopnea"
+      ],
+      [
+       1802.3,
+       1846.9,
+       "hypopnea"
+      ],
+      [
+       1873.6,
+       1895.8,
+       "hypopnea"
+      ],
+      [
+       2066.0,
+       2101.5,
+       "hypopnea"
+      ],
+      [
+       2160.1,
+       2170.3,
+       "hypopnea"
+      ],
+      [
+       2172.2,
+       2193.6,
+       "hypopnea"
+      ],
+      [
+       3215.5,
+       3248.4,
+       "hypopnea"
+      ],
+      [
+       3252.6,
+       3267.1,
+       "hypopnea"
+      ],
+      [
+       3272.1,
+       3283.9,
+       "obstructive"
+      ],
+      [
+       3313.4,
+       3330.8,
+       "obstructive"
+      ],
+      [
+       3351.9,
+       3372.3,
+       "obstructive"
+      ],
+      [
+       3391.2,
+       3410.9,
+       "obstructive"
+      ],
+      [
+       3433.1,
+       3459.6,
+       "obstructive"
+      ],
+      [
+       3484.9,
+       3517.8,
+       "obstructive"
+      ],
+      [
+       3546.0,
+       3576.8,
+       "obstructive"
+      ],
+      [
+       3598.0,
+       3630.8,
+       "obstructive"
+      ],
+      [
+       3655.1,
+       3688.0,
+       "obstructive"
+      ],
+      [
+       3715.6,
+       3743.1,
+       "obstructive"
+      ],
+      [
+       3765.6,
+       3783.9,
+       "obstructive"
+      ],
+      [
+       3810.4,
+       3830.6,
+       "hypopnea"
+      ],
+      [
+       3896.0,
+       3912.7,
+       "obstructive"
+      ],
+      [
+       3946.3,
+       3963.7,
+       "obstructive"
+      ],
+      [
+       3998.4,
+       4022.8,
+       "obstructive"
+      ],
+      [
+       4044.0,
+       4077.2,
+       "obstructive"
+      ],
+      [
+       4108.7,
+       4149.1,
+       "obstructive"
+      ],
+      [
+       4170.4,
+       4206.6,
+       "obstructive"
+      ],
+      [
+       4232.4,
+       4262.6,
+       "obstructive"
+      ],
+      [
+       4282.6,
+       4316.2,
+       "obstructive"
+      ],
+      [
+       4331.2,
+       4374.1,
+       "obstructive"
+      ],
+      [
+       4397.9,
+       4432.5,
+       "obstructive"
+      ],
+      [
+       4445.2,
+       4487.2,
+       "obstructive"
+      ],
+      [
+       4507.3,
+       4548.2,
+       "obstructive"
+      ],
+      [
+       4570.2,
+       4602.6,
+       "obstructive"
+      ],
+      [
+       4626.5,
+       4657.7,
+       "obstructive"
+      ],
+      [
+       4678.6,
+       4716.5,
+       "obstructive"
+      ],
+      [
+       4734.0,
+       4772.4,
+       "obstructive"
+      ],
+      [
+       4790.3,
+       4834.2,
+       "obstructive"
+      ],
+      [
+       4854.4,
+       4893.3,
+       "obstructive"
+      ],
+      [
+       4916.9,
+       4952.9,
+       "obstructive"
+      ],
+      [
+       4971.2,
+       4993.9,
+       "obstructive"
+      ],
+      [
+       4998.6,
+       5030.7,
+       "obstructive"
+      ],
+      [
+       5049.6,
+       5092.1,
+       "obstructive"
+      ],
+      [
+       5113.4,
+       5153.5,
+       "obstructive"
+      ],
+      [
+       5176.1,
+       5215.0,
+       "obstructive"
+      ],
+      [
+       5235.3,
+       5272.6,
+       "obstructive"
+      ],
+      [
+       5292.5,
+       5333.3,
+       "obstructive"
+      ],
+      [
+       5353.4,
+       5384.7,
+       "obstructive"
+      ],
+      [
+       5399.7,
+       5436.0,
+       "obstructive"
+      ],
+      [
+       5459.6,
+       5502.4,
+       "obstructive"
+      ],
+      [
+       5525.7,
+       5566.6,
+       "obstructive"
+      ],
+      [
+       5593.9,
+       5628.5,
+       "obstructive"
+      ],
+      [
+       5647.7,
+       5691.4,
+       "obstructive"
+      ],
+      [
+       5712.4,
+       5745.2,
+       "obstructive"
+      ],
+      [
+       5768.9,
+       5812.0,
+       "obstructive"
+      ],
+      [
+       5837.4,
+       5877.1,
+       "obstructive"
+      ],
+      [
+       5899.9,
+       5947.8,
+       "obstructive"
+      ],
+      [
+       5963.7,
+       6022.4,
+       "obstructive"
+      ],
+      [
+       6040.9,
+       6082.4,
+       "obstructive"
+      ],
+      [
+       6097.4,
+       6143.5,
+       "obstructive"
+      ],
+      [
+       6157.9,
+       6184.1,
+       "obstructive"
+      ],
+      [
+       6199.3,
+       6228.4,
+       "obstructive"
+      ],
+      [
+       6245.2,
+       6285.1,
+       "obstructive"
+      ],
+      [
+       6298.2,
+       6351.1,
+       "obstructive"
+      ],
+      [
+       6375.9,
+       6419.7,
+       "obstructive"
+      ],
+      [
+       6444.8,
+       6474.0,
+       "obstructive"
+      ],
+      [
+       6488.7,
+       6518.5,
+       "obstructive"
+      ],
+      [
+       6535.1,
+       6575.1,
+       "obstructive"
+      ],
+      [
+       6595.6,
+       6641.0,
+       "obstructive"
+      ],
+      [
+       6664.9,
+       6695.3,
+       "obstructive"
+      ],
+      [
+       6713.4,
+       6772.1,
+       "obstructive"
+      ],
+      [
+       6799.0,
+       6849.3,
+       "obstructive"
+      ],
+      [
+       6875.9,
+       6914.4,
+       "obstructive"
+      ],
+      [
+       6941.0,
+       6959.8,
+       "obstructive"
+      ],
+      [
+       6977.1,
+       6999.4,
+       "obstructive"
+      ],
+      [
+       7015.0,
+       7059.8,
+       "obstructive"
+      ],
+      [
+       7095.0,
+       7114.2,
+       "obstructive"
+      ],
+      [
+       7143.3,
+       7160.2,
+       "obstructive"
+      ],
+      [
+       7175.3,
+       7196.5,
+       "obstructive"
+      ],
+      [
+       7297.5,
+       7315.2,
+       "central"
+      ],
+      [
+       7335.0,
+       7345.9,
+       "central"
+      ],
+      [
+       7349.3,
+       7360.1,
+       "obstructive"
+      ],
+      [
+       7384.7,
+       7404.9,
+       "hypopnea"
+      ],
+      [
+       7465.6,
+       7496.5,
+       "hypopnea"
+      ],
+      [
+       7534.5,
+       7549.0,
+       "central"
+      ],
+      [
+       7580.4,
+       7593.9,
+       "central"
+      ],
+      [
+       7618.9,
+       7633.6,
+       "central"
+      ],
+      [
+       7662.8,
+       7680.8,
+       "central"
+      ],
+      [
+       7709.9,
+       7728.8,
+       "central"
+      ],
+      [
+       7757.5,
+       7778.0,
+       "central"
+      ],
+      [
+       7803.5,
+       7817.1,
+       "central"
+      ],
+      [
+       7831.3,
+       7841.7,
+       "central"
+      ],
+      [
+       7849.9,
+       7873.6,
+       "obstructive"
+      ],
+      [
+       7890.0,
+       7906.5,
+       "hypopnea"
+      ],
+      [
+       7912.0,
+       7925.9,
+       "central"
+      ],
+      [
+       7946.5,
+       7963.0,
+       "central"
+      ],
+      [
+       7977.1,
+       8003.5,
+       "obstructive"
+      ],
+      [
+       8056.5,
+       8068.0,
+       "central"
+      ],
+      [
+       8094.2,
+       8107.8,
+       "central"
+      ],
+      [
+       8124.3,
+       8135.6,
+       "central"
+      ],
+      [
+       8146.6,
+       8185.6,
+       "obstructive"
+      ],
+      [
+       8220.0,
+       8240.0,
+       "hypopnea"
+      ],
+      [
+       8285.8,
+       8302.0,
+       "hypopnea"
+      ],
+      [
+       8338.5,
+       8350.4,
+       "obstructive"
+      ],
+      [
+       8388.7,
+       8402.3,
+       "obstructive"
+      ],
+      [
+       8422.2,
+       8451.4,
+       "obstructive"
+      ],
+      [
+       8485.1,
+       8500.5,
+       "obstructive"
+      ],
+      [
+       8523.7,
+       8550.9,
+       "obstructive"
+      ],
+      [
+       8583.9,
+       8603.1,
+       "obstructive"
+      ],
+      [
+       8618.2,
+       8647.2,
+       "obstructive"
+      ],
+      [
+       8672.7,
+       8688.3,
+       "obstructive"
+      ],
+      [
+       8698.8,
+       8729.0,
+       "obstructive"
+      ],
+      [
+       8754.6,
+       8775.6,
+       "obstructive"
+      ],
+      [
+       8800.4,
+       8820.9,
+       "central"
+      ],
+      [
+       8843.7,
+       8876.0,
+       "obstructive"
+      ],
+      [
+       8904.7,
+       8918.3,
+       "obstructive"
+      ],
+      [
+       8924.7,
+       8955.6,
+       "obstructive"
+      ],
+      [
+       8989.9,
+       9020.9,
+       "obstructive"
+      ],
+      [
+       9049.6,
+       9080.7,
+       "obstructive"
+      ],
+      [
+       9103.6,
+       9133.9,
+       "obstructive"
+      ],
+      [
+       9164.3,
+       9192.9,
+       "obstructive"
+      ],
+      [
+       9217.9,
+       9254.5,
+       "obstructive"
+      ],
+      [
+       9280.0,
+       9310.9,
+       "obstructive"
+      ],
+      [
+       9336.1,
+       9368.4,
+       "obstructive"
+      ],
+      [
+       9397.3,
+       9428.5,
+       "obstructive"
+      ],
+      [
+       9449.8,
+       9464.7,
+       "obstructive"
+      ],
+      [
+       9478.3,
+       9501.2,
+       "obstructive"
+      ],
+      [
+       9526.5,
+       9549.8,
+       "obstructive"
+      ],
+      [
+       9573.0,
+       9606.0,
+       "obstructive"
+      ],
+      [
+       9633.3,
+       9656.2,
+       "obstructive"
+      ],
+      [
+       9672.3,
+       9697.4,
+       "obstructive"
+      ],
+      [
+       9715.6,
+       9728.8,
+       "hypopnea"
+      ],
+      [
+       9733.8,
+       9762.7,
+       "obstructive"
+      ],
+      [
+       9795.9,
+       9827.3,
+       "obstructive"
+      ],
+      [
+       9854.0,
+       9883.0,
+       "obstructive"
+      ],
+      [
+       9905.1,
+       9936.3,
+       "obstructive"
+      ],
+      [
+       9983.6,
+       10004.1,
+       "obstructive"
+      ],
+      [
+       10030.0,
+       10065.0,
+       "obstructive"
+      ],
+      [
+       10088.8,
+       10106.6,
+       "obstructive"
+      ],
+      [
+       10116.8,
+       10143.1,
+       "obstructive"
+      ],
+      [
+       10161.4,
+       10189.2,
+       "obstructive"
+      ],
+      [
+       10205.8,
+       10232.2,
+       "obstructive"
+      ],
+      [
+       10251.4,
+       10283.4,
+       "obstructive"
+      ],
+      [
+       10310.0,
+       10348.7,
+       "obstructive"
+      ],
+      [
+       10373.1,
+       10386.5,
+       "obstructive"
+      ],
+      [
+       10394.5,
+       10419.6,
+       "obstructive"
+      ],
+      [
+       10435.3,
+       10471.5,
+       "obstructive"
+      ],
+      [
+       10493.8,
+       10514.4,
+       "obstructive"
+      ],
+      [
+       10535.0,
+       10567.9,
+       "obstructive"
+      ],
+      [
+       10599.4,
+       10626.7,
+       "obstructive"
+      ],
+      [
+       10650.9,
+       10681.1,
+       "obstructive"
+      ],
+      [
+       10707.6,
+       10741.4,
+       "obstructive"
+      ],
+      [
+       10764.3,
+       10800.1,
+       "obstructive"
+      ],
+      [
+       10827.5,
+       10838.0,
+       "obstructive"
+      ],
+      [
+       10841.8,
+       10877.9,
+       "obstructive"
+      ],
+      [
+       10906.0,
+       10918.2,
+       "central"
+      ],
+      [
+       10921.8,
+       10946.4,
+       "obstructive"
+      ],
+      [
+       10969.7,
+       10999.4,
+       "obstructive"
+      ],
+      [
+       11024.6,
+       11039.3,
+       "obstructive"
+      ],
+      [
+       11047.4,
+       11077.0,
+       "obstructive"
+      ],
+      [
+       11116.4,
+       11145.7,
+       "obstructive"
+      ],
+      [
+       11169.9,
+       11205.6,
+       "obstructive"
+      ],
+      [
+       11230.5,
+       11256.8,
+       "central"
+      ],
+      [
+       11273.6,
+       11307.9,
+       "obstructive"
+      ],
+      [
+       11329.4,
+       11351.2,
+       "obstructive"
+      ],
+      [
+       11360.0,
+       11389.1,
+       "obstructive"
+      ],
+      [
+       11414.2,
+       11442.3,
+       "obstructive"
+      ],
+      [
+       11461.9,
+       11497.4,
+       "obstructive"
+      ],
+      [
+       11524.9,
+       11558.5,
+       "central"
+      ],
+      [
+       11591.8,
+       11621.5,
+       "obstructive"
+      ],
+      [
+       11663.2,
+       11684.0,
+       "central"
+      ],
+      [
+       11706.7,
+       11743.6,
+       "obstructive"
+      ],
+      [
+       11775.5,
+       11807.3,
+       "obstructive"
+      ],
+      [
+       11840.5,
+       11861.2,
+       "obstructive"
+      ],
+      [
+       11878.5,
+       11914.0,
+       "obstructive"
+      ],
+      [
+       11932.1,
+       11966.0,
+       "obstructive"
+      ],
+      [
+       11985.8,
+       12026.7,
+       "obstructive"
+      ],
+      [
+       12048.7,
+       12088.9,
+       "obstructive"
+      ],
+      [
+       12105.9,
+       12151.7,
+       "obstructive"
+      ],
+      [
+       12175.6,
+       12211.7,
+       "obstructive"
+      ],
+      [
+       12229.6,
+       12264.0,
+       "obstructive"
+      ],
+      [
+       12287.5,
+       12312.0,
+       "obstructive"
+      ],
+      [
+       12329.1,
+       12360.6,
+       "obstructive"
+      ],
+      [
+       12382.7,
+       12417.5,
+       "obstructive"
+      ],
+      [
+       12440.1,
+       12471.8,
+       "obstructive"
+      ],
+      [
+       12495.3,
+       12539.4,
+       "obstructive"
+      ],
+      [
+       12566.6,
+       12585.4,
+       "central"
+      ],
+      [
+       12598.9,
+       12625.6,
+       "obstructive"
+      ],
+      [
+       12641.2,
+       12677.6,
+       "obstructive"
+      ],
+      [
+       12700.9,
+       12738.6,
+       "obstructive"
+      ],
+      [
+       12761.3,
+       12782.0,
+       "obstructive"
+      ],
+      [
+       12791.3,
+       12826.8,
+       "obstructive"
+      ],
+      [
+       12846.8,
+       12857.1,
+       "obstructive"
+      ],
+      [
+       12866.8,
+       12901.1,
+       "obstructive"
+      ],
+      [
+       12922.6,
+       12950.3,
+       "obstructive"
+      ],
+      [
+       12966.5,
+       12993.3,
+       "obstructive"
+      ],
+      [
+       13012.7,
+       13049.8,
+       "obstructive"
+      ],
+      [
+       13077.1,
+       13108.4,
+       "central"
+      ],
+      [
+       13130.0,
+       13141.1,
+       "obstructive"
+      ],
+      [
+       13144.6,
+       13173.5,
+       "obstructive"
+      ],
+      [
+       13190.4,
+       13228.5,
+       "obstructive"
+      ],
+      [
+       13249.8,
+       13281.3,
+       "obstructive"
+      ],
+      [
+       13310.9,
+       13337.0,
+       "obstructive"
+      ],
+      [
+       13350.8,
+       13388.0,
+       "obstructive"
+      ],
+      [
+       13402.5,
+       13438.7,
+       "obstructive"
+      ],
+      [
+       13452.2,
+       13491.9,
+       "obstructive"
+      ],
+      [
+       13517.4,
+       13563.0,
+       "obstructive"
+      ],
+      [
+       13582.7,
+       13613.3,
+       "obstructive"
+      ],
+      [
+       13625.7,
+       13658.0,
+       "obstructive"
+      ],
+      [
+       13671.9,
+       13699.8,
+       "obstructive"
+      ],
+      [
+       13719.1,
+       13755.9,
+       "obstructive"
+      ],
+      [
+       13775.7,
+       13786.3,
+       "obstructive"
+      ],
+      [
+       13788.4,
+       13821.0,
+       "obstructive"
+      ],
+      [
+       13843.5,
+       13876.4,
+       "obstructive"
+      ],
+      [
+       13894.7,
+       13937.0,
+       "obstructive"
+      ],
+      [
+       13960.5,
+       13995.4,
+       "obstructive"
+      ],
+      [
+       14017.6,
+       14056.6,
+       "obstructive"
+      ],
+      [
+       14087.2,
+       14138.6,
+       "obstructive"
+      ],
+      [
+       14162.3,
+       14176.3,
+       "obstructive"
+      ],
+      [
+       14194.3,
+       14223.1,
+       "obstructive"
+      ],
+      [
+       14242.8,
+       14283.0,
+       "obstructive"
+      ],
+      [
+       14304.1,
+       14351.7,
+       "obstructive"
+      ],
+      [
+       14375.5,
+       14417.2,
+       "obstructive"
+      ],
+      [
+       14433.9,
+       14486.9,
+       "obstructive"
+      ],
+      [
+       14528.3,
+       14564.2,
+       "obstructive"
+      ],
+      [
+       14585.6,
+       14625.4,
+       "obstructive"
+      ],
+      [
+       14673.3,
+       14700.0,
+       "obstructive"
+      ],
+      [
+       14760.7,
+       14780.0,
+       "hypopnea"
+      ],
+      [
+       14796.3,
+       14811.7,
+       "obstructive"
+      ],
+      [
+       14829.1,
+       14850.0,
+       "obstructive"
+      ],
+      [
+       14871.7,
+       14900.1,
+       "obstructive"
+      ],
+      [
+       14920.6,
+       14958.8,
+       "obstructive"
+      ],
+      [
+       14981.4,
+       14993.8,
+       "hypopnea"
+      ],
+      [
+       14998.8,
+       15035.8,
+       "obstructive"
+      ],
+      [
+       16046.5,
+       16058.8,
+       "central"
+      ],
+      [
+       16780.3,
+       16791.2,
+       "hypopnea"
+      ],
+      [
+       17222.1,
+       17259.6,
+       "hypopnea"
+      ],
+      [
+       17377.1,
+       17398.4,
+       "hypopnea"
+      ],
+      [
+       17411.7,
+       17421.9,
+       "obstructive"
+      ],
+      [
+       17624.2,
+       17635.8,
+       "obstructive"
+      ],
+      [
+       17716.1,
+       17727.8,
+       "central"
+      ],
+      [
+       17745.5,
+       17756.1,
+       "central"
+      ],
+      [
+       17851.7,
+       17865.4,
+       "central"
+      ],
+      [
+       17924.3,
+       17942.9,
+       "hypopnea"
+      ],
+      [
+       18001.3,
+       18011.6,
+       "central"
+      ],
+      [
+       18117.8,
+       18128.0,
+       "central"
+      ],
+      [
+       18163.8,
+       18175.3,
+       "central"
+      ],
+      [
+       18204.0,
+       18214.3,
+       "central"
+      ],
+      [
+       18263.1,
+       18283.6,
+       "hypopnea"
+      ],
+      [
+       18333.0,
+       18348.1,
+       "central"
+      ],
+      [
+       18597.4,
+       18610.6,
+       "obstructive"
+      ],
+      [
+       18639.3,
+       18655.9,
+       "obstructive"
+      ],
+      [
+       18746.3,
+       18756.8,
+       "obstructive"
+      ],
+      [
+       18870.0,
+       18881.4,
+       "hypopnea"
+      ],
+      [
+       18896.7,
+       18907.8,
+       "central"
+      ],
+      [
+       18922.9,
+       18967.8,
+       "hypopnea"
+      ],
+      [
+       19068.9,
+       19080.7,
+       "obstructive"
+      ],
+      [
+       19202.5,
+       19215.1,
+       "hypopnea"
+      ],
+      [
+       19220.1,
+       19232.3,
+       "central"
+      ],
+      [
+       19249.6,
+       19265.1,
+       "central"
+      ],
+      [
+       19285.4,
+       19300.5,
+       "hypopnea"
+      ],
+      [
+       19307.7,
+       19321.2,
+       "central"
+      ],
+      [
+       19345.8,
+       19356.9,
+       "obstructive"
+      ],
+      [
+       19463.3,
+       19488.5,
+       "hypopnea"
+      ],
+      [
+       19489.5,
+       19515.9,
+       "hypopnea"
+      ],
+      [
+       19545.6,
+       19560.1,
+       "central"
+      ],
+      [
+       19588.3,
+       19602.0,
+       "central"
+      ],
+      [
+       19713.3,
+       19723.3,
+       "central"
+      ],
+      [
+       19735.0,
+       19749.2,
+       "central"
+      ],
+      [
+       19764.8,
+       19780.8,
+       "central"
+      ],
+      [
+       19798.8,
+       19809.4,
+       "central"
+      ],
+      [
+       19833.5,
+       19849.2,
+       "central"
+      ],
+      [
+       19866.7,
+       19888.7,
+       "central"
+      ],
+      [
+       19911.7,
+       19936.5,
+       "central"
+      ],
+      [
+       19957.3,
+       19974.2,
+       "central"
+      ],
+      [
+       19994.6,
+       20007.7,
+       "obstructive"
+      ],
+      [
+       20029.8,
+       20050.4,
+       "central"
+      ],
+      [
+       20066.2,
+       20093.1,
+       "central"
+      ],
+      [
+       20130.0,
+       20155.3,
+       "central"
+      ],
+      [
+       20180.7,
+       20210.5,
+       "central"
+      ],
+      [
+       20233.3,
+       20266.3,
+       "central"
+      ],
+      [
+       20299.1,
+       20313.3,
+       "central"
+      ],
+      [
+       20319.1,
+       20341.6,
+       "obstructive"
+      ],
+      [
+       20360.3,
+       20383.2,
+       "obstructive"
+      ],
+      [
+       20401.5,
+       20436.1,
+       "obstructive"
+      ],
+      [
+       20460.8,
+       20473.2,
+       "central"
+      ],
+      [
+       20485.2,
+       20506.0,
+       "central"
+      ],
+      [
+       20522.3,
+       20562.8,
+       "obstructive"
+      ],
+      [
+       20587.6,
+       20612.5,
+       "obstructive"
+      ],
+      [
+       20630.5,
+       20662.8,
+       "obstructive"
+      ],
+      [
+       20682.3,
+       20720.2,
+       "obstructive"
+      ],
+      [
+       20740.1,
+       20777.9,
+       "obstructive"
+      ],
+      [
+       20814.3,
+       20831.2,
+       "central"
+      ],
+      [
+       20844.6,
+       20860.1,
+       "obstructive"
+      ],
+      [
+       20878.6,
+       20892.8,
+       "central"
+      ],
+      [
+       20912.1,
+       20940.0,
+       "central"
+      ],
+      [
+       21699.4,
+       21713.4,
+       "hypopnea_central"
+      ],
+      [
+       21917.5,
+       21939.6,
+       "hypopnea"
+      ],
+      [
+       22206.7,
+       22224.0,
+       "hypopnea"
+      ],
+      [
+       22546.2,
+       22572.2,
+       "hypopnea"
+      ],
+      [
+       22783.6,
+       22796.4,
+       "central"
+      ],
+      [
+       23119.2,
+       23129.6,
+       "central"
+      ]
+     ],
+     "reinstated": [],
+     "f1_median": 0.8864652797430297,
+     "precision_median": 0.8865030674846626,
+     "recall_median": 0.8876925923761663,
+     "reinst_precision_median": null,
+     "delta_ahi": -0.18
+    }
+   }
+  },
+  {
+   "recording": "SN4",
+   "n_scorers": 12,
+   "ref_median_ahi": 3.82,
+   "ref_range": [
+    0.17,
+    6.32
+   ],
+   "n_ref_arousals": 58,
+   "arms": {
+    "A": {
+     "ahi": 4.3,
+     "n_events": 26,
+     "n_reinstated": 0,
+     "stats": {
+      "enabled": false,
+      "n_arousals_available": 0,
+      "n_candidates_tested": 0,
+      "n_arousal_coupled": 0,
+      "n_qualified": 0,
+      "skipped_reason": "disabled_by_profile"
+     },
+     "arousal_source": null,
+     "n_arousals": 145,
+     "wall_s": 147.0,
+     "events": [
+      [
+       5906.1,
+       5927.9,
+       "hypopnea"
+      ],
+      [
+       5952.4,
+       5986.3,
+       "hypopnea"
+      ],
+      [
+       6015.3,
+       6039.9,
+       "hypopnea"
+      ],
+      [
+       6255.0,
+       6273.9,
+       "hypopnea"
+      ],
+      [
+       6300.1,
+       6346.4,
+       "hypopnea"
+      ],
+      [
+       6381.7,
+       6406.3,
+       "hypopnea"
+      ],
+      [
+       6430.9,
+       6459.0,
+       "hypopnea"
+      ],
+      [
+       6623.1,
+       6657.1,
+       "hypopnea"
+      ],
+      [
+       9391.5,
+       9438.5,
+       "hypopnea"
+      ],
+      [
+       9544.7,
+       9592.9,
+       "hypopnea"
+      ],
+      [
+       12101.3,
+       12143.3,
+       "hypopnea"
+      ],
+      [
+       12165.4,
+       12211.7,
+       "hypopnea"
+      ],
+      [
+       12240.4,
+       12284.4,
+       "hypopnea"
+      ],
+      [
+       12312.7,
+       12342.7,
+       "hypopnea"
+      ],
+      [
+       12356.1,
+       12373.0,
+       "hypopnea"
+      ],
+      [
+       12373.0,
+       12394.3,
+       "hypopnea"
+      ],
+      [
+       12468.8,
+       12497.5,
+       "hypopnea"
+      ],
+      [
+       12516.8,
+       12538.7,
+       "hypopnea"
+      ],
+      [
+       12896.7,
+       12908.1,
+       "hypopnea"
+      ],
+      [
+       12990.0,
+       13004.9,
+       "hypopnea"
+      ],
+      [
+       13023.4,
+       13063.5,
+       "hypopnea"
+      ],
+      [
+       20983.3,
+       21002.5,
+       "hypopnea"
+      ],
+      [
+       21030.3,
+       21076.8,
+       "hypopnea"
+      ],
+      [
+       24627.7,
+       24659.5,
+       "hypopnea"
+      ],
+      [
+       25161.4,
+       25181.3,
+       "hypopnea"
+      ],
+      [
+       28006.9,
+       28020.6,
+       "hypopnea"
+      ]
+     ],
+     "reinstated": [],
+     "f1_median": 0.2861842105263158,
+     "precision_median": 0.2692307692307692,
+     "recall_median": 0.2811004784688995,
+     "reinst_precision_median": null,
+     "delta_ahi": 0.48
+    },
+    "B": {
+     "ahi": 5.3,
+     "n_events": 32,
+     "n_reinstated": 6,
+     "stats": {
+      "enabled": true,
+      "n_arousals_available": 145,
+      "n_candidates_tested": 26,
+      "n_arousal_coupled": 8,
+      "n_qualified": 6,
+      "skipped_reason": null,
+      "n_graded_coupled": 0,
+      "n_ineligible": 133,
+      "ineligible_by_reason": {
+       "local_reduction_10.9pct<20.0pct": 1,
+       "local_reduction_1.7pct<20.0pct": 1,
+       "local_reduction_-13.5pct<20.0pct": 1,
+       "local_reduction_0.1pct<20.0pct": 1,
+       "local_reduction_-7.3pct<20.0pct": 1,
+       "local_reduction_-23.9pct<20.0pct": 1,
+       "local_reduction_12.7pct<20.0pct": 1,
+       "local_reduction_-9.8pct<20.0pct": 1,
+       "local_reduction_3.9pct<20.0pct": 1,
+       "local_reduction_8.9pct<20.0pct": 1,
+       "local_reduction_1.1pct<20.0pct": 1,
+       "local_reduction_14.4pct<20.0pct": 1,
+       "local_reduction_-3.1pct<20.0pct": 1,
+       "local_reduction_16.6pct<20.0pct": 1,
+       "local_reduction_19.6pct<20.0pct": 1,
+       "local_reduction_7.5pct<20.0pct": 1,
+       "local_reduction_2.5pct<20.0pct": 1,
+       "local_reduction_0.5pct<20.0pct": 1,
+       "local_reduction_0.8pct<20.0pct": 1,
+       "local_reduction_6.9pct<20.0pct": 1,
+       "local_reduction_0.3pct<20.0pct": 1,
+       "local_reduction_7.3pct<20.0pct": 1,
+       "local_reduction_13.6pct<20.0pct": 1,
+       "local_reduction_17.9pct<20.0pct": 1,
+       "local_reduction_9.0pct<20.0pct": 2,
+       "local_reduction_5.3pct<20.0pct": 1,
+       "local_reduction_-1.2pct<20.0pct": 1,
+       "local_reduction_17.6pct<20.0pct": 1,
+       "local_reduction_7.4pct<20.0pct": 1,
+       "local_reduction_11.4pct<20.0pct": 2,
+       "local_reduction_14.2pct<20.0pct": 2,
+       "local_reduction_8.7pct<20.0pct": 1,
+       "local_reduction_3.6pct<20.0pct": 1,
+       "local_reduction_2.4pct<20.0pct": 1,
+       "local_reduction_4.2pct<20.0pct": 1,
+       "local_reduction_4.1pct<20.0pct": 1,
+       "local_reduction_16.0pct<20.0pct": 1,
+       "local_reduction_9.1pct<20.0pct": 1,
+       "local_reduction_5.8pct<20.0pct": 1,
+       "local_reduction_18.8pct<20.0pct": 1,
+       "local_reduction_-8.5pct<20.0pct": 1,
+       "local_reduction_10.4pct<20.0pct": 1,
+       "local_reduction_15.9pct<20.0pct": 1,
+       "local_reduction_2.8pct<20.0pct": 1,
+       "local_reduction_8.8pct<20.0pct": 1,
+       "local_reduction_13.2pct<20.0pct": 1,
+       "local_reduction_5.6pct<20.0pct": 1,
+       "local_reduction_-30.1pct<20.0pct": 1,
+       "local_reduction_-3.7pct<20.0pct": 1,
+       "local_reduction_18.9pct<20.0pct": 1,
+       "local_reduction_-1.3pct<20.0pct": 1,
+       "local_reduction_7.0pct<20.0pct": 1,
+       "local_reduction_12.2pct<20.0pct": 3,
+       "local_reduction_11.8pct<20.0pct": 1,
+       "local_reduction_16.5pct<20.0pct": 1,
+       "local_reduction_19.5pct<20.0pct": 1,
+       "local_reduction_9.9pct<20.0pct": 1,
+       "local_reduction_18.7pct<20.0pct": 1,
+       "local_reduction_2.3pct<20.0pct": 1,
+       "local_reduction_-27.5pct<20.0pct": 1,
+       "local_reduction_-4.0pct<20.0pct": 1,
+       "local_reduction_3.0pct<20.0pct": 2,
+       "local_reduction_0.2pct<20.0pct": 1,
+       "local_reduction_-37.1pct<20.0pct": 1,
+       "local_reduction_17.8pct<20.0pct": 1,
+       "local_reduction_-15.5pct<20.0pct": 1,
+       "local_reduction_-7.4pct<20.0pct": 1,
+       "local_reduction_-9.3pct<20.0pct": 1,
+       "local_reduction_13.9pct<20.0pct": 1,
+       "local_reduction_12.0pct<20.0pct": 1,
+       "local_reduction_18.0pct<20.0pct": 1,
+       "stable_breathing_cv_0.41<0.45": 5,
+       "stable_breathing_cv_0.43<0.45": 8,
+       "stable_breathing_cv_0.44<0.45": 2,
+       "stable_breathing_cv_0.22<0.45": 2,
+       "stable_breathing_cv_0.23<0.45": 1,
+       "stable_breathing_cv_0.45<0.45": 3,
+       "stable_breathing_cv_0.21<0.45": 2,
+       "stable_breathing_cv_0.32<0.45": 2,
+       "stable_breathing_cv_0.26<0.45": 1,
+       "stable_breathing_cv_0.28<0.45": 3,
+       "stable_breathing_cv_0.34<0.45": 2,
+       "stable_breathing_cv_0.20<0.45": 2,
+       "stable_breathing_cv_0.35<0.45": 2,
+       "stable_breathing_cv_0.40<0.45": 3,
+       "stable_breathing_cv_0.36<0.45": 2,
+       "stable_breathing_cv_0.37<0.45": 2,
+       "stable_breathing_cv_0.42<0.45": 2,
+       "stable_breathing_cv_0.39<0.45": 1,
+       "stable_breathing_cv_0.38<0.45": 4,
+       "stable_breathing_cv_0.33<0.45": 2,
+       "stable_breathing_cv_0.31<0.45": 2,
+       "stable_breathing_cv_0.30<0.45": 1,
+       "stable_breathing_cv_0.29<0.45": 1,
+       "stable_breathing_cv_0.24<0.45": 1
+      }
+     },
+     "arousal_source": null,
+     "n_arousals": 145,
+     "wall_s": 138.8,
+     "events": [
+      [
+       5906.1,
+       5927.9,
+       "hypopnea"
+      ],
+      [
+       5952.4,
+       5986.3,
+       "hypopnea"
+      ],
+      [
+       6015.3,
+       6039.9,
+       "hypopnea"
+      ],
+      [
+       6255.0,
+       6273.9,
+       "hypopnea"
+      ],
+      [
+       6300.1,
+       6346.4,
+       "hypopnea"
+      ],
+      [
+       6381.7,
+       6406.3,
+       "hypopnea"
+      ],
+      [
+       6430.9,
+       6459.0,
+       "hypopnea"
+      ],
+      [
+       6623.1,
+       6657.1,
+       "hypopnea"
+      ],
+      [
+       9360.0,
+       9377.1,
+       "hypopnea"
+      ],
+      [
+       9391.5,
+       9438.5,
+       "hypopnea"
+      ],
+      [
+       9544.7,
+       9592.9,
+       "hypopnea"
+      ],
+      [
+       12101.3,
+       12143.3,
+       "hypopnea"
+      ],
+      [
+       12165.4,
+       12211.7,
+       "hypopnea"
+      ],
+      [
+       12240.4,
+       12284.4,
+       "hypopnea"
+      ],
+      [
+       12312.7,
+       12342.7,
+       "hypopnea"
+      ],
+      [
+       12356.1,
+       12373.0,
+       "hypopnea"
+      ],
+      [
+       12373.0,
+       12394.3,
+       "hypopnea"
+      ],
+      [
+       12468.8,
+       12497.5,
+       "hypopnea"
+      ],
+      [
+       12516.8,
+       12538.7,
+       "hypopnea"
+      ],
+      [
+       12585.7,
+       12596.3,
+       "hypopnea"
+      ],
+      [
+       12896.7,
+       12908.1,
+       "hypopnea"
+      ],
+      [
+       12990.0,
+       13004.9,
+       "hypopnea"
+      ],
+      [
+       13023.4,
+       13063.5,
+       "hypopnea"
+      ],
+      [
+       13223.9,
+       13282.9,
+       "hypopnea"
+      ],
+      [
+       20983.3,
+       21002.5,
+       "hypopnea"
+      ],
+      [
+       21030.3,
+       21076.8,
+       "hypopnea"
+      ],
+      [
+       22736.9,
+       22756.4,
+       "hypopnea"
+      ],
+      [
+       24627.7,
+       24659.5,
+       "hypopnea"
+      ],
+      [
+       25161.4,
+       25181.3,
+       "hypopnea"
+      ],
+      [
+       26664.9,
+       26681.9,
+       "hypopnea"
+      ],
+      [
+       27135.8,
+       27149.6,
+       "hypopnea"
+      ],
+      [
+       28006.9,
+       28020.6,
+       "hypopnea"
+      ]
+     ],
+     "reinstated": [
+      [
+       9360.0,
+       9377.1,
+       "hypopnea"
+      ],
+      [
+       12585.7,
+       12596.3,
+       "hypopnea"
+      ],
+      [
+       13223.9,
+       13282.9,
+       "hypopnea"
+      ],
+      [
+       22736.9,
+       22756.4,
+       "hypopnea"
+      ],
+      [
+       26664.9,
+       26681.9,
+       "hypopnea"
+      ],
+      [
+       27135.8,
+       27149.6,
+       "hypopnea"
+      ]
+     ],
+     "f1_median": 0.26809116809116806,
+     "precision_median": 0.25,
+     "recall_median": 0.2898981324278438,
+     "reinst_precision_median": 0.0,
+     "delta_ahi": 1.48
+    },
+    "C": {
+     "ahi": 4.8,
+     "n_events": 29,
+     "n_reinstated": 3,
+     "stats": {
+      "enabled": true,
+      "n_arousals_available": 58,
+      "n_candidates_tested": 26,
+      "n_arousal_coupled": 5,
+      "n_qualified": 3,
+      "skipped_reason": null,
+      "n_graded_coupled": 0,
+      "n_ineligible": 133,
+      "ineligible_by_reason": {
+       "local_reduction_10.9pct<20.0pct": 1,
+       "local_reduction_1.7pct<20.0pct": 1,
+       "local_reduction_-13.5pct<20.0pct": 1,
+       "local_reduction_0.1pct<20.0pct": 1,
+       "local_reduction_-7.3pct<20.0pct": 1,
+       "local_reduction_-23.9pct<20.0pct": 1,
+       "local_reduction_12.7pct<20.0pct": 1,
+       "local_reduction_-9.8pct<20.0pct": 1,
+       "local_reduction_3.9pct<20.0pct": 1,
+       "local_reduction_8.9pct<20.0pct": 1,
+       "local_reduction_1.1pct<20.0pct": 1,
+       "local_reduction_14.4pct<20.0pct": 1,
+       "local_reduction_-3.1pct<20.0pct": 1,
+       "local_reduction_16.6pct<20.0pct": 1,
+       "local_reduction_19.6pct<20.0pct": 1,
+       "local_reduction_7.5pct<20.0pct": 1,
+       "local_reduction_2.5pct<20.0pct": 1,
+       "local_reduction_0.5pct<20.0pct": 1,
+       "local_reduction_0.8pct<20.0pct": 1,
+       "local_reduction_6.9pct<20.0pct": 1,
+       "local_reduction_0.3pct<20.0pct": 1,
+       "local_reduction_7.3pct<20.0pct": 1,
+       "local_reduction_13.6pct<20.0pct": 1,
+       "local_reduction_17.9pct<20.0pct": 1,
+       "local_reduction_9.0pct<20.0pct": 2,
+       "local_reduction_5.3pct<20.0pct": 1,
+       "local_reduction_-1.2pct<20.0pct": 1,
+       "local_reduction_17.6pct<20.0pct": 1,
+       "local_reduction_7.4pct<20.0pct": 1,
+       "local_reduction_11.4pct<20.0pct": 2,
+       "local_reduction_14.2pct<20.0pct": 2,
+       "local_reduction_8.7pct<20.0pct": 1,
+       "local_reduction_3.6pct<20.0pct": 1,
+       "local_reduction_2.4pct<20.0pct": 1,
+       "local_reduction_4.2pct<20.0pct": 1,
+       "local_reduction_4.1pct<20.0pct": 1,
+       "local_reduction_16.0pct<20.0pct": 1,
+       "local_reduction_9.1pct<20.0pct": 1,
+       "local_reduction_5.8pct<20.0pct": 1,
+       "local_reduction_18.8pct<20.0pct": 1,
+       "local_reduction_-8.5pct<20.0pct": 1,
+       "local_reduction_10.4pct<20.0pct": 1,
+       "local_reduction_15.9pct<20.0pct": 1,
+       "local_reduction_2.8pct<20.0pct": 1,
+       "local_reduction_8.8pct<20.0pct": 1,
+       "local_reduction_13.2pct<20.0pct": 1,
+       "local_reduction_5.6pct<20.0pct": 1,
+       "local_reduction_-30.1pct<20.0pct": 1,
+       "local_reduction_-3.7pct<20.0pct": 1,
+       "local_reduction_18.9pct<20.0pct": 1,
+       "local_reduction_-1.3pct<20.0pct": 1,
+       "local_reduction_7.0pct<20.0pct": 1,
+       "local_reduction_12.2pct<20.0pct": 3,
+       "local_reduction_11.8pct<20.0pct": 1,
+       "local_reduction_16.5pct<20.0pct": 1,
+       "local_reduction_19.5pct<20.0pct": 1,
+       "local_reduction_9.9pct<20.0pct": 1,
+       "local_reduction_18.7pct<20.0pct": 1,
+       "local_reduction_2.3pct<20.0pct": 1,
+       "local_reduction_-27.5pct<20.0pct": 1,
+       "local_reduction_-4.0pct<20.0pct": 1,
+       "local_reduction_3.0pct<20.0pct": 2,
+       "local_reduction_0.2pct<20.0pct": 1,
+       "local_reduction_-37.1pct<20.0pct": 1,
+       "local_reduction_17.8pct<20.0pct": 1,
+       "local_reduction_-15.5pct<20.0pct": 1,
+       "local_reduction_-7.4pct<20.0pct": 1,
+       "local_reduction_-9.3pct<20.0pct": 1,
+       "local_reduction_13.9pct<20.0pct": 1,
+       "local_reduction_12.0pct<20.0pct": 1,
+       "local_reduction_18.0pct<20.0pct": 1,
+       "stable_breathing_cv_0.41<0.45": 5,
+       "stable_breathing_cv_0.43<0.45": 8,
+       "stable_breathing_cv_0.44<0.45": 2,
+       "stable_breathing_cv_0.22<0.45": 2,
+       "stable_breathing_cv_0.23<0.45": 1,
+       "stable_breathing_cv_0.45<0.45": 3,
+       "stable_breathing_cv_0.21<0.45": 2,
+       "stable_breathing_cv_0.32<0.45": 2,
+       "stable_breathing_cv_0.26<0.45": 1,
+       "stable_breathing_cv_0.28<0.45": 3,
+       "stable_breathing_cv_0.34<0.45": 2,
+       "stable_breathing_cv_0.20<0.45": 2,
+       "stable_breathing_cv_0.35<0.45": 2,
+       "stable_breathing_cv_0.40<0.45": 3,
+       "stable_breathing_cv_0.36<0.45": 2,
+       "stable_breathing_cv_0.37<0.45": 2,
+       "stable_breathing_cv_0.42<0.45": 2,
+       "stable_breathing_cv_0.39<0.45": 1,
+       "stable_breathing_cv_0.38<0.45": 4,
+       "stable_breathing_cv_0.33<0.45": 2,
+       "stable_breathing_cv_0.31<0.45": 2,
+       "stable_breathing_cv_0.30<0.45": 1,
+       "stable_breathing_cv_0.29<0.45": 1,
+       "stable_breathing_cv_0.24<0.45": 1
+      }
+     },
+     "arousal_source": "external",
+     "n_arousals": 58,
+     "wall_s": 38.5,
+     "events": [
+      [
+       5906.1,
+       5927.9,
+       "hypopnea"
+      ],
+      [
+       5952.4,
+       5986.3,
+       "hypopnea"
+      ],
+      [
+       6015.3,
+       6039.9,
+       "hypopnea"
+      ],
+      [
+       6255.0,
+       6273.9,
+       "hypopnea"
+      ],
+      [
+       6300.1,
+       6346.4,
+       "hypopnea"
+      ],
+      [
+       6381.7,
+       6406.3,
+       "hypopnea"
+      ],
+      [
+       6430.9,
+       6459.0,
+       "hypopnea"
+      ],
+      [
+       6623.1,
+       6657.1,
+       "hypopnea"
+      ],
+      [
+       9391.5,
+       9438.5,
+       "hypopnea"
+      ],
+      [
+       9544.7,
+       9592.9,
+       "hypopnea"
+      ],
+      [
+       12101.3,
+       12143.3,
+       "hypopnea"
+      ],
+      [
+       12165.4,
+       12211.7,
+       "hypopnea"
+      ],
+      [
+       12240.4,
+       12284.4,
+       "hypopnea"
+      ],
+      [
+       12312.7,
+       12342.7,
+       "hypopnea"
+      ],
+      [
+       12356.1,
+       12373.0,
+       "hypopnea"
+      ],
+      [
+       12373.0,
+       12394.3,
+       "hypopnea"
+      ],
+      [
+       12468.8,
+       12497.5,
+       "hypopnea"
+      ],
+      [
+       12516.8,
+       12538.7,
+       "hypopnea"
+      ],
+      [
+       12896.7,
+       12908.1,
+       "hypopnea"
+      ],
+      [
+       12990.0,
+       13004.9,
+       "hypopnea"
+      ],
+      [
+       13023.4,
+       13063.5,
+       "hypopnea"
+      ],
+      [
+       13090.5,
+       13131.5,
+       "hypopnea"
+      ],
+      [
+       13223.9,
+       13282.9,
+       "hypopnea"
+      ],
+      [
+       20983.3,
+       21002.5,
+       "hypopnea"
+      ],
+      [
+       21030.3,
+       21076.8,
+       "hypopnea"
+      ],
+      [
+       22736.9,
+       22756.4,
+       "hypopnea"
+      ],
+      [
+       24627.7,
+       24659.5,
+       "hypopnea"
+      ],
+      [
+       25161.4,
+       25181.3,
+       "hypopnea"
+      ],
+      [
+       28006.9,
+       28020.6,
+       "hypopnea"
+      ]
+     ],
+     "reinstated": [
+      [
+       13090.5,
+       13131.5,
+       "hypopnea"
+      ],
+      [
+       13223.9,
+       13282.9,
+       "hypopnea"
+      ],
+      [
+       22736.9,
+       22756.4,
+       "hypopnea"
+      ]
+     ],
+     "f1_median": 0.282416192283365,
+     "precision_median": 0.27586206896551724,
+     "recall_median": 0.3038277511961722,
+     "reinst_precision_median": 0.0,
+     "delta_ahi": 0.98
+    }
+   }
+  },
+  {
+   "recording": "SN5",
+   "n_scorers": 12,
+   "ref_median_ahi": 9.98,
+   "ref_range": [
+    3.56,
+    14.39
+   ],
+   "n_ref_arousals": 164,
+   "arms": {
+    "A": {
+     "ahi": 11.0,
+     "n_events": 77,
+     "n_reinstated": 0,
+     "stats": {
+      "enabled": false,
+      "n_arousals_available": 0,
+      "n_candidates_tested": 0,
+      "n_arousal_coupled": 0,
+      "n_qualified": 0,
+      "skipped_reason": "disabled_by_profile"
+     },
+     "arousal_source": null,
+     "n_arousals": 117,
+     "wall_s": 140.9,
+     "events": [
+      [
+       197.6,
+       229.0,
+       "obstructive"
+      ],
+      [
+       275.2,
+       316.3,
+       "hypopnea"
+      ],
+      [
+       392.9,
+       452.0,
+       "hypopnea"
+      ],
+      [
+       812.2,
+       825.5,
+       "obstructive"
+      ],
+      [
+       1670.3,
+       1680.6,
+       "central"
+      ],
+      [
+       3309.4,
+       3328.2,
+       "hypopnea"
+      ],
+      [
+       3482.5,
+       3502.5,
+       "hypopnea"
+      ],
+      [
+       3503.1,
+       3515.1,
+       "hypopnea"
+      ],
+      [
+       3550.0,
+       3560.7,
+       "hypopnea"
+      ],
+      [
+       3731.1,
+       3749.8,
+       "hypopnea"
+      ],
+      [
+       3760.6,
+       3771.3,
+       "obstructive"
+      ],
+      [
+       3788.6,
+       3803.5,
+       "obstructive"
+      ],
+      [
+       4038.0,
+       4060.4,
+       "hypopnea"
+      ],
+      [
+       4119.3,
+       4133.4,
+       "hypopnea"
+      ],
+      [
+       4263.9,
+       4281.1,
+       "hypopnea"
+      ],
+      [
+       4334.2,
+       4350.8,
+       "hypopnea"
+      ],
+      [
+       4553.0,
+       4570.1,
+       "obstructive"
+      ],
+      [
+       4587.8,
+       4600.1,
+       "obstructive"
+      ],
+      [
+       4862.0,
+       4874.5,
+       "hypopnea"
+      ],
+      [
+       4905.5,
+       4920.0,
+       "hypopnea"
+      ],
+      [
+       4920.5,
+       4935.1,
+       "hypopnea_central"
+      ],
+      [
+       6633.8,
+       6687.9,
+       "hypopnea"
+      ],
+      [
+       6707.7,
+       6719.8,
+       "hypopnea"
+      ],
+      [
+       6787.6,
+       6798.9,
+       "hypopnea"
+      ],
+      [
+       6837.1,
+       6848.7,
+       "hypopnea"
+      ],
+      [
+       6941.5,
+       6959.4,
+       "hypopnea"
+      ],
+      [
+       6964.6,
+       6975.7,
+       "hypopnea"
+      ],
+      [
+       6985.1,
+       6995.3,
+       "hypopnea"
+      ],
+      [
+       7692.4,
+       7708.8,
+       "hypopnea"
+      ],
+      [
+       7852.0,
+       7885.0,
+       "hypopnea"
+      ],
+      [
+       7995.4,
+       8014.7,
+       "hypopnea"
+      ],
+      [
+       8638.6,
+       8650.3,
+       "obstructive"
+      ],
+      [
+       10874.4,
+       10888.6,
+       "hypopnea"
+      ],
+      [
+       11782.6,
+       11809.2,
+       "hypopnea"
+      ],
+      [
+       11836.6,
+       11846.6,
+       "obstructive"
+      ],
+      [
+       12840.0,
+       12852.2,
+       "obstructive"
+      ],
+      [
+       12921.5,
+       12931.6,
+       "hypopnea"
+      ],
+      [
+       14458.8,
+       14469.0,
+       "hypopnea"
+      ],
+      [
+       14473.0,
+       14499.1,
+       "hypopnea"
+      ],
+      [
+       18026.2,
+       18038.0,
+       "obstructive"
+      ],
+      [
+       18742.8,
+       18753.7,
+       "obstructive"
+      ],
+      [
+       19058.4,
+       19070.5,
+       "hypopnea"
+      ],
+      [
+       19120.9,
+       19172.8,
+       "hypopnea"
+      ],
+      [
+       19248.6,
+       19271.8,
+       "hypopnea"
+      ],
+      [
+       19306.1,
+       19324.0,
+       "hypopnea"
+      ],
+      [
+       19403.7,
+       19452.6,
+       "hypopnea"
+      ],
+      [
+       19505.7,
+       19535.8,
+       "hypopnea"
+      ],
+      [
+       19719.5,
+       19778.9,
+       "hypopnea"
+      ],
+      [
+       19787.5,
+       19798.8,
+       "hypopnea"
+      ],
+      [
+       19934.2,
+       19951.2,
+       "hypopnea"
+      ],
+      [
+       21420.5,
+       21431.4,
+       "obstructive"
+      ],
+      [
+       21444.4,
+       21461.6,
+       "hypopnea"
+      ],
+      [
+       21470.7,
+       21490.5,
+       "hypopnea"
+      ],
+      [
+       21500.0,
+       21541.1,
+       "hypopnea"
+      ],
+      [
+       21647.6,
+       21671.0,
+       "hypopnea"
+      ],
+      [
+       21689.4,
+       21701.1,
+       "hypopnea"
+      ],
+      [
+       21850.6,
+       21861.0,
+       "obstructive"
+      ],
+      [
+       21970.0,
+       21985.2,
+       "hypopnea"
+      ],
+      [
+       22179.0,
+       22189.9,
+       "obstructive"
+      ],
+      [
+       22430.6,
+       22445.0,
+       "hypopnea"
+      ],
+      [
+       22465.2,
+       22478.8,
+       "hypopnea"
+      ],
+      [
+       22637.7,
+       22648.7,
+       "obstructive"
+      ],
+      [
+       22995.3,
+       23005.5,
+       "hypopnea_mixed"
+      ],
+      [
+       23014.0,
+       23029.0,
+       "hypopnea"
+      ],
+      [
+       23092.9,
+       23106.3,
+       "central"
+      ],
+      [
+       24747.9,
+       24759.0,
+       "hypopnea"
+      ],
+      [
+       24769.4,
+       24807.7,
+       "hypopnea"
+      ],
+      [
+       24873.5,
+       24897.5,
+       "hypopnea"
+      ],
+      [
+       25710.5,
+       25726.1,
+       "hypopnea_mixed"
+      ],
+      [
+       25744.5,
+       25758.6,
+       "hypopnea"
+      ],
+      [
+       25836.6,
+       25856.5,
+       "hypopnea"
+      ],
+      [
+       25902.8,
+       25916.7,
+       "hypopnea"
+      ],
+      [
+       25984.1,
+       26019.6,
+       "hypopnea"
+      ],
+      [
+       26057.4,
+       26097.5,
+       "hypopnea"
+      ],
+      [
+       26098.2,
+       26116.4,
+       "hypopnea"
+      ],
+      [
+       26189.7,
+       26203.9,
+       "hypopnea"
+      ],
+      [
+       26410.8,
+       26420.9,
+       "hypopnea"
+      ]
+     ],
+     "reinstated": [],
+     "f1_median": 0.3491573033707865,
+     "precision_median": 0.35714285714285715,
+     "recall_median": 0.39014084507042257,
+     "reinst_precision_median": null,
+     "delta_ahi": 1.02
+    },
+    "B": {
+     "ahi": 12.1,
+     "n_events": 85,
+     "n_reinstated": 8,
+     "stats": {
+      "enabled": true,
+      "n_arousals_available": 117,
+      "n_candidates_tested": 30,
+      "n_arousal_coupled": 10,
+      "n_qualified": 8,
+      "skipped_reason": null,
+      "n_graded_coupled": 0,
+      "n_ineligible": 143,
+      "ineligible_by_reason": {
+       "local_reduction_-7.3pct<20.0pct": 1,
+       "local_reduction_-8.8pct<20.0pct": 1,
+       "local_reduction_5.5pct<20.0pct": 2,
+       "local_reduction_-1.3pct<20.0pct": 1,
+       "local_reduction_-3.4pct<20.0pct": 1,
+       "local_reduction_-11.3pct<20.0pct": 1,
+       "local_reduction_4.7pct<20.0pct": 1,
+       "local_reduction_12.5pct<20.0pct": 2,
+       "local_reduction_-17.2pct<20.0pct": 1,
+       "local_reduction_20.0pct<20.0pct": 1,
+       "local_reduction_10.8pct<20.0pct": 1,
+       "local_reduction_15.7pct<20.0pct": 1,
+       "local_reduction_17.0pct<20.0pct": 2,
+       "local_reduction_15.3pct<20.0pct": 1,
+       "local_reduction_16.4pct<20.0pct": 1,
+       "local_reduction_14.9pct<20.0pct": 1,
+       "local_reduction_12.2pct<20.0pct": 1,
+       "local_reduction_17.6pct<20.0pct": 1,
+       "local_reduction_17.9pct<20.0pct": 1,
+       "local_reduction_19.2pct<20.0pct": 2,
+       "local_reduction_15.6pct<20.0pct": 1,
+       "local_reduction_-13.9pct<20.0pct": 1,
+       "local_reduction_0.3pct<20.0pct": 1,
+       "local_reduction_-49.2pct<20.0pct": 1,
+       "local_reduction_-1.0pct<20.0pct": 1,
+       "local_reduction_15.2pct<20.0pct": 1,
+       "local_reduction_-28.9pct<20.0pct": 1,
+       "local_reduction_19.3pct<20.0pct": 1,
+       "local_reduction_18.9pct<20.0pct": 1,
+       "local_reduction_16.2pct<20.0pct": 1,
+       "local_reduction_-11.2pct<20.0pct": 1,
+       "local_reduction_-0.7pct<20.0pct": 1,
+       "local_reduction_17.5pct<20.0pct": 1,
+       "local_reduction_-7.7pct<20.0pct": 1,
+       "local_reduction_19.7pct<20.0pct": 2,
+       "local_reduction_-61.7pct<20.0pct": 1,
+       "local_reduction_3.7pct<20.0pct": 1,
+       "local_reduction_-14.0pct<20.0pct": 1,
+       "local_reduction_-25.8pct<20.0pct": 1,
+       "local_reduction_18.2pct<20.0pct": 1,
+       "local_reduction_-21.7pct<20.0pct": 1,
+       "local_reduction_-0.3pct<20.0pct": 1,
+       "local_reduction_10.3pct<20.0pct": 1,
+       "local_reduction_10.2pct<20.0pct": 2,
+       "local_reduction_12.1pct<20.0pct": 1,
+       "local_reduction_12.9pct<20.0pct": 1,
+       "local_reduction_0.0pct<20.0pct": 1,
+       "local_reduction_16.7pct<20.0pct": 1,
+       "local_reduction_9.3pct<20.0pct": 1,
+       "local_reduction_18.6pct<20.0pct": 1,
+       "local_reduction_-4.7pct<20.0pct": 1,
+       "local_reduction_7.8pct<20.0pct": 1,
+       "local_reduction_8.6pct<20.0pct": 1,
+       "local_reduction_12.6pct<20.0pct": 1,
+       "local_reduction_-6.8pct<20.0pct": 1,
+       "local_reduction_12.8pct<20.0pct": 1,
+       "local_reduction_16.1pct<20.0pct": 1,
+       "local_reduction_1.0pct<20.0pct": 1,
+       "local_reduction_-35.8pct<20.0pct": 1,
+       "local_reduction_16.5pct<20.0pct": 1,
+       "local_reduction_-1.8pct<20.0pct": 1,
+       "local_reduction_19.0pct<20.0pct": 1,
+       "local_reduction_-7.1pct<20.0pct": 1,
+       "local_reduction_2.9pct<20.0pct": 2,
+       "local_reduction_-8.6pct<20.0pct": 1,
+       "local_reduction_-7.2pct<20.0pct": 1,
+       "local_reduction_13.4pct<20.0pct": 1,
+       "local_reduction_-21.5pct<20.0pct": 1,
+       "local_reduction_6.1pct<20.0pct": 1,
+       "local_reduction_2.4pct<20.0pct": 1,
+       "local_reduction_-53.8pct<20.0pct": 1,
+       "local_reduction_9.4pct<20.0pct": 1,
+       "local_reduction_-49.1pct<20.0pct": 1,
+       "local_reduction_-23.7pct<20.0pct": 1,
+       "local_reduction_17.8pct<20.0pct": 1,
+       "stable_breathing_cv_0.43<0.45": 6,
+       "stable_breathing_cv_0.23<0.45": 2,
+       "stable_breathing_cv_0.45<0.45": 2,
+       "stable_breathing_cv_0.41<0.45": 3,
+       "stable_breathing_cv_0.38<0.45": 4,
+       "stable_breathing_cv_0.26<0.45": 2,
+       "stable_breathing_cv_0.32<0.45": 3,
+       "stable_breathing_cv_0.30<0.45": 4,
+       "stable_breathing_cv_0.28<0.45": 2,
+       "stable_breathing_cv_0.22<0.45": 1,
+       "stable_breathing_cv_0.19<0.45": 1,
+       "stable_breathing_cv_0.18<0.45": 1,
+       "stable_breathing_cv_0.17<0.45": 1,
+       "stable_breathing_cv_0.24<0.45": 2,
+       "stable_breathing_cv_0.27<0.45": 1,
+       "stable_breathing_cv_0.42<0.45": 1,
+       "stable_breathing_cv_0.44<0.45": 5,
+       "stable_breathing_cv_0.36<0.45": 2,
+       "stable_breathing_cv_0.29<0.45": 2,
+       "stable_breathing_cv_0.31<0.45": 1,
+       "stable_breathing_cv_0.35<0.45": 5,
+       "stable_breathing_cv_0.39<0.45": 1,
+       "stable_breathing_cv_0.33<0.45": 2,
+       "stable_breathing_cv_0.34<0.45": 1,
+       "stable_breathing_cv_0.37<0.45": 3,
+       "stable_breathing_cv_0.21<0.45": 1,
+       "stable_breathing_cv_0.25<0.45": 1,
+       "stable_breathing_cv_0.40<0.45": 1
+      }
+     },
+     "arousal_source": null,
+     "n_arousals": 117,
+     "wall_s": 130.0,
+     "events": [
+      [
+       197.6,
+       229.0,
+       "obstructive"
+      ],
+      [
+       275.2,
+       316.3,
+       "hypopnea"
+      ],
+      [
+       392.9,
+       452.0,
+       "hypopnea"
+      ],
+      [
+       812.2,
+       825.5,
+       "obstructive"
+      ],
+      [
+       1670.3,
+       1680.6,
+       "central"
+      ],
+      [
+       3309.4,
+       3328.2,
+       "hypopnea"
+      ],
+      [
+       3482.5,
+       3502.5,
+       "hypopnea"
+      ],
+      [
+       3503.1,
+       3515.1,
+       "hypopnea"
+      ],
+      [
+       3550.0,
+       3560.7,
+       "hypopnea"
+      ],
+      [
+       3731.1,
+       3749.8,
+       "hypopnea"
+      ],
+      [
+       3760.6,
+       3771.3,
+       "obstructive"
+      ],
+      [
+       3788.6,
+       3803.5,
+       "obstructive"
+      ],
+      [
+       4038.0,
+       4060.4,
+       "hypopnea"
+      ],
+      [
+       4119.3,
+       4133.4,
+       "hypopnea"
+      ],
+      [
+       4263.9,
+       4281.1,
+       "hypopnea"
+      ],
+      [
+       4334.2,
+       4350.8,
+       "hypopnea"
+      ],
+      [
+       4553.0,
+       4570.1,
+       "obstructive"
+      ],
+      [
+       4587.8,
+       4600.1,
+       "obstructive"
+      ],
+      [
+       4862.0,
+       4874.5,
+       "hypopnea"
+      ],
+      [
+       4905.5,
+       4920.0,
+       "hypopnea"
+      ],
+      [
+       4920.5,
+       4935.1,
+       "hypopnea_central"
+      ],
+      [
+       6633.8,
+       6687.9,
+       "hypopnea"
+      ],
+      [
+       6707.7,
+       6719.8,
+       "hypopnea"
+      ],
+      [
+       6787.6,
+       6798.9,
+       "hypopnea"
+      ],
+      [
+       6837.1,
+       6848.7,
+       "hypopnea"
+      ],
+      [
+       6941.5,
+       6959.4,
+       "hypopnea"
+      ],
+      [
+       6964.6,
+       6975.7,
+       "hypopnea"
+      ],
+      [
+       6985.1,
+       6995.3,
+       "hypopnea"
+      ],
+      [
+       7692.4,
+       7708.8,
+       "hypopnea"
+      ],
+      [
+       7852.0,
+       7885.0,
+       "hypopnea"
+      ],
+      [
+       7995.4,
+       8014.7,
+       "hypopnea"
+      ],
+      [
+       8250.0,
+       8286.2,
+       "hypopnea"
+      ],
+      [
+       8638.6,
+       8650.3,
+       "obstructive"
+      ],
+      [
+       10874.4,
+       10888.6,
+       "hypopnea"
+      ],
+      [
+       11782.6,
+       11809.2,
+       "hypopnea"
+      ],
+      [
+       11836.6,
+       11846.6,
+       "obstructive"
+      ],
+      [
+       12840.0,
+       12852.2,
+       "obstructive"
+      ],
+      [
+       12921.5,
+       12931.6,
+       "hypopnea"
+      ],
+      [
+       13530.0,
+       13556.4,
+       "hypopnea"
+      ],
+      [
+       14327.4,
+       14343.8,
+       "hypopnea"
+      ],
+      [
+       14458.8,
+       14469.0,
+       "hypopnea"
+      ],
+      [
+       14473.0,
+       14499.1,
+       "hypopnea"
+      ],
+      [
+       17954.3,
+       17965.2,
+       "hypopnea"
+      ],
+      [
+       18026.2,
+       18038.0,
+       "obstructive"
+      ],
+      [
+       18742.8,
+       18753.7,
+       "obstructive"
+      ],
+      [
+       19058.4,
+       19070.5,
+       "hypopnea"
+      ],
+      [
+       19120.9,
+       19172.8,
+       "hypopnea"
+      ],
+      [
+       19248.6,
+       19271.8,
+       "hypopnea"
+      ],
+      [
+       19306.1,
+       19324.0,
+       "hypopnea"
+      ],
+      [
+       19403.7,
+       19452.6,
+       "hypopnea"
+      ],
+      [
+       19505.7,
+       19535.8,
+       "hypopnea"
+      ],
+      [
+       19645.0,
+       19658.3,
+       "hypopnea"
+      ],
+      [
+       19719.5,
+       19778.9,
+       "hypopnea"
+      ],
+      [
+       19787.5,
+       19798.8,
+       "hypopnea"
+      ],
+      [
+       19934.2,
+       19951.2,
+       "hypopnea"
+      ],
+      [
+       20075.6,
+       20097.8,
+       "hypopnea"
+      ],
+      [
+       21420.5,
+       21431.4,
+       "obstructive"
+      ],
+      [
+       21444.4,
+       21461.6,
+       "hypopnea"
+      ],
+      [
+       21470.7,
+       21490.5,
+       "hypopnea"
+      ],
+      [
+       21500.0,
+       21541.1,
+       "hypopnea"
+      ],
+      [
+       21647.6,
+       21671.0,
+       "hypopnea"
+      ],
+      [
+       21689.4,
+       21701.1,
+       "hypopnea"
+      ],
+      [
+       21850.6,
+       21861.0,
+       "obstructive"
+      ],
+      [
+       21970.0,
+       21985.2,
+       "hypopnea"
+      ],
+      [
+       22179.0,
+       22189.9,
+       "obstructive"
+      ],
+      [
+       22381.7,
+       22395.0,
+       "hypopnea"
+      ],
+      [
+       22430.6,
+       22445.0,
+       "hypopnea"
+      ],
+      [
+       22465.2,
+       22478.8,
+       "hypopnea"
+      ],
+      [
+       22637.7,
+       22648.7,
+       "obstructive"
+      ],
+      [
+       22995.3,
+       23005.5,
+       "hypopnea_mixed"
+      ],
+      [
+       23014.0,
+       23029.0,
+       "hypopnea"
+      ],
+      [
+       23092.9,
+       23106.3,
+       "central"
+      ],
+      [
+       24747.9,
+       24759.0,
+       "hypopnea"
+      ],
+      [
+       24769.4,
+       24807.7,
+       "hypopnea"
+      ],
+      [
+       24873.5,
+       24897.5,
+       "hypopnea"
+      ],
+      [
+       25710.5,
+       25726.1,
+       "hypopnea_mixed"
+      ],
+      [
+       25744.5,
+       25758.6,
+       "hypopnea"
+      ],
+      [
+       25836.6,
+       25856.5,
+       "hypopnea"
+      ],
+      [
+       25902.8,
+       25916.7,
+       "hypopnea"
+      ],
+      [
+       25984.1,
+       26019.6,
+       "hypopnea"
+      ],
+      [
+       26057.4,
+       26097.5,
+       "hypopnea"
+      ],
+      [
+       26098.2,
+       26116.4,
+       "hypopnea"
+      ],
+      [
+       26189.7,
+       26203.9,
+       "hypopnea"
+      ],
+      [
+       26410.8,
+       26420.9,
+       "hypopnea"
+      ],
+      [
+       26444.5,
+       26465.7,
+       "hypopnea"
+      ]
+     ],
+     "reinstated": [
+      [
+       8250.0,
+       8286.2,
+       "hypopnea"
+      ],
+      [
+       13530.0,
+       13556.4,
+       "hypopnea"
+      ],
+      [
+       14327.4,
+       14343.8,
+       "hypopnea"
+      ],
+      [
+       17954.3,
+       17965.2,
+       "hypopnea"
+      ],
+      [
+       19645.0,
+       19658.3,
+       "hypopnea"
+      ],
+      [
+       20075.6,
+       20097.8,
+       "hypopnea"
+      ],
+      [
+       22381.7,
+       22395.0,
+       "hypopnea"
+      ],
+      [
+       26444.5,
+       26465.7,
+       "hypopnea"
+      ]
+     ],
+     "f1_median": 0.341534536176417,
+     "precision_median": 0.32941176470588235,
+     "recall_median": 0.4055164319248826,
+     "reinst_precision_median": 0.125,
+     "delta_ahi": 2.12
+    },
+    "C": {
+     "ahi": 11.3,
+     "n_events": 79,
+     "n_reinstated": 2,
+     "stats": {
+      "enabled": true,
+      "n_arousals_available": 164,
+      "n_candidates_tested": 30,
+      "n_arousal_coupled": 5,
+      "n_qualified": 2,
+      "skipped_reason": null,
+      "n_graded_coupled": 0,
+      "n_ineligible": 143,
+      "ineligible_by_reason": {
+       "local_reduction_-7.3pct<20.0pct": 1,
+       "local_reduction_-8.8pct<20.0pct": 1,
+       "local_reduction_5.5pct<20.0pct": 2,
+       "local_reduction_-1.3pct<20.0pct": 1,
+       "local_reduction_-3.4pct<20.0pct": 1,
+       "local_reduction_-11.3pct<20.0pct": 1,
+       "local_reduction_4.7pct<20.0pct": 1,
+       "local_reduction_12.5pct<20.0pct": 2,
+       "local_reduction_-17.2pct<20.0pct": 1,
+       "local_reduction_20.0pct<20.0pct": 1,
+       "local_reduction_10.8pct<20.0pct": 1,
+       "local_reduction_15.7pct<20.0pct": 1,
+       "local_reduction_17.0pct<20.0pct": 2,
+       "local_reduction_15.3pct<20.0pct": 1,
+       "local_reduction_16.4pct<20.0pct": 1,
+       "local_reduction_14.9pct<20.0pct": 1,
+       "local_reduction_12.2pct<20.0pct": 1,
+       "local_reduction_17.6pct<20.0pct": 1,
+       "local_reduction_17.9pct<20.0pct": 1,
+       "local_reduction_19.2pct<20.0pct": 2,
+       "local_reduction_15.6pct<20.0pct": 1,
+       "local_reduction_-13.9pct<20.0pct": 1,
+       "local_reduction_0.3pct<20.0pct": 1,
+       "local_reduction_-49.2pct<20.0pct": 1,
+       "local_reduction_-1.0pct<20.0pct": 1,
+       "local_reduction_15.2pct<20.0pct": 1,
+       "local_reduction_-28.9pct<20.0pct": 1,
+       "local_reduction_19.3pct<20.0pct": 1,
+       "local_reduction_18.9pct<20.0pct": 1,
+       "local_reduction_16.2pct<20.0pct": 1,
+       "local_reduction_-11.2pct<20.0pct": 1,
+       "local_reduction_-0.7pct<20.0pct": 1,
+       "local_reduction_17.5pct<20.0pct": 1,
+       "local_reduction_-7.7pct<20.0pct": 1,
+       "local_reduction_19.7pct<20.0pct": 2,
+       "local_reduction_-61.7pct<20.0pct": 1,
+       "local_reduction_3.7pct<20.0pct": 1,
+       "local_reduction_-14.0pct<20.0pct": 1,
+       "local_reduction_-25.8pct<20.0pct": 1,
+       "local_reduction_18.2pct<20.0pct": 1,
+       "local_reduction_-21.7pct<20.0pct": 1,
+       "local_reduction_-0.3pct<20.0pct": 1,
+       "local_reduction_10.3pct<20.0pct": 1,
+       "local_reduction_10.2pct<20.0pct": 2,
+       "local_reduction_12.1pct<20.0pct": 1,
+       "local_reduction_12.9pct<20.0pct": 1,
+       "local_reduction_0.0pct<20.0pct": 1,
+       "local_reduction_16.7pct<20.0pct": 1,
+       "local_reduction_9.3pct<20.0pct": 1,
+       "local_reduction_18.6pct<20.0pct": 1,
+       "local_reduction_-4.7pct<20.0pct": 1,
+       "local_reduction_7.8pct<20.0pct": 1,
+       "local_reduction_8.6pct<20.0pct": 1,
+       "local_reduction_12.6pct<20.0pct": 1,
+       "local_reduction_-6.8pct<20.0pct": 1,
+       "local_reduction_12.8pct<20.0pct": 1,
+       "local_reduction_16.1pct<20.0pct": 1,
+       "local_reduction_1.0pct<20.0pct": 1,
+       "local_reduction_-35.8pct<20.0pct": 1,
+       "local_reduction_16.5pct<20.0pct": 1,
+       "local_reduction_-1.8pct<20.0pct": 1,
+       "local_reduction_19.0pct<20.0pct": 1,
+       "local_reduction_-7.1pct<20.0pct": 1,
+       "local_reduction_2.9pct<20.0pct": 2,
+       "local_reduction_-8.6pct<20.0pct": 1,
+       "local_reduction_-7.2pct<20.0pct": 1,
+       "local_reduction_13.4pct<20.0pct": 1,
+       "local_reduction_-21.5pct<20.0pct": 1,
+       "local_reduction_6.1pct<20.0pct": 1,
+       "local_reduction_2.4pct<20.0pct": 1,
+       "local_reduction_-53.8pct<20.0pct": 1,
+       "local_reduction_9.4pct<20.0pct": 1,
+       "local_reduction_-49.1pct<20.0pct": 1,
+       "local_reduction_-23.7pct<20.0pct": 1,
+       "local_reduction_17.8pct<20.0pct": 1,
+       "stable_breathing_cv_0.43<0.45": 6,
+       "stable_breathing_cv_0.23<0.45": 2,
+       "stable_breathing_cv_0.45<0.45": 2,
+       "stable_breathing_cv_0.41<0.45": 3,
+       "stable_breathing_cv_0.38<0.45": 4,
+       "stable_breathing_cv_0.26<0.45": 2,
+       "stable_breathing_cv_0.32<0.45": 3,
+       "stable_breathing_cv_0.30<0.45": 4,
+       "stable_breathing_cv_0.28<0.45": 2,
+       "stable_breathing_cv_0.22<0.45": 1,
+       "stable_breathing_cv_0.19<0.45": 1,
+       "stable_breathing_cv_0.18<0.45": 1,
+       "stable_breathing_cv_0.17<0.45": 1,
+       "stable_breathing_cv_0.24<0.45": 2,
+       "stable_breathing_cv_0.27<0.45": 1,
+       "stable_breathing_cv_0.42<0.45": 1,
+       "stable_breathing_cv_0.44<0.45": 5,
+       "stable_breathing_cv_0.36<0.45": 2,
+       "stable_breathing_cv_0.29<0.45": 2,
+       "stable_breathing_cv_0.31<0.45": 1,
+       "stable_breathing_cv_0.35<0.45": 5,
+       "stable_breathing_cv_0.39<0.45": 1,
+       "stable_breathing_cv_0.33<0.45": 2,
+       "stable_breathing_cv_0.34<0.45": 1,
+       "stable_breathing_cv_0.37<0.45": 3,
+       "stable_breathing_cv_0.21<0.45": 1,
+       "stable_breathing_cv_0.25<0.45": 1,
+       "stable_breathing_cv_0.40<0.45": 1
+      }
+     },
+     "arousal_source": "external",
+     "n_arousals": 164,
+     "wall_s": 34.2,
+     "events": [
+      [
+       197.6,
+       229.0,
+       "obstructive"
+      ],
+      [
+       275.2,
+       316.3,
+       "hypopnea"
+      ],
+      [
+       392.9,
+       452.0,
+       "hypopnea"
+      ],
+      [
+       812.2,
+       825.5,
+       "obstructive"
+      ],
+      [
+       1670.3,
+       1680.6,
+       "central"
+      ],
+      [
+       3309.4,
+       3328.2,
+       "hypopnea"
+      ],
+      [
+       3482.5,
+       3502.5,
+       "hypopnea"
+      ],
+      [
+       3503.1,
+       3515.1,
+       "hypopnea"
+      ],
+      [
+       3550.0,
+       3560.7,
+       "hypopnea"
+      ],
+      [
+       3731.1,
+       3749.8,
+       "hypopnea"
+      ],
+      [
+       3760.6,
+       3771.3,
+       "obstructive"
+      ],
+      [
+       3788.6,
+       3803.5,
+       "obstructive"
+      ],
+      [
+       4038.0,
+       4060.4,
+       "hypopnea"
+      ],
+      [
+       4119.3,
+       4133.4,
+       "hypopnea"
+      ],
+      [
+       4263.9,
+       4281.1,
+       "hypopnea"
+      ],
+      [
+       4334.2,
+       4350.8,
+       "hypopnea"
+      ],
+      [
+       4553.0,
+       4570.1,
+       "obstructive"
+      ],
+      [
+       4587.8,
+       4600.1,
+       "obstructive"
+      ],
+      [
+       4862.0,
+       4874.5,
+       "hypopnea"
+      ],
+      [
+       4905.5,
+       4920.0,
+       "hypopnea"
+      ],
+      [
+       4920.5,
+       4935.1,
+       "hypopnea_central"
+      ],
+      [
+       6633.8,
+       6687.9,
+       "hypopnea"
+      ],
+      [
+       6707.7,
+       6719.8,
+       "hypopnea"
+      ],
+      [
+       6787.6,
+       6798.9,
+       "hypopnea"
+      ],
+      [
+       6837.1,
+       6848.7,
+       "hypopnea"
+      ],
+      [
+       6941.5,
+       6959.4,
+       "hypopnea"
+      ],
+      [
+       6964.6,
+       6975.7,
+       "hypopnea"
+      ],
+      [
+       6985.1,
+       6995.3,
+       "hypopnea"
+      ],
+      [
+       7692.4,
+       7708.8,
+       "hypopnea"
+      ],
+      [
+       7852.0,
+       7885.0,
+       "hypopnea"
+      ],
+      [
+       7995.4,
+       8014.7,
+       "hypopnea"
+      ],
+      [
+       8638.6,
+       8650.3,
+       "obstructive"
+      ],
+      [
+       10874.4,
+       10888.6,
+       "hypopnea"
+      ],
+      [
+       11782.6,
+       11809.2,
+       "hypopnea"
+      ],
+      [
+       11836.6,
+       11846.6,
+       "obstructive"
+      ],
+      [
+       12840.0,
+       12852.2,
+       "obstructive"
+      ],
+      [
+       12921.5,
+       12931.6,
+       "hypopnea"
+      ],
+      [
+       14458.8,
+       14469.0,
+       "hypopnea"
+      ],
+      [
+       14473.0,
+       14499.1,
+       "hypopnea"
+      ],
+      [
+       18026.2,
+       18038.0,
+       "obstructive"
+      ],
+      [
+       18742.8,
+       18753.7,
+       "obstructive"
+      ],
+      [
+       19058.4,
+       19070.5,
+       "hypopnea"
+      ],
+      [
+       19120.9,
+       19172.8,
+       "hypopnea"
+      ],
+      [
+       19248.6,
+       19271.8,
+       "hypopnea"
+      ],
+      [
+       19306.1,
+       19324.0,
+       "hypopnea"
+      ],
+      [
+       19403.7,
+       19452.6,
+       "hypopnea"
+      ],
+      [
+       19505.7,
+       19535.8,
+       "hypopnea"
+      ],
+      [
+       19719.5,
+       19778.9,
+       "hypopnea"
+      ],
+      [
+       19787.5,
+       19798.8,
+       "hypopnea"
+      ],
+      [
+       19934.2,
+       19951.2,
+       "hypopnea"
+      ],
+      [
+       20075.6,
+       20097.8,
+       "hypopnea"
+      ],
+      [
+       21420.5,
+       21431.4,
+       "obstructive"
+      ],
+      [
+       21444.4,
+       21461.6,
+       "hypopnea"
+      ],
+      [
+       21470.7,
+       21490.5,
+       "hypopnea"
+      ],
+      [
+       21500.0,
+       21541.1,
+       "hypopnea"
+      ],
+      [
+       21647.6,
+       21671.0,
+       "hypopnea"
+      ],
+      [
+       21689.4,
+       21701.1,
+       "hypopnea"
+      ],
+      [
+       21850.6,
+       21861.0,
+       "obstructive"
+      ],
+      [
+       21970.0,
+       21985.2,
+       "hypopnea"
+      ],
+      [
+       22179.0,
+       22189.9,
+       "obstructive"
+      ],
+      [
+       22381.7,
+       22395.0,
+       "hypopnea"
+      ],
+      [
+       22430.6,
+       22445.0,
+       "hypopnea"
+      ],
+      [
+       22465.2,
+       22478.8,
+       "hypopnea"
+      ],
+      [
+       22637.7,
+       22648.7,
+       "obstructive"
+      ],
+      [
+       22995.3,
+       23005.5,
+       "hypopnea_mixed"
+      ],
+      [
+       23014.0,
+       23029.0,
+       "hypopnea"
+      ],
+      [
+       23092.9,
+       23106.3,
+       "central"
+      ],
+      [
+       24747.9,
+       24759.0,
+       "hypopnea"
+      ],
+      [
+       24769.4,
+       24807.7,
+       "hypopnea"
+      ],
+      [
+       24873.5,
+       24897.5,
+       "hypopnea"
+      ],
+      [
+       25710.5,
+       25726.1,
+       "hypopnea_mixed"
+      ],
+      [
+       25744.5,
+       25758.6,
+       "hypopnea"
+      ],
+      [
+       25836.6,
+       25856.5,
+       "hypopnea"
+      ],
+      [
+       25902.8,
+       25916.7,
+       "hypopnea"
+      ],
+      [
+       25984.1,
+       26019.6,
+       "hypopnea"
+      ],
+      [
+       26057.4,
+       26097.5,
+       "hypopnea"
+      ],
+      [
+       26098.2,
+       26116.4,
+       "hypopnea"
+      ],
+      [
+       26189.7,
+       26203.9,
+       "hypopnea"
+      ],
+      [
+       26410.8,
+       26420.9,
+       "hypopnea"
+      ]
+     ],
+     "reinstated": [
+      [
+       20075.6,
+       20097.8,
+       "hypopnea"
+      ],
+      [
+       22381.7,
+       22395.0,
+       "hypopnea"
+      ]
+     ],
+     "f1_median": 0.3532163742690059,
+     "precision_median": 0.35443037974683544,
+     "recall_median": 0.4055164319248826,
+     "reinst_precision_median": 0.5,
+     "delta_ahi": 1.32
+    }
+   }
+  }
+ ]
+}
