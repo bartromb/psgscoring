@@ -1,3 +1,22 @@
+# Unreleased — kandidaatpoort voor de Rule-1A-arousaltak (default uit, gemeten, niet gepromoveerd)
+
+**Gedragsidentiek zolang de velden None blijven** (golden 9/9). Nieuw op
+`PostProcessingRules`: `rule1a_arousal_min_flow_reduction_pct`,
+`rule1a_arousal_max_duration_s`, `rule1a_arousal_min_local_reduction_pct`
+(env `PSGSCORING_RULE1A_GATE_{MIN_RED,MAX_DUR,MIN_LOCAL_RED}`); de poort
+zit in `reinstate_rule1a_arousal_hypopneas` vóór de koppeling en telt in
+`stats["gate_rejected_by_reason"]`. `no_desaturation`-kandidaten en
+herstelde events dragen nu `flow_reduction_pct`/`local_reduction_pct`.
+
+Aanleiding: de orakel-decompositie van 17-09 (`docs/orakel_rule1a_20260917.md`)
+— met referentie-arousals matcht 44 % van de herstellingen een
+referentie-hypopneu terwijl elke koppeling een echte arousal heeft.
+Meting (`docs/orakel_rule1a_poort_20260917.md`): afleiding op 40 verse
+nachten gaf 55 %/45 s/30 % (R1 0,60); de replicatie op n150 haalde
+R1 0,504 — het plafondcriterium (≥ 0,60) niet; met eigen arousals
+F1-neutraal (p = 0,22) en T1-bias +1,3/u. Blijft uit. Kanttekening: 0,50
+is pariteit met de gewone precisie van de detector (0,52).
+
 # v0.34.2 — 2026-09-16 — ultra-reviewcorrecties: claims, paden, publicatiepoort
 
 **Gedragsidentiek aan 0.34.0/0.34.1 — geen wijziging aan de scoringscode.**

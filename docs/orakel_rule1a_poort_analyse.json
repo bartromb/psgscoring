@@ -1,0 +1,26 @@
+{
+ "B_poort": {
+  "R1": 0.29531812725090034,
+  "dF1_mean": 0.002101100548868679,
+  "dF1_median": 0.0,
+  "n_beter": 60,
+  "n": 149,
+  "p": 0.21843070061596914,
+  "T1_bias_A": 2.5179070387861238,
+  "T1_bias_X": 3.775049895928981
+ },
+ "C_poort": {
+  "R1": 0.5039246467817896,
+  "dF1_mean": 0.0186553597927309,
+  "dF1_median": 0.0034003831417623864,
+  "n_beter": 79,
+  "n": 149,
+  "p": 6.787036040334214e-10,
+  "T1_bias_A": 2.5179070387861238,
+  "T1_bias_X": 3.328111120418777
+ },
+ "besluit": {
+  "plafond_C_poort_repareert_eligibility": false,
+  "praktijk_B_poort_promotiekandidaat": false
+ }
+}
