@@ -34,7 +34,10 @@ htmlcov/
 *.swo
 
 # Claude Code working directory
-.claude/
+# Sessiebestanden van Claude Code blijven lokaal, maar de agentdefinities
+# (.claude/agents/*.md) zijn projectgereedschap en reizen mee.
+.claude/*
+!.claude/agents/
 
 # Backup files
 *.bak

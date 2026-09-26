@@ -404,6 +404,12 @@ you're working on. Key standing context:
   PHI never in git/PyPI/logs/chat.
 - Docker: always `build`, never `restart`, for Python changes.
 - No Claude/AI attribution in commit messages or PR bodies.
+- Two project agents live in `.claude/agents/` and are invoked by name from
+  Claude Code: `claim-trace` (run BEFORE designing any measurement — is it
+  already measured/refuted/planned?) and `meting-verificatie` (run AFTER a
+  derivation/replication, before CHANGELOG or memory — recomputes the
+  statistics from the raw output and checks the report against its
+  pre-registration). Both are read-only.
 - Memory location: `/home/claude/.claude/projects/-srv-CODE/memory/` (the
   project slug follows the working directory; `-home-bart-CODE` is the
   pre-reconfiguration location and no longer exists).
