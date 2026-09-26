@@ -18,17 +18,20 @@ lokale daling is de dragende knop.
 
 | arm | F1 | precisie | recall | bias | herstellingen | **R1** | gat-recall | ernst = ref |
 |---|---|---|---|---|---|---|---|---|
-| A | 0,438 | 0,520 | 0,412 | −5,61 | 0 | — | 0,238 | 87 |
-| C zonder poort (17-09) | 0,461 | 0,523 | 0,463 | −4,38 | 1082 | 0,436 | 0,366 | 84 |
-| **C_poort** | 0,450 | 0,530 | 0,453 | −4,88 | 637 | **0,504** | 0,308 | 85 |
-| B zonder poort (17-09) | 0,447 | 0,508 | 0,450 | −4,03 | 1372 | 0,254 | 0,329 | 81 |
-| **B_poort** | 0,444 | 0,510 | 0,444 | −4,64 | 833 | **0,295** | 0,286 | 83 |
+| A | 0,438 | 0,520 | 0,412 | −5,61 | 0 | — | 0,238 (0,246) | 87 |
+| C zonder poort (17-09) | 0,461 | 0,523 | 0,463 | −4,38 | 1082 | 0,436 | 0,346 (0,366) | 84 |
+| **C_poort** | 0,450 | 0,530 | 0,453 | −4,88 | 637 | **0,504** | 0,308 (0,327) | 85 |
+| B zonder poort (17-09) | 0,447 | 0,508 | 0,450 | −4,03 | 1372 | 0,254 | 0,333 (0,329) | 81 |
+| **B_poort** | 0,444 | 0,510 | 0,444 | −4,64 | 833 | **0,295** | 0,286 (0,303) | 83 |
+
+*Gat-recall: per-nacht-mediaan (gepoold tussen haakjes). Het verslag van 17-09 gaf voor dezelfde run de gepoolde waarden; de eerste versie van deze tabel mengde beide — gecorrigeerd na onafhankelijke verificatie (26-09). R1 is gepoold (321/637); de F1/precisie/recall-kolommen zijn medianen.*
 
 ΔF1(C_poort−A): gemiddeld +0,019, beter op 79/149, Wilcoxon p = 6,8·10⁻¹⁰
 (zonder poort: +0,024, 89/149). ΔF1(B_poort−A): +0,002, 60/149, p = 0,22.
 
-Per tertiel: C_poort wint in elk tertiel (T1 +0,037 p=0,01; T2 +0,015
-p=9·10⁻⁷; T3 +0,004 p=4·10⁻⁶); B_poort blaast T1 nog steeds op (bias
+Per tertiel: C_poort wint op gemiddelde en Wilcoxon in elk tertiel (T1 +0,037
+p=0,01 — maar zonder meerderheid: 22 beter / 20 slechter / 7 gelijk; T2 +0,015
+p=9·10⁻⁷, 32/50; T3 +0,004 p=4·10⁻⁶, 25/50); B_poort blaast T1 nog steeds op (bias
 +2,5 → +3,8; zonder poort +4,8; R1 in T1 0,02).
 
 ## Besluit volgens de vooraf vastgelegde regel
@@ -49,9 +52,11 @@ niet als hypopneu labelde, met een echte arousal erbij.
 
 Eén observatie die de lat in perspectief zet, en die ik pas ná de meting
 zag (dus geen onderdeel van de regel): de gewone precisie van arm A tegen
-`aasm15` is **0,520** — ook desaturatie-bevestigde events matchen de
-referentie maar in de helft van de gevallen. Een herstelprecisie van 0,50
-(C_poort) is dus *pariteit* met de detector zelf; de vooraf gekozen lat van
+`aasm15` is **0,520** (per-nacht-mediaan; gepoold 0,568) — ook
+desaturatie-bevestigde events matchen de referentie maar in ruwweg de helft
+van de gevallen. Een herstelprecisie van 0,50 (C_poort: gepoold 0,504,
+mediaan 0,500) is dus *pariteit* met de detector op medianen — gepoold ligt
+de poort zes punten onder de detector; de vooraf gekozen lat van
 0,60 lag boven wat het eigen basispad haalt. Dat verandert het besluit niet
 (de regel stond vast), maar wel de lezing: de eligibility is met deze poort
 niet "te toegeeflijk" ten opzichte van de rest van de detector — ze is er
@@ -61,7 +66,16 @@ arousalpoort kan oplossen.
 
 ## Rekenkundig
 
-Afleiding 40 × 2 armen in 17 min; replicatie 150 × 2 armen in 56 min, 20
-workers, piek 80 °C (bewaker herstart om 11:57 na een stille uitval —
-zie `thermal_guard_poort.log`). Sets geregistreerd in
+Afleiding 40 × 2 armen in 17 min (piek 81 °C binnen 15 min, RAM-minimum
+34 GB); replicatie 150 × 2 armen in 56 min, 20 workers, **piek ≥ 80 °C** —
+de bewaker viel na zijn eerste meting stil en de run was van 11:27 tot
+11:57 onbewaakt én onbeschermd door de 85 °C-stop; over het bewaakte deel
+piek 80 °C (12:17), RAM-minimum 46 GB (`thermal_guard_poort.log`, kopie in
+de ruwe-uitvoermap). Herkomst van de replicatierun staat niet in een
+JSON-meta (de harnasaggregatie crashte op `KeyError: 'A'`), maar is
+afgeleid: laatste bibliotheekwijziging `f9ce415` 11:07, run gestart
+11:26:42, 7 s na `21bf7c4` (alleen docs/scripts); de hercontrole van arm A
+is bit-identiek op 5/5 nachten. Onafhankelijk geverifieerd op 26-09 door de
+`meting-verificatie`-agent (alle kerncijfers herberekend; acht correcties,
+geen die het besluit raakt). Sets geregistreerd in
 `gebruikte_mesa_ids.txt`.

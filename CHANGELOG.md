@@ -15,7 +15,8 @@ Meting (`docs/orakel_rule1a_poort_20260917.md`): afleiding op 40 verse
 nachten gaf 55 %/45 s/30 % (R1 0,60); de replicatie op n150 haalde
 R1 0,504 — het plafondcriterium (≥ 0,60) niet; met eigen arousals
 F1-neutraal (p = 0,22) en T1-bias +1,3/u. Blijft uit. Kanttekening: 0,50
-is pariteit met de gewone precisie van de detector (0,52).
+is pariteit met de gewone precisie van de detector op per-nacht-medianen
+(0,500 vs 0,520; gepoold 0,504 vs 0,568).
 
 # v0.34.2 — 2026-09-16 — ultra-reviewcorrecties: claims, paden, publicatiepoort
 
