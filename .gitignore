@@ -83,3 +83,7 @@ __pycache__/
 # Lockfile: psgscoring is een bibliotheek, geen applicatie — consumenten
 # pinnen zelf. Lokaal handig, niet in de repo.
 uv.lock
+
+# Testopnames voor bench/ (publiek/synthetisch, nooit patiëntdata) — alleen de README reist mee
+data/test/*
+!data/test/README.md

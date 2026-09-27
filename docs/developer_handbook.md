@@ -409,7 +409,10 @@ you're working on. Key standing context:
   already measured/refuted/planned?) and `meting-verificatie` (run AFTER a
   derivation/replication, before CHANGELOG or memory — recomputes the
   statistics from the raw output and checks the report against its
-  pre-registration). Both are read-only.
+  pre-registration). Both are read-only. A third, `dsp-scout`, researches
+  and benchmarks signal-processing methods under `bench/` only (never
+  production code); `bench/evaluate.py` scores events against a reference
+  with a selectable overlap criterion (default: the project matcher).
 - Memory location: `/home/claude/.claude/projects/-srv-CODE/memory/` (the
   project slug follows the working directory; `-home-bart-CODE` is the
   pre-reconfiguration location and no longer exists).
