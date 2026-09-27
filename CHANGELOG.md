@@ -18,6 +18,17 @@ F1-neutraal (p = 0,22) en T1-bias +1,3/u. Blijft uit. Kanttekening: 0,50
 is pariteit met de gewone precisie van de detector op per-nacht-medianen
 (0,500 vs 0,520; gepoold 0,504 vs 0,568).
 
+**Meting, geen bibliotheekwijziging (27-09):** de bevroren U-Net-arousaldetector uit de
+dsp-scout-bench (`bench/eeg/`) is gerepliceerd volgens
+`docs/arousal_unet_preregistratie_20260927.md` — harnas
+`scripts/arousal_unet_replicatie.py`, rapport `docs/arousal_unet_replicatie_20260927.md`.
+SHHS1 150 verse nachten: arousal-F1 0,543 → 0,676 (beter op 134/147, p = 2·10⁻²²,
+mediane count-ratio 0,85); MESA 76 verse nachten 0,556 → 0,687 (72/76); PSG-IPA
+0,555 → 0,745 (5/5). Alle vooraf vastgelegde criteria gehaald; CPU-inferentie 5 s/nacht;
+alleen-EEG is slechter dan de huidige detector (verplichte terugval). Niets in de
+bibliotheek verandert; inbouw als profielveld `arousal_detector = "unet_v1"` is een
+aparte stap en een aparte beslissing.
+
 # v0.34.2 — 2026-09-16 — ultra-reviewcorrecties: claims, paden, publicatiepoort
 
 **Gedragsidentiek aan 0.34.0/0.34.1 — geen wijziging aan de scoringscode.**
