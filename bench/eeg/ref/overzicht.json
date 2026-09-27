@@ -1,0 +1,37 @@
+{
+ "SN1": {
+  "n_arousal": 37,
+  "tst_h": 5.79,
+  "arousal_index": 6.4,
+  "dur_h": 6.47,
+  "ref_ahi_scorer1": 6.4
+ },
+ "SN2": {
+  "n_arousal": 96,
+  "tst_h": 4.85,
+  "arousal_index": 19.8,
+  "dur_h": 5.76,
+  "ref_ahi_scorer1": 6.0
+ },
+ "SN3": {
+  "n_arousal": 241,
+  "tst_h": 6.06,
+  "arousal_index": 39.8,
+  "dur_h": 6.57,
+  "ref_ahi_scorer1": 56.0
+ },
+ "SN4": {
+  "n_arousal": 58,
+  "tst_h": 6.02,
+  "arousal_index": 9.6,
+  "dur_h": 8.41,
+  "ref_ahi_scorer1": 5.5
+ },
+ "SN5": {
+  "n_arousal": 164,
+  "tst_h": 7.02,
+  "arousal_index": 23.4,
+  "dur_h": 7.39,
+  "ref_ahi_scorer1": 14.4
+ }
+}

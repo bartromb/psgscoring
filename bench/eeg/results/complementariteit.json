@@ -1,0 +1,94 @@
+{
+ "SN1": {
+  "beide": 15,
+  "alleen_psgscoring": 10,
+  "alleen_MSED": 6,
+  "geen": 6,
+  "n_ref": 37,
+  "f1_MSED_vs_psgscoring": 0.5168539325842697,
+  "mediane_duur_s": {
+   "psgscoring": 9.700000000000045,
+   "MSED": 12.086499999999546,
+   "referentie": 7.780000000000655
+  },
+  "mediane_onsetfout_s": {
+   "psgscoring": 0.04999999999972715,
+   "MSED": -1.1420000000000528
+  }
+ },
+ "SN2": {
+  "beide": 39,
+  "alleen_psgscoring": 22,
+  "alleen_MSED": 9,
+  "geen": 26,
+  "n_ref": 96,
+  "f1_MSED_vs_psgscoring": 0.4927536231884058,
+  "mediane_duur_s": {
+   "psgscoring": 9.199999999998909,
+   "MSED": 11.409999999999854,
+   "referentie": 6.5
+  },
+  "mediane_onsetfout_s": {
+   "psgscoring": -0.2000000000007276,
+   "MSED": 0.08550000000104774
+  }
+ },
+ "SN3": {
+  "beide": 109,
+  "alleen_psgscoring": 30,
+  "alleen_MSED": 61,
+  "geen": 41,
+  "n_ref": 241,
+  "f1_MSED_vs_psgscoring": 0.5756097560975609,
+  "mediane_duur_s": {
+   "psgscoring": 7.25,
+   "MSED": 11.19150000000036,
+   "referentie": 9.699999999999818
+  },
+  "mediane_onsetfout_s": {
+   "psgscoring": 0.3999999999996362,
+   "MSED": -0.11549999999988358
+  }
+ },
+ "SN4": {
+  "beide": 23,
+  "alleen_psgscoring": 11,
+  "alleen_MSED": 5,
+  "geen": 19,
+  "n_ref": 58,
+  "f1_MSED_vs_psgscoring": 0.4132231404958678,
+  "mediane_duur_s": {
+   "psgscoring": 10.5,
+   "MSED": 14.0,
+   "referentie": 6.5
+  },
+  "mediane_onsetfout_s": {
+   "psgscoring": 0.5500000000001819,
+   "MSED": -0.09599999999954889
+  }
+ },
+ "SN5": {
+  "beide": 59,
+  "alleen_psgscoring": 25,
+  "alleen_MSED": 16,
+  "geen": 64,
+  "n_ref": 164,
+  "f1_MSED_vs_psgscoring": 0.5844748858447488,
+  "mediane_duur_s": {
+   "psgscoring": 11.400000000001455,
+   "MSED": 12.019500000000335,
+   "referentie": 8.530000000000655
+  },
+  "mediane_onsetfout_s": {
+   "psgscoring": -0.07000000000016371,
+   "MSED": 0.5969999999979336
+  }
+ },
+ "totaal": {
+  "beide": 245,
+  "alleen_psgscoring": 98,
+  "alleen_MSED": 97,
+  "geen": 156,
+  "n_ref": 596
+ }
+}

@@ -1,0 +1,10 @@
+_venv/
+*.pth
+*.pth.tar
+*.pt
+*.npz
+*.h5
+__pycache__/
+*/upstream/
+out*/
+*/out*/

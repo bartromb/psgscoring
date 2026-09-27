@@ -1,0 +1,11 @@
+torch>=2.1
+mne
+numpy
+pandas
+einops
+xmltodict
+rich
+h5py
+scikit-learn
+joblib
+tqdm
