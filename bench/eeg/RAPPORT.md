@@ -187,13 +187,16 @@ afgevallen); psgscoring staat daarom óók op die 79 gemeenschappelijke nachten.
   drempel én stop-epoch gekozen zijn (een validatie-, geen testset), en MESA is het
   trainingscohort. PSG-IPA (§5) is de externe test; MESA-val zegt vooral dat het effect
   groot en consistent is en niet aan vijf opnames hangt.
-- **MSED stort op MESA in** (recall 0,10; ook bij τ 0,30 maar F1 0,250) terwijl het op
-  PSG-IPA werkt. Verschil met MrOS/PSG-IPA: MESA-nachten zijn 10–12 u met lange wakkere
-  randen en MSED z-scoort per kanaal over de héle opname; PSG-IPA is op lights-off/on
-  geknipt. Een diagnose-run met de invoer geknipt op de slaapperiode (±5 min) en
-  daarbinnen opnieuw gestandaardiseerd staat in `msed/run_msed_sweep.py --crop-sleep`
-  (uitvoer `msed/out_sweep_mesa_crop/`; zie §8 voor de stand). Los daarvan is een detector
-  die op één van twee cohorten wegvalt geen kandidaat voor uitrol.
+- **MSED valt op MESA weg door zijn voorbewerking, niet door zijn detector.** Met de
+  upstream-pijplijn (z-score per kanaal over de héle opname) haalt het recall 0,10 (F1 0,174;
+  ook bij τ 0,30 maar 0,250): MESA-nachten zijn 10–12 u met lange wakkere randen, PSG-IPA en
+  MrOS zijn op lights-off/on geknipt. Diagnose-run achteraf (`msed/run_msed_sweep.py
+  --crop-sleep`, `msed/out_sweep_mesa_crop/`, `results/msed_mesa_crop.json`; n = 80): invoer
+  geknipt op [eerste slaapepoch − 5 min, laatste + 5 min] en daarbinnen opnieuw
+  gestandaardiseerd → F1 **0,534** op τ 0,64 (sens 0,41 / PPV 0,77) en 0,552 op τ 0,50
+  (0,47 / 0,67), tegen psgscoring 0,563 op dezelfde 80 nachten. Dat is een post-hoc
+  reparatie (het knipvenster is niet vooraf vastgelegd) en brengt MSED hooguit op
+  psgscoring-niveau op MESA; het verandert de conclusie niet.
 - DeepSleep2 op dezelfde nachten (59 van de 80 pasten in 2^23 samples): F1 0,164 ruw,
   0,292 met verschuivingscorrectie, beide op de rasterrand τ 0,05 (`deepsleep2/calibratie_mesa.json`).
 
@@ -213,7 +216,8 @@ afgevallen); psgscoring staat daarom óók op die 79 gemeenschappelijke nachten.
      vergelijking met een mens.
    - **K2, MSED (MIT, voorgetraind op MrOS), is op PSG-IPA gepoold +0,054 beter (0,609),
      maar niet robuust:** 3/5 opnames, mediaan per opname lager dan de baseline, en op MESA
-     zakt het naar 0,174. Het levert wél iets wat de huidige detector mist: hogere precisie
+     0,174 met de upstream-voorbewerking — 0,534 (τ 0,64) tot 0,552 (τ 0,50) na een post-hoc
+     knip op de slaapperiode, nog altijd niet boven psgscoring (0,563). Het levert wél iets wat de huidige detector mist: hogere precisie
      bij gelijke dekking en voor een deel andere arousals (unie 0,738). Als tweede getuige
      naast de eigen kandidatenpool is het interessant; als vervanger niet.
    - **K1, DeepSleep2 (MIT), is niet beter en kan het ook niet worden:** het is op een andere
@@ -272,5 +276,6 @@ afgevallen); psgscoring staat daarom óók op die 79 gemeenschappelijke nachten.
   de bench-eigen inferentielus: `msed/run_msed.py:73` en `msed/run_msed_sweep.py:85`
   (`mask[ev[-1]]`; zie `msed/README.md`). De eerste MSED-run, die de upstream-rij nog volgde,
   gaf F1 0,118 — die staat nergens meer in de tabellen.
-- **Nog lopend bij afsluiten**: de MSED-diagnoserun met slaapgeknipte MESA-invoer
-  (`msed/sweep_mesa_crop.log`); uitkomst verandert de conclusie over MSED niet.
+- **Afgerond na de verificatie**: de MSED-diagnoserun met slaapgeknipte MESA-invoer
+  (`msed/sweep_mesa_crop.log`, `results/msed_mesa_crop.json`; cijfers in §6) — post-hoc,
+  verandert de conclusie over MSED niet.

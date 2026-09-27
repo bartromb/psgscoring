@@ -38,4 +38,10 @@
   een mediane duur van ~12 s. De eerste run (vóór de correctie) staat als waarschuwing in
   het rapport; de gerapporteerde cijfers zijn van ná de correctie.
 
+- `run_msed_sweep.py --cohort psgipa|mesa [--crop-sleep]`: één voorwaartse pas, elf drempels
+  (0,30–0,90), alleen de arousalklasse; op MESA (80 validatienachten: C3 := C4 := EEG3,
+  LegL := LegR := Leg, NasalP := Pres) met de upstream-voorbewerking F1 0,174 op τ 0,64, en met
+  `--crop-sleep` (invoer geknipt op de slaapperiode ± 5 min en daarbinnen opnieuw z-gescoord —
+  post-hoc diagnose) 0,534 op τ 0,64 / 0,552 op τ 0,50 (`../results/msed_mesa_crop.json`).
+
 Afhankelijkheden: `requirements.txt` (torch, mne, einops, xmltodict, rich, pandas, h5py).
