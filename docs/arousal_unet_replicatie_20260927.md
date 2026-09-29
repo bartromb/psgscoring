@@ -154,9 +154,14 @@ lager): JA.** Doorwerking: arousalindex 21,8 → 20,0 /u (mediaan +0,15), AHI id
   |---|---|---|---|---|---|---|---|
   | bevroren, seed 20260927 | 16 (0,682) | 0,664 | +0,094 | 70/79 | 0,682 (0,20) | +0,114 | 74/79 |
   | seed 20260928 | 15 (0,686) | 0,658 | **+0,090** | 69/79 | 0,686 (0,20) | **+0,117** | 75/79 |
-  | seed 20260929 | (volgt) | | | | | | |
+  | seed 20260929 | 18 (0,678) | 0,632 | **+0,062** | 58/79 | 0,678 (0,15) | **+0,111** | 73/79 |
 
-  Seed 28: **JA** (beide ketens ruim boven +0,05); de bevroren run is geen uitschieter naar boven.
+  Beide seeds: **JA** (elk > +0,05 in beide ketens); de bevroren run is geen uitschieter naar
+  boven — de drie runs liggen op 0,678–0,686 validatie-F1. Wel zichtbaar: op de VASTE τ 0,35 loopt
+  de telling per seed uiteen (count-ratio 0,69 / 0,68 / 0,61; seed 29 koos zelf 0,15), dus τ hoort
+  bij het gewicht en niet bij de architectuur — een nieuw getraind model vraagt zijn eigen
+  werkpunt. Seed 29 is op 29-09 afgerond (de evaluatie stierf met de sessie en is opnieuw gedraaid;
+  `seed29_eval.sh`).
 - **(b) CPU-inferentie zonder GPU** (SHHS, 5 nachten, inclusief EDF-laden en resamplen):
   4 threads **4,5–5,4 s/nacht** (forward 3,3–4,1 s), 1 thread **11,6–15,2 s/nacht** — ver
   onder de 60 s. **JA.**
@@ -199,7 +204,7 @@ GPU 1–10 s per nacht inclusief EDF-laden (forward zelf ≤ 1 s).
 - **Wat NIET is aangetoond:** doorwerking op RERA/RDI (externe ingang slaat die over) en op de
   hypopneu-koppeling (tak uit); de hoge PPV-onderkant van de NSRR-referentie (één scoorder) blijft
   de onzekere maat — het PSG-IPA-plafond 0,679 laat zien dat de referentie zelf ruis draagt.
-- **Gevolg volgens de preregistratie (bij slagen van ook bewaker a):** bouwen als profielveld
+- **Gevolg volgens de preregistratie (alle bewakers gehaald):** bouwen als profielveld
   `arousal_detector = "unet_v1"` (default `"lgbm"`), ONNX + `onnxruntime` onder `[ml]`, gewichten
   met sha256-wacht in `psgscoring/data/`, verplichte terugval naar `lgbm` zonder EOG of kin-EMG,
   re-ranker uit onder `unet_v1` met reden in de provenance, bevroren profielen gepind, golden 9/9
