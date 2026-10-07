@@ -21,8 +21,14 @@ verse nachten arousal-F1 0,543 → 0,676 op 134/147, p = 2e-22; MESA-76
 - Terugval, nooit stil: zonder EOG of kin-EMG, zonder `onnxruntime` of bij een
   foute checksum draait de LGBM-keten met de reden in
   `summary["unet_fallback_reason"]`; de autonome re-ranker staat onder `unet_v1`
-  uit met reden (hij werkt op LGBM-kandidaten). `summary["detector"]` zegt wat er
-  draaide. De pipeline haalt het EOG-kanaal ook buiten de multi-afleidingsmodus.
+  uit met reden (hij werkt op LGBM-kandidaten). `summary["detector"]` staat op
+  "unet_v1" als het net draaide en op "lgbm" bij terugval (afwezig = gewone
+  LGBM-keten, ongewijzigd). De pipeline haalt het EOG-kanaal ook buiten de
+  multi-afleidingsmodus.
+- Pipeline-smoke op PSG-IPA SN1 (`aasm_v3_breath_dual`, env-override): lgbm 41
+  arousals / index 7,1 / AHI 5,4 / RDI 9,5 in 224 s; unet_v1 37 / 6,4 / 5,2 / 9,2 in
+  72 s (het net kost 5,9 s; de LGBM-kandidaatgeneratie op meerdere afleidingen
+  vervalt). Dit is een rookproef, geen meting.
 - Getrouwheid (`/srv/CODE/docs/arousal_unet_20261007/getrouwheid_*.json`): op
   PSG-IPA SN1–5 geeft de bibliotheek dezelfde events als het bevroren model in
   fp32 op CPU; de replicatie van 27-09 draaide op CUDA in bf16 en verschilt
