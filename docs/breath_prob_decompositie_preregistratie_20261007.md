@@ -27,8 +27,9 @@ erven de omgeving; de pipeline leest de variabelen zelf, `pipeline.py` r. 854, 8
 | D | B + C | beide, dichtst bij de 0.15.2-arousallijst die env kan halen |
 | E | D + `PSGSCORING_AROUSAL_ONSET_OFFSET_S=0` + `PSGSCORING_AROUSAL_MIN_INTERVAL_S=0` | D plus de stappen ná 0.27.0 ongedaan (+2 s, 10 s-regel); bovengrens van wat 0.34.2 terug kan |
 
-Wat géén arm terugzet: de afleidingsset (vandaag F4-M1 + Cz-M1 + O2-M1, op 0.15.2 F4-M1 +
-O2-M1; geen env), het werkpunt (op het regelgebaseerde pad niet van toepassing) en het harnas
+Wat géén arm terugzet: de afleidingsset (vandaag F4-M1 + C4-M1 + O2-M1 — SN5: Cz-M1; de
+prereg schreef hier eerst "Cz-M1", gecorrigeerd ná de meting als feitelijke fout zonder
+beslisgevolg —, op 0.15.2 F4-M1 + O2-M1; geen env), het werkpunt (op het regelgebaseerde pad niet van toepassing) en het harnas
 van de 24-08-meting (artefact-epochs). Verschil tussen E en de 0.15.2-cijfers is dus de som
 van die drie.
 
