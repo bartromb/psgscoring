@@ -523,6 +523,36 @@ def run_pneumo_analysis(
             corroboration_licensed=profile.get(
                 "DUAL_SENSOR_CORROBORATION", False),
         )
+        # v0.35.0: voorwaardelijke vereniging (opt-in). Fase 1 hier — de
+        # thermistordaling en de desaturatie zijn nu bekend; de arousal pas
+        # na stap 7, dus "pending" wacht daar (zie resolve_pending_apneas).
+        _conf_policy = _dual_sensor_confirmation(profile)
+        if _conf_policy:
+            from .postprocess import (confirm_single_sensor_apneas,
+                                      flow_envelope)
+            _tc = (((output.get("meta") or {}).get("flow_channels") or {})
+                   .get("thermistor_check") or {})
+            _usable = bool(_tc.get("usable"))
+            _drop_min = _dual_sensor_confirm_drop(profile)
+            _desat_min = float(profile.get("DUAL_SENSOR_CONFIRM_DESAT_PCT", 3.0))
+            _env_t = (flow_envelope(flow_therm_data, sf_ft)
+                      if flow_therm_data is not None and sf_ft else None)
+            _apneas, _cc = confirm_single_sensor_apneas(
+                _apneas, therm_env=_env_t, sf_therm=sf_ft or 1.0,
+                thermistor_usable=_usable, drop_min=_drop_min,
+                desat_pct=_desat_min)
+            _cd["confirmation"] = {
+                "policy": _conf_policy, "thermistor_usable": _usable,
+                "drop_min": _drop_min, "desat_pct": _desat_min,
+                "arousal_window_s": float(profile.get(
+                    "DUAL_SENSOR_CONFIRM_AROUSAL_WINDOW_S", 15.0)),
+                "envelope_available": _env_t is not None, **_cc}
+            logger.info("[pneumo] voorwaardelijke vereniging: %d alleen-druk "
+                        "(%d thermistor, %d desat, %d wacht op arousal), "
+                        "thermistor %s",
+                        _cc["n_pressure_only"], _cc["n_thermistor"],
+                        _cc["n_desat"], _cc["n_pending"],
+                        "goedgekeurd" if _usable else "afgekeurd")
         # v0.14.4 (§3.1): de overeenstemming als GEWICHT in plaats van poort.
         # assess_flow_sensor_agreement levert een continue envelope-correlatie
         # en die werd gereduceerd tot usable ja/nee — dezelfde vorm als de
@@ -978,6 +1008,34 @@ def run_pneumo_analysis(
 
     # Eén vorm voor alle consumenten, ongeacht welke producent hierboven liep.
     output["arousal"] = _normalise_arousal_block(output["arousal"])
+
+    # v0.35.0: fase 2 van de voorwaardelijke vereniging — nu de arousals er
+    # zijn, beslist een arousal in [t0, t1 + venster] over de "pending"
+    # enkelsensor-apneus; de rest vervalt en het venster valt terug op de
+    # hypopneeroute (stap 7b of de envelope-detector heeft het al gezien).
+    _conf_block = ((output.get("respiratory") or {}).get("dual_sensor_apnea")
+                   or {}).get("confirmation")
+    if _conf_block and _conf_block.get("n_pending"):
+        from .postprocess import resolve_pending_apneas
+        _resp_c = output["respiratory"]
+        _aro_on = [float(a["onset_s"])
+                   for a in ((output.get("arousal") or {}).get("events") or [])
+                   if a.get("onset_s") is not None]
+        _kept, _dropped, _cc2 = resolve_pending_apneas(
+            _resp_c.get("events", []) or [], _aro_on,
+            window_s=float(_conf_block.get("arousal_window_s", 15.0)))
+        _conf_block.update(_cc2)
+        _conf_block["dropped"] = [
+            {k: e.get(k) for k in ("type", "onset_s", "duration_s",
+                                   "corroboration", "thermistor_drop",
+                                   "desaturation_pct")}
+            for e in _dropped]
+        if _dropped:
+            _resp_c["events"] = _kept
+            _resp_c["summary"] = _compute_summary(_kept, hypno, artifact_epochs)
+        logger.info("[pneumo] voorwaardelijke vereniging: %d door arousal "
+                    "bevestigd, %d vervallen", _cc2["n_arousal"],
+                    _cc2["n_dropped"])
 
     # ── Step 7b: ademteug-gebaseerde hypopnee-detector (opt-in) ───────────
     # Vervangt ALLEEN de hypopneeën; apneus blijven uit de bestaande detector
@@ -2692,6 +2750,42 @@ def _thermistor_gate(profile: dict) -> str:
                 "(%s); profielwaarde %r blijft staan",
                 raw, ", ".join(sorted(_THERMISTOR_GATES)), gate)
     return gate
+
+
+_DUAL_SENSOR_CONFIRMATIONS = {"thermistor_or_consequence"}
+
+
+def _dual_sensor_confirmation(profile: dict) -> str | None:
+    """Voorwaardelijke vereniging: profielveld `dual_sensor_confirmation`,
+    env-override `PSGSCORING_DUAL_SENSOR_CONFIRMATION` ("off"/"none"/"uit"
+    = expliciet uit). Onbekende waarde: waarschuwing, profielwaarde blijft."""
+    val = profile.get("DUAL_SENSOR_CONFIRMATION") or None
+    raw = os.environ.get("PSGSCORING_DUAL_SENSOR_CONFIRMATION")
+    if raw is not None and raw.strip() != "":
+        r = raw.strip().lower()
+        if r in ("off", "none", "uit", "0"):
+            return None
+        if r in _DUAL_SENSOR_CONFIRMATIONS:
+            return r
+        logger.warning(
+            "[pneumo] PSGSCORING_DUAL_SENSOR_CONFIRMATION=%r is geen bekend "
+            "beleid (%s); profielwaarde %r blijft staan",
+            raw, ", ".join(sorted(_DUAL_SENSOR_CONFIRMATIONS)), val)
+    return val
+
+
+def _dual_sensor_confirm_drop(profile: dict) -> float:
+    """Bevestigingsdrempel voor de thermistordaling; env
+    `PSGSCORING_DUAL_SENSOR_CONFIRM_DROP` wint (voor sweeps)."""
+    val = float(profile.get("DUAL_SENSOR_CONFIRM_THERMISTOR_DROP", 0.72))
+    raw = os.environ.get("PSGSCORING_DUAL_SENSOR_CONFIRM_DROP")
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            logger.warning("[pneumo] PSGSCORING_DUAL_SENSOR_CONFIRM_DROP=%r "
+                           "is geen getal; profielwaarde %.2f blijft", raw, val)
+    return val
 
 
 def _rule1a_gate_param(profielwaarde, envwaarde: str | None) -> float | None:

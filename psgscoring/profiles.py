@@ -1747,6 +1747,44 @@ class PostProcessingRules:
     maat die de licentie zou kunnen verlenen. Aanzetten vraagt bewijs dat er
     nu niet is."""
 
+    dual_sensor_confirmation: Optional[str] = None
+    """v0.35.0 (07-10-2026): voorwaardelijke vereniging — opt-in, default None.
+
+    Onder ``dual_sensor_apnea`` is de tweede sensor zuiver additief. Op 20
+    eigen PSG's (docs/breath_vs_breath_dual_eigen_psg_20261007.md) voegde de
+    neusdruk op R18 426 apneus toe die de goedgekeurde thermistor niet zag,
+    het merendeel zonder desaturatie of arousal: ofwel mist de thermistor ze
+    (te ongevoelig voor 0,90), ofwel ademt de patiënt door de mond en ziet
+    de canule niets. De vereniging kan dat niet onderscheiden.
+
+    ``"thermistor_or_consequence"``: een apneu die ALLEEN de neusdruk zag
+    blijft staan als de thermistor minstens ``dual_sensor_confirm_thermistor_drop``
+    zakt (Hilbert-omhullende, bandfilter 0,10–0,70 Hz, mediaan tijdens het
+    event tegen de 60 s ervoor — de maat van
+    docs/apneudrempel_sensorafhankelijk_bevinding.md), óf er een desaturatie
+    ≥ ``dual_sensor_confirm_desat_pct`` bij hoort, óf — na de arousalstap —
+    een arousal begint in [t0, t1 + ``dual_sensor_confirm_arousal_window_s``].
+    Anders vervalt hij en valt het venster terug op de gewone hypopneeroute,
+    zoals onder het enkelsensor-profiel. Een apneu die alleen een AFGEKEURDE
+    thermistor zag, heeft een gevolg (desaturatie/arousal) nodig. Events die
+    beide sensoren zagen blijven ongemoeid.
+
+    Env-override ``PSGSCORING_DUAL_SENSOR_CONFIRMATION`` (``off`` = uit) en
+    ``PSGSCORING_DUAL_SENSOR_CONFIRM_DROP`` voor meetarmen. Gemeten: zie
+    docs/breath_dual_mesa_preregistratie_20261007.md."""
+
+    dual_sensor_confirm_thermistor_drop: float = 0.72
+    """Thermistordaling die een alleen-druk-apneu bevestigt (0,72 = de
+    sensorafhankelijke apneudrempel uit de kalibratie van 22-08-2026, hier
+    als bevestigingsdrempel in plaats van als eigen detectiedrempel)."""
+
+    dual_sensor_confirm_desat_pct: float = 3.0
+    """Desaturatie (procentpunt) die een enkelsensor-apneu bevestigt."""
+
+    dual_sensor_confirm_arousal_window_s: float = 15.0
+    """Venster na het einde van het event waarin een arousal-onset bevestigt
+    (zelfde 15 s als de hypopneu-arousalkoppeling)."""
+
     arousal_limb_wired: bool = False
     """v0.13.0: mag dit profiel REAGEREN op de gerepareerde arousal-lijst?
 

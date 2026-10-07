@@ -288,8 +288,8 @@ def parse_nsrr(xml_path, signal_duration_s,
 #  Eén opname
 # ─────────────────────────────────────────────────────────────────
 
-def _configs(strictness_values, profiles=None):
-    """[(label, profielnaam, strictness_of_None), ...].
+def _configs(strictness_values, profiles=None, dual_confirmation=False):
+    """[(label, profielnaam, strictness_of_None, conf_bool), ...].
 
     De basislijn `aasm_v3_rec` draait ALTIJD mee, zodat elke vergelijking
     gepaard is op dezelfde opname in plaats van tussen runs.
@@ -305,19 +305,29 @@ def _configs(strictness_values, profiles=None):
     `Pres`, `Flow` én `Therm`. PSG-IPA heeft één flowkanaal, en daar zijn de
     duale profielen aantoonbaar identiek aan hun ouder (gemeten 9 aug 2026).
     """
-    cfg = [("aasm_v3_rec", "aasm_v3_rec", None)]
-    if strictness_values:
-        cfg += [(f"breath@{s:.2f}", "aasm_v3_breath", float(s))
+    cfg = [("aasm_v3_rec", "aasm_v3_rec", None, False)]
+    if strictness_values and not profiles:
+        cfg += [(f"breath@{s:.2f}", "aasm_v3_breath", float(s), False)
                 for s in strictness_values]
         return cfg
+    # 07-10-2026: profielen × strictness, en per duaal profiel een arm met
+    # de voorwaardelijke vereniging (env PSGSCORING_DUAL_SENSOR_CONFIRMATION).
+    from psgscoring.profiles import PROFILES as _P
     for p in (profiles or ["aasm_v3_breath"]):
-        if p != "aasm_v3_rec":
-            cfg.append((p, p, None))
+        if p == "aasm_v3_rec":
+            continue
+        is_dual = bool(_P[p].post_processing.dual_sensor_apnea)
+        for s_ in (strictness_values or [None]):
+            suf = "" if s_ is None else f"@{s_:.2f}"
+            cfg.append((f"{p}{suf}", p, None if s_ is None else float(s_), False))
+            if dual_confirmation and is_dual:
+                cfg.append((f"{p}+conf{suf}", p, None if s_ is None else float(s_), True))
     return cfg
 
 
-def _apply_strictness(value):
-    """Zet de strictness van aasm_v3_breath in dit werkproces.
+def _apply_strictness(value, profile_name="aasm_v3_breath"):
+    """Zet de strictness van een profiel in dit werkproces (07-10: ook de
+    duale kinderen, die met replace() een eigen rules-object dragen).
 
     De legacy-dicts worden uit profiles.py afgeleid bij import, dus die moeten
     opnieuw gerenderd en doorgegeven worden aan de modules die ze vasthouden.
@@ -325,7 +335,7 @@ def _apply_strictness(value):
     import importlib
 
     from psgscoring.profiles import PROFILES as _P
-    _P["aasm_v3_breath"].post_processing.hypopnea_strictness = value
+    _P[profile_name].post_processing.hypopnea_strictness = value
     import psgscoring.constants as C
     importlib.reload(C)
     import psgscoring.pipeline as PL
@@ -397,7 +407,7 @@ def analyse_one(args):
     # standaardset terwijl report() de uitgebreide labels eist — dan valt
     # elke opname af en meldt het harnas 'geen bruikbare opnames'.
     (rec_id, data_dir, strictness_values, profiles, rip_scale_free,
-     desat_limit, therm_gate) = args
+     desat_limit, therm_gate, dual_confirmation) = args
     data_dir = Path(data_dir)
     if rip_scale_free:
         _apply_rip_scale_free(True)
@@ -434,16 +444,23 @@ def analyse_one(args):
                 if os.environ.get("PSGSCORING_HARNESS_ARTIFACT_EPOCHS") == "1"
                 else [])
 
-    for label, prof, strict in _configs(strictness_values, profiles):
+    for label, prof, strict, conf in _configs(strictness_values, profiles,
+                                              dual_confirmation):
         try:
             if strict is not None:
-                _apply_strictness(strict)
+                _apply_strictness(strict, prof)
+            if conf:
+                os.environ["PSGSCORING_DUAL_SENSOR_CONFIRMATION"] = "thermistor_or_consequence"
+            else:
+                os.environ.pop("PSGSCORING_DUAL_SENSOR_CONFIRMATION", None)
             res = psgscoring.run_pneumo_analysis(
                 raw, hypno=hypno, scoring_profile=prof,
                 artifact_epochs=_art_eps)
         except Exception as e:  # noqa: BLE001
             out["profiles"][label] = {"error": str(e)}
             continue
+        finally:
+            os.environ.pop("PSGSCORING_DUAL_SENSOR_CONFIRMATION", None)
         r = res.get("respiratory", {}) or {}
         summ = r.get("summary", {}) or {}
         algo = [(float(e["onset_s"]),
@@ -497,6 +514,25 @@ def analyse_one(args):
         # De eventlijst zelf mee opslaan: dan kan een referentiewijziging
         # offline hermatched worden zonder de pijplijn opnieuw te draaien.
         rec["events"] = [(round(a, 2), round(b, 2), str(t)) for a, b, t in algo]
+        # 07-10-2026: poortlog + duale boekhouding per opname, en per apneu
+        # de sensorherkomst en bevestiging — nodig om de vereniging tegen de
+        # NSRR-labels te leggen zonder de pijplijn opnieuw te draaien.
+        _fc = dict(((res.get("meta") or {}).get("flow_channels") or {}))
+        rec["flow_channels"] = {k: _fc.get(k) for k in (
+            "apnea_sensor", "hypopnea_sensor", "reference_sensor",
+            "thermistor_rejected", "thermistor_gate", "thermistor_check",
+            "dual_sensor")}
+        rec["dual_sensor_apnea"] = r.get("dual_sensor_apnea")
+        rec["apneas"] = [
+            {"onset_s": round(float(e["onset_s"]), 2),
+             "duration_s": round(float(e.get("duration_s") or 0.0), 2),
+             "type": str(e.get("type")),
+             "corroboration": e.get("corroboration"),
+             "dual_confirmation": e.get("dual_confirmation"),
+             "thermistor_drop": e.get("thermistor_drop"),
+             "desaturation_pct": e.get("desaturation_pct")}
+            for e in r.get("events", [])
+            if e.get("onset_s") is not None and str(e.get("type")) in APNEA_TYPES]
         bd = r.get("breath_detector")
         if bd:
             rec["breath_detector"] = bd
@@ -702,6 +738,13 @@ def main():
                          "tweede ronde disjunct is van de eerste")
     ap.add_argument("--no-resume", action="store_true",
                     help="negeer een bestaand .partial.jsonl en begin opnieuw")
+    ap.add_argument("--dual-confirmation", action="store_true",
+                    help="extra arm '<profiel>+conf' per duaal profiel met "
+                         "PSGSCORING_DUAL_SENSOR_CONFIRMATION="
+                         "thermistor_or_consequence (07-10-2026)")
+    ap.add_argument("--exclude-recordings-file", type=Path, default=None,
+                    help="bestand met één opname-id per regel die NIET in de "
+                         "steekproef mag (kalibratienachten)")
     ap.add_argument("--exclude-n", type=int, default=None,
                     help="omvang van de uit te sluiten eerdere steekproef")
     a = ap.parse_args()
@@ -719,6 +762,10 @@ def main():
     if a.exclude_seed is not None and a.exclude_n:
         excluded = set(random.Random(a.exclude_seed).sample(ids, a.exclude_n))
 
+    if a.exclude_recordings_file:
+        excluded |= {ln.strip() for ln in
+                     a.exclude_recordings_file.read_text().splitlines()
+                     if ln.strip()}
     pool = [x for x in ids if x not in excluded]
     if a.recordings:
         picked = list(a.recordings)
@@ -727,7 +774,8 @@ def main():
     else:
         picked = pool
 
-    labels = [c[0] for c in _configs(a.strictness, a.profiles)]
+    labels = [c[0] for c in _configs(a.strictness, a.profiles,
+                                     a.dual_confirmation)]
     print(f"MESA-validatie — {len(picked)} van {len(pool)} beschikbare opnames "
           f"(seed {a.seed})")
     if excluded:
@@ -761,7 +809,7 @@ def main():
     todo = [x for x in picked if x not in done_ids]
 
     jobs = [(x, str(a.data_dir), a.strictness, a.profiles, a.rip_scale_free,
-             a.desat_limit, a.thermistor_gate) for x in todo]
+             a.desat_limit, a.thermistor_gate, a.dual_confirmation) for x in todo]
     fh = ckpt.open("a") if ckpt else None
     with ProcessPoolExecutor(max_workers=a.workers) as ex:
         for i, r in enumerate(ex.map(analyse_one, jobs), 1):

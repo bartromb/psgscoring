@@ -181,6 +181,11 @@ def _profile_to_legacy_dict(profile) -> dict:
         "AROUSAL_LIMB_WIRED":         pp.arousal_limb_wired,
         "DUAL_SENSOR_APNEA":          pp.dual_sensor_apnea,
         "DUAL_SENSOR_CORROBORATION":  pp.dual_sensor_corroboration,
+        # v0.35.0: voorwaardelijke vereniging (opt-in, default None).
+        "DUAL_SENSOR_CONFIRMATION":   pp.dual_sensor_confirmation,
+        "DUAL_SENSOR_CONFIRM_THERMISTOR_DROP": pp.dual_sensor_confirm_thermistor_drop,
+        "DUAL_SENSOR_CONFIRM_DESAT_PCT":       pp.dual_sensor_confirm_desat_pct,
+        "DUAL_SENSOR_CONFIRM_AROUSAL_WINDOW_S": pp.dual_sensor_confirm_arousal_window_s,
         # v0.9.0: arousal-derivation mode. Multi-derivation (central + occipital +
         # frontal, event-level union + EOG-reject) is the DEFAULT for clinical use;
         # dataset profiles stay 'single' so NSRR/MESA reproduction is byte-identical.

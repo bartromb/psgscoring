@@ -699,3 +699,124 @@ def merge_apnea_events(primary, secondary, iou_thresh=0.20,
         "keep": keep,
         "secondary_only": secondary_only,
     }
+
+
+# ============================================================
+# v0.35.0 — voorwaardelijke vereniging van enkelsensor-apneus
+# ============================================================
+
+def flow_envelope(signal, sf, band=(0.10, 0.70)):
+    """Ademamplitude-omhullende van een flowsignaal over de hele nacht.
+
+    Bandfilter 0,10–0,70 Hz (Butterworth orde 2, filtfilt) en de modulus van
+    het analytische signaal — de maat waarmee op 22-08-2026 de
+    sensorafhankelijke apneudrempel is afgeleid
+    (docs/apneudrempel_sensorafhankelijk_bevinding.md). Eén keer per nacht
+    berekenen; `envelope_drop` leest er per event uit.
+    """
+    from scipy.fft import next_fast_len
+    from scipy.signal import butter, filtfilt, hilbert
+    x = np.nan_to_num(np.asarray(signal, dtype=float))
+    sf = float(sf)
+    if x.size < int(10 * sf) or sf <= 2.0 * band[1]:
+        return None
+    b, a = butter(2, [band[0] / (sf / 2), band[1] / (sf / 2)], btype="band")
+    y = filtfilt(b, a, x)
+    n = next_fast_len(y.size)
+    return np.abs(hilbert(y, N=n))[: y.size]
+
+
+def envelope_drop(env, sf, t0, t1, baseline_s=60.0):
+    """Amplitudedaling in [t0, t1) tegen de mediaan van de `baseline_s`
+    ervoor: 1 − mediaan(event)/mediaan(basislijn), begrensd op [−1, 1].
+    None als het venster of de basislijn niet in het signaal past."""
+    if env is None:
+        return None
+    sf = float(sf)
+    i0, i1 = int(t0 * sf), int(t1 * sf)
+    b0 = int(max(0.0, t0 - baseline_s) * sf)
+    if i1 <= i0 or i0 - b0 < int(10 * sf) or i1 > env.size:
+        return None
+    bl = float(np.median(env[b0:i0]))
+    if bl <= 0.0:
+        return None
+    ev = float(np.median(env[i0:i1]))
+    return float(np.clip(1.0 - ev / bl, -1.0, 1.0))
+
+
+def confirm_single_sensor_apneas(events, *, therm_env, sf_therm,
+                                 thermistor_usable, drop_min=0.72,
+                                 desat_pct=3.0):
+    """Fase 1 van de voorwaardelijke vereniging, direct na de samenvoeging.
+
+    Elke apneu die één sensor zag krijgt ``dual_confirmation``:
+      ``pressure_only``      → "thermistor" (daling ≥ drop_min), anders
+                               "desat" (desaturation_pct ≥ desat_pct), anders
+                               "pending";
+      ``thermistor_only``    → alleen bij een AFGEKEURDE thermistor:
+                               "desat" of "pending"; bij een goedgekeurde
+                               thermistor ongemoeid;
+      ``both``               → ongemoeid.
+    "pending" wacht op de arousalstap (`resolve_pending_apneas`). Geeft
+    (events, telling) terug; de events zijn kopieën.
+    """
+    out, cc = [], {"n_pressure_only": 0, "n_thermistor_only_rejected": 0,
+                   "n_thermistor": 0, "n_desat": 0, "n_pending": 0}
+    for e in events:
+        corr = e.get("corroboration")
+        needs = (corr == "pressure_only"
+                 or (corr == "thermistor_only" and not thermistor_usable))
+        if not needs:
+            out.append(e)
+            continue
+        e = dict(e)
+        t0 = float(e.get("onset_s") or 0.0)
+        t1 = t0 + float(e.get("duration_s") or 0.0)
+        if corr == "pressure_only":
+            cc["n_pressure_only"] += 1
+            d = envelope_drop(therm_env, sf_therm, t0, t1)
+            e["thermistor_drop"] = None if d is None else round(d, 3)
+        else:
+            cc["n_thermistor_only_rejected"] += 1
+            d = None
+        desat = e.get("desaturation_pct")
+        if d is not None and d >= drop_min:
+            e["dual_confirmation"] = "thermistor"
+            cc["n_thermistor"] += 1
+        elif isinstance(desat, (int, float)) and float(desat) >= desat_pct:
+            e["dual_confirmation"] = "desat"
+            cc["n_desat"] += 1
+        else:
+            e["dual_confirmation"] = "pending"
+            cc["n_pending"] += 1
+        out.append(e)
+    return out, cc
+
+
+def resolve_pending_apneas(events, arousal_onsets, window_s=15.0):
+    """Fase 2, na de arousalstap: een "pending" apneu blijft als een arousal
+    begint in [t0, t1 + window_s] ("arousal"); anders vervalt hij.
+
+    Geeft (behouden, vervallen, telling) terug. De vervallen events dragen
+    hun kenmerken nog (voor de meting); het venster valt daarna terug op de
+    gewone hypopneeroute van het profiel.
+    """
+    aro = np.sort(np.asarray(list(arousal_onsets or []), dtype=float))
+    kept, dropped = [], []
+    cc = {"n_arousal": 0, "n_dropped": 0}
+    for e in events:
+        if e.get("dual_confirmation") != "pending":
+            kept.append(e)
+            continue
+        t0 = float(e.get("onset_s") or 0.0)
+        t1 = t0 + float(e.get("duration_s") or 0.0)
+        if aro.size and bool(np.any((aro >= t0) & (aro <= t1 + float(window_s)))):
+            e = dict(e)
+            e["dual_confirmation"] = "arousal"
+            cc["n_arousal"] += 1
+            kept.append(e)
+        else:
+            cc["n_dropped"] += 1
+            dropped.append(e)
+    return kept, dropped, cc
+

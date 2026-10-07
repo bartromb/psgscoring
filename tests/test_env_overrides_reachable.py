@@ -158,6 +158,10 @@ PIPELINE_ONLY = {
     "PSGSCORING_SCORE_WAKE_AROUSALS",
     "PSGSCORING_AROUSAL_ALPHA_BAND_WIDE",
     "PSGSCORING_THERMISTOR_GATE",
+    # 07-10-2026: voorwaardelijke vereniging van enkelsensor-apneus; alleen
+    # de pipeline kent beide sensoren en de arousallijst (fase 1 + fase 2).
+    "PSGSCORING_DUAL_SENSOR_CONFIRMATION",
+    "PSGSCORING_DUAL_SENSOR_CONFIRM_DROP",
     "PSGSCORING_PLM_EVENT_LIST_CAP",
     "PSGSCORING_PLM_OFFSET_AASM",
     "PSGSCORING_PLM_TIME_BASE",

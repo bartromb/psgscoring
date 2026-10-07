@@ -1,3 +1,41 @@
+# Unreleased — voorwaardelijke vereniging van enkelsensor-apneus (opt-in, default uit)
+
+**Gedragsidentiek zolang `dual_sensor_confirmation` None blijft** (golden 9/9,
+alle 21 profielen op None). Aanleiding: `aasm_v3_breath_dual` is op 07-10-2026
+de productiestandaard geworden na de verschilmeting op 20 eigen PSG's
+(`docs/breath_vs_breath_dual_eigen_psg_20261007.md`): de tweede sensor is
+zuiver additief en voegde op één nacht 426 druk-apneus toe die de goedgekeurde
+thermistor niet zag, het merendeel zonder desaturatie of arousal. De
+vereniging kan "thermistor te ongevoelig" niet onderscheiden van "patiënt
+ademt door de mond en de canule ziet niets".
+
+Nieuw op `PostProcessingRules`: `dual_sensor_confirmation`
+(`"thermistor_or_consequence"`), `dual_sensor_confirm_thermistor_drop`
+(0,72 — de gekalibreerde thermistordrempel van 22-08, hier als
+bevestigingsdrempel), `dual_sensor_confirm_desat_pct` (3,0) en
+`dual_sensor_confirm_arousal_window_s` (15,0); env
+`PSGSCORING_DUAL_SENSOR_CONFIRMATION` en `PSGSCORING_DUAL_SENSOR_CONFIRM_DROP`.
+Een alleen-druk-apneu blijft staan als de thermistor minstens 0,72 zakt
+(Hilbert-omhullende, 0,10–0,70 Hz, mediaan tijdens het event tegen de 60 s
+ervoor — `postprocess.flow_envelope` / `envelope_drop`), óf een desaturatie
+≥ 3 % draagt, óf — na de arousalstap — een arousal begint in [t0, t1 + 15 s];
+anders vervalt hij en valt het venster terug op de hypopneeroute. Een apneu
+die alleen een afgekeurde thermistor zag heeft een gevolg nodig; `both`
+blijft ongemoeid. Fase 1 in de samenvoeging
+(`confirm_single_sensor_apneas`), fase 2 na `_normalise_arousal_block`
+(`resolve_pending_apneas`); boekhouding in
+`respiratory["dual_sensor_apnea"]["confirmation"]` incl. de vervallen events.
+Bekende grens: de arousalstap (RERA/koppeling) ziet de "pending" apneus nog
+staan; een door een later vervallen apneu onderdrukte RERA komt niet terug.
+
+Harnas `scripts/validate_mesa.py`: `--profiles` × `--strictness` geeft nu
+alle combinaties (strictness per profiel gezet, ook op de duale kinderen),
+`--dual-confirmation` voegt per duaal profiel een arm `+conf` toe,
+`--exclude-recordings-file` sluit kalibratienachten uit, en per opname
+worden `flow_channels` (poortlog), `dual_sensor_apnea` en per apneu
+sensorherkomst/bevestiging/thermistordaling/desaturatie weggeschreven.
+Preregistratie en meting: `docs/breath_dual_mesa_preregistratie_20261007.md`.
+
 # Unreleased — kandidaatpoort voor de Rule-1A-arousaltak (default uit, gemeten, niet gepromoveerd)
 
 **Gedragsidentiek zolang de velden None blijven** (golden 9/9). Nieuw op
