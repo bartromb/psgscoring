@@ -30,9 +30,9 @@ wél gerapporteerd als orakelcurve.
    `rec` (via `scripts/validate_mesa.py --recordings`), beschrijvend.
 
 ## Beslisregel (vooraf)
-- **Primair (SHHS1 n=150):** gepaarde ΔF1 (U-Net − beste psgscoring-baseline op die
-  nacht… nee: tegen `aasm_v3_rec`, de productie-anker, én apart tegen `breath`) > 0 op
-  ≥ 90/150 én Wilcoxon p < 0,05 (nullen weggelaten), ÉN mediane count-ratio (onze events /
+- **Primair (SHHS1 n=150):** gepaarde ΔF1 (U-Net − `aasm_v3_rec`, het productie-anker;
+  dezelfde toets apart tegen `aasm_v3_breath`, beide moeten slagen) > 0 op ≥ 90/150 én
+  Wilcoxon p < 0,05 (nullen weggelaten), ÉN mediane count-ratio (onze events /
   NSRR) in [0,80; 1,25], ÉN AHI-bias: |gemiddelde bias| niet groter dan die van `rec`,
   ÉN in geen NSRR-AHI-tertiel gemiddelde ΔF1 < −0,02.
 - **PSG-IPA:** mediane F1 (over 12 scoorders) op ≥ 4/5 nachten niet lager dan
