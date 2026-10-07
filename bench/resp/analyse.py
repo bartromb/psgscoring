@@ -131,7 +131,8 @@ def psgipa():
     print("\n######## PSG-IPA (mediaan over 12 scoorders, náást het plafond; regel: ≥ 4/5 niet lager dan breath_dual)")
     ok = sum(1 for v in uit.values() if v.get("niet_lager_dan_breath_dual")); print(f"  niet lager dan breath_dual op {ok}/5")
     for sn, v in uit.items():
-        print(f"  {sn}: F1 med {v.get('f1_med') and round(v['f1_med'], 3)} (bereik {v.get('f1_min') and round(v['f1_min'], 3)}–{v.get('f1_max') and round(v['f1_max'], 3)}), baselines {{p: round(b['f1_med'], 3) for p, b in v['baselines'].items()}}, plafond {v['plafond']}, fractie {v.get('fractie') and round(v['fractie'], 2)}, "
+        bl = {p_.replace("aasm_v3_", ""): round(b["f1_med"], 3) for p_, b in v["baselines"].items()}
+        print(f"  {sn}: F1 med {v.get('f1_med') and round(v['f1_med'], 3)} (bereik {v.get('f1_min') and round(v['f1_min'], 3)}–{v.get('f1_max') and round(v['f1_max'], 3)}), baselines {bl}, plafond {v['plafond']}, fractie {v.get('fractie') and round(v['fractie'], 2)}, "
               f"AHI {v.get('ahi_pred') and round(v['ahi_pred'], 1)} vs scoordermediaan {v.get('ahi_scorer_median') and round(v['ahi_scorer_median'], 1)}, CPU voorwaarts {v.get('cpu_t_fwd_s')} s totaal {v.get('cpu_t_total_s')} s")
     return uit
 
