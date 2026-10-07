@@ -92,8 +92,26 @@ def ablaties():
     return uit
 
 
+def _psgipa_scorers(sn):
+    """De 12 scoordersets zoals eval_cohort ze gebruikt (validate_psgipa.event_set, duur = raw.times[-1])."""
+    import mne
+    sys.path.insert(0, str(HIER.parents[1]))
+    import validate_psgipa as vp
+    raw = mne.io.read_raw_edf(f"/srv/DATA/PSG-IPA/Resp_events/PSG/{sn}_Respiration.edf", preload=True, verbose="ERROR")
+    dur = float(raw.times[-1]); del raw
+    return [vp.event_set(f, dur) for f in sorted(Path("/srv/DATA/PSG-IPA/Resp_events/Annotations/manual").glob(f"{sn}_Respiration_manual_scorer*.edf"))]
+
+
 def psgipa():
     d = OUT / "psgipa"; uit = {}
+    basis = {}
+    for prof in ("aasm_v3_rec", "aasm_v3_breath_dual"):
+        for sn in PLAFOND:
+            fb = d / f"{sn}_base_{prof}.csv"
+            if fb.exists():
+                refs = _psgipa_scorers(sn); pb = lees(fb)
+                f1s = [f1_of(pb, r)[0] for r in refs]; f1s = [x for x in f1s if x is not None]
+                basis.setdefault(sn, {})[prof] = {"f1_med": float(np.median(f1s)), "n": len(pb)}
     for tag in ("", "_cpu"):
         f = d / f"rows{tag}.json"
         if not f.exists():
@@ -106,9 +124,14 @@ def psgipa():
                 uit[sn].update(f1_med=r.get("scorer_f1_median"), f1_min=r.get("scorer_f1_min"), f1_max=r.get("scorer_f1_max"), plafond=PLAFOND[sn],
                                fractie=(r["scorer_f1_median"] / PLAFOND[sn]) if r.get("scorer_f1_median") else None,
                                ahi_pred=r.get("ahi_pred"), ahi_scorer_median=r.get("ahi_scorer_median"), n_pred=r.get("n_pred"), n_scorer_med=r.get("scorer_n_median"))
-    print("\n######## PSG-IPA (mediaan over 12 scoorders, náást het plafond)")
     for sn, v in uit.items():
-        print(f"  {sn}: F1 med {v.get('f1_med')} (bereik {v.get('f1_min')}–{v.get('f1_max')}), plafond {v['plafond']}, fractie {v.get('fractie') and round(v['fractie'], 2)}, "
+        v["baselines"] = basis.get(sn, {})
+        bd = basis.get(sn, {}).get("aasm_v3_breath_dual")
+        v["niet_lager_dan_breath_dual"] = (v.get("f1_med") is not None and bd is not None and v["f1_med"] >= bd["f1_med"] - 1e-9) if bd else None
+    print("\n######## PSG-IPA (mediaan over 12 scoorders, náást het plafond; regel: ≥ 4/5 niet lager dan breath_dual)")
+    ok = sum(1 for v in uit.values() if v.get("niet_lager_dan_breath_dual")); print(f"  niet lager dan breath_dual op {ok}/5")
+    for sn, v in uit.items():
+        print(f"  {sn}: F1 med {v.get('f1_med') and round(v['f1_med'], 3)} (bereik {v.get('f1_min') and round(v['f1_min'], 3)}–{v.get('f1_max') and round(v['f1_max'], 3)}), baselines {{p: round(b['f1_med'], 3) for p, b in v['baselines'].items()}}, plafond {v['plafond']}, fractie {v.get('fractie') and round(v['fractie'], 2)}, "
               f"AHI {v.get('ahi_pred') and round(v['ahi_pred'], 1)} vs scoordermediaan {v.get('ahi_scorer_median') and round(v['ahi_scorer_median'], 1)}, CPU voorwaarts {v.get('cpu_t_fwd_s')} s totaal {v.get('cpu_t_total_s')} s")
     return uit
 

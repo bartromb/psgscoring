@@ -22,9 +22,15 @@ SHHS_CMAP = {"flow_pressure": "NEW AIR", "thorax": "THOR RES", "abdomen": "ABDO 
 APNEA = {"obstructive", "central", "mixed", "uncertain"}
 
 
+PSGIPA = Path("/srv/DATA/PSG-IPA/Resp_events/PSG")
+PSGIPA_HYPNO = Path("/srv/CODE/docs/arousal_unet_20260927/out/psgipa")   # zelfde hypnogram als de U-Net-evaluatie
+
+
 def paden(cohort, rec):
     if cohort == "shhs1":
         return SHHS / "edfs/shhs1" / f"{rec}.edf", SHHS / "annotations-events-nsrr/shhs1" / f"{rec}-nsrr.xml", SHHS_CMAP
+    if cohort == "psgipa":
+        return PSGIPA / f"{rec}_Respiration.edf", PSGIPA_HYPNO / f"{rec}_hypno.json", None
     return MESA / "edfs" / f"{rec}.edf", MESA / "annotations-events-nsrr" / f"{rec}-nsrr.xml", None
 
 
@@ -38,7 +44,12 @@ def een(werk):
     rij = {"rec": rec, "profiles": {}}
     try:
         raw = mne.io.read_raw_edf(str(edf), preload=True, verbose=False)
-        dur = float(raw.times[-1]); hypno, refs, tst_h = parse_nsrr(xml, dur)
+        dur = float(raw.times[-1])
+        if cohort == "psgipa":
+            hyp = json.load(open(xml)); hypno = hyp["hypno"] if isinstance(hyp, dict) and "hypno" in hyp else hyp
+            refs = {}; tst_h = sum(1 for s_ in hypno if s_ in ("N1", "N2", "N3", "R")) * 30 / 3600
+        else:
+            hypno, refs, tst_h = parse_nsrr(xml, dur)
         for prof in profiles:
             f_csv = d / f"{rec}_base_{prof}.csv"
             if f_csv.exists() and not force:
@@ -61,11 +72,12 @@ def een(werk):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--cohort", required=True, choices=["shhs1", "mesa_val"])
+    ap.add_argument("--cohort", required=True, choices=["shhs1", "mesa_val", "psgipa"])
     ap.add_argument("--profiles", nargs="+", default=["aasm_v3_rec", "aasm_v3_breath"])
     ap.add_argument("--workers", type=int, default=20); ap.add_argument("--force", action="store_true"); ap.add_argument("--limit", type=int, default=None)
     a = ap.parse_args()
-    ids = (OUT / a.cohort / "ids.txt").read_text().split() if a.cohort == "shhs1" else (HIER / "ids_val.txt").read_text().split()
+    ids = ((OUT / a.cohort / "ids.txt").read_text().split() if a.cohort == "shhs1"
+           else ["SN1", "SN2", "SN3", "SN4", "SN5"] if a.cohort == "psgipa" else (HIER / "ids_val.txt").read_text().split())
     if a.limit:
         ids = ids[: a.limit]
     sha = subprocess.run(["git", "-C", str(HIER.parents[1]), "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip()
