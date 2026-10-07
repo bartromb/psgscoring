@@ -48,7 +48,24 @@ Ids `/srv/CODE/docs/resp_unet_20261007/shhs1_ids.txt` (seed 20261007, geregistre
 count-ratio mediaan 0,91, AHI-bias gemiddeld −1,37 /u; per NSRR-AHI-tertiel laag (AHI 4,3)
 F1 0,384 / count-ratio 0,76 / bias −0,29, midden (12,9) 0,562 / 0,95 / −0,94, hoog (30,4)
 0,694 / 0,93 / −2,88 — dezelfde ziektelasthelling als mensen en regels.
-**Primaire regel (gepaard tegen `rec` én tegen `breath`):** SHHS_BASELINE_PLACEHOLDER
+**Primaire regel (gepaard tegen `rec` én tegen `breath`, psgscoring op hetzelfde
+NSRR-hypnogram, thermokoppel op de drukplaats zoals `SHHS-validation/score_shhs.py` en de
+arousal-replicatie van 27-09):**
+
+| | F1 mediaan | ΔF1 mediaan / gemiddeld | beter / slechter | Wilcoxon p | AHI-bias gemiddeld | ΔF1 per tertiel laag / midden / hoog |
+|---|---:|---:|---:|---:|---:|---|
+| U-Net | 0,583 | | | | −1,37 | |
+| `aasm_v3_rec` | 0,081 | +0,372 / +0,406 | 146 / 0 | 1,0e-25 | −10,79 | +0,31 / +0,45 / +0,46 |
+| `aasm_v3_breath` | 0,200 | +0,262 / +0,289 | 142 / 6 | 1,3e-24 | −9,55 | +0,21 / +0,34 / +0,32 |
+
+Count-ratio mediaan 0,91 (in [0,80; 1,25]), |bias| 1,37 < 10,79, geen tertiel onder −0,02:
+**alle vier de onderdelen van de primaire regel gehaald, tegen beide baselines.** Kanttekening
+die de lezing kleurt: de regelketen is op dit cohort zelf zwak — een thermokoppel uit de
+jaren negentig op de drukplaats haalt de apneugrens van 0,90 zelden (het dossier van
+22-08: 13 % op een thermistor) en de hypopneeroute mist evenveel, vandaar AHI-bias −10
+en F1 0,08–0,20. Dat is de werkelijke stand van de bibliotheek op SHHS1 (de paper-
+reproductie daar gebruikte het dataset-profiel `mesa_shhs`); daarom staat hieronder
+post-hoc ook `mesa_shhs` als derde baseline: MESASHHS_PLACEHOLDER
 
 ## 4. PSG-IPA SN1–5 (12 scoorders; neusdruk + RIP + SaO2, geen thermistor)
 Scoorder-mediaan F1 (IoU 0,20) per nacht, náást het menselijk plafond
