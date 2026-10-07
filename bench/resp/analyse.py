@@ -29,7 +29,10 @@ def cohort(naam, profielen):
     for l in (d / "baseline_log.jsonl").read_text().splitlines() if (d / "baseline_log.jsonl").exists() else []:
         j = json.loads(l)
         if "rec" in j and "error" not in j:
-            base[j["rec"]] = j
+            if j["rec"] in base:                       # meerdere runs (bv. mesa_shhs post-hoc) samenvoegen
+                base[j["rec"]]["profiles"].update(j.get("profiles", {}))
+            else:
+                base[j["rec"]] = j
     print(f"\n######## {naam}: U-Net n={len(rows)}, baselines n={len(base)}")
     uit = {"n_unet": len(rows), "n_base": len(base), "unet": {}, "paren": {}}
     f1u = [r["f1"] for r in rows.values()]; cr = [r["count_ratio"] for r in rows.values() if r.get("count_ratio") is not None]
@@ -146,7 +149,7 @@ def seeds():
 
 
 if __name__ == "__main__":
-    res = {"shhs1": cohort("shhs1", ["aasm_v3_rec", "aasm_v3_breath"]) if (OUT / "shhs1" / "rows.json").exists() else None,
+    res = {"shhs1": cohort("shhs1", ["aasm_v3_rec", "aasm_v3_breath", "mesa_shhs"]) if (OUT / "shhs1" / "rows.json").exists() else None,
            "mesa_val": cohort("mesa_val", ["aasm_v3_rec", "aasm_v3_breath_dual"]) if (OUT / "mesa_val" / "rows.json").exists() else None}
     print("\n######## ablaties (MESA-val)"); res["ablaties"] = ablaties()
     res["psgipa"] = psgipa(); res["seeds"] = seeds()

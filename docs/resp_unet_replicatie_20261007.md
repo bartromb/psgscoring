@@ -65,7 +65,19 @@ jaren negentig op de drukplaats haalt de apneugrens van 0,90 zelden (het dossier
 22-08: 13 % op een thermistor) en de hypopneeroute mist evenveel, vandaar AHI-bias −10
 en F1 0,08–0,20. Dat is de werkelijke stand van de bibliotheek op SHHS1 (de paper-
 reproductie daar gebruikte het dataset-profiel `mesa_shhs`); daarom staat hieronder
-post-hoc ook `mesa_shhs` als derde baseline: MESASHHS_PLACEHOLDER
+post-hoc ook `mesa_shhs` als derde baseline.
+
+| post-hoc | F1 mediaan | ΔF1 mediaan / gemiddeld | beter / slechter | p | AHI-bias | tertielen |
+|---|---:|---:|---:|---:|---:|---|
+| `mesa_shhs` | 0,173 | +0,317 / +0,339 | 145 / 2 | 1,1e-25 | −10,67 | +0,25 / +0,37 / +0,40 |
+
+Alle drie de psgscoring-profielen vinden op SHHS1 een mediaan van 11–17 events per nacht
+tegen 77 in de NSRR-referentie (AHI-mediaan 1,9–2,7 tegen ~13): de regelketen is op dit
+cohort vrijwel blind, ongeacht profiel. Dat vraagt om een eigen dossier (kanaalkeuze
+`NEW AIR`/`AIRFLOW`, de 0,90-grens op een thermokoppel, de SaO2 op 1 Hz) en relativeert de
+grootte van de winst: het U-Net wint hier vooral omdat het thermokoppel-montages aankan
+waar de regels dat niet doen — niet omdat het de NSRR-scoorder dicht nadert (F1 0,58,
+tegen 0,75 op MESA-val met neusdruk).
 
 ## 4. PSG-IPA SN1–5 (12 scoorders; neusdruk + RIP + SaO2, geen thermistor)
 Scoorder-mediaan F1 (IoU 0,20) per nacht, náást het menselijk plafond
