@@ -15,7 +15,7 @@ def load(p):
     if p.suffix == ".jsonl":
         rows = [json.loads(l) for l in p.read_text().splitlines() if l.strip()]
     else:
-        rows = json.load(open(p)); rows = rows.get("rows", rows) if isinstance(rows, dict) else rows
+        rows = json.load(open(p)); rows = rows.get("results", rows) if isinstance(rows, dict) else rows
     return [r for r in rows if "error" not in r]
 
 def sev(a): return "normaal" if a < 5 else "licht" if a < 15 else "matig" if a < 30 else "ernstig"
@@ -43,7 +43,8 @@ def paar(rows, A, B, naam, bewaker=1.0, min_df1=0.0):
     print(f"  F1 med {uit['f1_A_med']:.3f} vs {uit['f1_B_med']:.3f}; ΔF1 med {uit['dF1_med']:+.4f} mean {uit['dF1_mean']:+.4f}; beter/slechter/gelijk {beter}/{slechter}/{uit['gelijk']}; p={p:.2e}")
     print(f"  bias mean {uit['bias_A_mean']:+.2f} vs {uit['bias_B_mean']:+.2f}; MAE {uit['mae_A']:.2f} vs {uit['mae_B']:.2f}; ernst-overeenstemming {uit['sev_A']} vs {uit['sev_B']}; bewaker {'OK' if uit['bewaker_ok'] else 'FAALT'}; regel: {'JA' if uit['regel'] else 'NEE'}")
     for lab, t in uit["tertiel"].items():
-        print(f"  tertiel {lab:6} n={t['n']:3} ΔF1 mean {t['dF1_mean']:+.4f} med {t['dF1_med']:+.4f} bias {t['bias_A']:+.2f} vs {t['bias_B']:+.2f}")
+        if t["n"]:
+            print(f"  tertiel {lab:6} n={t['n']:3} ΔF1 mean {t['dF1_mean']:+.4f} med {t['dF1_med']:+.4f} bias {t['bias_A']:+.2f} vs {t['bias_B']:+.2f}")
     return uit
 
 def per_event(rows, label="aasm_v3_breath_dual@0.50", conf_label="aasm_v3_breath_dual+conf@0.50"):
@@ -63,6 +64,7 @@ def per_event(rows, label="aasm_v3_breath_dual@0.50", conf_label="aasm_v3_breath
         ref_ap = [(a, b) for a, b, t in refs[REF] if "hypopnea" not in str(t).lower() and "apnea" in str(t).lower()] if refs.get(REF) else []
         if not ref_ap:
             ref_ap = [(a, b) for a, b, t in refs[REF] if "hypopnea" not in str(t).lower()] if refs.get(REF) else []
+        ref_all = [(a, b) for a, b, t in refs[REF]] if refs.get(REF) else []
         conf = r["profiles"][conf_label]
         allev = list(conf.get("apneas", [])) + list(((conf.get("dual_sensor_apnea") or {}).get("confirmation") or {}).get("dropped") or [])
         for e in allev:
@@ -71,11 +73,12 @@ def per_event(rows, label="aasm_v3_breath_dual@0.50", conf_label="aasm_v3_breath
             c = e.get("dual_confirmation") or ("vervallen" if e in allev[len(conf.get("apneas", [])):] else "n/a")
             a0 = float(e["onset_s"]); a1 = a0 + float(e["duration_s"])
             hit = any(iou(a0, a1, b0, b1) >= 0.20 for b0, b1 in ref_ap)
-            key = (k, c); klassen.setdefault(key, [0, 0]); klassen[key][0] += 1; klassen[key][1] += int(hit)
-    print("\n== per alleen-druk-apneu (dual+conf-arm): klasse × bevestiging → n, aandeel dat een NSRR-apneu matcht ==")
-    for (k, c), (n, h) in sorted(klassen.items()):
-        print(f"  {k:2} {c:10} n={n:5}  NSRR-apneu-match {h/n if n else 0:.2f}")
-    return {f"{k}|{c}": {"n": n, "match": h} for (k, c), (n, h) in klassen.items()}
+            hit_any = any(iou(a0, a1, b0, b1) >= 0.20 for b0, b1 in ref_all)
+            key = (k, c); klassen.setdefault(key, [0, 0, 0]); klassen[key][0] += 1; klassen[key][1] += int(hit); klassen[key][2] += int(hit_any)
+    print("\n== per alleen-druk-apneu (dual+conf-arm): klasse × bevestiging → n, aandeel dat een NSRR-apneu / enig NSRR-event matcht ==")
+    for (k, c), (n, h, ha) in sorted(klassen.items()):
+        print(f"  {k:2} {c:10} n={n:5}  NSRR-apneu {h/n if n else 0:.2f}  enig NSRR-event {ha/n if n else 0:.2f}")
+    return {f"{k}|{c}": {"n": n, "match_apneu": h, "match_enig": ha} for (k, c), (n, h, ha) in klassen.items()}
 
 if __name__ == "__main__":
     rows = load(sys.argv[1] if len(sys.argv) > 1 else D / "mesa.json")
