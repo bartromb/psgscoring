@@ -8,3 +8,6 @@ include CHANGELOG.md
 include validate_psgipa.py
 include diagnose_hypopnea.py
 include scripts/measure_boundary_offsets.py
+# v0.35.0: het bevroren U-Net-gewicht (ONNX, 18 MB) en zijn checksums.
+include psgscoring/data/*.onnx
+include psgscoring/data/*.json

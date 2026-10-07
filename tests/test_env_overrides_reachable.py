@@ -162,6 +162,9 @@ PIPELINE_ONLY = {
     # de pipeline kent beide sensoren en de arousallijst (fase 1 + fase 2).
     "PSGSCORING_DUAL_SENSOR_CONFIRMATION",
     "PSGSCORING_DUAL_SENSOR_CONFIRM_DROP",
+    # 07-10-2026: bevroren U-Net-arousaldetector (opt-in) en zijn werkpunt.
+    "PSGSCORING_AROUSAL_DETECTOR",
+    "PSGSCORING_AROUSAL_UNET_THRESHOLD",
     "PSGSCORING_PLM_EVENT_LIST_CAP",
     "PSGSCORING_PLM_OFFSET_AASM",
     "PSGSCORING_PLM_TIME_BASE",

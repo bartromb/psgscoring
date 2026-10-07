@@ -1,0 +1,27 @@
+{
+ "source": "bench/eeg/unet50/model_best.pt",
+ "source_sha256": "cc91bb867c167d7387cf619c8dd005ba294d30f640d0fe0a59c2eaeb3a798566",
+ "onnx_sha256": "6fbea2857567f95023e6dd34461fba92cab238c9c334dbe9d66494b258aa715f",
+ "config": {
+  "in_ch": 3,
+  "base": 16,
+  "pools": [
+   2,
+   4,
+   4,
+   4
+  ],
+  "k": 21
+ },
+ "bench_thr": 0.2,
+ "epoch": 16,
+ "opset": 17,
+ "input": "x[1,3,n] = (EEG, EOG, kin-EMG) @ 50 Hz, genormaliseerd, n deelbaar door 128",
+ "output": "p[1,n] kans per sample",
+ "max_abs_diff_vs_torch": 2.8312206268310547e-07,
+ "fs": 50,
+ "pad_multiple": 128,
+ "preprocessing": "mne resample naar 50 Hz; per kanaal lopend gemiddelde en RMS (18 min, uniform_filter1d, mode nearest) verwijderd; clip \u00b120; float16-rondgang",
+ "postprocessing": "1 s lopend gemiddelde, drempel tau, gaten \u2264 1 s samengevoegd, \u2265 3 s, slaappoort, daarna de 10 s-samenvoeging van de keten",
+ "frozen": "2026-09-27, replicatie docs/arousal_unet_replicatie_20260927.md"
+}
