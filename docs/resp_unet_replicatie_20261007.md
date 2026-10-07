@@ -15,8 +15,10 @@ uitvoer in diezelfde map (rows-JSON's per cohort, ids, consensus-diagnostiek). W
 140 van de breath_dual-MESA-run (seed 20261007, geregistreerd), 4,58 M parameters, 21
 epochs à ~20 s + ~65 s validatie op de A4000; tijdfractie apneu 2,0 % / hypopneu 7,1 %.
 Gepoolde event-F1 op MESA-val (IoU 0,20, typeonbewust, slaappoort): epoch 0 al 0,751,
-beste 0,795 (epoch 14). Variantie: seed 20261008 op dezelfde nachten 0,789 (epoch 14);
-seed 20261009 SEED2_PLACEHOLDER.
+beste 0,795 (epoch 14). Variantie: seeds 20261008 en 20261009 op dezelfde nachten halen
+0,794 (epoch 17, τ 0,25) en 0,793 (epoch 16, τ 0,30) — binnen 0,002 van de bevroren run; de
+bewaker (elk > +0,05 tegen `breath_dual` op MESA-val) wordt in §2 afgerekend zodra de
+baseline er is.
 
 ## 2. MESA-validatienachten (keuzeset, beschrijvend)
 U-Net n=100: F1 mediaan 0,753 (p25 0,653), gepoold 0,795, count-ratio mediaan 1,02,
