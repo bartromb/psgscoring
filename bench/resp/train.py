@@ -103,12 +103,20 @@ def main():
     ap.add_argument("--batch", type=int, default=16); ap.add_argument("--win-s", type=int, default=1800)
     ap.add_argument("--workers", type=int, default=6); ap.add_argument("--seed", type=int, default=20261007)
     ap.add_argument("--lr", type=float, default=1e-3); ap.add_argument("--patience", type=int, default=6)
+    ap.add_argument("--out-dir", default=None, help="uitvoermap (default: deze map)")
+    ap.add_argument("--ids-dir", default=None, help="hergebruik ids_train.txt/ids_val.txt uit deze map (variantie-runs: zelfde nachten, andere seed)")
     a = ap.parse_args()
-    out = HIER; log_path = out / "train_log.json"
-    ids = select_ids(a.n_train + a.n_val, a.seed)
+    out = Path(a.out_dir) if a.out_dir else HIER; out.mkdir(parents=True, exist_ok=True); log_path = out / "train_log.json"
+    if a.ids_dir:
+        idd = Path(a.ids_dir)
+        tr = idd.joinpath("ids_train.txt").read_text().split(); va = idd.joinpath("ids_val.txt").read_text().split()
+        ids = tr + va; a.n_train, a.n_val = len(tr), len(va)
+        print(f"ids hergebruikt uit {idd}: {len(tr)} train / {len(va)} val", flush=True)
+    else:
+        ids = select_ids(a.n_train + a.n_val, a.seed)
+        print(f"register bijgeschreven: {register(ids)} ({len(ids)} ids)", flush=True)
     (out / "ids_train.txt").write_text("\n".join(ids[:a.n_train]) + "\n")
     (out / "ids_val.txt").write_text("\n".join(ids[a.n_train:]) + "\n")
-    print(f"register bijgeschreven: {register(ids)} ({len(ids)} ids)", flush=True)
     t0 = time.time(); nights = {}; errors = []
     with get_context("spawn").Pool(a.workers, maxtasksperchild=4) as pool:
         for i, r in enumerate(pool.imap_unordered(load_mesa_night, ids, chunksize=1)):
