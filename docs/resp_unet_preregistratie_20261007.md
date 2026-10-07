@@ -4,8 +4,7 @@ Datum: 2026-10-07, **geschreven tijdens de training en vóór enige evaluatie bu
 validatienachten.** Bench: `bench/resp/README.md` (model, invoer, augmentatie, data). Eerste
 epoch op de 100 MESA-validatienachten: gepoolde event-F1 0,751 op τ 0,25 — een keuzeset, geen
 bewijs. Het bevroren artefact is `bench/resp/model_best.pt` na afloop van de training
-(sha256 wordt hier bijgeschreven **vóór** de eerste evaluatie hieronder; wie daarna iets aan
-model, nabewerking of werkpunt wijzigt, begint opnieuw).
+(**bevroren 2026-10-07 21:35, sha256 39b1c09523851ad59621d5ccf2c805f7aa1f281ac08e6d8beeca86c9fe5f0074**, kopie `/srv/CODE/docs/resp_unet_20261007/model_frozen_39b1c095.pt`; training: 399 train / 100 val, beste epoch 14 van 21, gepoolde val-F1 0,795 op τ 0,20 — vlak 0,79 over τ 0,15–0,30; wie hierna iets aan model, nabewerking of werkpunt wijzigt, begint opnieuw).
 
 ## Werkpunt
 τ = de beste drempel op de MESA-validatienachten (`model_best.pt["thr"]`), nabewerking exact
