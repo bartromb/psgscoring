@@ -38,12 +38,31 @@ def normalize_spo2(x, fs=FS, win_s=10 * 60):
     return np.clip((x - top) / 3.0, -10.0, 1.0)
 
 
+def _generic_flow(names: dict, ch: dict, ch_names: list) -> None:
+    """Eén flowkanaal zonder druk/thermistor-rol: neusdruk-achtige namen (nasal, pres, cann)
+    naar de drukplaats, thermokoppel-achtige (AIR, therm) naar de thermistorplaats.
+    SHHS: 'NEW AIR'/'AIRFLOW'; PSG-IPA: 'Resp nasal'."""
+    if any(names.get(r) in ch_names for r in ("flow_pressure", "flow_thermistor")):
+        return
+    kand = ch.get("flow") or next((c for c in ch_names if "AIR" in c.upper()), None)
+    if not kand:
+        return
+    u = kand.upper()
+    if any(k in u for k in ("NASAL", "PRES", "CANN")):
+        names["flow_pressure"] = kand; names["flow_thermistor"] = None
+    else:
+        names["flow_thermistor"] = kand; names["flow_pressure"] = None
+
+
 def load_night(edf: Path, xml: Path):
     from psgscoring.utils import detect_channels
     from validate_mesa import parse_nsrr
     hdr = mne.io.read_raw_edf(str(edf), preload=False, verbose=False)
     ch = detect_channels(hdr.ch_names)
     names = {r: ch.get(r) for r in ROLES}
+    # SHHS: thermokoppel heet "NEW AIR" (shhs1) of "AIRFLOW" (shhs2) en kent geen rol in
+    # detect_channels; het is de enige flowsensor en gaat op de thermistorplaats.
+    _generic_flow(names, ch, hdr.ch_names)
     present = [names[r] for r in ROLES if names[r] in hdr.ch_names]
     if not any(names[r] in hdr.ch_names for r in ("flow_pressure", "flow_thermistor")):
         raise ValueError(f"{edf.name}: geen flowkanaal ({hdr.ch_names})")
@@ -77,3 +96,40 @@ def load_mesa_night(rec: str):
         return {"rec": rec, "error": f"te weinig slaap ({len(sl)} epochs)"}
     d.update(rec=rec, sleep_span=(sl[0] * EPOCH_S, (sl[-1] + 1) * EPOCH_S))
     return d
+
+
+SHHS = Path("/srv/DATA/SHHS/shhs/polysomnography")
+PSGIPA = Path("/srv/DATA/PSG-IPA/Resp_events/PSG")
+
+
+def load_shhs_night(rec: str):
+    """SHHS1/2-nacht (thermokoppel-only) met NSRR-labels; zelfde vorm als load_mesa_night."""
+    sub = "shhs1" if rec.startswith("shhs1") else "shhs2"
+    try:
+        d = load_night(SHHS / "edfs" / sub / f"{rec}.edf", SHHS / "annotations-events-nsrr" / sub / f"{rec}-nsrr.xml")
+    except Exception as e:  # noqa: BLE001
+        return {"rec": rec, "error": repr(e)}
+    sl = [i for i, s in enumerate(d["hypno"]) if s in SLEEP]
+    if len(sl) < 120:
+        return {"rec": rec, "error": f"te weinig slaap ({len(sl)} epochs)"}
+    d.update(rec=rec, sleep_span=(sl[0] * EPOCH_S, (sl[-1] + 1) * EPOCH_S))
+    return d
+
+
+def load_psgipa_signals(sn: str):
+    """PSG-IPA-signalen (zonder labels: die komen per scoorder uit validate_psgipa)."""
+    from psgscoring.utils import detect_channels
+    edf = PSGIPA / f"{sn}_Respiration.edf"
+    hdr = mne.io.read_raw_edf(str(edf), preload=False, verbose=False)
+    ch = detect_channels(hdr.ch_names); names = {r: ch.get(r) for r in ROLES}
+    _generic_flow(names, ch, hdr.ch_names)
+    present = [names[r] for r in ROLES if names[r] in hdr.ch_names]
+    raw = mne.io.read_raw_edf(str(edf), include=present, preload=True, verbose=False)
+    dur = raw.n_times / raw.info["sfreq"]; raw.resample(FS, verbose=False); n = raw.n_times
+    X = np.zeros((len(ROLES), n), dtype=np.float32); mask = np.zeros(len(ROLES), dtype=bool)
+    for i, r in enumerate(ROLES):
+        nm = names[r]
+        if nm in raw.ch_names:
+            x = raw.get_data(picks=[nm])[0]; X[i] = normalize_spo2(x) if r == "spo2" else normalize_flow(x); mask[i] = True
+    return {"rec": sn, "x": X.astype(np.float16), "mask": mask, "dur": dur, "channels": names}
+
