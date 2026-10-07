@@ -104,6 +104,12 @@ def main():
             hyp = json.load(open(f"/srv/CODE/docs/arousal_unet_20260927/out/psgipa/{rec}_hypno.json"))
             d["hypno"] = hyp["hypno"] if isinstance(hyp, dict) and "hypno" in hyp else hyp
             d["events"] = None; d["tst_h"] = sum(1 for s in d["hypno"] if s in ("N1", "N2", "N3", "R")) * 30 / 3600
+            # 12 scoorders uit het PSG-IPA-harnas (zelfde conventie: duur = raw.times[-1], preload=True)
+            import mne
+            import validate_psgipa as vp
+            _raw = mne.io.read_raw_edf(f"/srv/DATA/PSG-IPA/Resp_events/PSG/{rec}_Respiration.edf", preload=True, verbose="ERROR")
+            _dur = float(_raw.times[-1]); del _raw
+            d["scorers"] = [(Path(f).name, vp.event_set(f, _dur)) for f in sorted(Path("/srv/DATA/PSG-IPA/Resp_events/Annotations/manual").glob(f"{rec}_Respiration_manual_scorer*.edf"))]
         else:
             d = loader(rec)
         if d.get("error"):
@@ -125,11 +131,21 @@ def main():
                        tp=tp, fp=fp, fn=fn, f1=f1, precision=tp / (tp + fp) if tp + fp else None, recall=tp / (tp + fn) if tp + fn else None,
                        f1_typebewust=f1t, count_ratio=len(ev) / len(ref) if ref else None)
             schrijf(out / f"{rec}_ref.csv", ref_t)
+        if d.get("scorers"):
+            per = []
+            for naam, ref in d["scorers"]:
+                tp, fp, fn, _ = match([(x, y, None) for x, y, _ in ev], [(x, y, None) for x, y, _t in ref], "iou", 0.20)
+                per.append({"scorer": naam, "n_ref": len(ref), "tp": tp, "fp": fp, "fn": fn,
+                            "f1": 2 * tp / (2 * tp + fp + fn) if (2 * tp + fp + fn) else None})
+            f1s = [q["f1"] for q in per if q["f1"] is not None]
+            rij.update(scorer_f1_median=float(np.median(f1s)) if f1s else None, scorer_f1_min=min(f1s) if f1s else None,
+                       scorer_f1_max=max(f1s) if f1s else None, scorer_n_median=float(np.median([q["n_ref"] for q in per])),
+                       ahi_scorer_median=float(np.median([q["n_ref"] for q in per])) / d["tst_h"] if d["tst_h"] else None, per_scorer=per)
         json.dump(d["hypno"], open(out / f"{rec}_hypno.json", "w"))
         rows.append(rij)
         with log.open("a") as fh:
             fh.write(json.dumps(rij, default=str) + "\n")
-        print(rec, {k: rij.get(k) for k in ("n_pred", "n_ref", "f1", "ahi_pred", "ahi_ref", "t_fwd_s")}, flush=True)
+        print(rec, {k: rij.get(k) for k in ("n_pred", "n_ref", "f1", "scorer_f1_median", "ahi_pred", "ahi_ref", "ahi_scorer_median", "t_fwd_s")}, flush=True)
     ok = [r for r in rows if "f1" in r and r["f1"] is not None]
     if ok:
         f1 = [r["f1"] for r in ok]; cr = [r["count_ratio"] for r in ok]; bias = [r["ahi_pred"] - r["ahi_ref"] for r in ok]
