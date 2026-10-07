@@ -73,6 +73,7 @@ def main():
     ap.add_argument("--thr", type=float, default=None); ap.add_argument("--zero", default="",
                     help="ablatie: kanaalindexen op nul, bv. '0' (druk), '1' (thermistor), '4' (spo2), '2,3' (effort)")
     ap.add_argument("--tag", default=""); ap.add_argument("--cpu", action="store_true"); ap.add_argument("--threads", type=int, default=4)
+    ap.add_argument("--limit", type=int, default=None, help="alleen de eerste n nachten (rookproef)")
     a = ap.parse_args()
     dev = torch.device("cpu" if a.cpu or not torch.cuda.is_available() else "cuda")
     if a.cpu:
@@ -96,6 +97,8 @@ def main():
         ids = (HIER / "ids_val.txt").read_text().split(); loader = load_mesa_night
     else:
         ids = ["SN1", "SN2", "SN3", "SN4", "SN5"]; loader = None
+    if a.limit:
+        ids = ids[: a.limit]
     rows = []
     for rec in ids:
         t0 = time.time()
