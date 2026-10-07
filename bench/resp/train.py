@@ -16,7 +16,7 @@ import torch
 import torch.nn.functional as F
 
 HIER = Path(__file__).resolve().parent
-sys.path.insert(0, str(HIER)); sys.path.insert(0, str(HIER.parents[1]))
+sys.path.insert(0, str(HIER)); sys.path.insert(0, str(HIER.parent)); sys.path.insert(0, str(HIER.parents[1]))
 from data import load_mesa_night, FS, MESA_EDF, MESA_XML, EPOCH_S  # noqa: E402
 from model import UNet1D  # noqa: E402
 from postproc import probs_to_events, gate_sleep  # noqa: E402
