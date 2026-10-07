@@ -1,0 +1,78 @@
+{
+ "SN1": {
+  "n_scorers": 12,
+  "n_pairs": 66,
+  "median": 0.826,
+  "p25": 0.775,
+  "p75": 0.849,
+  "min": 0.719,
+  "max": 0.928,
+  "events_per_scorer_min_max": [
+   27,
+   38
+  ],
+  "sig_dur_h": 6.47
+ },
+ "SN2": {
+  "n_scorers": 12,
+  "n_pairs": 66,
+  "median": 0.549,
+  "p25": 0.431,
+  "p75": 0.64,
+  "min": 0.286,
+  "max": 0.755,
+  "events_per_scorer_min_max": [
+   8,
+   33
+  ],
+  "sig_dur_h": 5.76
+ },
+ "SN3": {
+  "n_scorers": 12,
+  "n_pairs": 66,
+  "median": 0.948,
+  "p25": 0.935,
+  "p75": 0.959,
+  "min": 0.876,
+  "max": 0.982,
+  "events_per_scorer_min_max": [
+   273,
+   339
+  ],
+  "sig_dur_h": 6.57
+ },
+ "SN4": {
+  "n_scorers": 12,
+  "n_pairs": 66,
+  "median": 0.553,
+  "p25": 0.462,
+  "p75": 0.637,
+  "min": 0.051,
+  "max": 0.817,
+  "events_per_scorer_min_max": [
+   1,
+   38
+  ],
+  "sig_dur_h": 8.41
+ },
+ "SN5": {
+  "n_scorers": 12,
+  "n_pairs": 66,
+  "median": 0.556,
+  "p25": 0.487,
+  "p75": 0.64,
+  "min": 0.248,
+  "max": 0.734,
+  "events_per_scorer_min_max": [
+   25,
+   101
+  ],
+  "sig_dur_h": 7.39
+ },
+ "alle_paren": {
+  "n_pairs": 330,
+  "median": 0.667,
+  "p25": 0.529,
+  "p75": 0.849
+ }
+}
