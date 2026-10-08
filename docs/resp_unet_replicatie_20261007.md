@@ -107,6 +107,17 @@ hypnogram:
   SN1/SN2/SN4, 1 op SN5, 91 op SN3) — alles wordt hypopneu, wat de typeonbewuste F1 niet
   raakt maar de rapportage wel zou raken.
 - Duur: U-Net-events mediaan 18,8–30,1 s tegen scoorders 16,2–26,5 s (iets lang).
+- **Waarom SN1 misgaat (signaalkenmerken van de 22 onbesteunde U-Net-events):** het zijn
+  echte stroomdalingen op de neusdruk — mediaan 77 % op de robuuste omhullende-maat (p90
+  over ±120 s), duur 15,6 s — **zonder desaturatie** (SpO2-daling mediaan 1,1 %, 0 van 22
+  ≥ 3 %), de helft in N3. De 21 wél besteunde U-Net-events zakken dieper (0,94) en
+  desatureren vaker (7 van 21 ≥ 3 %); de 22 consensus-events van `breath_dual` desatureren
+  in 12 van 22. Lezing: het model heeft op NSRR geleerd dat een diepe daling zónder
+  desaturatie soms toch een (arousal-)hypopneu is, maar het ziet geen EEG om dat te toetsen,
+  en scoort die dalingen op SN1 systematisch waar twaalf scoorders dat niet doen. Dat is
+  precies het gat dat een **hybride** inbouw dicht: het netwerk als kandidaatgenerator en
+  de regelketen (desaturatie- en arousalkoppeling) als poort — zonder die poort hoort dit
+  model niet in een rapport.
 
 ## 5. Bewakers
 - CPU-inferentie (4 threads, PSG-IPA): voorwaarts 0,6–2,1 s, totaal 7–14 s per nacht
