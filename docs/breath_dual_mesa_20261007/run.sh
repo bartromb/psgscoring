@@ -14,7 +14,7 @@ sleep 5
 PID=$(pgrep -f "validate_mesa.py --data-dir /srv/DATA/MESA/mesa --recordings" | head -1)
 PGID=$(ps -o pgid= -p "$PID" | tr -d ' ')
 echo "validate_mesa pid=$PID pgid=$PGID"
-nohup /srv/CODE/docs/arousal_unet_20260927/thermal_pauze.sh "$PGID" $OUT/thermal.log 81 68 10 > /dev/null 2>&1 < /dev/null &
+nohup /srv/CODE/docs/arousal_unet_20260927/thermal_pauze.sh "$PGID" $OUT/thermal.log 78 66 10 > /dev/null 2>&1 < /dev/null &
 sleep 25
 echo "bewaker:"; tail -2 $OUT/thermal.log
 echo "run.log:"; head -5 $OUT/run.log
