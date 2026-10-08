@@ -42,8 +42,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-full = ["yasa>=0.6", "lightgbm>=3.0"]
-ml   = ["lightgbm>=3.0"]
+full = ["yasa>=0.6", "lightgbm>=3.0", "onnxruntime>=1.16"]
+ml   = ["lightgbm>=3.0", "onnxruntime>=1.16"]
 test = ["pytest>=7.0", "hypothesis>=6.0"]
 plot = ["matplotlib>=3.5"]
 denoise = ["PyWavelets>=1.4"]   # optional: flow_wavelet_denoise (BSD-3)
@@ -63,7 +63,7 @@ Changelog = "https://github.com/bartromb/psgscoring/blob/main/CHANGELOG.md"
 include = ["psgscoring*"]
 
 [tool.setuptools.package-data]
-"psgscoring" = ["data/*.txt", "data/*.json", "py.typed"]
+"psgscoring" = ["data/*.txt", "data/*.json", "data/*.onnx", "py.typed"]
 
 [tool.mypy]
 # Pragmatisch, en bewust GESCOPEERD. Een gate die bij invoering rood staat

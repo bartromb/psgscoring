@@ -743,6 +743,30 @@ class PostProcessingRules:
     `arousal_limb_wired`-profielen.
     """
 
+    arousal_detector: str = "lgbm"
+    """v0.35.0: welke detector de arousal-kandidaten levert — ``"lgbm"`` (de
+    huidige keten: regelkandidaten + LightGBM-filter) of ``"unet_v1"`` (het
+    bevroren 1D-U-Net op EEG + EOG + kin-EMG @ 50 Hz, `psgscoring/arousal_unet.py`).
+
+    **Default "lgbm" op elk profiel; aanzetten is een gebruikersbeslissing met
+    klinische aan/uit-controle.** De replicatie van 27-09-2026
+    (`docs/arousal_unet_replicatie_20260927.md`, preregistratie 7fcc4f4): SHHS1
+    150 verse nachten F1 0,543 → 0,676 (beter 134/147, p = 2e-22, count-ratio
+    0,85), MESA-76 0,556 → 0,687, PSG-IPA 0,555 → 0,745 op 5/5; CPU 5 s/nacht.
+    Zonder EOG of kin-EMG valt de keten terug op "lgbm" met de reden in
+    ``summary["unet_fallback_reason"]`` (alleen-EEG was slechter dan de baseline).
+    Onder "unet_v1" staat de autonome re-ranker uit (die werkt op
+    LGBM-kandidaten). Env-override ``PSGSCORING_AROUSAL_DETECTOR``.
+    ``onnxruntime`` is nodig (``psgscoring[ml]``); ontbreekt het, dan
+    terugval met reden, nooit stil."""
+
+    arousal_unet_threshold: float = 0.35
+    """Werkpunt τ van ``unet_v1`` op de kans per sample. 0,35 is het
+    tellingsneutrale punt op PSG-IPA uit de replicatie (ratio 1,02); op de
+    NSRR-cohorten telt het 0,72–0,85 (τ 0,25 is daar neutraal). Env-override
+    ``PSGSCORING_AROUSAL_UNET_THRESHOLD``. Welk werkpunt de standaard wordt is
+    Barts beslissing (prereg 27-09, §Beslisregel)."""
+
     arousal_lgbm: bool = True
     """Filter arousal-kandidaten met het op MESA getrainde LightGBM-model.
 

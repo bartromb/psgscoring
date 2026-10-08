@@ -1,3 +1,45 @@
+# Unreleased — bevroren U-Net-arousaldetector `unet_v1` (opt-in, default lgbm)
+
+**Gedragsidentiek zolang `arousal_detector` "lgbm" blijft** (default op alle 21
+profielen, golden 9/9). Bouwt de replicatie van 27-09-2026 in
+(`docs/arousal_unet_replicatie_20260927.md`, preregistratie 7fcc4f4: SHHS1 150
+verse nachten arousal-F1 0,543 → 0,676 op 134/147, p = 2e-22; MESA-76
+0,556 → 0,687; PSG-IPA 0,555 → 0,745 op 5/5).
+
+- `psgscoring/arousal_unet.py`: de inferentieketen — `mne.filter.resample` naar
+  50 Hz (dezelfde resampler als `Raw.resample`), per kanaal lopend gemiddelde en
+  RMS over 18 min verwijderd, clip ±20 en float16-rondgang (zoals de bench),
+  U-Net via **ONNX Runtime** (geen torch in de bibliotheek), 1 s-gemiddelde,
+  drempel τ, gaten ≤ 1 s, ≥ 3 s, slaappoort, daarna de 10 s-samenvoeging van de
+  keten. Gewicht `psgscoring/data/arousal_unet_v1.onnx` (18 MB, opset 17,
+  dynamische tijdas, max |Δ| 2,8e-7 tegen torch) met checksums in
+  `arousal_unet_v1.json` (bron `bench/eeg/unet50/model_best.pt`, sha256
+  cc91bb86…); `available()` weigert een ander gewicht.
+- Nieuw op `PostProcessingRules`: `arousal_detector` ("lgbm" | "unet_v1") en
+  `arousal_unet_threshold` (0,35); env `PSGSCORING_AROUSAL_DETECTOR`,
+  `PSGSCORING_AROUSAL_UNET_THRESHOLD`, `PSGSCORING_UNET_THREADS`.
+- Terugval, nooit stil: zonder EOG of kin-EMG, zonder `onnxruntime` of bij een
+  foute checksum draait de LGBM-keten met de reden in
+  `summary["unet_fallback_reason"]`; de autonome re-ranker staat onder `unet_v1`
+  uit met reden (hij werkt op LGBM-kandidaten). `summary["detector"]` staat op
+  "unet_v1" als het net draaide en op "lgbm" bij terugval (afwezig = gewone
+  LGBM-keten, ongewijzigd). De pipeline haalt het EOG-kanaal ook buiten de
+  multi-afleidingsmodus.
+- Pipeline-smoke op PSG-IPA SN1 (`aasm_v3_breath_dual`, env-override): lgbm 41
+  arousals / index 7,1 / AHI 5,4 / RDI 9,5 in 224 s; unet_v1 37 / 6,4 / 5,2 / 9,2 in
+  72 s (het net kost 5,9 s; de LGBM-kandidaatgeneratie op meerdere afleidingen
+  vervalt). Dit is een rookproef, geen meting.
+- Getrouwheid (`/srv/CODE/docs/arousal_unet_20261007/getrouwheid_*.json`): op
+  PSG-IPA SN1–5 geeft de bibliotheek dezelfde events als het bevroren model in
+  fp32 op CPU; de replicatie van 27-09 draaide op CUDA in bf16 en verschilt
+  daardoor één event op SN2 (88 → 87) en SN5 (127 → 126), grenzen ≤ 0,22 s.
+  CPU-kost 4 threads: 3–4 s voorwaarts, 4,5–6 s totaal per nacht.
+- `onnxruntime>=1.16` onder `[ml]` en `[full]`; het gewicht in package-data en
+  MANIFEST. Default aanzetten (profiel, werkpunt 0,35 of 0,25) blijft een
+  gebruikersbeslissing met klinische aan/uit-controle; doorwerking op
+  breath/breath_dual-hypopneeën, RERA/RDI en `coupled_arousal` is nog niet
+  gemeten (de replicatie voedde de externe ingang, die RERA overslaat).
+
 # Unreleased — voorwaardelijke vereniging van enkelsensor-apneus (opt-in, default uit)
 
 **Gedragsidentiek zolang `dual_sensor_confirmation` None blijft** (golden 9/9,

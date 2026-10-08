@@ -958,6 +958,10 @@ def run_pneumo_analysis(
                 logger.info(
                     "[pneumo] arousalstap negeert %d artefact-epochs "
                     "(profielvlag)", len(artifact_epochs))
+            _ar_detector = _arousal_detector(profile)
+            if _ar_detector == "unet_v1" and _eog_arousal is None:
+                # Het U-Net heeft EOG nodig, ook buiten de multi-afleidingsmodus.
+                _eog_arousal = _pick_eog(raw, ch)
             output["arousal"] = run_arousal_respiratory_analysis(
                 eeg_data    = eeg_data,
                 sf_eeg      = sf_eeg,
@@ -998,6 +1002,8 @@ def run_pneumo_analysis(
                 pleth_data = pleth_data,
                 sf_pleth = sf_pleth,
                 autonomic_rerank = _autonomic_rerank(profile),
+                arousal_detector = _ar_detector,
+                unet_threshold = _arousal_unet_threshold(profile),
             )
         except Exception as e:  # noqa: BLE001 — arousal failure must not abort the run
             logger.warning("[pneumo] arousal analysis failed, continuing: %s", e)
@@ -2100,6 +2106,38 @@ def _arousal_event_locked_threshold(profile) -> float | None:
                 "[pneumo] PSGSCORING_AROUSAL_EVENT_LOCKED_THRESHOLD=%r is geen "
                 "getal; profielwaarde aangehouden", env)
     return float(val) if val is not None else None
+
+
+_AROUSAL_DETECTORS = {"lgbm", "unet_v1"}
+
+
+def _arousal_detector(profile) -> str:
+    """Kandidaatbron van de arousalstap: profielveld `arousal_detector`, env
+    `PSGSCORING_AROUSAL_DETECTOR` wint (meetarmen); onbekend = waarschuwing,
+    profielwaarde blijft."""
+    val = str(profile.get("AROUSAL_DETECTOR", "lgbm") or "lgbm")
+    raw = os.environ.get("PSGSCORING_AROUSAL_DETECTOR")
+    if raw:
+        r = raw.strip().lower()
+        if r in _AROUSAL_DETECTORS:
+            return r
+        logger.warning("[pneumo] PSGSCORING_AROUSAL_DETECTOR=%r onbekend (%s); "
+                       "profielwaarde %r blijft", raw,
+                       ", ".join(sorted(_AROUSAL_DETECTORS)), val)
+    return val
+
+
+def _arousal_unet_threshold(profile) -> float:
+    """Werkpunt van unet_v1; env `PSGSCORING_AROUSAL_UNET_THRESHOLD` wint."""
+    val = float(profile.get("AROUSAL_UNET_THRESHOLD", 0.35))
+    raw = os.environ.get("PSGSCORING_AROUSAL_UNET_THRESHOLD")
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            logger.warning("[pneumo] PSGSCORING_AROUSAL_UNET_THRESHOLD=%r is geen "
+                           "getal; profielwaarde %.2f blijft", raw, val)
+    return val
 
 
 def _arousal_min_interval_s(profile) -> float:

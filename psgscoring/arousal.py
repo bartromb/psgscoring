@@ -2480,6 +2480,8 @@ def run_arousal_respiratory_analysis(
     pleth_data: np.ndarray | None = None,
     sf_pleth: float | None = None,
     autonomic_rerank: bool = False,
+    arousal_detector: str = "lgbm",
+    unet_threshold: float = 0.35,
 ) -> dict:
     """
     Master-functie: detecteer arousals, RERAs en koppel aan respiratoire events.
@@ -2522,7 +2524,38 @@ def run_arousal_respiratory_analysis(
             logger.info("[arousal] event-locked werkpunt %.2f rond %d "
                         "respiratoire event-eindes",
                         event_locked_threshold, len(_ends))
-    if derivations:
+    # v0.35.0: bevroren U-Net als kandidaatbron (opt-in). Zonder EOG of
+    # kin-EMG, zonder onnxruntime of bij een foute checksum: terugval op de
+    # LGBM-keten mét reden in de samenvatting — nooit stil.
+    _unet_reason = None
+    _unet_result = None
+    if str(arousal_detector) == "unet_v1":
+        from .arousal_unet import available as _unet_available
+        from .arousal_unet import detect_arousals_unet
+        _ok, _why = _unet_available()
+        if not _ok:
+            _unet_reason = _why
+        elif eog_data is None:
+            _unet_reason = "geen EOG-kanaal (alleen-EEG is slechter dan de LGBM-keten)"
+        elif emg_data is None:
+            _unet_reason = "geen kin-EMG-kanaal (alleen-EEG is slechter dan de LGBM-keten)"
+        else:
+            _unet_result = detect_arousals_unet(
+                eeg_data, sf_eeg, eog_data, sf_eeg, emg_data, sf_eeg, hypno,
+                threshold=float(unet_threshold), min_interval_s=min_interval_s,
+                artifact_epochs=artifact_epochs)
+            if not _unet_result.get("success"):
+                _unet_reason = _unet_result.get("error") or "unet_v1 mislukt"
+                _unet_result = None
+        if _unet_reason:
+            logger.warning("[arousal] unet_v1 niet gebruikt: %s — terugval op lgbm",
+                           _unet_reason)
+    if _unet_result is not None:
+        ar_result = _unet_result
+        if autonomic_rerank:
+            ar_result.setdefault("summary", {})["autonomic_rerank"] = {
+                "active": False, "reason": "unet_v1: re-ranker werkt op LGBM-kandidaten"}
+    elif derivations:
         ar_result = detect_arousals_multi(derivations, sf_eeg, hypno,
                                           score_wake_arousals=score_wake_arousals,
                               alpha_band_wide=alpha_band_wide,
@@ -2571,6 +2604,9 @@ def run_arousal_respiratory_analysis(
                     onset_offset_s)
         ar_result.setdefault("summary", {})["onset_offset_s"] = float(onset_offset_s)
 
+    if str(arousal_detector) == "unet_v1" and _unet_reason and isinstance(ar_result.get("summary"), dict):
+        ar_result["summary"]["detector"] = "lgbm"
+        ar_result["summary"]["unet_fallback_reason"] = _unet_reason
     output["arousals"] = ar_result
 
     arousals = ar_result.get("events", [])
@@ -2634,7 +2670,9 @@ def run_arousal_respiratory_analysis(
     # uit het gefilterde pad zagen er in het rapport identiek uit, terwijl ze
     # een factor kunnen schelen. Alleen doorgeven wat er is -- op een profiel
     # zonder classifier blijven de sleutels weg.
-    for _k in ("lgbm_available", "lgbm_skipped_reason", "lgbm_threshold",
+    for _k in ("detector", "unet_threshold", "unet_fallback_reason", "unet_n_raw",
+               "unet_t_total_s", "unet_onnx_sha256",
+               "lgbm_available", "lgbm_skipped_reason", "lgbm_threshold",
                "lgbm_n_pre", "lgbm_n_post", "n_event_locked",
                "event_locked_threshold", "min_interval_s", "n_interval_merged",
                "n_too_long_discarded", "too_long_discarded_s",

@@ -125,6 +125,8 @@ def _profile_to_legacy_dict(profile) -> dict:
         "RULE1B_MIN_PROBA": pp.rule1b_min_proba,
         "FLOW_GAP_SCALE_FREE": pp.flow_gap_scale_free,
         "AROUSAL_LGBM": pp.arousal_lgbm,
+        "AROUSAL_DETECTOR": pp.arousal_detector,
+        "AROUSAL_UNET_THRESHOLD": pp.arousal_unet_threshold,
         "AROUSAL_USES_ARTIFACT_EPOCHS": pp.arousal_uses_artifact_epochs,
         "AROUSAL_LGBM_THRESHOLD": pp.arousal_lgbm_threshold,
         "AROUSAL_EVENT_LOCKED_THRESHOLD": pp.arousal_event_locked_threshold,
