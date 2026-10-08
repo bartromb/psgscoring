@@ -2758,13 +2758,46 @@ _aasm_v3_fusion = Profile(
 
 
 def _with_dual_apneas(parent: Profile, *, name: str, display_name: str,
-                      description: str) -> Profile:
+                      description: str, pure: bool = False) -> Profile:
     """Zelfde profiel, maar apneus op beide flowsensoren.
 
     Elke geneste dataclass wordt via ``replace()`` opnieuw gebouwd. Zonder dat
     zou het kind het HypopneaRules-object van de ouder delen — twee profielen
     met één mutabel object ertussen, en een mutatie die niemand verwacht.
+
+    ``pure=True`` (v0.35.0, `aasm_v3_breath_dual_v2`): ALLEEN de vereniging.
+    De oorspronkelijke variant zet vier schakelaars (vereniging, geen
+    falsificatie, ``flow_reference="hypopnea"`` en de per-kanaal-poort
+    ``respiratory_band``); de laatste twee verplaatsen de primaire pas en het
+    referentiekanaal, en dat verandert RDI/RERA/FRI op 18 van 20 eigen PSG's
+    en de ventilatoire last op de 5 poort-aan-nachten
+    (docs/breath_vs_breath_dual_eigen_psg_20261007.md). De zuivere variant
+    houdt poort en referentiekanaal van de ouder: de primaire pas is die van
+    `breath`, de tweede pas op de andere sensor voegt apneus toe. Beoogd:
+    AHI gelijk aan `breath_dual`, RDI en ventilatoire last gelijk aan `breath`
+    — te meten, niet aangenomen.
     """
+    extra = {} if pure else {
+        "flow_reference": "hypopnea",
+        "thermistor_gate": "respiratory_band",
+    }
+    if pure:
+        return replace(
+            parent,
+            name=name,
+            display_name=display_name,
+            family="exploratory",
+            aasm_rule=f"{parent.aasm_rule}, dual-sensor (pure union)",
+            description=description,
+            hypopnea=replace(parent.hypopnea),
+            apnea=replace(parent.apnea),
+            spo2=replace(parent.spo2),
+            post_processing=replace(
+                parent.post_processing,
+                dual_sensor_apnea=True,
+                dual_sensor_corroboration=False,
+            ),
+        )
     return replace(
         parent,
         name=name,
@@ -2828,6 +2861,21 @@ _aasm_v3_breath_dual = _with_dual_apneas(
     ),
 )
 
+
+_aasm_v3_breath_dual_v2 = _with_dual_apneas(
+    _aasm_v3_breath,
+    name="aasm_v3_breath_dual_v2",
+    display_name="AASM v3 — breath-graded + dual-sensor apneas, pure union (experimental)",
+    description=(
+        "aasm_v3_breath with apneas detected on BOTH flow sensors and merged "
+        "(union), and NOTHING else changed: the thermistor gate and the "
+        "reference channel are those of aasm_v3_breath. Built 2026-10-08 after "
+        "the 20-PSG comparison showed that aasm_v3_breath_dual also moves "
+        "RDI/RERA/FRI and ventilatory burden through its two extra switches. "
+        "Not validated against human scoring."
+    ),
+    pure=True,
+)
 
 _aasm_v3_prob_dual = _with_dual_apneas(
     _aasm_v3_prob,
@@ -3221,6 +3269,7 @@ PROFILES: Dict[str, Profile] = {
     "aasm_v3_dual":      _aasm_v3_dual,
     "aasm_v3_fusion":    _aasm_v3_fusion,
     "aasm_v3_breath_dual": _aasm_v3_breath_dual,
+    "aasm_v3_breath_dual_v2": _aasm_v3_breath_dual_v2,
     "aasm_v3_prob_dual":   _aasm_v3_prob_dual,
     "aasm_v3_strict":    _aasm_v3_strict,
     "aasm_v3_sensitive": _aasm_v3_sensitive,

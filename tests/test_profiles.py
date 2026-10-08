@@ -50,7 +50,7 @@ class TestRegistry:
         }
         assert expected <= set(PROFILES), (
             f"ontbrekende profielen: {sorted(expected - set(PROFILES))}")
-        assert len(PROFILES) == 21, sorted(PROFILES)
+        assert len(PROFILES) == 22, sorted(PROFILES)
 
     def test_all_profiles_valid(self):
         for name, p in PROFILES.items():

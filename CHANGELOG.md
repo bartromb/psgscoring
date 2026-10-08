@@ -1,3 +1,15 @@
+# Unreleased — `aasm_v3_breath_dual_v2`: de zuivere vereniging (exploratory, default uit)
+
+Nieuw profiel, afgeleid van `aasm_v3_breath` met ALLEEN `dual_sensor_apnea=True` en
+`dual_sensor_corroboration=False`; poort (`envelope_agreement`, blokkerend) en
+referentiekanaal (`flow_reference="apnea"`) blijven die van de ouder. Aanleiding: de
+verschilmeting op 20 eigen PSG's (`docs/breath_vs_breath_dual_eigen_psg_20261007.md`)
+liet zien dat `aasm_v3_breath_dual` via zijn twee extra schakelaars ook RDI/RERA/FRI
+(18/20) en de ventilatoire last (5/20) verplaatst. `_with_dual_apneas(..., pure=True)`;
+registry 21 → 22; `aasm_v3_breath_dual` zelf is ongewijzigd (test
+`test_v1_still_carries_its_four_switches`). Beoogd en te meten: AHI gelijk aan
+`breath_dual`, RDI en ventilatoire last gelijk aan `breath`.
+
 # Unreleased — bevroren U-Net-arousaldetector `unet_v1` (opt-in, default lgbm)
 
 **Gedragsidentiek zolang `arousal_detector` "lgbm" blijft** (default op alle 21

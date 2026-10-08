@@ -96,7 +96,8 @@ def test_they_are_exploratory_and_say_so(_, child):
 def test_no_existing_profile_moved_onto_the_new_axis():
     """Alles is additief. Wie hiervoor enkelsensor was, blijft dat."""
     expected_dual = {"aasm_v3_dual", "aasm_v3_fusion",
-                     "aasm_v3_breath_dual", "aasm_v3_prob_dual"}
+                     "aasm_v3_breath_dual", "aasm_v3_breath_dual_v2",
+                     "aasm_v3_prob_dual"}
     actual = {n for n, p in PROFILES.items() if p.post_processing.dual_sensor_apnea}
     assert actual == expected_dual, actual
 
