@@ -6,10 +6,13 @@ van de machine 08-10 01:46 (123/140 nachten als checkpoint), hervat 08-10 07:11 
 om 19:51 na een dagpauze, klaar 20:41 (17 workers; checkpoint per nacht, resume van het
 harnas). Bibliotheek bevroren op be78002 (voorwaardelijke vereniging, opt-in) — `git diff`
 tegen HEAD op `psgscoring/` en `scripts/validate_mesa.py` leeg vóór elke herstart; de merge
-van `unet-v1` kwam pas ná `mesa.json`. 140 nachten (standaard-n150 minus 10 kalibratienachten),
+van `unet-v1` kwam pas ná `mesa.json`. 140 nachten (standaard-n150 minus 10 kalibratienachten — de verificatie kon 8 van de 10
+reconstrueren uit de gedocumenteerde trekkingen; mesa-sleep-0495 en -2802 vallen in geen
+reconstructie en -5631 zou er volgens één reconstructie bij horen; effect op de regels
+klein, maar "geen parameter op deze nachten gekozen" is niet uit de repo te bewijzen),
 0 fouten, referentie NSRR `aasm15`, matcher IoU 0,20 typeonbewust, artefact-epochs leeg.
-Ruwe uitvoer `docs/breath_dual_mesa_20261007/` (`mesa.json` 32 MB en de checkpoints buiten
-git; `samenvatting.json`, `opnames.txt`, `gevoeligheid_93.txt`, `analyse_mesa.py`,
+Ruwe uitvoer `docs/breath_dual_mesa_20261007/` (`mesa.json` 32 MB, `meta.git_sha` 25ae0b1
+met `git_dirty` door toen ongetrackte uitvoer, psgscoring 0.34.2; checkpoints buiten git; `samenvatting.json`, `opnames.txt`, `gevoeligheid_93.txt`, `analyse_mesa.py`,
 `posthoc_robuust.py` erin). Thermische bewaker: geen pauzes; piek vannacht 82 °C (zie
 §6).
 
@@ -25,9 +28,16 @@ Per NSRR-AHI-tertiel ΔF1 gemiddeld +0,011 / +0,008 / +0,004 (laag / midden / ho
 −11,08. Gevoeligheidsset (93 nachten uit posities 51–150): ΔF1 gemiddeld +0,006, 36/15, p =
 0,004, bias −4,34 tegen −2,71.
 
-**Regel: NIET gehaald.** ΔF1 > 0 op meer nachten dan slechter én p < 0,05 kloppen, maar de
-bewaker faalt: de gemiddelde bias ligt 1,56 /u verder van nul (grens 1,0). De
-voorwaardelijke vereniging blijft **gebouwd-uit** (`dual_sensor_confirmation` default None).
+**Regel: NIET gehaald, op twee van de vier onderdelen.** De gepaarde ΔF1-mediaan is exact
+0,000 (59 van 140 nachten identiek; de regel eist > 0) én de bewaker faalt: de gemiddelde
+bias ligt 1,56 /u verder van nul (grens 1,0). Beter-dan-slechter (62/19) en p < 0,05 kloppen
+wel. De voorwaardelijke vereniging blijft **gebouwd-uit** (`dual_sensor_confirmation`
+default None). De bias-verschuiving komt uit twee paden: 1,01 /u uit de vervallen
+alleen-druk-apneus (793) en 0,57 /u uit een tak die de preregistratie niet benoemde —
+op de 38 nachten waar de thermistor de poort niet haalt, laat de regel ook alleen-
+thermistor-apneus zonder gevolg vervallen (408 op 18 nachten; `postprocess.py`,
+"thermistor_only bij onbruikbare thermistor"). ΔAHI(conf − dual) is op geen enkele nacht
+positief.
 Wat ze wél doet, staat in §4: ze verwijdert bijna uitsluitend events die geen NSRR-event
 zijn, maar op een cohort waar `breath_dual` al 2,7 /u ondertelt, maakt elk verwijderd
 event de bias slechter — het patroon van een compensatieknop (vergelijk de duurtolerantie
@@ -70,16 +80,21 @@ voorwaardelijke vereniging heeft de laagste MAE (6,89) maar een bias van −1,03
 (bias laag tertiel +7,7) en is een klinische beslissing; zie §5.
 
 ## 4. Per event — wat de vereniging toevoegt en wat de voorwaardelijke regel verwijdert
-Alle 5406 alleen-druk-apneus van de `dual+conf@0,50`-arm (behouden + vervallen) tegen de
-NSRR-events (IoU ≥ 0,20): klasse op de thermistordaling van de bibliotheekmaat
-(mediaan 60 s ervoor; A ≥ 0,72 / C 0,30–0,72 / B < 0,30) en op de robuuste maat
-(p90 over ±120 s, post-hoc, `posthoc_robuust.py`).
+Alle 5406 alleen-druk-apneus van de `dual+conf@0,50`-arm (behouden + vervallen; op alle
+140 nachten exact de alleen-druk-apneus van `dual@0,50`) tegen de NSRR-events (IoU ≥ 0,20):
+klasse op de thermistordaling zoals de bibliotheek hem opsloeg (`thermistor_drop`,
+mediaan 60 s ervoor; A ≥ 0,72 / C 0,30–0,72 / B < 0,30) en post-hoc op de robuuste maat
+(p90 over ±120 s, `posthoc_robuust.py`; die herberekent ook de bibliotheekmaat uit de EDF
+en wijkt door afronding op 4 events af: 1581/2014 tegen 1582/2012 hieronder). Buiten deze
+tabel vallen de 1632 alleen-thermistor-apneus van de arm: 1224 ongemoeid (thermistor
+bruikbaar) en **408 vervallen** (thermistor onbruikbaar, geen gevolg; NSRR-apneu 2,5 %,
+enig event 6,4 %).
 
 | bevestiging | klasse (bibliotheekmaat) | n | NSRR-apneu | enig NSRR-event |
 |---|---|---:|---:|---:|
 | thermistor (d ≥ 0,72) | A | 678 | **0,68** | 0,84 |
-| desaturatie | C | 1581 | 0,26 | **0,88** |
-| desaturatie | B | 2014 | 0,07 | 0,56 |
+| desaturatie | C | 1582 | 0,26 | **0,88** |
+| desaturatie | B | 2012 | 0,07 | 0,56 |
 | arousal | C | 91 | 0,14 | 0,69 |
 | arousal | B | 240 | 0,02 | 0,25 |
 | **vervallen** | C | 119 | 0,08 | 0,34 |
@@ -95,23 +110,28 @@ NSRR-events (IoU ≥ 0,20): klasse op de thermistordaling van de bibliotheekmaat
   in 7–26 % een NSRR-apneu maar in 56–88 % een NSRR-event. Als apneu zijn ze fout getypeerd,
   voor de AHI tellen ze terecht mee. Arousal-bevestiging (331) is de zwakste tak (25–69 %
   enig event).
-- **Wat vervalt, is bijna nooit een event:** 793 vervallen events matchen in 1–8 % een
-  NSRR-apneu en in 7–34 % enig event. De regel verwijdert dus wat ze moet verwijderen; de
-  bias-bewaker faalt omdat die non-events op dit cohort de onderschatting elders
-  compenseerden.
-- **Drempelveeg op de robuuste schaal** (events zonder gevolg-bevestiging, n = 1538, 2 %
-  NSRR-apneu-prevalentie… precisie/recall van "d_robuust ≥ τ" voor NSRR-apneu): τ 0,72
-  n = 746, precisie 0,63, recall 0,99; τ 0,80 n = 691, 0,66 / 0,96; τ 0,85 n = 529, 0,68 /
-  0,76; τ 0,90 n = 247, 0,70 / 0,36. Op de robuuste schaal is 0,80–0,85 het knikpunt;
-  dat is afgeleid op deze 140 nachten en dus geen validatie.
+- **Wat vervalt, is bijna nooit een event:** 793 vervallen alleen-druk-events matchen in
+  1–8 % een NSRR-apneu en in 7–34 % enig event; de 408 vervallen alleen-thermistor-events in
+  2,5 % / 6,4 %. In totaal vervallen 1201 events. De regel verwijdert dus wat ze moet
+  verwijderen; de bias-bewaker faalt omdat die non-events op dit cohort de onderschatting
+  elders compenseerden.
+- **Drempelveeg op de robuuste schaal** (post-hoc; veegset = de thermistor-bevestigde
+  plus de vervallen alleen-druk-events met een robuuste waarde, n = 1471, waarvan 474
+  (32 %) een NSRR-apneu; precisie/recall van "d_robuust ≥ τ"): τ 0,72 n = 746, 0,63 /
+  0,99; τ 0,80 n = 691, 0,66 / 0,96; τ 0,85 n = 529, 0,68 / 0,76; τ 0,90 n = 247, 0,70 /
+  0,36. **Grotendeels circulair:** 459 van de 474 positieven haalden al ≥ 0,72 op de
+  bibliotheekschaal, en de robuuste maat ligt per constructie boven de bibliotheekmaat;
+  de recall 0,99 bij 0,72 en het "knikpunt" 0,80–0,85 zijn dus eigenschappen van de
+  schaalverhouding op een voorgeselecteerde set, geen afleiding van een drempel.
 - Boekhouding: 8 "pending"-events bleven staan (fase 2 niet bereikt op die nachten — klein
   lek, te repareren) en 1 event zonder thermistordaling.
 
 ## 5. Lezing en wat eruit volgt
-1. De **voorwaardelijke vereniging** haalt haar vooraf vastgelegde regel niet (bias) en blijft
-   uit. Ze doet wél wat de diagnostiek van stap 1 voorspelde: ze verwijdert non-events en
-   bevestigt echte apneus via de thermistor. Wie haar wil, moet de regel op bias of MAE
-   herformuleren vóór een nieuwe meting — niet achteraf.
+1. De **voorwaardelijke vereniging** haalt haar vooraf vastgelegde regel niet (ΔF1-mediaan
+   nul én bias-bewaker) en blijft uit. Ze doet wél wat de diagnostiek van stap 1
+   voorspelde: ze verwijdert non-events en bevestigt echte apneus via de thermistor. Wie
+   haar wil, heeft een andere regel nodig (MAE of ernstklasse als maat, en de
+   thermistor-only-tak expliciet) vóór een nieuwe meting — niet achteraf.
 2. **`breath_dual` als standaard** staat op MESA: gelijke F1 als `breath`, bias gehalveerd,
    gelijk aan 0.17.0. Het eigen-PSG-risico (thermistor-goedgekeurde nachten) blijft een
    vraag voor de EC-studie.
@@ -126,8 +146,21 @@ NSRR-events (IoU ≥ 0,20): klasse op de thermistordaling van de bibliotheekmaat
    het *behoud* is de logische volgende knop — als nieuwe preregistratie.
 
 ## 6. Rekenkundige metadata
-Twintig workers, ~65 min per ronde van 20 nachten; de eerste nacht kwam na 62 min. Machine
-bevroren 01:46 (package-temperatuur piek 82 °C om 01:19, 110 metingen ≥ 78 °C, bewaker op
-81 °C vuurde nooit; RAM tussen 01:00 en 01:20 vol door verweesde baseline-workers, daarna
-48 GB vrij), herstart met checkpoint. Hervatting 's avonds met 17 workers en bewaker op
-78/66 °C: geen pauze. Geen nacht met fout.
+Twintig workers; looptijd per ronde en RAM-verloop zijn achteraf niet verifieerbaar
+(run.log wordt per herstart overschreven, de checkpoints dragen geen tijdstempel). Machine
+bevroren 01:46 (package-temperatuur piek 82 °C om 01:19, 110 metingen ≥ 78 °C, 5 × ≥ 81
+maar nooit drie op rij, dus de 81-bewaker vuurde terecht niet; mijn waarneming van vol RAM
+rond 01:00–01:20 door verweesde baseline-workers staat alleen in het sessielogboek).
+Hervatting 07:10 duurde 7 min zonder nacht (machine daarna uit), hervatting 19:51 met
+17 workers en de bewaker handmatig op 78/66 °C (`run.sh` codeert nog 81/68): **piek
+83 °C om 20:15**, max twee metingen op rij ≥ 78, geen pauze. Geen nacht met fout.
+
+## 7. Verificatie
+Onafhankelijk nagerekend (meting-verificatie, 08-10) uit mesa.json, posthoc_per_event.jsonl,
+thermal.log en git: alle cijfers van §1–§3, de cohorttrekking, de per-event-tabellen en de
+drempelveeg-waarden reproduceren. Verwerkt: regel 1 faalt óók op de ΔF1-mediaan (0,000);
+de thermistor-only-tak (408 vervallen, 0,57 /u van de bias-verschuiving; 1224 ongemoeid);
+veegset n = 1471 met 32 % prevalentie en de circulariteit van de veeg; tabelbron
+(bibliotheekwaarden 1582/2012); kalibratienachten deels niet reproduceerbaar; avondpiek
+83 °C en de mislukte hervatting van 07:10; git-sha/dirty-vlag in de meta; looptijd- en
+RAM-claims als niet verifieerbaar gemarkeerd; CHANGELOG aangevuld met de MESA-cijfers.

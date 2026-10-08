@@ -78,6 +78,16 @@ worden `flow_channels` (poortlog), `dual_sensor_apnea` en per apneu
 sensorherkomst/bevestiging/thermistordaling/desaturatie weggeschreven.
 Preregistratie en meting: `docs/breath_dual_mesa_preregistratie_20261007.md`.
 
+**Gemeten 07/08-10-2026 op MESA n=140 (`docs/breath_dual_mesa_20261007.md`) en NIET
+gepromoveerd:** `breath_dual+conf@0,50` tegen `breath_dual@0,50` gepaarde ΔF1 mediaan 0,000
+(gemiddeld +0,007; beter 62, slechter 19, gelijk 59; p = 1,1e-6), AHI-bias −4,30 tegen
+−2,74 /u (bewaker ≤ 1,0 /u gefaald), MAE 8,34 tegen 9,18, ernstklasse 82 tegen 78 van 140.
+Per event: thermistor-bevestigde druk-apneus (678) zijn in 68 % een NSRR-apneu; de
+vervallen events (793 alleen-druk + 408 alleen-thermistor) in 1–8 %. De vlag blijft
+opt-in, default None. Zelfde run: `breath_dual` = `breath` op F1 (p = 0,84) met bias −2,74
+tegen −5,66; `hypopnea_strictness` 0,30 onder `breath_dual` ΔF1 +0,029 (113/25,
+p = 1e-16), bias +0,52.
+
 # Unreleased — kandidaatpoort voor de Rule-1A-arousaltak (default uit, gemeten, niet gepromoveerd)
 
 **Gedragsidentiek zolang de velden None blijven** (golden 9/9). Nieuw op
