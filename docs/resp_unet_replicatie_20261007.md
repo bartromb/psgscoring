@@ -203,3 +203,22 @@ bereik op PSG-IPA (+1,0 tot +2,8), scoorderduur 14,4–26,5 s, vier GPU/CPU-gren
 de orakelcurve over τ (§9). Niet exact verifieerbaar: de "drukdaling 0,77" van de
 SN1-kenmerken (omhullende-definitie niet in het verslag; eigen herberekening 0,71, zelfde
 rangorde); de consensus-telling op SN5 wijkt ±1 event af.
+
+## 9. Orakelcurve over τ (informatief, zoals de preregistratie belooft; geen regel)
+Zelfde bevroren model, drempel gevarieerd ná de hoofdmeting; τ 0,20 blijft het
+gerapporteerde werkpunt.
+
+| τ | SHHS1 F1 mediaan | gepoold | count-ratio | AHI-bias | PSG-IPA SN1 / SN2 / SN3 / SN4 / SN5 (scoorder-mediaan F1) |
+|---|---:|---:|---:|---:|---|
+| 0,15 | 0,521 | 0,654 | 1,00 | +0,22 | 0,486 / 0,523 / 0,884 / 0,440 / 0,581 |
+| **0,20** | **0,583** | 0,650 | 0,91 | −1,37 | 0,486 / 0,557 / 0,882 / 0,471 / 0,580 |
+| 0,25 | 0,506 | 0,647 | 0,77 | −2,89 | 0,544 / 0,565 / 0,861 / 0,461 / 0,585 |
+| 0,30 | 0,491 | 0,635 | 0,65 | −4,41 | 0,553 / 0,578 / 0,848 / 0,416 / 0,592 |
+| 0,35 | 0,449 | 0,615 | 0,55 | −5,76 | 0,566 / 0,540 / 0,835 / 0,426 / 0,546 |
+
+Op SHHS1 is de gepoolde F1 vlak (0,62–0,65) en is τ 0,15 tellingsneutraal (ratio 1,00,
+bias +0,2); de mediaan piekt op het vooraf gekozen 0,20. Op PSG-IPA wisselt de rangorde per
+nacht: SN1 wint bij strenger τ (0,49 → 0,57, minder overtelling), SN3 verliest (0,88 →
+0,84). Geen drempel maakt de 4/5-regel goed (bij 0,25–0,30 blijft SN3 onder `breath_dual`
+en SN1 ook) — de SN1-fout is niet met τ te repareren, wat de hybride-poortlezing in §6
+ondersteunt.
