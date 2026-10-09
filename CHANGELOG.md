@@ -7,8 +7,10 @@ verschilmeting op 20 eigen PSG's (`docs/breath_vs_breath_dual_eigen_psg_20261007
 liet zien dat `aasm_v3_breath_dual` via zijn twee extra schakelaars ook RDI/RERA/FRI
 (18/20) en de ventilatoire last (5/20) verplaatst. `_with_dual_apneas(..., pure=True)`;
 registry 21 → 22; `aasm_v3_breath_dual` zelf is ongewijzigd (test
-`test_v1_still_carries_its_four_switches`). Beoogd en te meten: AHI gelijk aan
-`breath_dual`, RDI en ventilatoire last gelijk aan `breath`.
+`test_v1_still_carries_its_four_switches`). **Gemeten 08/09-10 op 12 MESA-nachten
+(`docs/breath_dual_v2_20261008.md`): v2 is op AHI, RDI, F1 en apneutelling 12/12 identiek
+aan `breath_dual` — de RDI-verschuiving komt van de vereniging zelf, niet van de twee
+neven-schakelaars. Doel niet gehaald; profiel blijft exploratory, default uit.**
 
 # Unreleased — bevroren U-Net-arousaldetector `unet_v1` (opt-in, default lgbm)
 

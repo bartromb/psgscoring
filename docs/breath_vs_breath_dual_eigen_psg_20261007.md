@@ -70,6 +70,13 @@ Datum: 2026-10-07. Preregistratie `docs/breath_vs_breath_dual_eigen_psg_preregis
 
 ## Buiten de AHI: RDI, RERA, FRI en ventilatoire last verschuiven wél, en niet altijd omhoog
 
+> **Correctie 09-10-2026:** de toeschrijving van de RDI-verschuiving aan de twee neven-schakelaars
+> is op MESA weerlegd — een profiel met alleen de vereniging (`aasm_v3_breath_dual_v2`) geeft op
+> 12/12 nachten dezelfde RDI als `breath_dual`, niet die van `breath`
+> (`docs/breath_dual_v2_20261008.md`). De RDI beweegt door de vereniging zelf (meer apneus in
+> de eventlijst → andere RERA/FRI-kandidaten). Voor de ventilatoire last blijft de toeschrijving
+> aan `flow_reference` open.
+
 Post-hoc, buiten de vooraf vastgelegde lezing (die ging alleen over AHI, events en ernstklasse); gevonden door de onafhankelijke verificatie. De andere drie schakelaars van `_with_dual_apneas` werken hier door: omdat de thermistor onder `breath_dual` nooit wordt verworpen, draait de primaire pas op de thermistor en komt de lijst afgewezen hypopneeën — de bron van FRI en RERA en dus van de RDI — van een andere sensor dan onder `breath` (waar de poort op 15/20 de druk kiest). En `flow_reference="hypopnea"` legt het referentiesignaal voor sweep, anker, arousal-analyse, CSR en ventilatoire last op de druk, terwijl `breath` bij poort-aan de thermistor als referentie neemt — vandaar de VB-sprong op precies de 5 poort-aan-nachten.
 
 | R | RDI breath → dual | ΔRDI | RERA | FRI | ventilatoire last (%) |
