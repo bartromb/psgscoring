@@ -27,7 +27,10 @@ def cohort(naam, profielen):
     rows = {r["rec"]: r for r in json.load(open(d / "rows.json")) if "f1" in r}
     base = {}
     for l in (d / "baseline_log.jsonl").read_text().splitlines() if (d / "baseline_log.jsonl").exists() else []:
-        j = json.loads(l)
+        try:
+            j = json.loads(l)
+        except json.JSONDecodeError:          # halve regel na een bevriezing (08-10 21:48)
+            continue
         if "rec" in j and "error" not in j:
             if j["rec"] in base:                       # meerdere runs (bv. mesa_shhs post-hoc) samenvoegen
                 base[j["rec"]]["profiles"].update(j.get("profiles", {}))
@@ -46,13 +49,15 @@ def cohort(naam, profielen):
         paren = []
         for rec, r in rows.items():
             fb = d / f"{rec}_base_{prof}.csv"
-            if not fb.exists() or rec not in base:
+            if not fb.exists():
                 continue
             ref = lees(d / f"{rec}_ref.csv"); pb = lees(fb); pu = lees(d / f"{rec}.csv")
             f1b, *_ = f1_of(pb, ref); f1u_, *_ = f1_of(pu, ref)
             if f1b is None or f1u_ is None:
                 continue
-            ahi_b = base[rec]["profiles"][prof]["ahi"]
+            ahi_b = ((base.get(rec) or {}).get("profiles") or {}).get(prof, {}).get("ahi")
+            if ahi_b is None:                 # hervatte run sloeg een bestaand CSV over: AHI uit de eventlijst
+                ahi_b = len(pb) / r["tst_h"] if r.get("tst_h") else None
             paren.append({"rec": rec, "f1_u": f1u_, "f1_b": f1b, "d": f1u_ - f1b, "ref_ahi": r["ahi_ref"], "bias_u": r["ahi_pred"] - r["ahi_ref"],
                           "bias_b": (ahi_b - r["ahi_ref"]) if ahi_b is not None else None, "n_ref": r["n_ref"]})
         if not paren:
