@@ -200,7 +200,10 @@ SHHS1-biases van `rec` en `mesa_shhs` (drie `NEWAIR`-nachten tellen als nul); de
 kanaaltoewijzing op SHHS1 (zelfde kanaal op 102/150; regel houdt zonder de 5 afwijkende
 nachten); `mesa_shhs` vindt 25 events, niet 11–17; typebewuste F1; post-hoc-labels; AHI-
 bereik op PSG-IPA (+1,0 tot +2,8), scoorderduur 14,4–26,5 s, vier GPU/CPU-grenzen 0,125 s;
-de orakelcurve over τ (§9). Niet exact verifieerbaar: de "drukdaling 0,77" van de
+de orakelcurve over τ (§9; de eerste versie stond op een onbedoelde tweede set — §10 —
+en is op de hoofdset opnieuw gemeten en apart geverifieerd: alle cijfers repliceren;
+verwerkt: kopieën per set gelabeld, niveau-opmerking set 2, looptijd/bewaker). Niet exact
+verifieerbaar: de "drukdaling 0,77" van de
 SN1-kenmerken (omhullende-definitie niet in het verslag; eigen herberekening 0,71, zelfde
 rangorde); de consensus-telling op SN5 wijkt ±1 event af.
 
@@ -238,10 +241,15 @@ replicatie van de primaire regel, met de kanaalkanttekening uit §3 weggenomen:
 | `aasm_v3_rec` (nieuwe kaart) | 0,100 | +0,344 / +0,348 | 144 / 4 | 9,6e-26 | −10,87 | +0,26 / +0,36 / +0,43 |
 | `aasm_v3_breath` (nieuwe kaart) | 0,231 | +0,247 / +0,236 | 139 / 10 | 3,7e-24 | −9,77 | +0,18 / +0,25 / +0,28 |
 
-Alle vier de onderdelen van de primaire regel opnieuw gehaald.
+Alle vier de onderdelen van de primaire regel opnieuw gehaald. Wat set 2 níet repliceert is
+het niveau: de U-Net-mediaan zakt van 0,583 naar 0,523 (gepoold gelijk, 0,650 tegen 0,655;
+count-ratio gelijk), door een zwaardere lage-AHI-staart in set 2 (62 i.p.v. 50 nachten onder
+AHI 9,1; mediaan F1 daar 0,33 tegen 0,38). De regel repliceert, het getal 0,58 niet.
 
 **Gepaard op de hoofdset, oude tegen gecorrigeerde kaart** (`out/shhs1` tegen
-`out/shhs1_therm`, zelfde 150 nachten, 09-10 22:00–22:45, 8 workers met turbo uit):
+`out/shhs1_therm`, zelfde 150 nachten, 09-10 21:58–22:51, 8 workers met turbo uit; de
+thermische bewaker viel na 30 s af, de run zelf is compleet; op de 124 nachten met gelijk
+kanaal zijn oude en nieuwe uitvoer byte-identiek, dus de vergelijking is zuiver):
 
 | profiel | F1 mediaan oud → nieuw | ΔF1 mediaan / gemiddeld | beter / slechter / gelijk | p | events per nacht oud → nieuw (NSRR 77) |
 |---|---:|---:|---:|---:|---:|
@@ -253,5 +261,6 @@ niets, en waar wel, blijft de regelketen op een zesde van de NSRR-telling. De bl
 zit in de detector zelf (de 0,90-grens op een thermokoppel, de hypopneeroute op een
 sensor zonder neusdruk) en verdient een eigen dossier; de kanttekening in §3 over
 "102/150 zelfde kanaal" raakt de conclusie niet. Cijfers:
-`/srv/CODE/docs/resp_unet_20261007/shhs1_set1_kanaalkaart_gepaard.json`,
-`shhs1_set2_gepaard.json`, `shhs1_kanaalkaart_vergelijking.json`.
+`/srv/CODE/docs/resp_unet_20261007/shhs1_set1_kanaalkaart_gepaard.json` en
+`shhs1_set2_gepaard.json`; de ruwe kopieën daar zijn per set gelabeld (`shhs1_set1_*`,
+`shhs1_set2_*`).
