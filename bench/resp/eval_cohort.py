@@ -74,6 +74,8 @@ def main():
                     help="ablatie: kanaalindexen op nul, bv. '0' (druk), '1' (thermistor), '4' (spo2), '2,3' (effort)")
     ap.add_argument("--tag", default=""); ap.add_argument("--cpu", action="store_true"); ap.add_argument("--threads", type=int, default=4)
     ap.add_argument("--limit", type=int, default=None, help="alleen de eerste n nachten (rookproef)")
+    ap.add_argument("--ids-file", default=None, help="vaste lijst nachten (shhs1); zonder dit wordt een bestaande out/<cohort>/ids.txt hergebruikt en NOOIT opnieuw getrokken")
+    ap.add_argument("--out-name", default=None, help="uitvoermap onder out/ (default: de cohortnaam)")
     a = ap.parse_args()
     dev = torch.device("cpu" if a.cpu or not torch.cuda.is_available() else "cuda")
     if a.cpu:
@@ -82,16 +84,24 @@ def main():
     model = UNet1D(**ck["config"]).to(dev); model.load_state_dict(ck["state_dict"]); model.eval()
     thr = float(a.thr) if a.thr is not None else float(ck["thr"])
     zero = tuple(int(z) for z in a.zero.split(",") if z.strip())
-    out = OUT / a.cohort; out.mkdir(parents=True, exist_ok=True)
+    out = OUT / (a.out_name or a.cohort); out.mkdir(parents=True, exist_ok=True)
     tag = a.tag or (f"_zero{a.zero.replace(',', '')}" if zero else "")
     log = out / f"log{tag}.jsonl"
     with log.open("a") as fh:
         fh.write(json.dumps({"start": time.strftime("%Y-%m-%d %H:%M:%S"), "model_sha256": sha256(MODEL), "thr": thr,
                              "ck_thr": ck.get("thr"), "ck_epoch": ck.get("epoch"), "zero": zero, "device": str(dev)}) + "\n")
     if a.cohort == "shhs1":
-        ids = shhs1_fresh(a.n, a.seed)
-        (out / "ids.txt").write_text("\n".join(ids) + "\n")
-        print("register:", register_shhs(ids, "## resp-U-Net replicatie 2026-10-07 — 150 verse shhs1-nachten, seed 20261007"), flush=True)
+        # 09-10: een tweede aanroep trok stilzwijgend een NIEUWE verse set (de eerste stond al in het
+        # register) en overschreef ids.txt. Daarom: vaste lijst, of een bestaande ids.txt hergebruiken.
+        if a.ids_file:
+            ids = Path(a.ids_file).read_text().split()
+        elif (out / "ids.txt").exists():
+            ids = (out / "ids.txt").read_text().split()
+            print(f"ids hergebruikt uit {out / 'ids.txt'} ({len(ids)})", flush=True)
+        else:
+            ids = shhs1_fresh(a.n, a.seed)
+            (out / "ids.txt").write_text("\n".join(ids) + "\n")
+            print("register:", register_shhs(ids, f"## resp-U-Net {a.out_name or 'replicatie'} {time.strftime('%Y-%m-%d')} — {len(ids)} verse shhs1-nachten, seed {a.seed}"), flush=True)
         loader = load_shhs_night
     elif a.cohort == "mesa_val":
         ids = (HIER / "ids_val.txt").read_text().split(); loader = load_mesa_night
