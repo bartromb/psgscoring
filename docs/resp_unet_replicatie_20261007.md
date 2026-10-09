@@ -8,7 +8,7 @@ op MESA-val), kopie `/srv/CODE/docs/resp_unet_20261007/model_frozen_39b1c095.pt`
 uitvoer in diezelfde map (rows-JSON's per cohort, ids, consensus-diagnostiek). Werkpunt
 τ = 0,20 (uit de checkpoint; MESA-val vlak 0,79 over τ 0,15–0,30).
 
-**Status: STATUS_PLACEHOLDER**
+**Status: primaire regel (SHHS1) GEHAALD tegen alle baselines; PSG-IPA-regel NIET gehaald (3/5); bewakers gehaald; niets ingebouwd, geen beslissing — zie §6.**
 
 ## 1. Training (geen bewijs, keuzeset)
 399 MESA-trainingsnachten / 100 validatienachten buiten de standaard-n150-set en buiten de
@@ -23,7 +23,20 @@ baseline er is.
 ## 2. MESA-validatienachten (keuzeset, beschrijvend)
 U-Net n=100: F1 mediaan 0,753 (p25 0,653), gepoold 0,795, count-ratio mediaan 1,02,
 AHI-bias gemiddeld +0,10 /u. Gepaard tegen psgscoring `aasm_v3_breath_dual@0,50` en `rec`
-op dezelfde nachten: MESAVAL_BASELINE_PLACEHOLDER
+op dezelfde nachten (psgscoring op het NSRR-hypnogram, artefact-epochs leeg; 17 van de
+200 baseline-nachten na de bevriezing van 08-10 21:48 hervat, AHI daar uit de eventlijst):
+
+| | F1 mediaan | F1 gepoold | ΔF1 mediaan / gemiddeld | beter / slechter | p | AHI-bias gemiddeld | ΔF1 per tertiel |
+|---|---:|---:|---:|---:|---:|---:|---|
+| U-Net | 0,753 | 0,795 | | | | +0,10 | |
+| `aasm_v3_breath_dual` | 0,511 | 0,579 | +0,215 / +0,232 | 98 / 2 | 4,0e-17 | −5,08 | +0,30 / +0,20 / +0,20 |
+| `aasm_v3_rec` | 0,352 | 0,448 | +0,344 / +0,349 | 97 / 3 | 8,3e-18 | −9,97 | +0,33 / +0,33 / +0,39 |
+
+Bewaker (a), variantie: de seeds 20261008 en 20261009 halen gepoold 0,794 en 0,793 tegen
+0,579 voor `breath_dual` — elk +0,21, ruim boven de +0,05 die de preregistratie eist.
+Dit is de keuzeset (het werkpunt en het vroegtijdig stoppen zijn hierop gekozen), dus
+géén bewijs; het laat wél zien dat het verschil met de regelketen op MESA niet aan één
+trainingsrun hangt.
 
 **Ablaties (MESA-val, kanaal op nul bij inferentie):**
 
@@ -127,7 +140,29 @@ hypnogram:
   koppeling per event; menselijk plafond alleen op PSG-IPA.
 
 ## 6. Lezing
-LEZING_PLACEHOLDER
+1. **Beslissend cohort (SHHS1, 150 verse nachten, thermokoppel-only): regel gehaald** tegen
+   `rec`, `breath` en post-hoc `mesa_shhs` — maar op een cohort waar de regelketen zelf
+   vrijwel niets vindt (F1 0,08–0,20, AHI-bias −10). De winst is dus vooral "het model kan
+   een thermokoppel-montage aan en de regels niet", en de absolute kwaliteit (F1 0,58) is
+   lager dan op MESA met neusdruk (0,75).
+2. **MESA-val (keuzeset): +0,22 F1 tegen `breath_dual` op 98 van 100 nachten**, bias +0,1
+   tegen −5,1 /u, stabiel over drie seeds. Dat is de grootste afstand tot de regelketen
+   die in dit project ooit is gemeten, maar het blijft de set waarop τ gekozen is.
+3. **PSG-IPA (12 scoorders, onze eigen referentie): regel NIET gehaald.** Winst op de drie
+   lichte nachten tot op het menselijk plafond, verlies op SN1 (0,49 tegen 0,68) en SN3.
+   Het SN1-mechanisme is precies benoemd: diepe drukdalingen zonder desaturatie die geen
+   scoorder scoort, omdat het model geen EEG ziet en zonder arousal-/desaturatiepoort elke
+   diepe daling meetelt. Op MESA/SHHS valt dat niet op omdat de NSRR-scoorder dezelfde
+   neiging heeft; op PSG-IPA wel.
+4. **Afhankelijkheid van SpO2** (zonder: F1 0,39) en een lege apneukop op druk-alleen-
+   montages: het model levert een AHI, geen apneu/hypopneu-verdeling.
+5. **Gevolg volgens de preregistratie:** het SHHS1-criterium is gehaald en het PSG-IPA-
+   criterium niet. De preregistratie koppelde de bouwstap aan "slagen"; dat is hier half.
+   Mijn lezing: **niet inbouwen als zelfstandige detector**, wél als kandidaatgenerator in
+   een hybride keten waarin de regels de poort vormen (desaturatie- en arousalkoppeling,
+   minimumduur, subtypering) — dat dicht het SN1-gat per constructie en houdt elk event
+   verklaarbaar. Dat vraagt een nieuwe preregistratie met PSG-IPA als beslissend cohort
+   (de 4/5-regel opnieuw) en de DUA-vraag beantwoord vóór enige release. Bart beslist.
 
 ## 7. Wat dit niet is
 Geen bibliotheekcode, niets uitgerold, geen beslissing. De DUA-vraag (gewichten uit
