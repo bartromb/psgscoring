@@ -26,9 +26,25 @@ PSGIPA = Path("/srv/DATA/PSG-IPA/Resp_events/PSG")
 PSGIPA_HYPNO = Path("/srv/CODE/docs/arousal_unet_20260927/out/psgipa")   # zelfde hypnogram als de U-Net-evaluatie
 
 
+def _shhs_cmap_therm(edf):
+    """Post-hoc dossier 09-10: het thermokoppel op de THERMISTORPLAATS, met de drie naamvarianten
+    (NEW AIR / NEWAIR / AIRFLOW; bij dubbele namen de eerste), i.p.v. alleen 'NEW AIR' op de drukplaats."""
+    import mne
+    names = mne.io.read_raw_edf(str(edf), preload=False, verbose=False).ch_names
+    air = next((c for c in names if c.upper().replace(" ", "") in ("NEWAIR",)), None) or \
+          next((c for c in names if c.upper().startswith("AIRFLOW")), None)
+    m = {"thorax": "THOR RES", "abdomen": "ABDO RES"}
+    if air:
+        m["flow_thermistor"] = air
+    return m
+
+
 def paden(cohort, rec):
     if cohort == "shhs1":
         return SHHS / "edfs/shhs1" / f"{rec}.edf", SHHS / "annotations-events-nsrr/shhs1" / f"{rec}-nsrr.xml", SHHS_CMAP
+    if cohort == "shhs1_therm":
+        edf = SHHS / "edfs/shhs1" / f"{rec}.edf"
+        return edf, SHHS / "annotations-events-nsrr/shhs1" / f"{rec}-nsrr.xml", _shhs_cmap_therm(edf)
     if cohort == "psgipa":
         return PSGIPA / f"{rec}_Respiration.edf", PSGIPA_HYPNO / f"{rec}_hypno.json", None
     return MESA / "edfs" / f"{rec}.edf", MESA / "annotations-events-nsrr" / f"{rec}-nsrr.xml", None
@@ -72,11 +88,11 @@ def een(werk):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--cohort", required=True, choices=["shhs1", "mesa_val", "psgipa"])
+    ap.add_argument("--cohort", required=True, choices=["shhs1", "shhs1_therm", "mesa_val", "psgipa"])
     ap.add_argument("--profiles", nargs="+", default=["aasm_v3_rec", "aasm_v3_breath"])
     ap.add_argument("--workers", type=int, default=20); ap.add_argument("--force", action="store_true"); ap.add_argument("--limit", type=int, default=None)
     a = ap.parse_args()
-    ids = ((OUT / a.cohort / "ids.txt").read_text().split() if a.cohort == "shhs1"
+    ids = ((OUT / "shhs1" / "ids.txt").read_text().split() if a.cohort in ("shhs1", "shhs1_therm")
            else ["SN1", "SN2", "SN3", "SN4", "SN5"] if a.cohort == "psgipa" else (HIER / "ids_val.txt").read_text().split())
     if a.limit:
         ids = ids[: a.limit]
