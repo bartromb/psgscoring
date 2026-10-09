@@ -204,26 +204,42 @@ de orakelcurve over τ (§9). Niet exact verifieerbaar: de "drukdaling 0,77" van
 SN1-kenmerken (omhullende-definitie niet in het verslag; eigen herberekening 0,71, zelfde
 rangorde); de consensus-telling op SN5 wijkt ±1 event af.
 
-## 9. Orakelcurve over τ (informatief, zoals de preregistratie belooft; geen regel)
-**Correctie 09-10 22:10:** de τ-runs hieronder (0,15 / 0,25 / 0,30 / 0,35) draaiden door een
-fout in `eval_cohort.py` op een **tweede, onbedoeld getrokken set van 150 verse
-SHHS1-nachten** (de eerste stond al in het register, dus de trekking sloeg hem over en
-overschreef `ids.txt`); alleen de rij τ 0,20 is de hoofdset. De SHHS1-kolommen zijn dus geen
-curve op dezelfde nachten; de PSG-IPA-kolommen wel. De tweede set is alsnog geregistreerd,
-de script-fout hersteld (vaste id-lijst), en de curve wordt op de hoofdset opnieuw gedraaid
-(zie §10 zodra klaar). τ 0,20 blijft het gerapporteerde werkpunt.
+## 9. Orakelcurve over τ op de hoofdset (informatief, zoals de preregistratie belooft; geen regel)
+Zelfde bevroren model, drempel gevarieerd ná de hoofdmeting, **op dezelfde 150 nachten als
+§3** (hermeting 09-10 22:00 na de fout in §9-oud: de eerste curve stond op een tweede,
+onbedoeld getrokken set — zie §10). τ 0,20 blijft het gerapporteerde werkpunt.
 
 | τ | SHHS1 F1 mediaan | gepoold | count-ratio | AHI-bias | PSG-IPA SN1 / SN2 / SN3 / SN4 / SN5 (scoorder-mediaan F1) |
 |---|---:|---:|---:|---:|---|
-| 0,15 | 0,521 | 0,654 | 1,00 | +0,22 | 0,486 / 0,523 / 0,884 / 0,440 / 0,581 |
-| **0,20** | **0,583** | 0,650 | 0,91 | −1,37 | 0,486 / 0,557 / 0,882 / 0,471 / 0,580 |
-| 0,25 | 0,506 | 0,647 | 0,77 | −2,89 | 0,544 / 0,565 / 0,861 / 0,461 / 0,585 |
-| 0,30 | 0,491 | 0,635 | 0,65 | −4,41 | 0,553 / 0,578 / 0,848 / 0,416 / 0,592 |
-| 0,35 | 0,449 | 0,615 | 0,55 | −5,76 | 0,566 / 0,540 / 0,835 / 0,426 / 0,546 |
+| 0,15 | **0,591** | 0,653 | 1,00 | +0,61 | 0,486 / 0,523 / 0,884 / 0,440 / 0,581 |
+| 0,20 | 0,583 | 0,650 | 0,91 | −1,37 | 0,486 / 0,557 / 0,882 / 0,471 / 0,580 |
+| 0,25 | 0,570 | 0,643 | 0,81 | −2,87 | 0,544 / 0,565 / 0,861 / 0,461 / 0,585 |
+| 0,30 | 0,546 | 0,626 | 0,69 | −4,39 | 0,553 / 0,578 / 0,848 / 0,416 / 0,592 |
+| 0,35 | 0,497 | 0,599 | 0,55 | −5,86 | 0,566 / 0,540 / 0,835 / 0,426 / 0,546 |
 
-Op SHHS1 is de gepoolde F1 vlak (0,62–0,65) en is τ 0,15 tellingsneutraal (ratio 1,00,
-bias +0,2); de mediaan piekt op het vooraf gekozen 0,20. Op PSG-IPA wisselt de rangorde per
-nacht: SN1 wint bij strenger τ (0,49 → 0,57, minder overtelling), SN3 verliest (0,88 →
-0,84). Geen drempel maakt de 4/5-regel goed (bij 0,25–0,30 blijft SN3 onder `breath_dual`
-en SN1 ook) — de SN1-fout is niet met τ te repareren, wat de hybride-poortlezing in §6
-ondersteunt.
+Op SHHS1 is de gepoolde F1 vlak (0,60–0,65); τ 0,15 is daar tellingsneutraal (ratio 1,00,
+bias +0,6) en heeft de hoogste mediaan (0,591), τ 0,20 zit er 0,008 onder — het op MESA-val
+gekozen werkpunt is op SHHS1 dus licht te streng. Op PSG-IPA wisselt de rangorde per nacht:
+SN1 wint bij strenger τ (0,49 → 0,57, minder overtelling), SN3 verliest (0,88 → 0,84). Geen
+drempel maakt de 4/5-regel goed (bij 0,25–0,30 blijven SN3 en SN1 onder `breath_dual`) —
+de SN1-fout is niet met τ te repareren, wat de hybride-poortlezing in §6 ondersteunt.
+
+## 10. Tweede verse SHHS1-set (onbedoeld, daarna benut; post-hoc)
+De fout in `eval_cohort.py` (hersteld in 70f913a) trok op 09-10 een tweede set van 150 verse
+SHHS1-nachten (geregistreerd als "onbedoelde tweede trekking"). Die set is alsnog volledig
+gemeten: U-Net op τ 0,20 en psgscoring `rec`/`breath` met de **gecorrigeerde kanaalkaart**
+(thermokoppel op de thermistorplaats, naamvarianten `NEW AIR`/`New Air`/`NEWAIR`/`AIRFLOW`,
+`bench/resp/baseline.py --cohort shhs1_therm`). Dat is een tweede, onafhankelijke
+replicatie van de primaire regel, met de kanaalkanttekening uit §3 weggenomen:
+
+| set 2, n=150 | F1 mediaan | ΔF1 mediaan / gemiddeld | beter / slechter | p | AHI-bias | ΔF1 per tertiel |
+|---|---:|---:|---:|---:|---:|---|
+| U-Net | 0,523 (gepoold 0,655, count-ratio 0,90) | | | | −1,41 | |
+| `aasm_v3_rec` (nieuwe kaart) | 0,100 | +0,344 / +0,348 | 144 / 4 | 9,6e-26 | −10,87 | +0,26 / +0,36 / +0,43 |
+| `aasm_v3_breath` (nieuwe kaart) | 0,231 | +0,247 / +0,236 | 139 / 10 | 3,7e-24 | −9,77 | +0,18 / +0,25 / +0,28 |
+
+Alle vier de onderdelen van de primaire regel opnieuw gehaald. De gecorrigeerde kaart tilt
+psgscoring nauwelijks (rec 0,100 tegen 0,081 op set 1 met de oude kaart; breath 0,231
+tegen 0,200): de blindheid van de regelketen op SHHS1 is geen kanaalartefact maar zit in
+de detector zelf (0,90-grens op een thermokoppel, hypopneeroute). De gepaarde
+oude-tegen-nieuwe-kaart-vergelijking op de hoofdset volgt als eigen dossier.
