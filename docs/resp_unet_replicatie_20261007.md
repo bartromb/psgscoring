@@ -238,8 +238,20 @@ replicatie van de primaire regel, met de kanaalkanttekening uit §3 weggenomen:
 | `aasm_v3_rec` (nieuwe kaart) | 0,100 | +0,344 / +0,348 | 144 / 4 | 9,6e-26 | −10,87 | +0,26 / +0,36 / +0,43 |
 | `aasm_v3_breath` (nieuwe kaart) | 0,231 | +0,247 / +0,236 | 139 / 10 | 3,7e-24 | −9,77 | +0,18 / +0,25 / +0,28 |
 
-Alle vier de onderdelen van de primaire regel opnieuw gehaald. De gecorrigeerde kaart tilt
-psgscoring nauwelijks (rec 0,100 tegen 0,081 op set 1 met de oude kaart; breath 0,231
-tegen 0,200): de blindheid van de regelketen op SHHS1 is geen kanaalartefact maar zit in
-de detector zelf (0,90-grens op een thermokoppel, hypopneeroute). De gepaarde
-oude-tegen-nieuwe-kaart-vergelijking op de hoofdset volgt als eigen dossier.
+Alle vier de onderdelen van de primaire regel opnieuw gehaald.
+
+**Gepaard op de hoofdset, oude tegen gecorrigeerde kaart** (`out/shhs1` tegen
+`out/shhs1_therm`, zelfde 150 nachten, 09-10 22:00–22:45, 8 workers met turbo uit):
+
+| profiel | F1 mediaan oud → nieuw | ΔF1 mediaan / gemiddeld | beter / slechter / gelijk | p | events per nacht oud → nieuw (NSRR 77) |
+|---|---:|---:|---:|---:|---:|
+| `aasm_v3_rec` | 0,081 → 0,100 | 0,000 / +0,016 | 15 / 6 / 129 | 0,019 | 11 → 13 |
+| `aasm_v3_breath` | 0,200 → 0,252 | 0,000 / +0,032 | 21 / 4 / 125 | 2,2e-5 | 16,5 → 18 |
+
+De kanaaltoewijzing verklaart dus vrijwel niets: op 125–129 van 150 nachten verandert er
+niets, en waar wel, blijft de regelketen op een zesde van de NSRR-telling. De blindheid
+zit in de detector zelf (de 0,90-grens op een thermokoppel, de hypopneeroute op een
+sensor zonder neusdruk) en verdient een eigen dossier; de kanttekening in §3 over
+"102/150 zelfde kanaal" raakt de conclusie niet. Cijfers:
+`/srv/CODE/docs/resp_unet_20261007/shhs1_set1_kanaalkaart_gepaard.json`,
+`shhs1_set2_gepaard.json`, `shhs1_kanaalkaart_vergelijking.json`.
