@@ -205,8 +205,13 @@ SN1-kenmerken (omhullende-definitie niet in het verslag; eigen herberekening 0,7
 rangorde); de consensus-telling op SN5 wijkt ±1 event af.
 
 ## 9. Orakelcurve over τ (informatief, zoals de preregistratie belooft; geen regel)
-Zelfde bevroren model, drempel gevarieerd ná de hoofdmeting; τ 0,20 blijft het
-gerapporteerde werkpunt.
+**Correctie 09-10 22:10:** de τ-runs hieronder (0,15 / 0,25 / 0,30 / 0,35) draaiden door een
+fout in `eval_cohort.py` op een **tweede, onbedoeld getrokken set van 150 verse
+SHHS1-nachten** (de eerste stond al in het register, dus de trekking sloeg hem over en
+overschreef `ids.txt`); alleen de rij τ 0,20 is de hoofdset. De SHHS1-kolommen zijn dus geen
+curve op dezelfde nachten; de PSG-IPA-kolommen wel. De tweede set is alsnog geregistreerd,
+de script-fout hersteld (vaste id-lijst), en de curve wordt op de hoofdset opnieuw gedraaid
+(zie §10 zodra klaar). τ 0,20 blijft het gerapporteerde werkpunt.
 
 | τ | SHHS1 F1 mediaan | gepoold | count-ratio | AHI-bias | PSG-IPA SN1 / SN2 / SN3 / SN4 / SN5 (scoorder-mediaan F1) |
 |---|---:|---:|---:|---:|---|
