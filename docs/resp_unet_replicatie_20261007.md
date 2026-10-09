@@ -188,3 +188,18 @@ hypnogram:
 Geen bibliotheekcode, niets uitgerold, geen beslissing. De DUA-vraag (gewichten uit
 MESA/SHHS verspreiden) is niet beantwoord. De vergelijking op PSG-IPA gebruikt het
 hypnogram van de arousal-replicatie (scoorder 1) voor alle drie de systemen.
+
+## 8. Verificatie
+Onafhankelijk nagerekend (meting-verificatie, 09-10) uit de CSV's met `bench/evaluate.py`,
+de scoordersets van PSG-IPA en de logs: prereg na de bevriezing van het model niet
+gewijzigd, elke evaluatie begon erna met de juiste sha; SHHS1-, PSG-IPA- en ablatiecijfers,
+seeds, CPU-tijden, registraties en de kopieën buiten git kloppen. Verwerkt: vijf lege
+baseline-CSV's op MESA-val uit de bevriezing (opnieuw berekend; ΔF1 tegen `breath_dual`
++0,207/+0,224 i.p.v. +0,215/+0,232, bias −4,95; tegen `rec` 0,366/0,459, −9,40); de
+SHHS1-biases van `rec` en `mesa_shhs` (drie `NEWAIR`-nachten tellen als nul); de
+kanaaltoewijzing op SHHS1 (zelfde kanaal op 102/150; regel houdt zonder de 5 afwijkende
+nachten); `mesa_shhs` vindt 25 events, niet 11–17; typebewuste F1; post-hoc-labels; AHI-
+bereik op PSG-IPA (+1,0 tot +2,8), scoorderduur 14,4–26,5 s, vier GPU/CPU-grenzen 0,125 s;
+de orakelcurve over τ (§9). Niet exact verifieerbaar: de "drukdaling 0,77" van de
+SN1-kenmerken (omhullende-definitie niet in het verslag; eigen herberekening 0,71, zelfde
+rangorde); de consensus-telling op SN5 wijkt ±1 event af.
