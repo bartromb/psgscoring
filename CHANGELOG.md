@@ -1,4 +1,29 @@
-# Unreleased — `aasm_v3_breath_dual_v2`: de zuivere vereniging (exploratory, default uit)
+# 0.35.0 — 2026-10-10
+
+Vier opt-in-uitbreidingen die al in `main` stonden (hieronder, elk met zijn meting) plus
+**twee gedragsveranderingen voor de klinische profielen, beide gebruikersbeslissing van
+09-10-2026 op grond van MESA n=140 (`docs/breath_dual_mesa_20261007.md`):**
+
+- **`hypopnea_strictness` 0,50 → 0,30 op `aasm_v3_breath`** (en via `replace()` op
+  `aasm_v3_breath_dual` en `_v2`; `aasm_v3_prob` blijft 0,50). Herijking 24-08 (kalibratie
+  n=15, validatie n=30: ΔF1 +0,035 op 26/30, bias −3,28 → −0,05) en replicatie 08-10 op 140
+  nachten: `breath` ΔF1 +0,030 (115/22, p = 2,7e-17), bias −5,66 → −2,21; `breath_dual`
+  ΔF1 +0,029 (113/25, p = 1,2e-16), bias −2,74 → +0,52, MAE 9,18 → 8,00, ernstklasse 78 → 83
+  van 140. **De AHI stijgt, vooral op lichte nachten** (bias laag tertiel +5,7 → +7,7 /u);
+  PSG-IPA repliceert zwak (+0,009, 3/5). De synthetische golden-case
+  `arousal_autodetect_breath` verandert er niet door (geen kandidaten tussen 0,30 en 0,50
+  op die data): golden 9/9 byte-identiek, de verschuiving is alleen op echte opnames
+  gemeten.
+- **`aasm_v3_breath_dual` naar de klinische familie** (was exploratory; weergavenaam zonder
+  "(experimental)"): productiestandaard sinds 07-10, op MESA n=140 F1 gelijk aan `breath`
+  (p = 0,84) met gehalveerde bias, dezelfde richting als op 0.17.0. Op de eigen PSG's
+  (07-10) verschilt de AHI alleen op nachten waar de thermistorpoort de thermistor
+  goedkeurt (R18 +37 /u); zonder menselijke referentie daar.
+
+Registry 22 profielen. Gedragsidentiek voor `aasm_v3_rec`, `mesa_shhs`, `chicago_1999` en
+alle overige profielen (golden 9/9 byte-identiek).
+
+## `aasm_v3_breath_dual_v2`: de zuivere vereniging (exploratory, default uit)
 
 Nieuw profiel, afgeleid van `aasm_v3_breath` met ALLEEN `dual_sensor_apnea=True` en
 `dual_sensor_corroboration=False`; poort (`envelope_agreement`, blokkerend) en
@@ -12,7 +37,7 @@ registry 21 → 22; `aasm_v3_breath_dual` zelf is ongewijzigd (test
 aan `breath_dual` — de RDI-verschuiving komt van de vereniging zelf, niet van de twee
 neven-schakelaars. Doel niet gehaald; profiel blijft exploratory, default uit.**
 
-# Unreleased — bevroren U-Net-arousaldetector `unet_v1` (opt-in, default lgbm)
+## Bevroren U-Net-arousaldetector `unet_v1` (opt-in, default lgbm)
 
 **Gedragsidentiek zolang `arousal_detector` "lgbm" blijft** (default op alle 21
 profielen, golden 9/9). Bouwt de replicatie van 27-09-2026 in
@@ -54,7 +79,7 @@ verse nachten arousal-F1 0,543 → 0,676 op 134/147, p = 2e-22; MESA-76
   breath/breath_dual-hypopneeën, RERA/RDI en `coupled_arousal` is nog niet
   gemeten (de replicatie voedde de externe ingang, die RERA overslaat).
 
-# Unreleased — voorwaardelijke vereniging van enkelsensor-apneus (opt-in, default uit)
+## Voorwaardelijke vereniging van enkelsensor-apneus (opt-in, default uit)
 
 **Gedragsidentiek zolang `dual_sensor_confirmation` None blijft** (golden 9/9,
 alle 21 profielen op None). Aanleiding: `aasm_v3_breath_dual` is op 07-10-2026
@@ -102,7 +127,7 @@ opt-in, default None. Zelfde run: `breath_dual` = `breath` op F1 (p = 0,84) met 
 tegen −5,66; `hypopnea_strictness` 0,30 onder `breath_dual` ΔF1 +0,029 (113/25,
 p = 1e-16), bias +0,52.
 
-# Unreleased — kandidaatpoort voor de Rule-1A-arousaltak (default uit, gemeten, niet gepromoveerd)
+## Kandidaatpoort voor de Rule-1A-arousaltak (default uit, gemeten, niet gepromoveerd)
 
 **Gedragsidentiek zolang de velden None blijven** (golden 9/9). Nieuw op
 `PostProcessingRules`: `rule1a_arousal_min_flow_reduction_pct`,

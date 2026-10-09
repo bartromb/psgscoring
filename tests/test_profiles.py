@@ -523,10 +523,17 @@ class TestDefaultProfile:
         assert p.post_processing.hypopnea_detector != "breath_graded"
 
     def test_breath_profile_operating_point_is_pinned(self):
-        """Niet stilzwijgend wijzigen — zie de toelichting in profiles.py."""
+        """Niet stilzwijgend wijzigen — zie de toelichting in profiles.py.
+
+        0,50 → 0,30 in v0.35.0 (gebruikersbeslissing 09-10-2026): herijking
+        24-08 (MESA n=15/n=30) en replicatie 08-10 op MESA n=140 onder `breath`
+        én `breath_dual` (docs/breath_dual_mesa_20261007.md §3). `breath_dual`
+        en `_v2` erven de waarde via replace()."""
         p = get_profile("aasm_v3_breath")
         assert p.post_processing.hypopnea_detector == "breath_graded"
-        assert p.post_processing.hypopnea_strictness == 0.50
+        assert p.post_processing.hypopnea_strictness == 0.30
+        for kind in ("aasm_v3_breath_dual", "aasm_v3_breath_dual_v2"):
+            assert get_profile(kind).post_processing.hypopnea_strictness == 0.30, kind
 
 
 if __name__ == "__main__":

@@ -122,7 +122,8 @@ def test_the_recompute_is_wired_for_every_graded_profile():
                        if p.post_processing.hypopnea_detector == "breath_graded"]
     assert set(graded_profiles) == {
         "aasm_v3_breath", "aasm_v3_prob",
-        "aasm_v3_breath_dual", "aasm_v3_prob_dual"}, graded_profiles
+        "aasm_v3_breath_dual", "aasm_v3_breath_dual_v2",   # v2: v0.35.0
+        "aasm_v3_prob_dual"}, graded_profiles
 
 
 def test_the_pipeline_recomputes_position_after_the_graded_step():

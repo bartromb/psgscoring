@@ -46,8 +46,13 @@ def test_the_new_profile_differs_only_on_the_arousal_axis():
     b = PROFILES["aasm_v3_prob"].post_processing
     diff = [f.name for f in dataclasses.fields(a)
             if getattr(a, f.name) != getattr(b, f.name)]
+    # v0.35.0: `aasm_v3_breath` ging naar strictness 0,30 (gemeten op breath en
+    # breath_dual); `aasm_v3_prob` blijft op 0,50 omdat het daar niet gemeten is.
+    # Een vergelijking breath-tegen-prob meet sindsdien dus óók het werkpunt —
+    # wie de arousal-as alleen wil meten, zet prob eerst op 0,30.
     assert sorted(diff) == ["hypopnea_arousal_latency_grading",
-                            "hypopnea_arousal_weight"], diff
+                            "hypopnea_arousal_weight", "hypopnea_strictness"], diff
+    assert b.hypopnea_strictness == 0.50 and a.hypopnea_strictness == 0.30
     # en de hypopnee-regels zelf zijn identiek: het is dezelfde AASM-regel
     assert PROFILES["aasm_v3_breath"].hypopnea == PROFILES["aasm_v3_prob"].hypopnea
 
