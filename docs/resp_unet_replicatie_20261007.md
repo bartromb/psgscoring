@@ -23,14 +23,17 @@ baseline er is.
 ## 2. MESA-validatienachten (keuzeset, beschrijvend)
 U-Net n=100: F1 mediaan 0,753 (p25 0,653), gepoold 0,795, count-ratio mediaan 1,02,
 AHI-bias gemiddeld +0,10 /u. Gepaard tegen psgscoring `aasm_v3_breath_dual@0,50` en `rec`
-op dezelfde nachten (psgscoring op het NSRR-hypnogram, artefact-epochs leeg; 17 van de
-200 baseline-nachten na de bevriezing van 08-10 21:48 hervat, AHI daar uit de eventlijst):
+op dezelfde nachten (psgscoring op het NSRR-hypnogram, artefact-epochs leeg; de
+baseline-run is drie keer afgebroken — 08-10 01:04, 20:06 en de bevriezing van 21:48 — en
+hervat; 16 profiel-nachten missen daardoor een gelogde AHI en krijgen hem uit de
+eventlijst (afwijking ≤ 0,4 /u door `uncertain`-events), en vijf door de bevriezing
+leeg achtergelaten CSV's zijn op 09-10 opnieuw berekend nadat de verificatie ze vond):
 
 | | F1 mediaan | F1 gepoold | ΔF1 mediaan / gemiddeld | beter / slechter | p | AHI-bias gemiddeld | ΔF1 per tertiel |
 |---|---:|---:|---:|---:|---:|---:|---|
 | U-Net | 0,753 | 0,795 | | | | +0,10 | |
-| `aasm_v3_breath_dual` | 0,511 | 0,579 | +0,215 / +0,232 | 98 / 2 | 4,0e-17 | −5,08 | +0,30 / +0,20 / +0,20 |
-| `aasm_v3_rec` | 0,352 | 0,448 | +0,344 / +0,349 | 97 / 3 | 8,3e-18 | −9,97 | +0,33 / +0,33 / +0,39 |
+| `aasm_v3_breath_dual` | 0,511 | 0,579 | +0,207 / +0,224 | 98 / 2 | 4,2e-17 | −4,95 | +0,27 / +0,20 / +0,20 |
+| `aasm_v3_rec` | 0,366 | 0,459 | +0,338 / +0,337 | 97 / 3 | 8,3e-18 | −9,40 | +0,33 / +0,33 / +0,36 |
 
 Bewaker (a), variantie: de seeds 20261008 en 20261009 halen gepoold 0,794 en 0,793 tegen
 0,579 voor `breath_dual` — elk +0,21, ruim boven de +0,05 die de preregistratie eist.
@@ -68,10 +71,10 @@ arousal-replicatie van 27-09):**
 | | F1 mediaan | ΔF1 mediaan / gemiddeld | beter / slechter | Wilcoxon p | AHI-bias gemiddeld | ΔF1 per tertiel laag / midden / hoog |
 |---|---:|---:|---:|---:|---:|---|
 | U-Net | 0,583 | | | | −1,37 | |
-| `aasm_v3_rec` | 0,081 | +0,372 / +0,406 | 146 / 0 | 1,0e-25 | −10,79 | +0,31 / +0,45 / +0,46 |
+| `aasm_v3_rec` | 0,081 | +0,372 / +0,406 | 146 / 0 | 1,0e-25 | −10,69 | +0,31 / +0,45 / +0,46 |
 | `aasm_v3_breath` | 0,200 | +0,262 / +0,289 | 142 / 6 | 1,3e-24 | −9,55 | +0,21 / +0,34 / +0,32 |
 
-Count-ratio mediaan 0,91 (in [0,80; 1,25]), |bias| 1,37 < 10,79, geen tertiel onder −0,02:
+Count-ratio mediaan 0,91 (in [0,80; 1,25]), |bias| 1,37 < 10,69, geen tertiel onder −0,02:
 **alle vier de onderdelen van de primaire regel gehaald, tegen beide baselines.** Kanttekening
 die de lezing kleurt: de regelketen is op dit cohort zelf zwak — een thermokoppel uit de
 jaren negentig op de drukplaats haalt de apneugrens van 0,90 zelden (het dossier van
@@ -82,15 +85,27 @@ post-hoc ook `mesa_shhs` als derde baseline.
 
 | post-hoc | F1 mediaan | ΔF1 mediaan / gemiddeld | beter / slechter | p | AHI-bias | tertielen |
 |---|---:|---:|---:|---:|---:|---|
-| `mesa_shhs` | 0,173 | +0,317 / +0,339 | 145 / 2 | 1,1e-25 | −10,67 | +0,25 / +0,37 / +0,40 |
+| `mesa_shhs` | 0,173 | +0,317 / +0,339 | 145 / 2 | 1,1e-25 | −10,58 | +0,25 / +0,37 / +0,40 |
 
-Alle drie de psgscoring-profielen vinden op SHHS1 een mediaan van 11–17 events per nacht
-tegen 77 in de NSRR-referentie (AHI-mediaan 1,9–2,7 tegen ~13): de regelketen is op dit
-cohort vrijwel blind, ongeacht profiel. Dat vraagt om een eigen dossier (kanaalkeuze
-`NEW AIR`/`AIRFLOW`, de 0,90-grens op een thermokoppel, de SaO2 op 1 Hz) en relativeert de
-grootte van de winst: het U-Net wint hier vooral omdat het thermokoppel-montages aankan
-waar de regels dat niet doen — niet omdat het de NSRR-scoorder dicht nadert (F1 0,58,
-tegen 0,75 op MESA-val met neusdruk).
+De psgscoring-profielen vinden op SHHS1 een mediaan van 11 (`rec`), 16,5 (`breath`) en
+25 (`mesa_shhs`) events per nacht tegen 77 in de NSRR-referentie (AHI-mediaan 1,9 / 2,7 /
+4,1 tegen 12,9): de regelketen is op dit cohort vrijwel blind, ongeacht profiel. **Deel
+daarvan is kanaaltoewijzing, en dat raakt ook de vergelijking:** `SHHS_CMAP` kent alleen
+`NEW AIR`. Op 47 nachten lazen U-Net en baseline hetzelfde kanaal (`NEW AIR`); op 55
+nachten met `NEW AIR` én `AIRFLOW` nam het U-Net `AIRFLOW` (de generieke flowrol) en de
+baseline `NEW AIR`; op 43 nachten zónder `NEW AIR` zette psgscoring `AIRFLOW` op de
+thermistorplaats (rec F1-mediaan 0,000, 2 events); op 3 nachten (`NEWAIR` zonder spatie)
+vond psgscoring géén flowkanaal (0 events, bias −10,69 i.p.v. −10,79 doordat die drie als
+nul tellen) terwijl het U-Net het wel las; op 2 nachten met dubbele kanaalnaam
+(`AIRFLOW-0/-1`) draaide het U-Net zónder flow (F1 0,44 en 0,66 op effort + SpO2 alleen).
+De U-Net-F1 per groep is 0,59 / 0,59 / 0,57 tegen rec 0,09 / 0,00 / 0,20 — de winst hangt
+dus niet aan de kanaalkeuze, en zonder de 5 afwijkende nachten (n = 145) blijft de regel
+gehaald (vs `rec` +0,373, 141/0, p = 6,9e-25; vs `breath` +0,261, 137/6; vs `mesa_shhs`
++0,319, 140/2). Maar "zelfde montage" geldt op 102 van 150 nachten, en het eigen dossier
+over psgscoring op SHHS1 (kanaalkeuze, de 0,90-grens op een thermokoppel, SaO2 op 1 Hz)
+hoort vóór elke verdere claim. De winst is vooral "het U-Net kan thermokoppel-montages aan
+waar de regels dat niet kunnen", niet "het nadert de NSRR-scoorder" (F1 0,58, tegen 0,75
+op MESA-val met neusdruk).
 
 ## 4. PSG-IPA SN1–5 (12 scoorders; neusdruk + RIP + SaO2, geen thermistor)
 Scoorder-mediaan F1 (IoU 0,20) per nacht, náást het menselijk plafond
@@ -115,11 +130,15 @@ hypnogram:
   (precisie 0,71, recall 0,65). Op SN3 is het omgekeerd: U-Net precisie 0,97 maar recall
   0,82 (276 tegen 326 consensus-events; AHI 45,6 tegen 54,0), `breath_dual` 0,91 / 0,90.
   Op SN5 wint het U-Net op beide (0,56/0,72 tegen 0,54/0,57). Het model telt op de
-  lichte nachten te veel (AHI +1,5 tot +2,8 boven de scoordermediaan) en op de zware te
+  lichte nachten te veel (AHI +1,0 tot +2,8 boven de scoordermediaan) en op de zware te
   weinig; de apneukop blijft op deze druk-alleen-montage vrijwel leeg (0 apneus op
   SN1/SN2/SN4, 1 op SN5, 91 op SN3) — alles wordt hypopneu, wat de typeonbewuste F1 niet
-  raakt maar de rapportage wel zou raken.
-- Duur: U-Net-events mediaan 18,8–30,1 s tegen scoorders 16,2–26,5 s (iets lang).
+  raakt maar de rapportage wel zou raken. Bewaker (d), typebewuste F1 (apneu/hypopneu als
+  type, IoU 0,20): mediaan 0,679 op MESA-val en 0,424 op SHHS1 tegen 0,753 / 0,583
+  typeonbewust — het type klopt op MESA redelijk en op SHHS1 (thermokoppel) slecht.
+- Duur: U-Net-events mediaan 18,8–30,1 s tegen scoorders 14,4–26,5 s (iets lang).
+- **Post-hoc (niet in de preregistratie):** de consensus-diagnostiek hierboven, de
+  SN1-kenmerken hieronder en de `mesa_shhs`-baseline in §3.
 - **Waarom SN1 misgaat (signaalkenmerken van de 22 onbesteunde U-Net-events):** het zijn
   echte stroomdalingen op de neusdruk — mediaan 77 % op de robuuste omhullende-maat (p90
   over ±120 s), duur 15,6 s — **zonder desaturatie** (SpO2-daling mediaan 1,1 %, 0 van 22
@@ -134,7 +153,8 @@ hypnogram:
 
 ## 5. Bewakers
 - CPU-inferentie (4 threads, PSG-IPA): voorwaarts 0,6–2,1 s, totaal 7–14 s per nacht
-  (inclusief inlezen en resamplen) — ruim onder de 60 s. Identieke events als op de GPU.
+  (inclusief inlezen en resamplen) — ruim onder de 60 s. Tellingen en F1 identiek aan de
+  GPU-run op 5/5; vier eventgrenzen verschillen 0,125 s (één sample op 8 Hz).
 - Variantie: zie §1. Ablaties: zie §2 (SpO2 is de kritische ingang).
 - Niet gemeten: subtypering (het model levert alleen apneu/hypopneu), RERA, desaturatie-
   koppeling per event; menselijk plafond alleen op PSG-IPA.
@@ -145,8 +165,8 @@ hypnogram:
    vrijwel niets vindt (F1 0,08–0,20, AHI-bias −10). De winst is dus vooral "het model kan
    een thermokoppel-montage aan en de regels niet", en de absolute kwaliteit (F1 0,58) is
    lager dan op MESA met neusdruk (0,75).
-2. **MESA-val (keuzeset): +0,22 F1 tegen `breath_dual` op 98 van 100 nachten**, bias +0,1
-   tegen −5,1 /u, stabiel over drie seeds. Dat is de grootste afstand tot de regelketen
+2. **MESA-val (keuzeset): +0,21 F1 tegen `breath_dual` op 98 van 100 nachten**, bias +0,1
+   tegen −5,0 /u, stabiel over drie seeds. Dat is de grootste afstand tot de regelketen
    die in dit project ooit is gemeten, maar het blijft de set waarop τ gekozen is.
 3. **PSG-IPA (12 scoorders, onze eigen referentie): regel NIET gehaald.** Winst op de drie
    lichte nachten tot op het menselijk plafond, verlies op SN1 (0,49 tegen 0,68) en SN3.
