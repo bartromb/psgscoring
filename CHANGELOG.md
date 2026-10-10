@@ -1,3 +1,19 @@
+# v0.35.2 — 2026-10-10 — documentatierelease: de README van 0.35.x op de PyPI-landingspagina
+
+Geen enkele regel code verandert; YASAFlaskified blijft op 0.35.1 gepind (byte-gelijke
+bibliotheek). PyPI toont de README alleen bij een nieuwe release (zoals 0.34.1), vandaar.
+Wat de README nu zegt en vóór deze release niet: het register telt 22 profielen in vier
+families; `aasm_v3_breath` en `aasm_v3_breath_dual` zijn `clinical` en `breath_dual` is
+sinds 07-10-2026 het standaardprofiel van de referentie-uitrol; de strictness-default is
+0,30 met de MESA-n=140-meting erbij (`docs/breath_dual_mesa_20261007.md`); de duale
+vereniging heeft een eigen sectie met de meting op 20 eigen PSG's en de weerlegde
+voorwaardelijke variant; `unet_v1` heeft een sectie met de replicatie (SHHS1/MESA/PSG-IPA)
+en de doorwerking; de validatiesectie draagt de menselijke plafonds 0,667 (respiratoir) en
+0,679 (arousal) en de n=140-tabel; de versie-pin in de releasepolitiek is 0.35.1;
+architectuur: 24 submodules incl. `arousal_unet`. `MANIFEST.in` scheept de zes nieuwe
+README-doelen mee zodat de sdist-suite (`tests/test_readme_links.py`) blijft slagen — de
+les van 0.35.0.
+
 # v0.35.1 — 2026-10-10 — pakketreparatie: de sdist draagt nu alles wat zijn eigen suite nodig heeft
 
 Inhoudelijk identiek aan 0.35.0. **0.35.0 is nooit op PyPI verschenen**: de
