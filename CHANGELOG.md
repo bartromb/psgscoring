@@ -1,3 +1,15 @@
+# v0.35.1 — 2026-10-10 — pakketreparatie: de sdist draagt nu alles wat zijn eigen suite nodig heeft
+
+Inhoudelijk identiek aan 0.35.0. **0.35.0 is nooit op PyPI verschenen**: de
+GitHub-release bestond, maar de publicatiepoort (`publish.yml`, sinds 16-09-2026
+met een sdist-suite) wees het artifact af — 8 van 1.510 tests faalden
+*vanuit de sdist* terwijl de broncheckout groen was. Zes tests importeren
+`scripts/validate_mesa.py` (het MESA-harnas), dat nooit in de sdist zat, en
+`tests/test_readme_links.py` eist dat elk repo-relatief README-doel bestaat:
+`DISCLAIMER.md` en drie docs ontbraken. `MANIFEST.in` scheept die vijf bestanden nu
+mee; verder niets veranderd. Lokaal gereproduceerd vóór de reparatie (8 failed
+uit de sdist) en groen erna. YASAFlaskified 0.38.10 pint daarom op 0.35.1.
+
 # 0.35.0 — 2026-10-10
 
 Vier opt-in-uitbreidingen die al in `main` stonden (hieronder, elk met zijn meting) plus

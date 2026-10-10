@@ -11,3 +11,13 @@ include scripts/measure_boundary_offsets.py
 # v0.35.0: het bevroren U-Net-gewicht (ONNX, 18 MB) en zijn checksums.
 include psgscoring/data/*.onnx
 include psgscoring/data/*.json
+# v0.35.1: de publicatiepoort draait sinds 16-09-2026 de suite vanuit de sdist,
+# en 0.35.0 strandde daar als eerste release op: zes tests importeren
+# scripts/validate_mesa.py, en tests/test_readme_links.py eist dat elk
+# repo-relatief README-doel bestaat (DISCLAIMER.md en drie docs). Lokaal
+# gereproduceerd (8 failed uit de sdist, 0 uit de broncheckout).
+include scripts/validate_mesa.py
+include DISCLAIMER.md
+include docs/commerciele_autoscoring_20260907.md
+include docs/interim_conclusie_klinisch_gebruik.md
+include docs/overnames_commercieel_metingen_20260907.md
