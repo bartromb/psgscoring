@@ -161,7 +161,14 @@ intermittently fails with "Unable to select next GitHub token from pool").
 Publishing is **automatic via a GitHub Release** — no API tokens, no manual `twine`.
 
 ```bash
-# on main, after the version-bump PR is merged and CI is green:
+# 1. Draai de suite eerst VANUIT DE SDIST, niet alleen uit de broncheckout.
+#    publish.yml doet precies dit als poort (sinds 16-09-2026) en wees v0.35.0
+#    af: 8 tests faalden omdat scripts/validate_mesa.py, DISCLAIMER.md en drie
+#    README-docs niet in MANIFEST.in stonden — de broncheckout was groen.
+.venv/bin/python -m build --sdist -o /tmp/sdist-out .
+mkdir -p /tmp/sdist-check && tar -xzf /tmp/sdist-out/psgscoring-*.tar.gz -C /tmp/sdist-check --strip-components=1
+(cd /tmp/sdist-check && /srv/CODE/psgscoring/.venv/bin/python -m pytest tests -q -p no:cacheprovider)
+# 2. on main, after the version-bump PR is merged and CI is green:
 gh release create v0.7.2 --target main --title "..." --notes "..."   # notes from CHANGELOG.md
 ```
 The `release: published` event triggers `.github/workflows/publish.yml`, which builds
@@ -171,6 +178,10 @@ environment is pre-registered on PyPI). Verify: `pip index versions psgscoring`.
 PyPI's rendered README/description only updates on a **new release** (it lags GitHub).
 
 ### Known issues
+- Een bestand dat een test leest of importeert moet in `MANIFEST.in` staan, anders
+  faalt de publish-poort op de sdist-suite terwijl de broncheckout groen is
+  (v0.35.0, 10-10-2026: nooit op PyPI verschenen; v0.35.1 is de reparatie).
+  Een afgewezen release krijgt een nieuw patchnummer — tags worden niet verplaatst.
 - `build-backend = "setuptools.build_meta"` (never the non-existent
   `setuptools.backends._legacy:_Backend`).
 - A packaging venv must live **outside** the source tree, or Python's stdlib `signal`
