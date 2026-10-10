@@ -87,10 +87,16 @@ def test_the_new_axes_reach_the_dict_the_pipeline_actually_reads(_, child):
 
 
 @pytest.mark.parametrize("_,child", PAIRS)
-def test_they_are_exploratory_and_say_so(_, child):
+def test_family_matches_validation_status(_, child):
+    """v0.35.0: `aasm_v3_breath_dual` is klinisch (MESA n=140, productiestandaard
+    sinds 07-10-2026); `aasm_v3_prob_dual` blijft exploratory en zegt dat."""
     p = get_profile(child)
-    assert p.family == "exploratory"
-    assert "experimental" in p.description.lower() or "EXPERIMENTAL" in p.description
+    if child == "aasm_v3_breath_dual":
+        assert p.family == "clinical"
+        assert "experimental" not in p.display_name.lower()
+    else:
+        assert p.family == "exploratory"
+        assert "experimental" in p.description.lower() or "EXPERIMENTAL" in p.description
 
 
 def test_no_existing_profile_moved_onto_the_new_axis():

@@ -2191,7 +2191,20 @@ _aasm_v3_breath = Profile(
         #
         #   0,50 wint daarmee op F1, recall, bias, MAE en severity, op alle
         #   drie de referenties. Zie CHANGELOG.
-        hypopnea_strictness=0.50,
+        #
+        # v0.35.0 (10-10-2026): 0,30. Die 0,50 was gekozen op de vijf
+        # PSG-IPA-opnames waarop het resultaat werd gerapporteerd (een fit).
+        # Herijkt met gescheiden steekproeven (24-08: kalibratie MESA n=15,
+        # validatie n=30: ΔF1 +0,035 op 26/30, bias −3,28 → −0,05) en op
+        # 08-10 gerepliceerd op MESA n=140 (docs/breath_dual_mesa_20261007.md):
+        # onder `breath` ΔF1 +0,030 (115/22, p = 2,7e-17), bias −5,66 → −2,21;
+        # onder `breath_dual` ΔF1 +0,029 (113/25, p = 1,2e-16), bias
+        # −2,74 → +0,52, ernstklasse 78 → 83 van 140. Kost: de AHI stijgt op
+        # lichte nachten (bias laag tertiel +5,7 → +7,7). PSG-IPA repliceert
+        # zwak (+0,009, 3/5). Gebruikersbeslissing 09-10-2026 ("doe").
+        # `aasm_v3_breath_dual` en `_v2` erven dit via replace(); `aasm_v3_prob`
+        # blijft op 0,50 (daar niet gemeten).
+        hypopnea_strictness=0.30,
     ),
 )
 
@@ -2758,7 +2771,8 @@ _aasm_v3_fusion = Profile(
 
 
 def _with_dual_apneas(parent: Profile, *, name: str, display_name: str,
-                      description: str, pure: bool = False) -> Profile:
+                      description: str, pure: bool = False,
+                      family: str = "exploratory") -> Profile:
     """Zelfde profiel, maar apneus op beide flowsensoren.
 
     Elke geneste dataclass wordt via ``replace()`` opnieuw gebouwd. Zonder dat
@@ -2786,7 +2800,7 @@ def _with_dual_apneas(parent: Profile, *, name: str, display_name: str,
             parent,
             name=name,
             display_name=display_name,
-            family="exploratory",
+            family=family,
             aasm_rule=f"{parent.aasm_rule}, dual-sensor (pure union)",
             description=description,
             hypopnea=replace(parent.hypopnea),
@@ -2802,7 +2816,7 @@ def _with_dual_apneas(parent: Profile, *, name: str, display_name: str,
         parent,
         name=name,
         display_name=display_name,
-        family="exploratory",
+        family=family,
         aasm_rule=f"{parent.aasm_rule}, dual-sensor",
         description=description,
         hypopnea=replace(parent.hypopnea),
@@ -2846,7 +2860,13 @@ def _with_dual_apneas(parent: Profile, *, name: str, display_name: str,
 _aasm_v3_breath_dual = _with_dual_apneas(
     _aasm_v3_breath,
     name="aasm_v3_breath_dual",
-    display_name="AASM v3 — breath-graded + dual-sensor apneas (experimental)",
+    display_name="AASM v3 — breath-graded + dual-sensor apneas",
+    # v0.35.0: klinische familie. Productiestandaard sinds 07-10-2026 (Barts
+    # beslissing); referentiemeting MESA n=140 (docs/breath_dual_mesa_20261007.md):
+    # F1 gelijk aan `breath` (p = 0,84), AHI-bias −5,66 → −2,74, ernstklasse
+    # gelijk — dezelfde richting als op 0.17.0. Eigen PSG's (07-10): AHI-verschil
+    # alleen waar de thermistorpoort de thermistor goedkeurt.
+    family="clinical",
     description=(
         "aasm_v3_breath with apneas detected on BOTH flow sensors instead of "
         "choosing one. The two axes are independent: the breath-graded "
@@ -2854,10 +2874,11 @@ _aasm_v3_breath_dual = _with_dual_apneas(
         "from the envelope detector, so the second sensor operates on the "
         "list the graded detector does not touch. On a montage with a single "
         "flow channel this profile is identical to aasm_v3_breath, exactly as "
-        "aasm_v3_dual is identical to aasm_v3_rec there. EXPERIMENTAL: the "
-        "sensor axis cannot be measured on PSG-IPA, which has one flow "
-        "channel and no thermistor, so this combination has not been "
-        "validated against human scoring."
+        "aasm_v3_dual is identical to aasm_v3_rec there. Validated on MESA "
+        "n=140 (2026-10-08): event-F1 equal to aasm_v3_breath (p=0.84), AHI "
+        "bias halved (-5.7 to -2.7/h); production default since 2026-10-07. "
+        "On the clinic's own PSGs the AHI differs from aasm_v3_breath only "
+        "on nights where the thermistor gate accepts the thermistor."
     ),
 )
 
