@@ -21,3 +21,10 @@ include DISCLAIMER.md
 include docs/commerciele_autoscoring_20260907.md
 include docs/interim_conclusie_klinisch_gebruik.md
 include docs/overnames_commercieel_metingen_20260907.md
+# README-doelen toegevoegd 10-10-2026 (v0.35.2-docs): tests/test_readme_links.py eist ze in de sdist.
+include docs/arousal_menselijk_plafond.md
+include docs/arousal_unet_replicatie_20260927.md
+include docs/breath_dual_mesa_20261007.md
+include docs/breath_vs_breath_dual_eigen_psg_20261007.md
+include docs/respiratoir_menselijk_plafond_20261007.md
+include docs/unet_doorwerking_20261009.md

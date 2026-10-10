@@ -82,8 +82,8 @@ A ~90-second walkthrough of the reference application ([YASAFlaskified](https://
    nights (median ΔF1 +0.0097, better on 30/40, Wilcoxon p = 0.0001, event
    count unchanged), then checked on/off on a clinical split-night
    (respiratory output byte-identical). On by default on `aasm_v3_rec`
-   since v0.34.0; montages without those signals are untouched, and
-   `summary["autonomic_rerank"]` says why.
+   since v0.34.0 (not on the breath-graded profiles); montages without
+   those signals are untouched, and `summary["autonomic_rerank"]` says why.
 
 ## Release policy
 
@@ -106,7 +106,7 @@ The stability guarantee lives in the **profiles**, not in the version number:
   it, and is pinned by a test.
 
 If you need scored values to stay identical across time — for a study, a
-regulatory submission, or a paper — **pin the version** (`psgscoring==0.34.1`)
+regulatory submission, or a paper — **pin the version** (`psgscoring==0.35.1`)
 and record which profile you used. Do not rely on a profile name alone.
 
 ## Installation
@@ -116,6 +116,10 @@ pip install psgscoring
 ```
 
 Requirements: Python ≥3.9, numpy, scipy, mne. **No GPU required.**
+
+`pip install "psgscoring[ml]"` adds LightGBM (the arousal candidate classifier)
+and onnxruntime (the optional U-Net arousal detector, see below). Both run on
+the CPU; the U-Net scores a night in about five seconds.
 
 ## Quick Start
 
@@ -156,11 +160,21 @@ if sn.get("detected"):
 | SpO₂ nadir window | 30 s | 45 s | 45 s |
 | Peak-based detection | No | Yes | Yes |
 
-`list_profiles()` enumerates the full registry — 19 profiles: AASM v1/v2/v3,
-CMS/Medicare, Chicago 1999, the NSRR dataset profile, and the exploratory arms
-(breath-graded, dual-sensor, and the four on the envelope axis below).
+`list_profiles()` enumerates the full registry — 22 profiles in four families:
 
-### `aasm_v3_breath` — breath-graded hypopnea scoring (v0.13.0, opt-in)
+| family | profiles | what the label promises |
+|---|---|---|
+| `clinical` | `aasm_v3_rec`, `aasm_v3_breath`, **`aasm_v3_breath_dual`**, `aasm_v3_dual`, `aasm_v3_pressure`, `aasm_v1_rec`, `aasm_v2_rec`, `cms_medicare` | validated on PSG-IPA and MESA; may move between releases when a measurement justifies it |
+| `dataset` | `mesa_shhs` | frozen; reproduces the NSRR conventions and the paper |
+| `legacy` | `chicago_1999` | frozen; the 1999 Chicago criteria |
+| `exploratory` | `aasm_v3_prob`, `aasm_v3_prob_dual`, `aasm_v3_breath_dual_v2`, `aasm_v3_strict`, `aasm_v3_sensitive`, `aasm_v3_fusion`, `aasm_v3_amplitude`, `aasm_v3_pair_scalefree`, the four `aasm_v3_env_*` arms | measured, not recommended |
+
+The breath-graded pair became `clinical` in v0.35.0. **`aasm_v3_breath_dual` is
+the default scoring profile of the reference deployment (slaapkliniek.be) since
+2026-10-07**, a clinical decision taken on the measurements below; `aasm_v3_rec`
+remains the rule-cascade anchor every comparison is paired against.
+
+### `aasm_v3_breath` — breath-graded hypopnea scoring (v0.13.0; clinical since v0.35.0)
 
 ```python
 run_pneumo_analysis(raw, hypnogram, scoring_profile="aasm_v3_breath")
@@ -189,19 +203,70 @@ directly. Five differences from the default detector:
    against the 12-scorer fractions on PSG-IPA (163 events) the correlation is
    only r = 0.194 and the level is +0.33 too high. Use it to order events,
    not as a likelihood.
-5. **One strictness axis** (`hypopnea_strictness`, default 0.50) instead of
-   three parameter combinations.
+5. **One strictness axis** (`hypopnea_strictness`) instead of three parameter
+   combinations. **Default 0.30 since v0.35.0** (0.50 before, and still 0.50 on
+   `aasm_v3_prob`). The move was pre-registered and measured on MESA n = 140
+   under `aasm_v3_breath_dual`: median ΔF1 **+0.029** (better on 113, worse on
+   25, p = 1·10⁻¹⁶), AHI bias −2.74 → **+0.52**/h, MAE 9.18 → 8.00, severity
+   class correct on 83 instead of 78 of 140. The paper's figures are at 0.50;
+   pass the value explicitly to reproduce them.
 
 Scope is hypopneas only; apneas keep the existing detector.
 
-**Status — opt-in, not the default.** On PSG-IPA (5 recordings, 12 scorers)
-the median event-F1 rises 0.343 → 0.434, the percentile within the
-inter-scorer distribution p6 → p17, and mean |ΔAHI| against the scorer median
-falls **1.84 → 0.29**. On MESA the paired advantage replicates on two
-disjoint held-out samples of 50 (p = 0.0069 and p = 0.0016). But the two
-datasets disagree on the *absolute* level by ~16 AHI points, and until that
-is explained the existing clinical output stays the default. See
+**Status — clinical since v0.35.0, through `aasm_v3_breath_dual`.** On PSG-IPA
+(5 recordings, 12 scorers) the median event-F1 rises 0.343 → 0.434 and mean
+|ΔAHI| against the scorer median falls **1.84 → 0.29**. On MESA n = 140
+(pre-registered, nothing tuned on it) it beats the rule cascade on event-F1 by
++0.08 at the same strictness (0.521 vs 0.441) with a comparable bias (−5.66 vs
+−5.08/h). Read profile comparisons per AHI tertile: the graded detector gains
+most on the mild nights and under-counts on the severe ones, which is where the
+dual-sensor union below earns its place. Earlier status notes are kept in
 [`docs/interim_conclusie_klinisch_gebruik.md`](https://github.com/bartromb/psgscoring/blob/main/docs/interim_conclusie_klinisch_gebruik.md).
+
+### `aasm_v3_breath_dual` — the clinical profile (clinical since v0.35.0)
+
+```python
+run_pneumo_analysis(raw, hypnogram, scoring_profile="aasm_v3_breath_dual")
+```
+
+`aasm_v3_breath` for the hypopneas, apneas detected on **both** flow sensors and
+merged. The second sensor is additive: it adds apneas and never removes one. On a
+montage with a single flow channel the profile is identical to `aasm_v3_breath`.
+Four switches move relative to the parent (`dual_sensor_apnea`, no corroboration
+requirement, `flow_reference="hypopnea"`, `thermistor_gate="respiratory_band"`);
+the AHI difference comes from the first.
+
+What has been measured, in order:
+
+- **MESA n = 140 at strictness 0.50** — event-F1 equal to `aasm_v3_breath`
+  (0.507 vs 0.521, paired mean ΔF1 −0.001, better/worse/equal 51/54/35,
+  p = 0.84) and the under-count halved (bias **−2.74** vs −5.66/h); against
+  `aasm_v3_rec` it wins on both (ΔF1 +0.077, 95/40, p = 1·10⁻⁹). The gain sits in
+  the severe tertile (bias −11.08 vs −15.38/h). At the new strictness 0.30:
+  F1 0.557, bias +0.52/h, severity correct 83/140.
+  [`docs/breath_dual_mesa_20261007.md`](https://github.com/bartromb/psgscoring/blob/main/docs/breath_dual_mesa_20261007.md)
+- **20 clinical dual-sensor PSGs, no human reference** — AHI identical to
+  `aasm_v3_breath` on 13 of 20 and higher on 7, by +5.9, +8.7 and +37.3/h on three
+  nights where the thermistor passes the quality gate and the union adds the
+  apneas nasal pressure alone did not reach; severity class changes on 3/20; RDI,
+  RERA and flow-limitation indices differ on 18/20 because the union also changes
+  which candidates remain for those detectors. The choice is not indifferent: it
+  leaves most nights alone and moves a minority hard.
+  [`docs/breath_vs_breath_dual_eigen_psg_20261007.md`](https://github.com/bartromb/psgscoring/blob/main/docs/breath_vs_breath_dual_eigen_psg_20261007.md)
+- **A conditional union was built and refuted.** `dual_sensor_confirmation=
+  "thermistor_or_consequence"` keeps a single-sensor apnea only when the
+  thermistor also drops ≥72 % or a ≥3 % desaturation or an arousal follows.
+  Pre-registered on MESA n = 140: median ΔF1 exactly 0.000 (62/19/59,
+  p = 1·10⁻⁶) while the bias worsens (−4.30 vs −2.74/h) — it removes events on a
+  cohort that already under-counts. It ships `None` by default and stays
+  available as a measurement arm.
+
+The thermistor gate decides which sensor `aasm_v3_breath` itself scores apneas
+on; under `breath_dual` the gate is informational and both passes always run.
+As the blocking gate of `aasm_v3_breath` it admits a third of the MESA nights;
+the `respiratory_band` criterion admits three quarters but was refuted paired
+in that role (ΔF1 0.000, worse on 19/23, p = 0.011). The gate stays, as the
+right sensor chosen for a reason it does not measure.
 
 ### `aasm_v3_dual` — apneas on both flow sensors (v0.14.0, opt-in)
 
@@ -263,6 +328,44 @@ patient spending 94.7% of the night under 90% saturation.
 Identical to `aasm_v3_rec` on any montage without a usable thermistor. Set
 `flow_reference` on any profile to get the same behaviour;
 `meta["flow_channels"]["reference_sensor"]` reports which channel was used.
+
+### Arousal detection — `unet_v1` (v0.35.0, opt-in)
+
+```python
+run_pneumo_analysis(raw, hypnogram, scoring_profile="aasm_v3_breath_dual",
+                    arousal_detector="unet_v1")        # or PSGSCORING_AROUSAL_DETECTOR=unet_v1
+```
+
+The shipped arousal detector filters rule-based candidates with a LightGBM
+classifier at an operating point of 0.80 and reaches a median F1 of 0.546 on
+PSG-IPA against a **human ceiling of 0.679** (median over 330 scorer pairs,
+[`docs/arousal_menselijk_plafond.md`](https://github.com/bartromb/psgscoring/blob/main/docs/arousal_menselijk_plafond.md)).
+`unet_v1` is a frozen 1-D U-Net over EEG, EOG and chin EMG at 50 Hz, shipped
+as an 18 MB ONNX graph and run on the CPU through onnxruntime. Its weights were
+trained on 317 MESA nights that no validation set contains; the detector was
+then frozen (SHA-pinned) and pre-registered before any of the following was
+measured:
+
+| cohort | nights | LightGBM F1 | `unet_v1` F1 | better on | p |
+|---|---|---|---|---|---|
+| SHHS1 (fresh, never seen) | 150 | 0.543 | **0.676** | 134/147 | 2·10⁻²² |
+| MESA validation split | 76 | 0.556 | **0.687** | 72/76 | 1·10⁻¹³ |
+| PSG-IPA (12 scorers) | 5 | — | **0.745** | 5/5 | — |
+
+Pooled F1 on fresh SHHS1 nights sits at the human ceiling; the event count ratio
+is 0.85 at the shipped threshold 0.35 and count-neutral at 0.25.
+[`docs/arousal_unet_replicatie_20260927.md`](https://github.com/bartromb/psgscoring/blob/main/docs/arousal_unet_replicatie_20260927.md).
+
+**It is opt-in, not the default.** The downstream effect was measured separately
+([`docs/unet_doorwerking_20261009.md`](https://github.com/bartromb/psgscoring/blob/main/docs/unet_doorwerking_20261009.md)):
+under `aasm_v3_breath_dual` on 100 MESA nights the AHI moves by −0.2/h (median),
+the RDI by −0.9/h and the arousal index by −1.8/h, with respiratory event-F1
++0.003. The detector changes the arousal count more than the respiratory
+indices, and whether a lower, better-localised arousal index is what a clinic
+wants is a decision, not a measurement. Without EOG or chin EMG the pipeline
+falls back to the LightGBM chain and says so in
+`summary["unet_fallback_reason"]`; the autonomic re-ranker is bypassed when the
+U-Net is active.
 
 ### The envelope axis — four exploratory arms (v0.19.0, all off)
 
@@ -351,6 +454,28 @@ reconstructed AASM-2015 reference, per profile:
 Paired against `aasm_v3_rec`, breath-graded scoring raises event agreement by
 a median ΔF1 of **+0.029** (95/150 recordings, p = 6.8·10⁻⁸); the probabilistic
 variant by +0.036 (p = 1.4·10⁻⁹).
+
+The table above is at strictness 0.50 under 0.17.0. **MESA n = 140 under 0.34.2
+(pre-registered, 2026-10-08)**, same reference, different fresh sample:
+
+| profile | strictness | median F1 | bias (/h) | MAE (/h) | severity correct |
+|---|---|---|---|---|---|
+| `aasm_v3_rec` | — | 0.441 | −5.08 | 10.00 | 79/140 |
+| `aasm_v3_breath` | 0.50 | 0.521 | −5.66 | 9.51 | 78/140 |
+| `aasm_v3_breath_dual` | 0.50 | 0.507 | −2.74 | 9.18 | 78/140 |
+| `aasm_v3_breath_dual` | **0.30 (default since v0.35.0)** | **0.557** | **+0.52** | **8.00** | **83/140** |
+| `aasm_v3_breath_dual` + conditional union | 0.30 | 0.558 | −1.03 | 6.89 | 82/140 |
+
+**Read every F1 against its human ceiling.** On PSG-IPA, scorer against scorer
+over all 330 pairs, the median event-F1 is **0.667 for respiratory events**
+([`docs/respiratoir_menselijk_plafond_20261007.md`](https://github.com/bartromb/psgscoring/blob/main/docs/respiratoir_menselijk_plafond_20261007.md))
+and **0.679 for arousals**. The ceiling is not a constant: it runs from 0.948
+on the severe recording to 0.553 on the mildest, so a detector's F1 on a cohort
+says little until the cohort's own ceiling is next to it. On PSG-IPA the
+breath-graded detector's 0.434 is 65 % of that cohort's respiratory ceiling,
+and the U-Net arousal detector's 0.745 is above the arousal one; the MESA
+figures have no measured ceiling, because the NSRR reference is a single
+scoring.
 
 **Read the bias column against the reference it is measured on.** `aasm15`
 credits hypopneas that qualify *only* through an arousal, and `aasm_v3_rec`
@@ -455,9 +580,9 @@ per idea evaluated, including the ones rejected.
 
 ## Architecture
 
-~21,000 lines across 23 submodules, 1,510 unit tests (CI: Python 3.9–3.12):
+~22,000 lines across 24 submodules, 1,510 unit tests (CI: Python 3.9–3.12):
 
-`constants` · `utils` · `signal` · `breath` · `breath_scoring` · `classify` · `spo2` · `plm` · `ancillary` · `arousal` · `agreement` · `respiratory` · `indices` · `ventilation` · `pipeline` · `ml_classifier` · `profiles` · `postprocess` · `signal_quality` · `signal_quality_channels` · `split_night` · `ecg_effort` · `_types`
+`constants` · `utils` · `signal` · `breath` · `breath_scoring` · `classify` · `spo2` · `plm` · `ancillary` · `arousal` · `arousal_unet` · `agreement` · `respiratory` · `indices` · `ventilation` · `pipeline` · `ml_classifier` · `profiles` · `postprocess` · `signal_quality` · `signal_quality_channels` · `split_night` · `ecg_effort` · `_types`
 
 Behaviour is pinned by a golden-output harness (`PSGSCORING_GOLDEN=1`) that
 scores fixed synthetic recordings and compares a digest. Every release runs it
