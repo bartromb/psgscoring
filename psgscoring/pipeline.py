@@ -234,6 +234,9 @@ def run_pneumo_analysis(
             # permanent een onzekerheidsteken in het klinische rapport.
             "psgscoring_version": _psgscoring_version(),
             "channels_used": ch,
+            # Overrides naar een onbestaand kanaal (utils.ChannelMap.ignored):
+            # de gebruiker koos iets anders dan wat er gescoord is.
+            "channel_overrides_ignored": list(getattr(ch, "ignored", []) or []),
             "all_channels":  raw.ch_names,
             "sfreq":         raw.info["sfreq"],
             "channel_rates": _rates,
@@ -276,6 +279,10 @@ def run_pneumo_analysis(
         # zie de toelichting bij _resolve_flow_channels.
         additive_thermistor=profile.get("DUAL_SENSOR_APNEA", False),
         thermistor_gate=_thermistor_gate(profile),
+        # Review 11-10-2026: de bandvermogenpoort decimeert met anti-aliasfilter;
+        # de bevroren profielen pinnen de oude decimatie.
+        thermistor_band_power_antialias=bool(
+            profile.get("THERMISTOR_BAND_POWER_ANTIALIAS", True)),
     )
 
     # Dual-sensor gevraagd maar niet uitvoerbaar: terugvallen op een sensor en
@@ -1925,6 +1932,7 @@ def _resolve_flow_channels(
     flow_therm_data, sf_ft,
     ch, output, additive_thermistor=False,
     thermistor_gate="envelope_agreement",
+    thermistor_band_power_antialias=True,
 ):
     """Assign apnea (thermistor) and hypopnea (pressure) channels per AASM.
 
@@ -1979,7 +1987,8 @@ def _resolve_flow_channels(
                                              THERMISTOR_BAND_POWER_MIN)
                 _gate_meta["threshold"] = float(THERMISTOR_BAND_POWER_MIN)
                 _therm_check = assess_thermistor_band_power(
-                    flow_therm_data, sf_ft or 0.0)
+                    flow_therm_data, sf_ft or 0.0,
+                    antialias=thermistor_band_power_antialias)
             elif str(thermistor_gate) == "breath_coherence":
                 from .signal_quality import (assess_breath_coherence,
                                              THERMISTOR_COHERENCE_MIN)

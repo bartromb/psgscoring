@@ -59,10 +59,55 @@ def test_assess_dead_channel():
 
 
 def test_assess_weak_channel():
+    """Legacy pad (scale_free=False): MAD 0,014 ligt tussen MAD_FAILED_BELOW
+    (0,005) en MAD_WEAK_BELOW (0,020), dus 'weak' -- niet 'weak of ok'. Een
+    assertie met twee uitkomsten meet niet welke van de twee het is."""
     np.random.seed(42)
     sig = make_weak_signal()
     q = assess_rip_channel(sig, sf=256)
-    assert q["status"] in ("weak", "ok"), f"Expected 'weak' or 'ok', got {q['status']}"
+    assert q["status"] == "weak", f"Expected 'weak', got {q['status']}: {q['reason']}"
+
+
+# ── Schaalvrij pad (de klinische default, rip_quality_scale_free=True) ─────
+# De tests hierboven draaien allemaal het legacy-pad op absolute amplitude.
+# Productie oordeelt sinds 0.17.0 op signaalVORM; dat pad hoort dezelfde
+# drie gevallen te kennen, en het verschil met het legacy-pad is precies het
+# punt: een KLEIN maar schoon signaal is schaalvrij 'ok', zwak is wat RUIS
+# in de ademband is.
+
+def test_assess_normal_channel_scale_free():
+    np.random.seed(42)
+    q = assess_rip_channel(make_breathing_signal(), sf=256, scale_free=True)
+    assert q["status"] == "ok", f"{q['status']}: {q['reason']}"
+    assert q["breath_fraction"] > 0.9
+    assert q["flat_fraction"] < 0.05
+
+
+def test_assess_dead_channel_scale_free():
+    np.random.seed(42)
+    q = assess_rip_channel(make_dead_signal(), sf=256, scale_free=True)
+    assert q["status"] == "failed", f"{q['status']}: {q['reason']}"
+
+
+def test_a_small_but_clean_signal_is_ok_on_the_scale_free_path():
+    """Dezelfde invoer als test_assess_weak_channel. Legacy zegt 'weak' op
+    amplitude; schaalvrij ziet 95 % van het vermogen in de ademband en zegt
+    'ok'. Dat verschil is de reden dat het veld bestaat."""
+    np.random.seed(42)
+    q = assess_rip_channel(make_weak_signal(), sf=256, scale_free=True)
+    assert q["status"] == "ok", f"{q['status']}: {q['reason']}"
+    assert q["breath_fraction"] > 0.9
+
+
+def test_assess_weak_channel_scale_free():
+    """Schaalvrij zwak = ademvorm nog zichtbaar maar grotendeels ruis:
+    ademfractie tussen BREATH_FRACTION_FAILED_BELOW (0,27) en
+    BREATH_FRACTION_WEAK_BELOW (0,35)."""
+    np.random.seed(42)
+    sig = make_breathing_signal(amplitude=0.02, noise=0.15)
+    q = assess_rip_channel(sig, sf=256, scale_free=True)
+    assert q["status"] == "weak", f"{q['status']}: {q['reason']}"
+    assert 0.27 <= q["breath_fraction"] < 0.35, q["breath_fraction"]
 
 
 def test_assess_empty_signal():
@@ -226,6 +271,11 @@ if __name__ == "__main__":
         ("test_assess_normal_channel", test_assess_normal_channel),
         ("test_assess_dead_channel", test_assess_dead_channel),
         ("test_assess_weak_channel", test_assess_weak_channel),
+        ("test_assess_normal_channel_scale_free", test_assess_normal_channel_scale_free),
+        ("test_assess_dead_channel_scale_free", test_assess_dead_channel_scale_free),
+        ("test_a_small_but_clean_signal_is_ok_on_the_scale_free_path",
+         test_a_small_but_clean_signal_is_ok_on_the_scale_free_path),
+        ("test_assess_weak_channel_scale_free", test_assess_weak_channel_scale_free),
         ("test_assess_empty_signal", test_assess_empty_signal),
         ("test_compare_both_ok", test_compare_both_ok),
         ("test_compare_dead_thorax", test_compare_dead_thorax),

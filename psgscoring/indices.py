@@ -104,6 +104,12 @@ _AGREEMENT_ANCHORS = ((20.0, 0.55), (33.0, 0.55), (70.0, 0.56),
 #: dat een enkel getal de spreiding niet draagt. Volgt uit de meting: de drie
 #: opnames onder ~100 events liggen alle drie rond F1 0,55, de twee erboven op
 #: 0,83 en 0,95.
+#:
+#: `band` en `f1_human` horen hetzelfde verhaal te vertellen: met de envelop
+#: van onderaf (zie expected_scorer_agreement) stijgt f1_human strikt tussen
+#: 70 en 300 events, zodat elke "laag" (< 100) onder elke "hoog" ligt
+#: (0,56 tegen >= 0,61). Onder het oude cumulatieve maximum kreeg 70 events
+#: 0,83 met band "laag" naast 100 events 0,85 met band "hoog".
 AGREEMENT_LOW_BURDEN_EVENTS = 100
 
 
@@ -141,16 +147,23 @@ def expected_scorer_agreement(n_events: int | None) -> dict:
     punten = sorted(_AGREEMENT_ANCHORS)
     xs = [p[0] for p in punten]
     ys = [p[1] for p in punten]
-    # Monotone interpolatie: de gemeten punten liggen niet monotoon (SN1 met 34
-    # events haalt 0,83 waar SN5 met 70 events 0,56 haalt), en een kromme die
-    # daar doorheen slingert zou suggereren dat 50 events slechter is dan 34.
-    # Cumulatief maximum houdt de uitspraak conservatief: nooit een hogere
-    # verwachting dan bij een lagere ziektelast al gemeten is.
+    # Monotone envelop VAN ONDERAF: de gemeten punten liggen niet monotoon (SN1
+    # met 34 events haalt 0,83 waar SN5 met 70 events 0,56 haalt), en een
+    # kromme die daar doorheen slingert zou suggereren dat 50 events slechter
+    # is dan 34. Tot 11-10-2026 stond hier een cumulatief MAXIMUM, en dat is
+    # de verkeerde kant op conservatief: het tilde 70 events naar 0,83 -- een
+    # verwachting HOGER dan wat op precies die ziektelast gemeten is -- en
+    # sprong tussen 33 en 34 events van 0,55 naar 0,83. Een lopend minimum van
+    # rechts kan geen van beide: elke verwachting is hoogstens de laagste
+    # meting bij een gelijke of hogere ziektelast. SN1 wordt daardoor naar
+    # 0,56 getrokken; dat is de prijs van vijf punten die elkaar tegenspreken,
+    # en hij valt aan de voorzichtige kant.
     ys_mono = []
-    hoogste = 0.0
-    for y in ys:
-        hoogste = max(hoogste, y)
-        ys_mono.append(hoogste)
+    laagste = max(ys)
+    for y in reversed(ys):
+        laagste = min(laagste, y)
+        ys_mono.append(laagste)
+    ys_mono.reverse()
 
     if n_events <= xs[0]:
         f1 = ys_mono[0]

@@ -12,6 +12,9 @@ Deze test draait de hele pijplijn en kijkt in de uitvoer.
 import numpy as np
 import pytest
 
+#: De module-fixture draait de volledige pijplijn op 130 minuten (~7 s).
+pytestmark = pytest.mark.slow
+
 BREUK_S = 3900.0          # 65 min: ruim boven MIN_SEGMENT_S van 3600 s
 
 
@@ -40,10 +43,19 @@ def _split_night_raw(mne):
         spo2[b:b + int(15 * sf)] -= 6.0
         c, d = b, b + int(6 * sf)
         eeg[c:d] += 70e-6 * np.sin(2 * np.pi * 10.0 * t[c:d])
-        # Beenbeweging kort voor het event, met dezelfde regelmaat.
-        e, f = a - int(3 * sf), a - int(1 * sf)
-        if e > 0:
-            been[e:f] += 60e-6 * np.sin(2 * np.pi * 25.0 * t[e:f])
+
+    # Beenbewegingen op een EIGEN cadans van 25 s: binnen de 5-90 s die een
+    # PLM-reeks eist. Tot 11-10-2026 stonden ze één per event (100 s uit
+    # elkaar, dus nooit periodiek) en op 25 Hz -- boven Nyquist bij 32 Hz,
+    # gevouwen naar 7 Hz en daarmee onder de 10 Hz-hoogdoorlaat van de
+    # detector. De twee PLM-toetsen sloegen zichzelf daardoor altijd over.
+    # 12 Hz ligt in de doorlaatband (10-15,8 Hz bij deze sf).
+    def _been(start, dur=2.0):
+        e, f = int(start * sf), int((start + dur) * sf)
+        been[e:f] += 60e-6 * np.sin(2 * np.pi * 12.0 * t[e:f])
+
+    for start in np.arange(30.0, BREUK_S - 30.0, 25.0):
+        _been(start)
 
     # Onder therapie: kleinere amplitude, hogere basislijn, bijna niets.
     flow[k:] *= 0.2
@@ -52,6 +64,11 @@ def _split_night_raw(mne):
         a, b = int(start * sf), int((start + 20) * sf)
         flow[a:b] *= 0.05
         spo2[b:b + int(15 * sf)] -= 5.0
+    # Een enkele korte PLM-reeks per tien minuten: de index moet dalen, niet
+    # verdwijnen, anders is er voor de omsluitingstoets niets te omsluiten.
+    for start in np.arange(BREUK_S + 300.0, 60 * minuten - 60.0, 600.0):
+        for j in range(4):
+            _been(start + j * 25.0)
 
     # Houding en snurken horen bij het beeld: rugligging en snurken in het
     # diagnostische deel, zijligging en stilte onder therapie. Zonder deze
@@ -218,8 +235,9 @@ def test_de_twee_helften_zijn_samen_de_hele_nacht(uit, fam, teller, nacht_pad):
         nacht = ((uit.get("plm") or {}).get("summary") or {}).get("n_plm")
     else:
         nacht = len((uit.get("arousal") or {}).get("events") or [])
-    if not nacht:
-        pytest.skip(f"geen {fam}-events in deze opname")
+    # Geen skip: een fixture die niets oplevert meet niets en blijft groen.
+    # De PLM-tak sloeg zichzelf zo tot 11-10-2026 altijd over.
+    assert nacht, f"de fixture levert geen {fam}-events op; dan toetst dit niets"
     assert som == nacht, (
         f"{fam}: de helften tellen samen {som}, de nacht {nacht} -- "
         "er wordt een andere teller gebruikt")
@@ -232,7 +250,8 @@ def test_de_plm_index_van_de_helften_omsluit_die_van_de_nacht(uit):
     d = sn["diagnostic"]["plm_index"]
     t_ = sn["therapeutic"]["plm_index"]
     nacht = ((uit.get("plm") or {}).get("summary") or {}).get("plm_index")
-    if None in (d, t_, nacht) or nacht == 0:
-        pytest.skip("geen PLM-index in deze opname")
+    assert None not in (d, t_, nacht) and nacht > 0, (
+        f"geen PLM-index om te omsluiten (nacht {nacht}, helften {d}/{t_}); "
+        "de fixture hoort beenbewegingen op te leveren")
     assert min(d, t_) - 0.05 <= nacht <= max(d, t_) + 0.05, (
         f"nacht {nacht} ligt buiten [{min(d, t_)}, {max(d, t_)}]")

@@ -28,3 +28,22 @@ include docs/breath_dual_mesa_20261007.md
 include docs/breath_vs_breath_dual_eigen_psg_20261007.md
 include docs/respiratoir_menselijk_plafond_20261007.md
 include docs/unet_doorwerking_20261009.md
+# 11-10-2026: de sdist van 0.35.2 scheepte 128 testbestanden maar NIET
+# tests/__init__.py (dan collecteert pytest met een andere rootdir/import-
+# modus dan de broncheckout) en NIET tests/golden/ (het golden-harnas kon
+# uit de sdist niet draaien). Gezien met `tar tzf` op de gebouwde sdist.
+include tests/__init__.py
+graft tests/golden
+# tests.yml vergelijkt de sdist sinds 11-10-2026 met `git ls-files tests
+# psgscoring docs/*.md scripts/*.py README*.md`; dat vereist dat de docs en
+# scripts die in git staan ook in de sdist zitten (1,3 MB, 142 bestanden).
+# Een document of script dat een test leest moet er sowieso in (0.35.0
+# strandde precies daarop, zie handboek §4) -- dit maakt dat structureel in
+# plaats van per bestand.
+include docs/*.md
+include scripts/*.py
+include README*.md
+# psgscoring/DISCLAIMER.md is door git gevolgd maar valt buiten package-data
+# (txt/json/onnx/py.typed); zonder deze regel was het het enige bestand dat de
+# vergelijking hierboven miste.
+include psgscoring/*.md

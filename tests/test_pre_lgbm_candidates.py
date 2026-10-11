@@ -28,17 +28,24 @@ def _opname(mne, sf=64.0, minuten=20):
     t = np.arange(n) / sf
     rng = np.random.default_rng(5)
     eeg = rng.normal(0, 20e-6, n)
-    # arousals: bursts van alfa/beta bovenop de achtergrond
+    emg = rng.normal(0, 5e-6, n)
+    # Arousals: 8 s alfa (10 Hz) + bèta (18 Hz) bovenop de achtergrond, met
+    # een gelijktijdige kin-EMG-burst. Tot 11-10-2026 was dit één zuivere
+    # 12 Hz-toon van 5 s zonder EMG: de classifier stelde 16 kandidaten voor
+    # en publiceerde er NUL, waarna de deelverzamelingstoets zichzelf
+    # oversloeg. Een fixture die niets oplevert meet niets.
     for start in range(60, 60 * minuten - 60, 90):
-        a, b = int(start * sf), int((start + 5) * sf)
-        eeg[a:b] += 60e-6 * np.sin(2 * np.pi * 12.0 * t[a:b])
+        a, b = int(start * sf), int((start + 8) * sf)
+        eeg[a:b] += (50e-6 * np.sin(2 * np.pi * 10.0 * t[a:b])
+                     + 30e-6 * np.sin(2 * np.pi * 18.0 * t[a:b]))
+        emg[a:b] += rng.normal(0, 25e-6, b - a)
     flow = np.sin(2 * np.pi * 0.25 * t)
     info = mne.create_info(
         ["EEG C4-M1", "Chin EMG", "Resp nasal", "SaO2", "Thorax", "Abdomen"],
         sf, ["eeg"] + ["misc"] * 5)
     return mne.io.RawArray(
-        np.vstack([eeg, rng.normal(0, 5e-6, n), flow, np.full(n, 96.0),
-                   flow, flow]), info, verbose=False)
+        np.vstack([eeg, emg, flow, np.full(n, 96.0), flow, flow]),
+        info, verbose=False)
 
 
 @pytest.fixture(scope="module")
@@ -83,8 +90,12 @@ def test_de_uitvoer_is_een_DEELVERZAMELING_van_de_kandidaten(uit):
         pytest.skip("classifier draaide niet op deze opname")
     kand = np.array([e["onset_s"] for e in bron["pre_lgbm_events"]])
     ev = [e for e in (ar.get("events") or [])]
-    if not len(kand) or not ev:
-        pytest.skip("geen kandidaten of events")
+    # Geen skip: zonder kandidaten én gepubliceerde events is er geen
+    # deelverzameling om te toetsen, en dat is een fixturefout, geen reden
+    # om groen te blijven.
+    assert len(kand) and ev, (
+        f"{len(kand)} kandidaten, {len(ev)} events: de fixture levert de "
+        "arousals niet op die deze toets nodig heeft")
     for e in ev:
         t = float(e.get("onset_s", 0))
         assert np.min(np.abs(kand - t)) <= 10.0, (

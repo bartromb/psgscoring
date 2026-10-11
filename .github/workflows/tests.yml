@@ -18,8 +18,8 @@ jobs:
     name: Lint (mypy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: '3.11'
           cache: pip
@@ -44,11 +44,11 @@ jobs:
     steps:
       # ─── Checkout ──────────────────────────────────────────────────
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
 
       # ─── Python setup with pip cache ───────────────────────────────
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -73,10 +73,13 @@ jobs:
       # De stap hierboven installeert libgomp1 al expliciet "LightGBM (optional
       # [full] extra) also needs it", dus de bedoeling stond er altijd al;
       # alleen de installatieregel trok de extra niet binnen.
+      # `denoise` (PyWavelets) erbij sinds 11-10-2026: zonder die extra
+      # draaide het wavelet-pad (`flow_wavelet_denoise`) in CI nooit en
+      # sloegen zijn tests zichzelf over.
       - name: Install psgscoring with test extras
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[test,ml]"
+          pip install -e ".[test,ml,denoise]"
 
       # ─── Import smoke (no pytest needed) ───────────────────────────
       # Runs even if tests/ is empty; catches basic import regressions.
@@ -114,17 +117,20 @@ jobs:
   # change fails CI with a readable diff. Gated by PSGSCORING_GOLDEN, so it
   # runs only in this dedicated single-version job — not the 3.9–3.12 matrix
   # (a same-environment characterization test is fragile across an unpinned
-  # matrix). FLOAT_ATOL=0.25 in the test absorbs float/BLAS drift; a real
-  # scoring change exceeds it and fails. Re-bless after an intended change:
-  # `python tests/test_golden_output.py bless`.
+  # matrix). The tolerance is per leaf type since 11-10-2026 (1e-3 for
+  # indices/onsets/durations, 1e-2 for confidences, exact for ints and
+  # strings) -- the old single 0.25 let a 0.24/h AHI shift through a digest
+  # that was written to three decimals. Float/BLAS drift sits far below
+  # 1e-3; what exceeds it is a scoring change and fails. Re-bless after an
+  # intended change: `python tests/test_golden_output.py bless`.
   golden:
     name: Golden output (scoring regression)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: '3.12'
           cache: pip
@@ -149,3 +155,38 @@ jobs:
           PSGSCORING_GOLDEN: '1'
         run: |
           pytest tests/test_golden_output.py -v --tb=short --color=yes
+
+  # ─── Sdist-manifest (check-manifest-achtig) ────────────────────────
+  # publish.yml draait de suite vanuit de sdist, en 0.35.0 strandde daar op
+  # bestanden die wel in git maar niet in MANIFEST.in stonden (handboek §4).
+  # Die fout hoort hier al te vallen, niet pas bij de release: bouw de sdist
+  # en eis dat alles wat git volgt onder tests/, psgscoring/, docs/*.md,
+  # scripts/*.py en README*.md er ook in zit.
+  sdist-manifest:
+    name: Sdist carries what git tracks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
+        with:
+          python-version: '3.11'
+      - name: Build sdist
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --sdist
+      - name: Compare sdist with git ls-files
+        # LC_ALL=C: `sort` en `comm` moeten dezelfde collatie gebruiken.
+        # `:(glob)`: anders matcht git's `scripts/*.py` ook submappen, die
+        # MANIFEST.in's `include` bewust niet meeneemt.
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+          tar tzf dist/*.tar.gz | sed 's#^[^/]*/##' | grep -v '/$' | sort -u > /tmp/sdist.txt
+          git ls-files tests psgscoring ':(glob)docs/*.md' ':(glob)scripts/*.py' ':(glob)README*.md' | sort -u > /tmp/tracked.txt
+          ontbrekend=$(comm -23 /tmp/tracked.txt /tmp/sdist.txt || true)
+          if [ -n "$ontbrekend" ]; then
+            echo "::error::deze door git gevolgde bestanden ontbreken in de sdist (MANIFEST.in bijwerken):"
+            echo "$ontbrekend"
+            exit 1
+          fi
+          echo "sdist: $(wc -l < /tmp/sdist.txt) bestanden; alle $(wc -l < /tmp/tracked.txt) gevolgde bestanden aanwezig"

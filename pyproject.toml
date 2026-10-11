@@ -38,13 +38,19 @@ classifiers = [
 dependencies = [
     "numpy>=1.21",
     "scipy>=1.7",
+    # <2 is een voorzorg, geen gemeten grens: de suite is groen op mne 1.13
+    # (de ontwikkel-venv) en mne 2.x is hier nooit gedraaid. Verruimen naar
+    # <3 kan pas na een suite-run op een 2.x; tot dan blijft de cap staan en
+    # staat hier waarom.
     "mne>=1.5,<2",
 ]
 
 [project.optional-dependencies]
 full = ["yasa>=0.6", "lightgbm>=3.0", "onnxruntime>=1.16"]
 ml   = ["lightgbm>=3.0", "onnxruntime>=1.16"]
-test = ["pytest>=7.0", "hypothesis>=6.0"]
+# `hypothesis` stond hier zonder dat één test het importeerde (geverifieerd
+# 11-10-2026: alleen deze regel noemde het).
+test = ["pytest>=7.0"]
 plot = ["matplotlib>=3.5"]
 denoise = ["PyWavelets>=1.4"]   # optional: flow_wavelet_denoise (BSD-3)
 # Profilers, per docs/performance_policy.md §2. Never imported at runtime;
@@ -58,6 +64,16 @@ Repository = "https://github.com/bartromb/psgscoring"
 Documentation = "https://github.com/bartromb/psgscoring/wiki"
 Issues = "https://github.com/bartromb/psgscoring/issues"
 Changelog = "https://github.com/bartromb/psgscoring/blob/main/CHANGELOG.md"
+
+[tool.pytest.ini_options]
+# Geregistreerde markers. `slow` staat op de tests die meer dan ~5 s kosten
+# (volledige pijplijn op een lange synthetische nacht, de 30-renderings-
+# invariantietoets, de collectie-telling in een subproces). Ze worden NERGENS
+# standaard gedeselecteerd -- de marker is er om ze te kunnen kiezen
+# (`-m slow` / `-m "not slow"`), niet om ze over te slaan.
+markers = [
+    "slow: kost meer dan ~5 s (volledige pijplijn of subproces); nooit standaard gedeselecteerd",
+]
 
 [tool.setuptools.packages.find]
 include = ["psgscoring*"]

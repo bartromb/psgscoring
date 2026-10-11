@@ -12,6 +12,7 @@ import hashlib
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from .constants import CHANNEL_PATTERNS, EPOCH_LEN_S
@@ -342,18 +343,50 @@ def detect_channels(ch_names: list[str]) -> dict[str, str]:
     return found
 
 
+class ChannelMap(dict):
+    """Rol -> kanaalnaam, plus wat er van de handmatige keuzes is genegeerd.
+
+    Voor elke consument een gewone dict (``isinstance(m, dict)``, JSON-
+    serialiseerbaar). ``ignored`` draagt de overrides die niet in het bestand
+    voorkwamen, zodat de pijplijn ze in ``meta["channel_overrides_ignored"]``
+    kan zetten in plaats van ze stil te laten verdwijnen.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.ignored: list[dict[str, Any]] = []
+
+
 def channel_map_from_user(
     user_map: dict | None,
     ch_names: list[str],
-) -> dict[str, str]:
+) -> ChannelMap:
     """
     Merge auto-detected channel map with optional manual overrides.
 
-    Manual overrides take precedence; invalid channel names are ignored.
+    Manual overrides take precedence. Een override naar een kanaal dat niet
+    in het bestand staat (typefout, andere montage dan gedacht) verdween tot
+    11-10-2026 stil: de analyse draaide dan op het automatisch gekozen kanaal
+    alsof de gebruiker dat zo had gewild, en aan de map was niets te zien.
+    Nu wordt dat op WARNING gemeld en op de teruggegeven map geregistreerd
+    (``.ignored``: rol, gevraagd kanaal, terugval, reden). ``None`` of ""
+    betekent "geen keuze" en telt niet als fout.
     """
     auto   = detect_channels(ch_names)
-    merged = {**auto}
+    merged = ChannelMap(auto)
     for k, v in (user_map or {}).items():
-        if v and v in ch_names:
+        if not v:
+            continue
+        if v in ch_names:
             merged[k] = v
+            continue
+        fallback = auto.get(k)
+        merged.ignored.append({
+            "role": k, "channel": v, "fallback": fallback,
+            "reason": "kanaal staat niet in het bestand",
+        })
+        logger.warning(
+            "[channels] override %s=%r genegeerd: kanaal staat niet in het "
+            "bestand; %s", k, v,
+            f"terugval op {fallback!r}" if fallback else "rol blijft leeg")
     return merged

@@ -13,7 +13,6 @@ dependency change, version mismatch, etc.).
 """
 from __future__ import annotations
 
-import importlib
 import re
 
 
@@ -74,6 +73,12 @@ def test_postprocessing_api():
 # 3. Optional / defensive checks
 # ═══════════════════════════════════════════════════════════════════
 
+#: Optionele afhankelijkheden die de kern NIET bij import mag binnentrekken.
+#: `onnxruntime` hoort erbij sinds het U-Net-gewicht (v0.35.0): dat pad is
+#: opt-in en mag een installatie zonder de `ml`-extra niet breken.
+OPTIONAL_DEPENDENCIES = ("yasa", "lightgbm", "onnxruntime")
+
+
 def test_no_unexpected_hard_dependencies():
     """
     Importing psgscoring must not pull in optional dependencies.
@@ -82,26 +87,32 @@ def test_no_unexpected_hard_dependencies():
     should work without them. This test catches regressions where a
     core module accidentally starts importing an optional library
     at module-load time.
+
+    Tot 11-10-2026 sloeg deze toets zichzelf over zodra de optionele
+    bibliotheek geïnstalleerd was -- en dat is ze in elke ontwikkel- en
+    CI-omgeving (`[test,ml]`), dus hij toetste nooit iets. Nu blokkeert een
+    SUBPROCES de modules via ``sys.modules[naam] = None`` (dan geeft elke
+    import ervan ImportError) en importeert psgscoring daarna. Een
+    kernmodule die zo'n bibliotheek bij het laden aanraakt valt dan om,
+    ongeacht wat er in deze omgeving geïnstalleerd staat.
     """
+    import subprocess
     import sys
 
-    # Snapshot modules before import (the test runner has already
-    # imported lots of things, so we check for specific optional libs)
-    for optional in ("yasa", "lightgbm"):
-        # If the user happens to have them installed, skip the check
-        try:
-            importlib.import_module(optional)
-            # Already available — can't test that core doesn't pull it in
-            continue
-        except ImportError:
-            pass
-
-        # Not installed — confirm that importing psgscoring still works
-        # and did NOT trigger an import attempt for this optional lib
-        import psgscoring  # noqa: F401
-        assert optional not in sys.modules, (
-            f"psgscoring unexpectedly loaded optional dependency '{optional}'"
-        )
+    code = (
+        "import sys\n"
+        f"for naam in {OPTIONAL_DEPENDENCIES!r}:\n"
+        "    sys.modules[naam] = None\n"
+        "import psgscoring\n"
+        "from psgscoring import run_pneumo_analysis, get_profile\n"
+        "get_profile('aasm_v3_rec')\n"
+        "print('ok', psgscoring.__version__)\n"
+    )
+    proc = subprocess.run([sys.executable, "-c", code],
+                          capture_output=True, text=True, timeout=120)
+    assert proc.returncode == 0 and proc.stdout.startswith("ok"), (
+        "psgscoring importeert niet zonder een optionele afhankelijkheid:\n"
+        f"{proc.stderr[-1500:]}")
 
 
 def test_version_matches_pyproject():

@@ -10,6 +10,7 @@ Dependencies: numpy, scipy, psgscoring.constants, psgscoring.utils
 """
 
 from __future__ import annotations
+import logging
 import numpy as np
 from scipy import signal as sp_signal
 from scipy.ndimage import median_filter
@@ -17,6 +18,8 @@ from scipy.ndimage import median_filter
 from .breath import detect_breaths
 from .constants import BASELINE_WINDOW_S, EPOCH_LEN_S
 from .utils import is_nrem, is_rem, safe_r
+
+logger = logging.getLogger("psgscoring.signal")
 
 
 # ---------------------------------------------------------------------------
@@ -41,6 +44,32 @@ def linearize_nasal_pressure(data: np.ndarray) -> np.ndarray:
     AASM Scoring Manual 2.6 Rule 3.
     """
     return np.sign(data) * np.sqrt(np.abs(data))
+
+
+def remove_slow_component(data: np.ndarray, sf: float,
+                          cutoff_hz: float = 0.05) -> np.ndarray:
+    """
+    Trage component (DC-offset, drift) uit een druksignaal halen VOOR de
+    wortellinearisatie.
+
+    De wortel is niet lineair, dus de volgorde telt. Op het ruwe signaal
+    neemt :func:`linearize_nasal_pressure` de offset mee onder de wortel:
+    bij een offset van 0,5x de drukamplitude meet een echte halvering van de
+    flow als ~80 % reductie, omdat het dal niet eens meer van teken keert.
+    Eerst de offset eraf, dan de wortel, geeft de flow terug zoals Bernoulli
+    hem bedoelt.
+
+    Tweede-orde Butterworth-hoogdoorlaat, zero-phase, op dezelfde 0,05 Hz als
+    de onderkant van :func:`bandpass_flow`. Zie het profielveld
+    ``linearise_after_dc_removal`` (legacy-sleutel
+    ``LINEARISE_AFTER_DC_REMOVAL``, door de aanroeper gelezen).
+    """
+    nyq = sf / 2
+    lo  = cutoff_hz / nyq
+    if not (0 < lo < 1):
+        return data - np.median(data)
+    b, a = sp_signal.butter(2, lo, btype="high")
+    return sp_signal.filtfilt(b, a, data)
 
 
 # ---------------------------------------------------------------------------
@@ -555,6 +584,7 @@ def preprocess_flow(
     envelope_fs: float | None = None,
     denoise: bool = False,
     denoise_info: dict | None = None,
+    linearise_after_dc_removal: bool = False,
 ) -> np.ndarray:
     """
     Full flow preprocessing: [linearize ->] bandpass -> envelope -> 1 s smooth.
@@ -568,8 +598,17 @@ def preprocess_flow(
     envelope_method   : see :func:`compute_envelope`. Default reproduces the
                         pre-v0.19.0 behaviour exactly.
     envelope_fs       : see :func:`compute_envelope`.
+    linearise_after_dc_removal
+                      : haal eerst de trage component (DC-offset) uit het
+                        druksignaal en neem dán de wortel; zie
+                        :func:`remove_slow_component`. Alleen van betekenis
+                        met ``is_nasal_pressure=True``. Default ``False`` =
+                        het gedrag van vóór 11-10-2026, op elk profiel; de
+                        aanroeper leest ``LINEARISE_AFTER_DC_REMOVAL``.
     """
     if is_nasal_pressure:
+        if linearise_after_dc_removal:
+            flow_data = remove_slow_component(flow_data, sf)
         flow_data = linearize_nasal_pressure(flow_data)
     filtered = bandpass_flow(flow_data, sf, denoise=denoise,
                              denoise_info=denoise_info)
@@ -837,6 +876,7 @@ def compute_stage_baseline(
     hypno: list,
     artifact_epochs: list | None = None,
     dynamic_baseline: np.ndarray | None = None,
+    partial_epochs: bool = True,
 ) -> np.ndarray:
     """
     Stage-specific baseline: separate 90th-percentile estimates for
@@ -849,6 +889,16 @@ def compute_stage_baseline(
     ----------
     dynamic_baseline : voorberekende dynamische basislijn (optioneel).
         Als opgegeven wordt compute_dynamic_baseline() niet opnieuw aangeroepen.
+    partial_epochs : laat de functie ook werken als het hypnogram de envelope
+        niet helemaal dekt (``len(hypno) * spe < n``). Dat is het normale
+        geval -- YASA en de NSRR-hypnogrammen zijn vloerlengte -- en het oude
+        masker ``np.repeat(stage_ep, spe)[:n]`` was dan korter dan de
+        envelope: NumPy weigert dat met een IndexError, de aanroeper vangt
+        die op DEBUG-niveau en de stadiumbasislijn draaide stil nooit. Met
+        ``True`` krijgt het masker lengte n en de staart na het laatste epoch
+        de dynamische basislijn. ``False`` is het oude gedrag, inclusief de
+        fout; gepind op ``mesa_shhs``/``chicago_1999`` via
+        ``STAGE_BASELINE_PARTIAL_EPOCHS``.
     """
     artifact_set = set(artifact_epochs or [])
     spe = int(sf * EPOCH_LEN_S)
@@ -857,45 +907,81 @@ def compute_stage_baseline(
     hypno_arr = np.array(hypno)
     ep_indices = np.arange(n_epochs)
 
+    global_bl = dynamic_baseline if dynamic_baseline is not None else compute_dynamic_baseline(flow_env, sf)
+
+    if partial_epochs and (n_epochs == 0 or spe <= 0):
+        # Terugvallen mag; stil terugvallen is wat hier eerder misging.
+        logger.warning(
+            "stadiumbasislijn niet berekend (%s); dynamische basislijn alleen",
+            "leeg hypnogram" if n_epochs == 0 else f"ongeldige sf {sf}")
+        return global_bl.copy()
+
+    # Hoeveel epochs de envelope werkelijk overlappen. Oud gedrag: alle, en
+    # dan is het masker bij een vloerlengte-hypnogram korter dan n.
+    n_cover = min(n_epochs, -(-n // spe)) if partial_epochs else n_epochs
+
+    def _sample_mask(ep_mask: np.ndarray) -> np.ndarray:
+        rep = np.repeat(ep_mask[:n_cover], spe)[:n]
+        if not partial_epochs:
+            return rep                 # oud: korter dan n -> IndexError
+        m = np.zeros(n, dtype=bool)
+        m[:rep.size] = rep             # staart zonder stadium blijft False
+        return m
+
     artifact_mask_ep = np.zeros(n_epochs, dtype=bool)
     if artifact_set:
         valid_art = [i for i in artifact_set if i < n_epochs]
         if valid_art:
             artifact_mask_ep[valid_art] = True
 
-    stage_bl: dict[str, float] = {}
-    for stage in ("N1", "N2", "N3", "R"):
-        stage_ep = (hypno_arr == stage) & ~artifact_mask_ep
-        if not stage_ep.any():
-            continue
-        sample_mask = np.repeat(stage_ep, spe)[:n]
-        samples = flow_env[sample_mask]
-        if len(samples) > int(sf * 30):
-            p30    = float(np.percentile(samples, 30))
-            stable = samples[samples > p30]
-            if len(stable) > 10:
-                stage_bl[stage] = float(np.percentile(stable, 90))
+    try:
+        stage_bl: dict[str, float] = {}
+        for stage in ("N1", "N2", "N3", "R"):
+            stage_ep = (hypno_arr == stage) & ~artifact_mask_ep
+            if not stage_ep.any():
+                continue
+            samples = flow_env[_sample_mask(stage_ep)]
+            if len(samples) > int(sf * 30):
+                p30    = float(np.percentile(samples, 30))
+                stable = samples[samples > p30]
+                if len(stable) > 10:
+                    stage_bl[stage] = float(np.percentile(stable, 90))
 
-    global_bl = dynamic_baseline if dynamic_baseline is not None else compute_dynamic_baseline(flow_env, sf)
+        if not stage_bl:
+            return global_bl.copy()
 
-    if not stage_bl:
-        return global_bl.copy()
+        ep_values   = np.empty(n_epochs)
+        use_global  = np.ones(n_epochs, dtype=bool)
+        for stage, val in stage_bl.items():
+            mask = hypno_arr == stage
+            ep_values[mask] = val
+            use_global[mask] = False
 
-    ep_values   = np.empty(n_epochs)
-    use_global  = np.ones(n_epochs, dtype=bool)
-    for stage, val in stage_bl.items():
-        mask = hypno_arr == stage
-        ep_values[mask] = val
-        use_global[mask] = False
+        if partial_epochs:
+            # Alleen epochs die de envelope overlappen krijgen een mediaan;
+            # daarbuiten is er geen signaal om een mediaan van te nemen.
+            for i in ep_indices[use_global]:
+                if i < n_cover:
+                    ep_values[i] = float(np.median(global_bl[i*spe : min((i+1)*spe, n)]))
+            baseline = np.repeat(ep_values[:n_cover], spe)[:n]
+            if baseline.size < n:
+                baseline = np.concatenate([baseline, global_bl[baseline.size:n]])
+        else:
+            if use_global.any():
+                ug_idx = ep_indices[use_global]
+                ep_values[use_global] = np.array([
+                    float(np.median(global_bl[i*spe : min((i+1)*spe, n)]))
+                    for i in ug_idx
+                ])
+            baseline = np.repeat(ep_values, spe)[:n]
+    except Exception as e:
+        if partial_epochs:
+            # De aanroeper (respiratory._apply_stage_baseline) vangt dit op
+            # DEBUG-niveau af; zonder deze regel is de reden onzichtbaar.
+            logger.warning("stadiumbasislijn niet berekend: %s: %s; "
+                           "dynamische basislijn alleen", type(e).__name__, e)
+        raise
 
-    if use_global.any():
-        ug_idx = ep_indices[use_global]
-        ep_values[use_global] = np.array([
-            float(np.median(global_bl[i*spe : min((i+1)*spe, n)]))
-            for i in ug_idx
-        ])
-
-    baseline = np.repeat(ep_values, spe)[:n]
     win      = max(1, int(sf * 5))
     baseline = np.convolve(baseline, np.ones(win) / win, mode="same")
     return np.maximum(baseline, 1e-6)

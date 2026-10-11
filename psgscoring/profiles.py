@@ -2264,6 +2264,66 @@ class PostProcessingRules:
     `chicago_1999`. Directe aanroepers van `detect_breaths` (signal.py,
     signal_quality.py) houden de functiedefault `"midpoint"`."""
 
+    thermistor_band_power_antialias: bool = True
+    """Decimeer met anti-aliasfilter voordat de ademband-fractie wordt gemeten.
+
+    `respiratory_band_power` bemonstert naar ~8 Hz. Dat ging met `x[::q]`,
+    zonder filter, en dan vouwt alles boven 4 Hz terug in de noemer
+    (0,02-4 Hz) van de breuk: netbrom op 50 Hz landt op 2 Hz. Een thermistor
+    die zuiver op 0,20 Hz ademt met een 50 Hz-toon van 0,7x de amplitude
+    erbovenop meet 0,671 in plaats van 1,000 -- bij elke bemonsterings-
+    frequentie, want de toon vouwt steeds in de band -- en dat is onder de
+    drempel van 0,70. Op `aasm_v3_breath_dual` (productiestandaard, poort
+    `respiratory_band`) wordt zo'n gezonde thermistor als apneu-sensor
+    afgewezen.
+
+    Aan: `scipy.signal.decimate(..., ftype="fir", zero_phase=True)`, hetzelfde
+    idioom als `envelope_fs`. Dit raakt alleen profielen met
+    `thermistor_gate="respiratory_band"`, maar daar beslist het of apneus op
+    de thermistor of op de neusdruk gescoord worden, en dus de AHI.
+
+    De negen-montage-ijking van THERMISTOR_BAND_POWER_MIN is MET aliasing
+    gemeten; zie de docstring daar en
+    `scripts/calibrate_thermistor_band_power.py` voor de herijking.
+
+    `mesa_shhs` en `chicago_1999` blijven expliciet op `False`."""
+
+    stage_baseline_partial_epochs: bool = True
+    """Laat de stadiumbasislijn ook draaien als het hypnogram de envelope niet
+    helemaal dekt.
+
+    `compute_stage_baseline` bouwde zijn masker met `np.repeat(...)[:n]`. Dat
+    is korter dan de envelope zodra `len(hypno) * spe < n`, en dat is het
+    normale geval: YASA en de NSRR-hypnogrammen zijn vloerlengte. NumPy
+    weigert een booleaans masker van de verkeerde lengte (IndexError),
+    `respiratory.py` vangt dat op DEBUG-niveau af, en de gedocumenteerde
+    REM/NREM-basislijn draaide op de meeste echte opnames stil nooit;
+    `stage_baseline_used` stond op False zonder dat iemand het zag.
+
+    Aan: het masker expliciet op lengte n, de staart zonder stadium krijgt
+    de dynamische basislijn, en een mislukking wordt op WARNING gemeld met de
+    reden. Dit laat een tak draaien die eerder niet draaide, dus de getallen
+    bewegen op de klinische profielen -- vandaar een veld en geen stille
+    reparatie. `mesa_shhs` en `chicago_1999` blijven op `False`: het oude
+    gedrag, inclusief de IndexError-terugval."""
+
+    linearise_after_dc_removal: bool = False
+    """Verwijder de trage component van de neusdruk VOOR de wortellinearisatie.
+
+    `preprocess_flow` nam de wortel van het ruwe druksignaal, offset
+    inbegrepen. Bij een offset van 0,5x de drukamplitude (DC-gekoppelde
+    versterker, niet-genulde canule) meet een echte halvering van de flow als
+    ~80 % reductie: het dal keert niet eens meer van teken, en de lezing hangt
+    af van een versterkerinstelling in plaats van van de ademhaling.
+
+    Aan: 0,05 Hz-hoogdoorlaat (dezelfde onderkant als de bandpass), dan de
+    wortel, dan de bandpass. Alleen op de tak met `is_nasal_pressure=True`;
+    een thermistor krijgt geen wortel en dus ook geen DC-stap ervoor.
+
+    **Default `False` op ALLE profielen, ook de exploratieve.** Dit verschuift
+    elke hypopneemeting op drukkanalen met offset en hoort eerst gemeten te
+    worden op PSG-IPA en MESA voordat een profiel het aanzet."""
+
 
 @dataclass
 class Profile:
@@ -2772,6 +2832,14 @@ _mesa_shhs = Profile(
         # `uncertain`-apneus in `ahi_total` trekken en de gepubliceerde
         # indices verschuiven; zie PostProcessingRules.rip_quality_scale_free.
         rip_quality_scale_free=False,
+        # Idem voor de twee reparaties van 11-10-2026 die default aan staan:
+        # het anti-aliasfilter in de bandvermogen-poort en de stadiumbasislijn
+        # op vloerlengte-hypnogrammen. De DC-stap voor de linearisatie staat
+        # overal uit; hier expliciet gepind zodat een latere default-wissel
+        # dit profiel niet meeneemt.
+        thermistor_band_power_antialias=False,
+        stage_baseline_partial_epochs=False,
+        linearise_after_dc_removal=False,
         # Idem voor de PLM-tijdbasis: die is per 21-08-2026 default aan omdat
         # het een rekenfout was, maar dit profiel moet reproduceerbaar blijven.
         plm_time_base=False,
@@ -2919,6 +2987,11 @@ _chicago_1999 = Profile(
         # reparaties aan de sensorpoorten. Zie
         # PostProcessingRules.rip_quality_scale_free.
         rip_quality_scale_free=False,
+        # Zie mesa_shhs: de twee poortreparaties van 11-10-2026 blijven hier
+        # uit, en de DC-stap voor de linearisatie is expliciet gepind.
+        thermistor_band_power_antialias=False,
+        stage_baseline_partial_epochs=False,
+        linearise_after_dc_removal=False,
         plm_time_base=False,
         # Zie mesa_shhs: de vijf reparaties van 11-10-2026 gepind op oud.
         spo2_nadir_time_axis=False,

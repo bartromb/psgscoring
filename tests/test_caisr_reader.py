@@ -15,8 +15,8 @@ from psgscoring.compare import (
 )
 
 
-def _write_csv(tmp_path, labels, fs=200):
-    p = tmp_path / "rec.csv"
+def _write_csv(tmp_path, labels, fs=200, name="rec.csv"):
+    p = tmp_path / name
     lines = ["start_idx,end_idx,resp"]
     for i, v in enumerate(labels):
         lines.append(f"{i * fs},{(i + 1) * fs},{v}")
@@ -28,11 +28,30 @@ def _write_csv(tmp_path, labels, fs=200):
 # Lezen
 # ---------------------------------------------------------------------------
 
-def test_reads_labels_and_derives_one_second_rows(tmp_path):
+def test_reads_labels_and_assumes_one_second_rows_without_a_sampling_rate(tmp_path):
+    """Zonder `original_fs` blijft de aanname van `export_to_csv` staan:
+    één rij is één seconde. Dat is een AANNAME en staat zo in de docstring."""
     p = _write_csv(tmp_path, [0, 0, 1, 1, 1, 0])
     labels, spr = read_caisr_resp_csv(p)
     assert labels == [0, 0, 1, 1, 1, 0]
     assert spr == 1.0
+
+
+def test_the_time_base_follows_the_step_and_the_original_sampling_rate(tmp_path):
+    """De lezer leidde `step` af en gaf daarna onvoorwaardelijk 1,0 terug;
+    de oude test kon het verschil niet zien. Twee bestanden met een andere
+    stap, dezelfde `original_fs`: de secondenbreedte MOET verschillen."""
+    labels = [0, 1, 1, 0]
+    p_vol = _write_csv(tmp_path, labels, fs=200, name="vol.csv")
+    p_half = _write_csv(tmp_path, labels, fs=100, name="half.csv")
+    _, spr_vol = read_caisr_resp_csv(p_vol, original_fs=200.0)
+    _, spr_half = read_caisr_resp_csv(p_half, original_fs=200.0)
+    assert spr_vol == 1.0
+    assert spr_half == 0.5
+    assert spr_vol != spr_half
+    # En de events schuiven mee: dezelfde labelvector, de helft zo lang.
+    assert labels_to_events(labels, spr_half)[0]["duration_s"] == 1.0
+    assert labels_to_events(labels, spr_vol)[0]["duration_s"] == 2.0
 
 
 def test_rejects_a_file_whose_rows_do_not_tile_the_timeline(tmp_path):

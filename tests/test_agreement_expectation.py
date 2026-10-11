@@ -48,6 +48,36 @@ def test_de_verwachting_loopt_monotoon_met_de_ziektelast():
     assert all(b >= a - 1e-9 for a, b in zip(fs, fs[1:])), fs
 
 
+def test_zeventig_events_krijgen_niet_meer_dan_sn5_gemeten_heeft():
+    """SN5 heeft 70 events en F1 0,56. De oude cumulatieve-MAXIMUM-envelop
+    tilde die opname naar 0,83 (het SN1-getal bij 34 events): een verwachting
+    HOGER dan wat op die ziektelast werkelijk gemeten is. Een envelop van
+    onderaf -- lopend minimum van rechts -- kan dat niet."""
+    r = expected_scorer_agreement(n_events=70)
+    assert r["f1_human"] <= 0.56 + 1e-9, r
+
+
+def test_geen_sprong_groter_dan_een_tiende_tussen_opeenvolgende_tellingen():
+    """33 -> 34 events sprong van 0,55 naar 0,83. Eén event verschil, en de
+    verwachte menselijke overeenstemming springt met 0,28: dat is geen
+    eigenschap van de opname maar van de interpolatie."""
+    fs = [expected_scorer_agreement(n_events=n)["f1_human"] for n in range(1, 401)]
+    sprongen = [(n + 1, b - a) for n, (a, b) in enumerate(zip(fs, fs[1:]), 1)
+                if b - a > 0.1]
+    assert not sprongen, sprongen
+
+
+def test_band_en_f1_zijn_consistent():
+    """'laag' met 0,83 naast 'hoog' met 0,61 is twee verhalen in één veld.
+    Elke lage band hoort onder elke hoge te liggen."""
+    laag = [expected_scorer_agreement(n)["f1_human"] for n in range(1, 400)
+            if expected_scorer_agreement(n)["band"] == "laag"]
+    hoog = [expected_scorer_agreement(n)["f1_human"] for n in range(1, 400)
+            if expected_scorer_agreement(n)["band"] == "hoog"]
+    assert laag and hoog
+    assert max(laag) <= min(hoog), (max(laag), min(hoog))
+
+
 def test_de_meting_waarop_dit_rust_staat_erbij():
     """Een verwachting zonder bron is een mening."""
     r = expected_scorer_agreement(n_events=100)

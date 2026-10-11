@@ -63,7 +63,29 @@ GOLDEN_PATH = Path(__file__).parent / "golden" / "synthetic_baseline.json"
 SF = 32.0
 DUR_S = 600
 BR = 0.25  # breathing frequency (Hz) ~ 15 breaths/min
-FLOAT_ATOL = 0.25  # tolerance for float leaves when comparing to golden
+
+#: Tolerantie per bladtype bij het vergelijken met de golden.
+#:
+#: Stond op één getal, 0,25, en dat maakte GOLDEN_DECIMALS (3) zinloos: de
+#: digest schreef een AHI op 0,001/u nauwkeurig op en de vergelijking liet
+#: vervolgens 0,24/u door. Een onset die 0,2 s opschoof, een ODI die 0,2/u
+#: bewoog -- allemaal "golden 9/9". Het harnas zag zijn eigen resolutie niet.
+#:
+#: Nu volgt de tolerantie het blad: wat op 3 decimalen is gedigest wordt op
+#: 1e-3 vergeleken, de confidences (op 2 decimalen gedigest, zie `summarize`)
+#: op 1e-2, en gehele getallen, strings en booleans exact. Float/BLAS-drift
+#: tussen machines ligt ver onder 1e-3 op deze schaal; wat erboven uitkomt
+#: is een scoringswijziging en hoort gezien te worden.
+FLOAT_ATOL = {
+    "conf":    1e-2,   # event-confidences: 2 decimalen in de digest
+    "default": 1e-3,   # indices, onsets, duren, percentages: 3 decimalen
+}
+
+
+def _atol_for(path: str) -> float:
+    """Tolerantie voor het float-blad op dit pad."""
+    leaf = path.rsplit(".", 1)[-1]
+    return FLOAT_ATOL["conf"] if leaf == "conf" else FLOAT_ATOL["default"]
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -380,8 +402,14 @@ def _diff(path, golden, current, out):
                 _diff(f"{path}[{i}]", g, c, out)
     elif isinstance(golden, (int, float)) and isinstance(current, (int, float)) \
             and not isinstance(golden, bool) and not isinstance(current, bool):
-        if abs(float(golden) - float(current)) > FLOAT_ATOL:
-            out.append(f"{path}: {golden} -> {current}")
+        # Tellingen (int aan beide kanten) exact; floats per bladtype.
+        if isinstance(golden, int) and isinstance(current, int):
+            if golden != current:
+                out.append(f"{path}: {golden} -> {current}")
+        elif abs(float(golden) - float(current)) > _atol_for(path):
+            out.append(f"{path}: {golden} -> {current} "
+                       f"(Δ {float(current) - float(golden):+.4g}, "
+                       f"tol {_atol_for(path):g})")
     else:
         if golden != current:
             out.append(f"{path}: {golden!r} -> {current!r}")

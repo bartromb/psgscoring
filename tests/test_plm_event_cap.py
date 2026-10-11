@@ -17,6 +17,7 @@ die het project elders hanteert: een grens die dekking beperkt, wordt
 gerapporteerd.
 """
 import numpy as np
+import pytest
 
 from psgscoring.plm import analyze_plm
 
@@ -190,6 +191,7 @@ def test_a_reordering_does_not_stay_silent():
         f"gezien: {seen}")
 
 
+@pytest.mark.slow          # volledige pijplijn, ~5 s
 def test_end_to_end_the_pipeline_asks_for_the_uncapped_list(monkeypatch):
     """Door de echte pipeline heen, want alleen dat vangt een teruggedraaide
     aanroep.

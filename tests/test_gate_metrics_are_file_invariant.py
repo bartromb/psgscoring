@@ -91,10 +91,14 @@ def _spreiding(fn):
     ("thermistor_band_power",
      lambda sf, st, amp: assess_thermistor_band_power(
          _signaal(sf, st, amp), sf)["band_power"]),
-    ("flow_sensor_agreement",
-     lambda sf, st, amp: assess_flow_sensor_agreement(
-         _signaal(sf, st, amp), sf,
-         _signaal(sf, st, amp * 0.6, faze=0.3), sf)["agreement"]),
+    # De envelope-overeenstemming filtert en Hilbert-transformeert twee
+    # kanalen per rendering; over dertig renderings is dat ~7 s.
+    pytest.param(
+        "flow_sensor_agreement",
+        lambda sf, st, amp: assess_flow_sensor_agreement(
+            _signaal(sf, st, amp), sf,
+            _signaal(sf, st, amp * 0.6, faze=0.3), sf)["agreement"],
+        marks=pytest.mark.slow),
     ("breath_coherence",
      lambda sf, st, amp: assess_breath_coherence(
          _signaal(sf, st, amp), sf,

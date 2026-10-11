@@ -118,6 +118,11 @@ def _profile_to_legacy_dict(profile) -> dict:
         "MAX_EVENTS_PER_DESATURATION": pp.max_events_per_desaturation,
         "RIP_QUALITY_SCALE_FREE": pp.rip_quality_scale_free,
         "RIP_PAIR_SCALE_FREE": pp.rip_pair_scale_free,
+        # 11-10-2026: anti-alias in de bandvermogen-poort, stadiumbasislijn
+        # op vloerlengte-hypnogrammen, DC-stap vóór de wortellinearisatie.
+        "THERMISTOR_BAND_POWER_ANTIALIAS": pp.thermistor_band_power_antialias,
+        "STAGE_BASELINE_PARTIAL_EPOCHS": pp.stage_baseline_partial_epochs,
+        "LINEARISE_AFTER_DC_REMOVAL": pp.linearise_after_dc_removal,
         "AROUSAL_SPECTRAL_SHIFT": pp.arousal_spectral_shift,
         "AROUSAL_HYSTERESIS": pp.arousal_hysteresis,
         "PLM_TIME_BASE": pp.plm_time_base,

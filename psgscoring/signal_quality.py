@@ -873,7 +873,16 @@ toegepast zou hij bruikbare kanalen afwijzen.
 
 n = 9. Klein. Hoort met meer opnames opnieuw bepaald te worden, net als
 THERMISTOR_AGREEMENT_MIN — maar anders dan die drempel scheidt deze de
-gemeten klassen wél."""
+gemeten klassen wél.
+
+**Geijkt MET aliasing.** `respiratory_band_power` decimeerde tot 11-10-2026
+zonder anti-aliasfilter (`x[::q]`), dus deze negen getallen bevatten wat er
+van boven 4 Hz in de noemer is gevouwen: netbrom, ECG, pulsartefact. Met
+het filter aan (`thermistor_band_power_antialias`, default) kunnen beide
+klassen opschuiven, vermoedelijk omhoog, en dan ligt het midden van het gat
+ergens anders. De drempel blijft tot de herijking op 0,70;
+`scripts/calibrate_thermistor_band_power.py` meet dezelfde montages in
+beide modi en hoort te draaien op de server waar die opnames staan."""
 
 THERMISTOR_BAND_POWER_WINDOWS = 10
 """Vensters verspreid over de nacht; de mediaan telt. Eén venster uit het
@@ -888,13 +897,22 @@ anders bepaalt hoogfrequente ruis de breuk in plaats van het signaal."""
 
 def respiratory_band_power(x: np.ndarray, sf: float,
                            n_windows: int = THERMISTOR_BAND_POWER_WINDOWS,
-                           win_s: float = THERMISTOR_BAND_POWER_WIN_S) -> dict:
+                           win_s: float = THERMISTOR_BAND_POWER_WIN_S,
+                           antialias: bool = True) -> dict:
     """Welk deel van het vermogen van dit kanaal valt in de ademband?
 
     Retourneert ``{"fraction", "peak_hz", "n_windows"}``; ``fraction`` is None
     wanneer er niets te meten valt. Eén kanaal, geen tweede sensor nodig.
+
+    ``antialias`` — decimeer met een FIR-anti-aliasfilter in plaats van met
+    ``x[::q]``. Zonder filter vouwt alles boven ~4 Hz terug in de noemer van
+    de breuk: een 50 Hz-toon van 0,7x de ademamplitude maakt van 1,000 een
+    0,671, bij elke bemonsteringsfrequentie. ``False`` is het gedrag van vóór
+    11-10-2026, gepind op ``mesa_shhs``/``chicago_1999``; zie het profielveld
+    ``thermistor_band_power_antialias`` (legacy-sleutel
+    ``THERMISTOR_BAND_POWER_ANTIALIAS``, door de aanroeper gelezen).
     """
-    from scipy.signal import welch
+    from scipy.signal import decimate, welch
 
     out = {"fraction": None, "peak_hz": None, "n_windows": 0}
     x = np.asarray(x, dtype=float).squeeze()
@@ -902,7 +920,15 @@ def respiratory_band_power(x: np.ndarray, sf: float,
         return out
 
     q = max(1, int(sf // 8))              # ~8 Hz volstaat en is veel sneller
-    d, sfd = x[::q], sf / max(1, int(sf // 8))
+    if q > 1 and antialias:
+        # ftype="fir" met zero_phase, zoals _decimated_hilbert_envelope: geen
+        # faseverschuiving, en de polyfase-implementatie blijft op een hele
+        # nacht snel. Het filter snijdt bij ~0,8x de nieuwe Nyquist (3,2 Hz),
+        # ruim boven de ademband en onder de rand van de noemer.
+        d = decimate(x, q, ftype="fir", zero_phase=True)
+    else:
+        d = x[::q]
+    sfd = sf / q
     n = int(win_s * sfd)
     if d.size < n:
         return out
@@ -1131,8 +1157,12 @@ def assess_flow_sensor_agreement(
 
 
 def assess_thermistor_band_power(thermistor: np.ndarray, sf_thermistor: float,
-                                 min_fraction: float | None = None) -> dict:
+                                 min_fraction: float | None = None,
+                                 antialias: bool = True) -> dict:
     """Draagt DIT kanaal ademhaling? Eén sensor, geen vergelijking.
+
+    ``antialias`` gaat door naar :func:`respiratory_band_power`; de aanroeper
+    leest hem uit ``THERMISTOR_BAND_POWER_ANTIALIAS`` van het profiel.
 
     Dezelfde vraag als ``assess_flow_sensor_agreement`` — is de thermistor
     bruikbaar als apneu-sensor — maar zonder de neusdruk als maatstaf te
@@ -1160,7 +1190,7 @@ def assess_thermistor_band_power(thermistor: np.ndarray, sf_thermistor: float,
         out["reason"] = "geen bruikbare samplefrequentie"
         return out
 
-    m = respiratory_band_power(thermistor, sf_thermistor)
+    m = respiratory_band_power(thermistor, sf_thermistor, antialias=antialias)
     if m["fraction"] is None:
         out["reason"] = "signaal te kort voor een spectrum"
         return out
