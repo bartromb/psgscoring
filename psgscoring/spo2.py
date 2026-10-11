@@ -15,10 +15,31 @@ import numpy as np
 from scipy.ndimage import label, maximum_filter1d
 
 from .indices import per_hour
-from .constants import EPOCH_LEN_S
-from .utils import build_sleep_mask, fmt_time, hypno_to_numeric, is_nrem, is_rem, safe_r
+from .utils import (
+    build_sleep_mask, epoch_bounds, fmt_time, hypno_to_numeric, is_nrem, is_rem, safe_r,
+)
 
 logger = logging.getLogger("psgscoring.spo2")
+
+#: Noemer van ODI en T90/T80/T70 in `analyze_spo2`. "artifact_free_sleep" =
+#: dezelfde noemer als de AHI (artefact-epochs eruit, percentages over
+#: geldige samples); "sleep" = alle slaapsamples, incl. artefact-epochs en
+#: uitval (gedrag tot 11-10-2026, gepind op de bevroren profielen).
+SPO2_INDEX_DENOMINATORS = ("artifact_free_sleep", "sleep")
+
+
+def nadir_time_axis_from_profile(profile: dict | None) -> bool:
+    """Profielvlag `spo2_nadir_time_axis` uit de legacy-dict (default aan)."""
+    return bool((profile or {}).get("SPO2_NADIR_TIME_AXIS", True))
+
+
+def index_denominator_from_profile(profile: dict | None) -> str:
+    """Profielvlag `spo2_index_denominator` uit de legacy-dict."""
+    mode = str((profile or {}).get("SPO2_INDEX_DENOMINATOR", "artifact_free_sleep"))
+    if mode not in SPO2_INDEX_DENOMINATORS:
+        raise ValueError(
+            f"SPO2_INDEX_DENOMINATOR={mode!r}; verwacht een van {SPO2_INDEX_DENOMINATORS}")
+    return mode
 
 
 # ---------------------------------------------------------------------------
@@ -34,6 +55,7 @@ def get_desaturation(
     post_win_s: float = 45,
     early_nadir_min_drop_pct: float = 5.0,
     global_baseline_min_local_pct: float | None = None,
+    nadir_time_axis: bool = True,
 ) -> tuple[float | None, float | None]:
     """
     Compute SpO2 desaturation associated with a respiratory event.
@@ -67,6 +89,14 @@ def get_desaturation(
         If not None, only fall back to the global baseline when the local
         pre-event baseline is below this value. Default None preserves
         v0.4.3 / paper-v31 behaviour (always override when global > local).
+    nadir_time_axis : bool
+        Meet de "nadir < 3 s na onset"-regel in TIJD. Tot 11-10-2026 werd het
+        segment eerst op 50-100 % gefilterd en pas daarna geïndexeerd, dus
+        een sensoruitval van 10 s aan het begin van het event schoof de
+        nadir-index 10 posities naar voren en een echte 4 %-desaturatie met
+        nadir op 11 s werd als "te vroeg" afgewezen. ``False`` reproduceert
+        dat (profielvlag `spo2_nadir_time_axis`, bevroren profielen). Zonder
+        ongeldige samples zijn beide paden byte-identiek.
 
     Returns
     -------
@@ -79,8 +109,9 @@ def get_desaturation(
         s_start = max(0, int(onset_s * sf_spo2))
         s_end   = min(len(spo2_data),
                       int((onset_s + dur_s + POST_WIN_S) * sf_spo2))
-        seg = spo2_data[s_start:s_end]
-        seg = seg[(seg >= 50) & (seg <= 100)]
+        seg_raw = spo2_data[s_start:s_end]
+        valid   = (seg_raw >= 50) & (seg_raw <= 100)
+        seg     = seg_raw[valid]
         if len(seg) < 3:
             return None, None
 
@@ -103,7 +134,12 @@ def get_desaturation(
 
         min_spo2  = float(np.min(seg))
         desat     = spo2_bl - min_spo2
-        nadir_idx = int(np.argmin(seg))
+        if nadir_time_axis:
+            # Index op de ONGEFILTERDE tijd-as: ongeldige samples tellen als
+            # verstreken tijd, niet als verdwenen tijd.
+            nadir_idx = int(np.flatnonzero(valid)[np.argmin(seg)])
+        else:
+            nadir_idx = int(np.argmin(seg))
 
         # Reject very early nadirs (< 3 s after onset) only if the drop is
         # below the AASM 3% criterion; genuine fast responders with ≥3%
@@ -523,18 +559,38 @@ def analyze_spo2(
     spo2_data: np.ndarray,
     sf: float,
     hypno: list,
+    artifact_epochs: list | None = None,
+    index_denominator: str = "artifact_free_sleep",
 ) -> dict:
     """
     Compute ODI, time-below thresholds, and individual desaturation events.
+
+    ``artifact_epochs`` / ``index_denominator``: tot 11-10-2026 rekenden de
+    ODI en de T90-percentages over ALLE slaapsamples, inclusief
+    artefact-epochs en sensoruitval, terwijl de AHI de artefact-epochs uit
+    zijn noemer houdt. Met een artefactlijst én ``"artifact_free_sleep"``
+    (profielvlag `spo2_index_denominator`, default) geldt dezelfde noemer als
+    de AHI: artefact-epochs uit teller en noemer, en de percentages over het
+    aantal GELDIGE samples. Zonder lijst (``None``) of met ``"sleep"`` is de
+    uitkomst byte-identiek aan vroeger.
 
     Returns a result dict with keys: success, summary, desaturations, error.
     """
     result: dict = {"success": False, "summary": {}, "desaturations": [], "error": None}
     try:
+        if index_denominator not in SPO2_INDEX_DENOMINATORS:
+            raise ValueError(
+                f"index_denominator={index_denominator!r}; verwacht een van "
+                f"{SPO2_INDEX_DENOMINATORS}")
+        artefactvrij = (index_denominator == "artifact_free_sleep"
+                        and artifact_epochs is not None)
+        art_set = set(int(i) for i in (artifact_epochs or [])) if artefactvrij else set()
+
         spo2_clean = spo2_data.copy().astype(float)
         spo2_clean[(spo2_clean < 50) | (spo2_clean > 100)] = np.nan
 
-        sleep_mask  = build_sleep_mask(hypno, sf, len(spo2_clean))
+        sleep_mask  = build_sleep_mask(hypno, sf, len(spo2_clean),
+                                       sorted(art_set) if artefactvrij else None)
         spo2_sleep  = spo2_clean[sleep_mask]
         spo2_sleep  = spo2_sleep[~np.isnan(spo2_sleep)]
 
@@ -544,13 +600,17 @@ def analyze_spo2(
 
         total_sleep_s = float(np.sum(sleep_mask)) / sf
         total_sleep_h = total_sleep_s / 3600   # zie psgscoring/indices.py
+        # Noemer van de percentages: geldige samples (artefactvrij) of alle
+        # slaapsamples (oud) -- uitval verdunt het percentage in het tweede
+        # geval.
+        pct_denominator_s = (len(spo2_sleep) / sf) if artefactvrij else total_sleep_s
         baseline_spo2 = float(np.percentile(spo2_sleep, 90))
 
         def pct_below(thresh: float):
             """Bereken het percentage van de tijd dat SpO2 onder een drempel valt."""
             n_below = np.sum(spo2_sleep < thresh)
             t_s     = float(n_below) / sf
-            pct     = t_s / total_sleep_s * 100 if total_sleep_s > 0 else 0.0
+            pct     = t_s / pct_denominator_s * 100 if pct_denominator_s > 0 else 0.0
             return safe_r(pct), fmt_time(t_s)
 
         pct90, t90 = pct_below(90)
@@ -561,7 +621,7 @@ def analyze_spo2(
             """Minutes and % of sleep time with lo ≤ SpO2 < hi (NaN excluded)."""
             n_in = int(np.sum((spo2_sleep >= lo) & (spo2_sleep < hi)))
             t_s = float(n_in) / sf
-            pct = t_s / total_sleep_s * 100 if total_sleep_s > 0 else 0.0
+            pct = t_s / pct_denominator_s * 100 if pct_denominator_s > 0 else 0.0
             return safe_r(t_s / 60.0), safe_r(pct)          # minutes, %
 
         band_95_100_min, band_95_100_pct = _band(95, 101)   # include 100
@@ -584,12 +644,12 @@ def analyze_spo2(
 
         # REM / NREM split
         hypno_num = hypno_to_numeric(hypno)
-        spe       = int(sf * EPOCH_LEN_S)
         rem_mask  = np.zeros(len(spo2_clean), dtype=bool)
         nrem_mask = np.zeros(len(spo2_clean), dtype=bool)
         for ep_i, stage in enumerate(hypno_num):
-            s = ep_i * spe
-            e = min(s + spe, len(rem_mask))
+            if ep_i in art_set:
+                continue
+            s, e = epoch_bounds(ep_i, sf, len(rem_mask))
             if is_rem(stage):
                 rem_mask[s:e]  = True
             elif is_nrem(stage):
@@ -601,7 +661,7 @@ def analyze_spo2(
             seg = seg[~np.isnan(seg)]
             if len(seg) == 0:
                 return None, None, None
-            dur   = float(np.sum(mask)) / sf
+            dur   = (len(seg) if artefactvrij else float(np.sum(mask))) / sf
             t90_s = float(np.sum(seg < 90)) / sf
             pct   = t90_s / dur * 100 if dur > 0 else 0
             return safe_r(pct), fmt_time(t90_s), safe_r(float(np.min(seg)))
@@ -639,6 +699,9 @@ def analyze_spo2(
             "pct_70_80":          band_70_80_pct,
             "time_below_70_min":  band_below_70_min,
             "total_sleep_s":      safe_r(total_sleep_s),
+            # Welke noemer er gold, zodat een ODI naast een AHI leesbaar is.
+            "index_denominator":  "artifact_free_sleep" if artefactvrij else "sleep",
+            "n_artifact_epochs_excluded": sum(1 for i in art_set if 0 <= i < len(hypno)),
             "rem_pct_below_90":   rem_p90,
             "rem_time_below_90":  rem_t90,
             "rem_min_spo2":       rem_min,
@@ -654,9 +717,12 @@ def analyze_spo2(
             ) if baseline_spo2 < 88.0 else None,
         }
         result["desaturations"] = desaturations[:200]
-        # v0.8.12: 1-Hz timeseries for PDF overview plot
+        # v0.8.12: 1-Hz timeseries for PDF overview plot. NaN (uitval) wordt
+        # None: NaN is geen JSON, en `json.dumps` schrijft er stil `NaN` in
+        # dat een strikte lezer weigert.
         step = max(1, int(sf))  # downsample to ~1 Hz
-        result["timeseries"] = spo2_clean[::step].tolist()
+        result["timeseries"] = [None if np.isnan(v) else v
+                                for v in spo2_clean[::step].tolist()]
         result["success"]       = True
 
     except Exception as e:

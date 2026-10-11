@@ -13,8 +13,8 @@ from scipy import signal as sp_signal
 
 from .constants import EPOCH_LEN_S, POSITION_MIN_MINUTES
 from .utils import (
-    build_sleep_mask, fmt_time, hypno_to_numeric,
-    is_nrem, is_rem, safe_r,
+    build_sleep_mask, epoch_bounds, fmt_time, hypno_to_numeric,
+    is_nrem, is_rem, is_sleep, safe_r,
 )
 
 
@@ -38,11 +38,10 @@ def analyze_position(
     """
     result: dict = {"success": False, "summary": {}, "error": None}
     try:
-        spe           = int(sf * EPOCH_LEN_S)
         n_epochs      = len(hypno)
         # v0.8.12: auto-map raw ADC/voltage to 0-4 codes
         pos_mapped, pos_method = _map_position_signal(pos_data)
-        pos_per_epoch = [_modal_position(pos_mapped, ep, spe) for ep in range(n_epochs)]
+        pos_per_epoch = [_modal_position(pos_mapped, ep, sf) for ep in range(n_epochs)]
 
         pos_names = {0: "Prone", 1: "Left", 2: "Supine", 3: "Right", 4: "Upright"}
         sleep_time: dict[str, float | None] = {}
@@ -205,10 +204,14 @@ def _map_position_signal(pos_data: np.ndarray) -> tuple[np.ndarray, str]:
     return np.clip(mapped, 0, 4), "percentile"
 
 
-def _modal_position(pos_data: np.ndarray, ep: int, spe: int) -> int:
-    """Bepaal de meest voorkomende slaappositie (modus) voor een epoch."""
-    s   = ep * spe
-    e   = min(s + spe, len(pos_data))
+def _modal_position(pos_data: np.ndarray, ep: int, sf: float) -> int:
+    """Bepaal de meest voorkomende slaappositie (modus) voor een epoch.
+
+    De grenzen komen uit `epoch_bounds`: een houdingskanaal loopt vaak op
+    1 Hz of lager, en `int(sf * 30)` liep daar na vijftien epochs al een
+    volle epoch achter.
+    """
+    s, e = epoch_bounds(ep, sf, len(pos_data))
     seg = pos_data[s:e]
     if len(seg) == 0:
         return -1
@@ -361,12 +364,18 @@ def analyze_snore(
 # Cheyne-Stokes Respiration
 # ---------------------------------------------------------------------------
 
+def csr_period_rectified_from_profile(profile: dict | None) -> bool:
+    """Profielvlag `csr_period_rectified` uit de legacy-dict (default uit)."""
+    return bool((profile or {}).get("CSR_PERIOD_RECTIFIED", False))
+
+
 def detect_cheyne_stokes(
     flow_env: np.ndarray,
     sf: float,
     hypno: list,
     min_cycle_s: float = 40.0,
     max_cycle_s: float = 120.0,
+    period_rectified: bool = False,
 ) -> dict:
     """
     Detect Cheyne-Stokes Respiration (CSR) via autocorrelation of the
@@ -374,6 +383,13 @@ def detect_cheyne_stokes(
 
     A normalised autocorrelation peak > 0.3 in the 40–120 s lag range
     indicates a significant crescendo-decrescendo pattern.
+
+    ``period_rectified``: richt de bandgefilterde envelope gelijk (``np.abs``)
+    vóór de autocorrelatie -- het gedrag tot 11-10-2026. De band van
+    0,005-0,05 Hz heeft geen gelijkstroom meer, dus gelijkrichten verdubbelt
+    de frequentie en de piek valt op T/2 (88 s -> 44 s) of, als die onder
+    ``min_cycle_s`` zit, op 3T/2 (60 s -> 90 s). Default False; de bevroren
+    profielen geven True door via `csr_period_rectified`.
 
     NOTE (v0.4.4 review): the literature on autocorrelation-based CSR
     detection uses tighter thresholds (Trinder et al., Sleep 1991: >0.4;
@@ -410,7 +426,10 @@ def detect_cheyne_stokes(
             return out
 
         b, a      = sp_signal.butter(2, [lo, hi], btype="band")
-        slow_env  = np.abs(sp_signal.filtfilt(b, a, flow_env))
+        slow_env  = sp_signal.filtfilt(b, a, flow_env)
+        if period_rectified:
+            # Zie de docstring: dit halveert de gemeten cyclusduur.
+            slow_env = np.abs(slow_env)
 
         min_lag = int(min_cycle_s * sf)
         max_lag = min(int(max_cycle_s * sf), n // 2)
@@ -447,8 +466,9 @@ def detect_cheyne_stokes(
                         csr_min += 2
                 out["csr_minutes"] = csr_min
 
+                # `is_sleep`, niet `!= "W"`: in een geheel hypnogram is 0 wake.
                 sleep_min = sum(
-                    EPOCH_LEN_S for s in hypno if s != "W"
+                    EPOCH_LEN_S for s in hypno if is_sleep(s)
                 ) / 60
                 out["csr_pct_sleep"] = safe_r(
                     csr_min / max(sleep_min, 1) * 100

@@ -302,9 +302,26 @@ def compute_adaptive_cardiac_band(
     return (round(low_hz, 2), round(high_hz, 2))
 
 
+#: Vensterlengte van de spectrale classificatie. "event" = het hele event als
+#: één Welch-segment (10-60 s, dus 0,017-0,1 Hz per bin); "4s" = nperseg van
+#: 4 s met bins van 0,25 Hz, waardoor de ademband van 0,1-0,5 Hz uit twee bins
+#: bestond en een ademritme op 0,15-0,18 Hz grotendeels naar de DC-bin lekte.
+SPECTRAL_RESOLUTIONS = ("event", "4s")
+
+
+def spectral_resolution_from_profile(profile: dict | None) -> str:
+    """Profielvlag `spectral_effort_resolution` uit de legacy-dict (default "event")."""
+    res = str((profile or {}).get("SPECTRAL_EFFORT_RESOLUTION", "event"))
+    if res not in SPECTRAL_RESOLUTIONS:
+        raise ValueError(
+            f"SPECTRAL_EFFORT_RESOLUTION={res!r}; verwacht een van {SPECTRAL_RESOLUTIONS}")
+    return res
+
+
 def spectral_effort_classifier(effort_signal: np.ndarray, sf: float,
                                 onset_idx: int, end_idx: int,
                                 cardiac_band_hz: tuple[float, float] | None = None,
+                                resolution: str = "event",
                                 ) -> dict:
     """Classify effort signal as cardiac artefact vs respiratory effort.
 
@@ -324,27 +341,38 @@ def spectral_effort_classifier(effort_signal: np.ndarray, sf: float,
         Sample indices of the apnea event.
     cardiac_band_hz : tuple, optional
         (low, high) Hz for cardiac band.  Defaults to module constant.
+    resolution : "event" | "4s"
+        Vensterlengte van het spectrum; zie ``SPECTRAL_RESOLUTIONS``. Met
+        "event" wordt per band de spectrale dichtheid geïntegreerd (som x df);
+        de fracties zijn daar onafhankelijk van, de absolute bandvermogens
+        niet. "4s" is het gedrag tot 11-10-2026 (bevroren profielen).
 
     Returns
     -------
     result : dict
         Keys: cardiac_fraction, respiratory_fraction,
         cardiac_dominant (bool), classification_hint (str),
-        cardiac_band_hz (tuple).
+        cardiac_band_hz (tuple), resolution (str).
     """
     if cardiac_band_hz is None:
         cardiac_band_hz = CARDIAC_BAND_HZ
+    if resolution not in SPECTRAL_RESOLUTIONS:
+        raise ValueError(
+            f"resolution={resolution!r}; verwacht een van {SPECTRAL_RESOLUTIONS}")
 
     seg = effort_signal[onset_idx:end_idx]
 
     empty = {"cardiac_fraction": 0.0, "respiratory_fraction": 0.0,
              "cardiac_dominant": False, "classification_hint": "insufficient_data",
-             "cardiac_band_hz": cardiac_band_hz}
+             "cardiac_band_hz": cardiac_band_hz, "resolution": resolution}
 
     if len(seg) < int(4 * sf):
         return empty
 
-    nperseg = min(len(seg), int(4 * sf))
+    if resolution == "event":
+        nperseg = len(seg)
+    else:
+        nperseg = min(len(seg), int(4 * sf))
     try:
         freqs, psd = welch(seg, fs=sf, nperseg=nperseg, noverlap=nperseg // 2)
     except Exception:
@@ -354,8 +382,11 @@ def spectral_effort_classifier(effort_signal: np.ndarray, sf: float,
     resp_mask    = (freqs >= RESPIRATORY_BAND_HZ[0]) & (freqs <= RESPIRATORY_BAND_HZ[1])
     cardiac_mask = (freqs >= cardiac_band_hz[0])      & (freqs <= cardiac_band_hz[1])
 
-    resp_power    = float(np.sum(psd[resp_mask]))
-    cardiac_power = float(np.sum(psd[cardiac_mask]))
+    # Dichtheid geïntegreerd over de band (som x df). Bij "4s" blijft het de
+    # kale som, zodat dat pad byte-identiek is aan vroeger.
+    df = float(freqs[1] - freqs[0]) if (resolution == "event" and len(freqs) > 1) else 1.0
+    resp_power    = float(np.sum(psd[resp_mask])) * df
+    cardiac_power = float(np.sum(psd[cardiac_mask])) * df
     total_power   = resp_power + cardiac_power
 
     if total_power < 1e-12:
@@ -381,6 +412,7 @@ def spectral_effort_classifier(effort_signal: np.ndarray, sf: float,
         "cardiac_dominant":    cardiac_dominant,
         "classification_hint": hint,
         "cardiac_band_hz":     cardiac_band_hz,
+        "resolution":          resolution,
     }
 
 
@@ -391,6 +423,7 @@ def ecg_effort_assessment(ecg: np.ndarray | None,
                            onset_idx: int, end_idx: int,
                            tecg: np.ndarray | None = None,
                            r_peaks: np.ndarray | None = None,
+                           spectral_resolution: str = "event",
                            ) -> dict:
     """Combined ECG-derived effort assessment for a single apnea event.
 
@@ -412,6 +445,9 @@ def ecg_effort_assessment(ecg: np.ndarray | None,
         Pre-computed TECG (avoids recomputation per event).
     r_peaks : array, optional
         Pre-detected R-peaks.
+    spectral_resolution : "event" | "4s"
+        Doorgegeven aan :func:`spectral_effort_classifier`; profielvlag
+        `spectral_effort_resolution` via `spectral_resolution_from_profile`.
 
     Returns
     -------
@@ -450,7 +486,8 @@ def ecg_effort_assessment(ecg: np.ndarray | None,
     if effort_signal is not None:
         spectral = spectral_effort_classifier(effort_signal, sf,
                                                onset_idx, end_idx,
-                                               cardiac_band_hz=adaptive_band)
+                                               cardiac_band_hz=adaptive_band,
+                                               resolution=spectral_resolution)
         result["spectral_detail"] = spectral
         result["spectral_cardiac_dominant"] = spectral["cardiac_dominant"]
 

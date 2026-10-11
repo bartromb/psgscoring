@@ -107,6 +107,12 @@ def _profile_to_legacy_dict(profile) -> dict:
         "PLM_EVENT_LIST_CAP": pp.plm_event_list_cap,
         "PLM_OFFSET_AASM": pp.plm_offset_aasm,
         "PLM_BILATERAL_WINDOW_S": pp.plm_bilateral_window_s,
+        # 11-10-2026: vijf reparaties achter een veld, bevroren profielen oud.
+        "PLM_RESP_EXCLUSION": pp.plm_resp_exclusion,
+        "SPO2_NADIR_TIME_AXIS": pp.spo2_nadir_time_axis,
+        "SPO2_INDEX_DENOMINATOR": pp.spo2_index_denominator,
+        "CSR_PERIOD_RECTIFIED": pp.csr_period_rectified,
+        "SPECTRAL_EFFORT_RESOLUTION": pp.spectral_effort_resolution,
         "HYPOPNEA_SUBTYPE_AASM": pp.hypopnea_subtype_aasm,
         "PHASE_ANGLE_NEEDS_EFFORT": pp.phase_angle_needs_effort,
         "SHAPE_EVIDENCE_GRADING": pp.shape_evidence_grading,

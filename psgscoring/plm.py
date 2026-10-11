@@ -8,7 +8,8 @@ AASM criteria summary
 - Leg Movement (LM): EMG >= 8 µV above resting, duration 0.5–10 s
 - Bilateral LMs within 0.5 s -> merged to one LM
 - PLM series: >= 4 consecutive LMs, inter-movement interval 5–90 s
-- Wake LMs excluded; respiratory-associated LMs excluded
+- Wake LMs excluded; respiratory-associated LMs excluded (AASM: from 0.5 s
+  before the onset of an apnea/hypopnea to 0.5 s after its end)
 - PLMI: PLMs per hour of sleep (significant >= 15/h)
 
 Dependencies: numpy, scipy, psgscoring.constants, psgscoring.utils
@@ -24,7 +25,7 @@ from scipy.ndimage import label
 
 from .constants import EPOCH_LEN_S
 from .indices import per_hour
-from .utils import safe_r
+from .utils import safe_r, to_microvolts
 
 # AASM thresholds
 LM_MIN_DUR_S       = 0.5
@@ -61,7 +62,22 @@ BILATERAL_WIN_S    = 0.5
 #: zegt" en "wat wij doen" in de code zichtbaar is in plaats van in een
 #: changelog.
 BILATERAL_WIN_AASM_S = 5.0
-RESP_EXCLUSION_S   = 0.5     # LM within 0.5 s of resp event end -> excluded
+#: Marge rond een respiratoir event waarbinnen een beenbeweging respiratoir
+#: heet. AASM: van 0,5 s vóór de onset tot 0,5 s na het einde van een
+#: apneu/hypopneu (`resp_exclusion="aasm"`). Tot 11-10-2026 werd alleen
+#: `einde +/- 0,5 s` getoetst (`resp_exclusion="end"`), zodat een beweging
+#: midden in een apneu van 30 s gewoon in de PLM-index telde.
+RESP_EXCLUSION_S   = 0.5
+RESP_EXCLUSION_MODES = ("aasm", "end")
+
+
+def plm_resp_exclusion_from_profile(profile: dict | None) -> str:
+    """Profielvlag `plm_resp_exclusion` uit de legacy-dict (default "aasm")."""
+    mode = str((profile or {}).get("PLM_RESP_EXCLUSION", "aasm"))
+    if mode not in RESP_EXCLUSION_MODES:
+        raise ValueError(
+            f"PLM_RESP_EXCLUSION={mode!r}; verwacht een van {RESP_EXCLUSION_MODES}")
+    return mode
 
 
 def analyze_plm(
@@ -76,6 +92,7 @@ def analyze_plm(
     event_list_cap: int | None = EVENT_LIST_CAP,
     offset_aasm: bool = False,
     bilateral_window_s: float = BILATERAL_WIN_S,
+    resp_exclusion: str = "aasm",
 ) -> dict:
     """
     Detect PLMs on left and/or right tibialis anterior EMG channels.
@@ -88,6 +105,10 @@ def analyze_plm(
                       False only to reproduce pre-repair output. See the
                       comment in `_detect_lm_channel` and
                       docs/plm_tijdbasis_bevinding.md.
+    resp_exclusion  : "aasm" (default) sluit een beweging uit die overlapt met
+                      [onset - 0,5 s, einde + 0,5 s] van een respiratoir
+                      event; "end" toetst alleen einde +/- 0,5 s (gedrag tot
+                      11-10-2026, gepind op de bevroren profielen).
 
     leg_l / leg_r   : raw EMG arrays
     sf              : sample rate
@@ -136,12 +157,17 @@ def analyze_plm(
                 sleep_lms.append(lm)
 
         # Respiratory-associated exclusion
-        resp_ends = [
-            float(e["onset_s"]) + float(e["duration_s"])
+        if resp_exclusion not in RESP_EXCLUSION_MODES:
+            raise ValueError(
+                f"resp_exclusion={resp_exclusion!r}; verwacht een van "
+                f"{RESP_EXCLUSION_MODES}")
+        resp_spans = [
+            (float(e["onset_s"]), float(e["onset_s"]) + float(e["duration_s"]))
             for e in (resp_events or [])
             if "onset_s" in e and "duration_s" in e
         ]
-        plm_eligible, n_resp = _exclude_resp_associated(sleep_lms, resp_ends)
+        plm_eligible, n_resp = _exclude_resp_associated(
+            sleep_lms, resp_spans=resp_spans, mode=resp_exclusion)
 
         # PLM series detection
         plm_series, plm_count = _detect_series(plm_eligible)
@@ -197,6 +223,7 @@ def analyze_plm(
             "n_lm_sleep":        len(sleep_lms),
             "n_lm_wake":         len(all_lms) - len(sleep_lms),
             "n_resp_associated": n_resp,
+            "resp_exclusion":    resp_exclusion,
             "n_plm_eligible":    len(plm_eligible),
             "n_plm":             plm_count,
             "n_plm_series":      len(plm_series),
@@ -233,46 +260,19 @@ def _detect_lm_channel(
       'uV'   → leave as-is
       'auto' → amplitude heuristic with logging of likely scaling errors
 
-    The 'auto' heuristic (v0.4.4 hardened):
+    The 'auto' heuristic (v0.4.4 hardened, since 11-10-2026 shared with the
+    arousal detector as ``utils.to_microvolts`` and measured AFTER removing
+    the DC offset):
 
-      max|x| < 0.01    → assume V    (×1e6 → µV)
-      max|x| < 10      → assume mV   (×1e3 → µV) and warn
-      otherwise        → assume µV
+      max|x - mean| < 0.01    → assume V    (×1e6 → µV)
+      max|x - mean| < 10      → assume mV   (×1e3 → µV) and warn
+      otherwise               → assume µV
     """
-    import logging
-    _log = logging.getLogger(__name__)
-
-    data_uv = np.asarray(data, dtype=float).copy()
-    if unit == "V":
-        data_uv = data_uv * 1e6
-    elif unit == "mV":
-        data_uv = data_uv * 1e3
-    elif unit == "uV":
-        pass
-    elif unit == "auto":
-        max_abs = float(np.max(np.abs(data_uv))) if data_uv.size else 0.0
-        if max_abs < 1e-12:
-            # All-zero signal (stuck/disconnected channel); leave as-is.
-            pass
-        elif max_abs < 0.01:
-            # Almost certainly volts (raw V-scaled EMG max typically 1–5 mV
-            # = 0.001–0.005 V). Scale ×1e6 to µV.
-            data_uv = data_uv * 1e6
-        elif max_abs < 10:
-            # Plausibly millivolts (e.g. EDF stored with mV physical_unit),
-            # max ≈ 1–5 mV. Scale ×1e3 and emit a warning so callers can
-            # pass `unit='mV'` explicitly to silence it.
-            _log.warning(
-                "PLM EMG amplitude max=%.3f looks like mV-scaled data; "
-                "scaling ×1000 to µV. Pass leg_unit='mV' to silence this warning.",
-                max_abs,
-            )
-            data_uv = data_uv * 1e3
-        # else: max_abs >= 10 → assume already in µV, no scaling
-    else:
+    if unit not in ("V", "mV", "uV", "auto"):
         raise ValueError(
             f"Unknown leg_unit={unit!r}; expected 'V', 'mV', 'uV', or 'auto'"
         )
+    data_uv = to_microvolts(data, unit=unit, label="PLM EMG")
 
     nyq = sf / 2
     lo  = min(10.0 / nyq, 0.99)
@@ -388,9 +388,16 @@ def _merge_bilateral(
             if j in used_r:
                 continue
             if abs(lm["onset_s"] - rlm["onset_s"]) <= window_s:
+                # Eén beweging van de vroegste onset tot het LAATSTE einde.
+                # Tot 11-10-2026 stond hier de langste duur; bij onsets die
+                # uit elkaar liggen eindigde de samengevoegde beweging dan
+                # vóór het einde van het latere been.
+                onset = min(lm["onset_s"], rlm["onset_s"])
+                einde = max(lm["onset_s"] + lm["duration_s"],
+                            rlm["onset_s"] + rlm["duration_s"])
                 merged.append({
-                    "onset_s":      min(lm["onset_s"],     rlm["onset_s"]),
-                    "duration_s":   max(lm["duration_s"],  rlm["duration_s"]),
+                    "onset_s":      onset,
+                    "duration_s":   round(einde - onset, 2),
                     "amplitude_uv": max(lm["amplitude_uv"], rlm["amplitude_uv"]),
                     "bilateral":    True,
                 })
@@ -409,17 +416,41 @@ def _merge_bilateral(
 
 def _exclude_resp_associated(
     sleep_lms: list[dict],
-    resp_ends: list[float],
+    resp_ends: list[float] | None = None,
+    *,
+    resp_spans: list[tuple[float, float]] | None = None,
+    mode: str = "end",
 ) -> tuple[list[dict], int]:
-    """Remove LMs within 0.5 s of a respiratory-event end."""
+    """Haal respiratoir gekoppelde beenbewegingen uit de lijst.
+
+    ``mode="aasm"``: een beweging is respiratoir als ze OVERLAPT met
+    ``[onset - 0,5 s, einde + 0,5 s]`` van een event uit ``resp_spans``
+    (AASM: "occurs during a period from 0.5 s preceding ... to 0.5 s
+    following"). ``mode="end"``: de onset van de beweging ligt binnen
+    ``einde +/- 0,5 s`` -- het gedrag tot 11-10-2026, waarbij een beweging
+    midden in een apneu meetelde. Zonder ``resp_spans`` valt "aasm" terug
+    op de eindes, want een venster zonder onset is niet te bouwen.
+    """
+    if mode not in RESP_EXCLUSION_MODES:
+        raise ValueError(f"mode={mode!r}; verwacht een van {RESP_EXCLUSION_MODES}")
+    if resp_ends is None:
+        resp_ends = [e for _, e in (resp_spans or [])]
+    spans = resp_spans if (mode == "aasm" and resp_spans is not None) else None
     eligible: list[dict] = []
     n_resp = 0
     for lm in sleep_lms:
         onset   = lm["onset_s"]
-        is_resp = any(
-            (re - RESP_EXCLUSION_S) <= onset <= (re + RESP_EXCLUSION_S)
-            for re in resp_ends
-        )
+        if spans is not None:
+            einde = onset + float(lm.get("duration_s") or 0.0)
+            is_resp = any(
+                onset <= (e + RESP_EXCLUSION_S) and einde >= (o - RESP_EXCLUSION_S)
+                for o, e in spans
+            )
+        else:
+            is_resp = any(
+                (re - RESP_EXCLUSION_S) <= onset <= (re + RESP_EXCLUSION_S)
+                for re in resp_ends
+            )
         lm["resp_associated"] = is_resp
         if is_resp:
             n_resp += 1

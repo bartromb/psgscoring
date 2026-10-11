@@ -8,8 +8,15 @@ No imports from other psgscoring modules.
 """
 
 from __future__ import annotations
+import hashlib
+import json
+import logging
+from pathlib import Path
+
 import numpy as np
 from .constants import CHANNEL_PATTERNS, EPOCH_LEN_S
+
+logger = logging.getLogger("psgscoring.utils")
 
 
 # ---------------------------------------------------------------------------
@@ -32,6 +39,130 @@ def fmt_time(seconds: float) -> str:
         return "--:--:--"
     s = int(seconds)
     return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+
+
+def epoch_bounds(ep_i: int, sf: float, n: int) -> tuple[int, int]:
+    """Sample-grenzen ``[start, einde)`` van epoch ``ep_i`` in een signaal van
+    ``n`` samples op ``sf`` Hz.
+
+    Zes maskerbouwers rekenden ``spe = int(sf * 30)`` en vermenigvuldigden die
+    met de epochindex. Bij 255,74 Hz is dat 7672 waar een epoch 7672,2 samples
+    duurt: de fout loopt lineair op, twintig samples per honderd epochs. Bij
+    0,25 Hz (een houdingskanaal) is int(7,5) = 7 en zit de drift na vijftien
+    epochs op een volle epoch. Hier wordt per epoch afgerond, zodat de grens
+    de tijd volgt in plaats van een afgekapt aantal samples. Waar ``sf * 30``
+    geheel is, is dit byte-identiek aan de oude regel.
+    """
+    s = int(round(ep_i * EPOCH_LEN_S * sf))
+    e = int(round((ep_i + 1) * EPOCH_LEN_S * sf))
+    return min(s, n), min(e, n)
+
+
+# ---------------------------------------------------------------------------
+# Eenheden
+# ---------------------------------------------------------------------------
+
+def to_microvolts(x, unit: str = "auto", label: str = "signaal") -> np.ndarray:
+    """Breng een EEG/EMG-signaal naar microvolt.
+
+    ``unit`` is 'V', 'mV', 'uV' of 'auto'. De heuristiek achter 'auto' komt
+    uit ``plm._detect_lm_channel`` (de enige plaats die een mV-trap had;
+    ``arousal.py`` deed drie keer alleen ``max|x| < 0.01 -> x * 1e6``):
+
+      max|x - gemiddelde| < 0,01   -> volt       (x1e6)
+      max|x - gemiddelde| < 10     -> millivolt  (x1e3, met waarschuwing)
+      anders                       -> al microvolt
+
+    De amplitude wordt gemeten NA het aftrekken van de gelijkspanning. Een
+    gelijkspanning-gekoppelde opname met een offset van 145 mV (de BDF-casus
+    van 2026-08) las anders als "mV" en kreeg x1e3 waar x1e6 hoorde: het EEG
+    van 50 uV werd 0,05 uV. De offset zelf blijft in het signaal staan; de
+    aanroepers filteren hem er zelf uit. Op uV- en V-invoer zonder offset is
+    dit byte-identiek aan de oude regel.
+
+    Een signaal dat de hele nacht onder de 10 uV blijft, bestaat klinisch
+    niet (artefacten, K-complexen); een synthetisch signaal dat zo stil is,
+    leest als millivolt. Geef dan ``unit`` expliciet mee.
+    """
+    data = np.asarray(x, dtype=float).copy()
+    if unit == "V":
+        return data * 1e6
+    if unit == "mV":
+        return data * 1e3
+    if unit == "uV":
+        return data
+    if unit != "auto":
+        raise ValueError(
+            f"Unknown unit={unit!r}; expected 'V', 'mV', 'uV', or 'auto'")
+    if not data.size:
+        return data
+    max_abs = float(np.max(np.abs(data - np.mean(data))))
+    if max_abs < 1e-12:
+        # Dood of kortgesloten kanaal: laten staan.
+        return data
+    if max_abs < 0.01:
+        logger.info("%s: amplitude %.2e leest als volt; x1e6 naar uV",
+                    label, max_abs)
+        return data * 1e6
+    if max_abs < 10:
+        logger.warning(
+            "%s: amplitude max=%.3f leest als mV; x1000 naar uV. Geef de "
+            "eenheid expliciet mee om deze waarschuwing te onderdrukken.",
+            label, max_abs)
+        return data * 1e3
+    return data
+
+
+# ---------------------------------------------------------------------------
+# Modelidentiteit
+# ---------------------------------------------------------------------------
+
+#: Eén manifest voor de vier gebundelde modellen: bestand, sha256,
+#: feature-namen, trainingsbron en bevriesdatum. ``arousal_unet.available``
+#: had als enige een checksumwacht; de twee LightGBM-boosters laadden elk
+#: bestand met de juiste naam, en de samenvatting zei nergens welk model er
+#: gedraaid had.
+MODELS_MANIFEST_PATH = Path(__file__).parent / "data" / "models.json"
+_MODELS_MANIFEST: dict | None = None
+
+
+def models_manifest() -> dict:
+    """Het manifest, één keer gelezen."""
+    global _MODELS_MANIFEST
+    if _MODELS_MANIFEST is None:
+        _MODELS_MANIFEST = json.loads(MODELS_MANIFEST_PATH.read_text(encoding="utf-8"))
+    return _MODELS_MANIFEST
+
+
+def file_sha256(path) -> str:
+    h = hashlib.sha256()
+    with Path(path).open("rb") as fh:
+        for blok in iter(lambda: fh.read(1 << 20), b""):
+            h.update(blok)
+    return h.hexdigest()
+
+
+def check_model_file(key: str, path) -> dict:
+    """Identiteit van het modelbestand op ``path`` tegen manifestitem ``key``.
+
+    Geeft ``{"file", "sha256", "manifest"}`` terug. ``manifest`` is True als
+    het bestand heet zoals het manifest zegt én de checksum klopt. Heet het
+    anders (een eigen model via een env-pad), dan wordt het niet geweigerd
+    maar wel benoemd: ``manifest`` False, met de echte sha. Heet het WEL zo
+    en wijkt de checksum af, dan is dat een stil ander gewicht onder een
+    bekende naam -- en dat is precies wat de wacht moet tegenhouden.
+    """
+    p = Path(path)
+    sha = file_sha256(p)
+    item = models_manifest().get(key) or {}
+    if p.name != item.get("file"):
+        return {"file": p.name, "sha256": sha, "manifest": False}
+    if sha != item.get("sha256"):
+        raise ValueError(
+            f"{p.name}: sha256 {sha[:12]}… wijkt af van het manifest "
+            f"({str(item.get('sha256'))[:12]}…); een ander gewicht onder een "
+            f"bekende naam wordt niet geladen")
+    return {"file": p.name, "sha256": sha, "manifest": True}
 
 
 # ---------------------------------------------------------------------------
@@ -86,11 +217,9 @@ def build_sleep_mask(
     """
     hypno_num   = hypno_to_numeric(hypno)
     artifact_set = set(artifact_epochs or [])
-    spe  = int(sf * EPOCH_LEN_S)
     mask = np.zeros(total_samples, dtype=bool)
     for ep_i, stage in enumerate(hypno_num):
-        s = ep_i * spe
-        e = min(s + spe, total_samples)
+        s, e = epoch_bounds(ep_i, sf, total_samples)
         if stage > 0 and ep_i not in artifact_set:
             mask[s:e] = True
     return mask
