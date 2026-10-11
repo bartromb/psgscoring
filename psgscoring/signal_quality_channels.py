@@ -22,6 +22,40 @@ logger = logging.getLogger("psgscoring.signal_quality_channels")
 EPOCH_LEN_S = 30
 
 
+#: Rollen met een DISCREET bereik: een SpO2 die minutenlang 96 % aanwijst of
+#: een positiekanaal dat tussen een handvol waarden springt is per definitie
+#: "vlak" en "op zijn maximum" zonder dat er iets mis is. Clipping heeft hier
+#: geen betekenis; vlakheid alleen als het kanaal buiten zijn fysieke bereik
+#: staat (SpO2 < 50 % of > 100 % = sensor los).
+DISCRETE_ROLES = ("spo2", "position")
+SPO2_PLAUSIBLE = (50.0, 100.0)
+
+#: Vlak = de standaarddeviatie in een 2 s-venster ligt onder deze FRACTIE
+#: van de robuuste schaal van het hele kanaal (1,4826 x MAD). Een verhouding
+#: binnen hetzelfde signaal, dus onafhankelijk van de eenheid waarin het EDF
+#: is opgeschreven. De oude drempel was een absolute std in ruwe eenheden
+#: (0,5 µV voor EEG, 1e-4 voor ademhaling): een RIP-kanaal dat zijn eenheid
+#: als µV declareert komt via MNE 1e-5x zo klein binnen en was "100 % vlak".
+#:
+#: 0,3 %, niet 1 %: een apneu met 2 % restflow (de golden-case `apnea_clean`)
+#: staat op 1,6 % van de schaal en telde bij 1 % mee als vlakke lijn -- dan
+#: wordt een ernstige OSA-nacht "poor" omdat ze ziek is, niet omdat de sensor
+#: stuk is. Een dode lijn (digitale nul) en een losse sensor met 1 LSB
+#: ADC-ruis op een 12-bits bereik (0,02 % van de piek) blijven er ruim onder.
+FLAT_REL_STD = 0.003
+
+#: Clipping = een piek in het amplitudehistogram op de rail. De bovenste band
+#: van CLIP_RAIL_FRACTION x het bereik moet CLIP_SPIKE_RATIO keer zoveel
+#: monsters dragen als de banden er direct onder, en minstens
+#: CLIP_MIN_FRACTION van het kanaal zijn. Een gekwantiseerde of opgesamplede
+#: sinus houdt zijn hoogste niveau even lang vast als het niveau eronder en
+#: haalt die verhouding niet; een echte ADC-rail stapelt alles wat erboven
+#: had gezeten op één waarde.
+CLIP_RAIL_FRACTION = 0.005
+CLIP_SPIKE_RATIO = 5.0
+CLIP_MIN_FRACTION = 0.005
+
+
 def assess_signal_quality(
     raw,
     channel_map: dict,
@@ -33,12 +67,19 @@ def assess_signal_quality(
     ----------
     raw          : MNE Raw object
     channel_map  : dict mapping role -> channel name
-    hypno        : optional hypnogram (for sleep-only stats)
+    hypno        : accepted for the positional call in pipeline.py and
+                   intentionally unused: a disconnect during wake is as much
+                   a montage fact as one during sleep, so the statistics are
+                   whole-recording on purpose.
 
     Returns
     -------
     dict with keys:
-      channels : {ch_name: {flat_pct, clip_pct, noise_pct, quality_grade}}
+      channels : {role: {channel, flat_pct, clip_pct, noise_pct, quality_grade}}
+                 Keyed by ROLE: two roles can share one physical channel
+                 (`flow` and `flow_thermistor` on a single thermistor) and
+                 keyed by name they overwrote each other. The channel name
+                 is in ``channel``.
       montage_warnings : list of str
       overall_grade : "good" | "acceptable" | "poor"
     """
@@ -51,11 +92,11 @@ def assess_signal_quality(
         try:
             data = raw.get_data(picks=[ch_name])[0]
             ch_result = _assess_channel(data, sf, ch_name, role)
-            results["channels"][ch_name] = ch_result
+            results["channels"][role] = {"channel": ch_name, **ch_result}
         except Exception as e:
-            logger.warning("Quality check failed for %s: %s", ch_name, e)
-            results["channels"][ch_name] = {
-                "quality_grade": "unknown", "error": str(e)
+            logger.warning("Quality check failed for %s (%s): %s", ch_name, role, e)
+            results["channels"][role] = {
+                "channel": ch_name, "quality_grade": "unknown", "error": str(e)
             }
 
     # Montage plausibility checks
@@ -76,22 +117,28 @@ def _assess_channel(data: np.ndarray, sf: float,
                     ch_name: str, role: str) -> dict:
     """Assess quality of a single channel."""
     n_samples = len(data)
-    dur_s = n_samples / sf
-    epoch_samples = int(EPOCH_LEN_S * sf)
 
-    # 1. Flat-line detection (std < threshold in sliding window)
-    flat_threshold = _flat_threshold_for_role(role)
-    n_flat = _count_flat_samples(data, sf, flat_threshold)
+    if role in DISCRETE_ROLES:
+        # 1./2. Een discreet kanaal is per definitie "vlak" en "op zijn
+        # maximum" zonder dat er iets mis is. Wat hier telt is of het buiten
+        # zijn fysieke bereik staat (sensor los); clipping betekent niets.
+        buiten = _out_of_range_mask(data, role)
+        n_flat = int(buiten.sum())
+        clip_pct = 0.0
+        disconnects = _mask_runs_s(buiten, sf)
+    else:
+        # 1. Flat-line detection: std in een 2 s-venster onder een fractie
+        #    van de robuuste schaal van het kanaal zelf (eenheidsvrij).
+        flat_threshold = _flat_threshold(data)
+        n_flat = _count_flat_samples(data, sf, flat_threshold)
+        # 2. Clipping detection (signal at min/max rail)
+        clip_pct = round(100 * _count_clipped(data) / max(n_samples, 1), 1)
+        # 4. Disconnects (sudden flat after active signal)
+        disconnects = _detect_disconnects(data, sf, flat_threshold)
     flat_pct = round(100 * n_flat / max(n_samples, 1), 1)
-
-    # 2. Clipping detection (signal at min/max rail)
-    clip_pct = round(100 * _count_clipped(data) / max(n_samples, 1), 1)
 
     # 3. High-impedance noise (50/60 Hz power ratio)
     noise_pct = round(_estimate_line_noise_pct(data, sf), 1)
-
-    # 4. Disconnects (sudden flat after active signal)
-    disconnects = _detect_disconnects(data, sf, flat_threshold)
 
     # Grade
     if flat_pct > 20 or clip_pct > 10:
@@ -119,19 +166,57 @@ def _assess_channel(data: np.ndarray, sf: float,
     return result
 
 
-def _flat_threshold_for_role(role: str) -> float:
-    """Return the flat-line std threshold per channel role.
+def _flat_threshold(data: np.ndarray) -> float:
+    """Absolute std-drempel voor "vlak", afgeleid uit het kanaal zelf.
 
-    EEG channels have much smaller amplitudes than respiratory channels.
+    FLAT_REL_STD maal de robuuste schaal (1,4826 x MAD). Is de MAD nul --
+    een kanaal dat grotendeels op één waarde staat -- dan de gewone std; is
+    ook die nul, dan is het hele kanaal constant en is elk venster vlak.
+
+    Verving `_flat_threshold_for_role`, dat per rol een absolute std in ruwe
+    eenheden gaf (0,5 µV EEG, 1e-4 ademhaling, 1e-5 overig). EDF-eenheden
+    zijn per kanaal vrij, dus die drempel mat de eenhedendeclaratie: een
+    RIP-kanaal in µV kwam via MNE 1e-5x zo klein binnen en was "100 % vlak".
     """
-    if role in ("eeg", "eog", "emg", "extra_eeg"):
-        return 0.5e-6   # 0.5 µV — typical EEG noise floor
-    elif role in ("flow", "flow_pressure", "thorax", "abdomen"):
-        return 1e-4      # respiratory signals: broader range
-    elif role in ("spo2",):
-        return 0.01       # SpO2: percentage values
-    else:
-        return 1e-5       # conservative default
+    x = np.asarray(data, dtype=float)
+    x = x[np.isfinite(x)]
+    if x.size == 0:
+        return np.inf
+    schaal = 1.4826 * float(np.median(np.abs(x - np.median(x))))
+    if schaal <= 0:
+        schaal = float(np.std(x))
+    if schaal <= 0:
+        return np.inf
+    return FLAT_REL_STD * schaal
+
+
+def _out_of_range_mask(data: np.ndarray, role: str) -> np.ndarray:
+    """Monsters buiten het fysieke bereik van een discreet kanaal."""
+    x = np.asarray(data, dtype=float)
+    buiten = ~np.isfinite(x)
+    if role == "spo2":
+        lo, hi = SPO2_PLAUSIBLE
+        buiten |= (x < lo) | (x > hi)
+    return buiten
+
+
+def _mask_runs_s(mask: np.ndarray, sf: float, min_s: float = 10.0) -> list:
+    """Aaneengesloten True-stukken van minstens ``min_s`` als [onset, duur]."""
+    if not np.any(mask):
+        return []
+    d = np.diff(mask.astype(int))
+    starts = np.where(d == 1)[0] + 1
+    ends = np.where(d == -1)[0] + 1
+    if mask[0]:
+        starts = np.concatenate(([0], starts))
+    if mask[-1]:
+        ends = np.concatenate((ends, [len(mask)]))
+    out = []
+    for s, e in zip(starts, ends):
+        dur = (e - s) / sf
+        if dur >= min_s:
+            out.append([round(s / sf, 1), round(dur, 1)])
+    return out
 
 
 def _count_flat_samples(data: np.ndarray, sf: float,
@@ -167,33 +252,80 @@ def _count_flat_samples(data: np.ndarray, sf: float,
     return int(covered.sum())
 
 
-def _count_clipped(data: np.ndarray) -> int:
-    """Count samples at the ADC rail (min or max repeated >10 times)."""
-    if len(data) < 20:
+def _count_runs(mask: np.ndarray, min_run: int = 10) -> int:
+    """Monsters in aaneengesloten True-stukken van minstens ``min_run``."""
+    if not np.any(mask):
         return 0
-    d_min, d_max = np.min(data), np.max(data)
-    if d_max - d_min < 1e-12:
-        return len(data)  # entire channel is flat
+    d = np.diff(mask.astype(int))
+    starts = np.where(d == 1)[0] + 1
+    ends = np.where(d == -1)[0] + 1
+    if mask[0]:
+        starts = np.concatenate(([0], starts))
+    if mask[-1]:
+        ends = np.concatenate((ends, [len(mask)]))
+    runs = ends[:len(starts)] - starts[:len(ends)]
+    return int(np.sum(runs[runs >= min_run]))
 
-    # Clipping = value at extreme AND repeated
-    at_max = data >= d_max - abs(d_max) * 1e-6
-    at_min = data <= d_min + abs(d_min) * 1e-6
 
-    # Only count if clusters of >10 consecutive samples
-    def _count_runs(mask, min_run=10):
-        if not np.any(mask):
+def _count_clipped(data: np.ndarray) -> int:
+    """Monsters op een ADC-rail.
+
+    De oude regel -- "op het maximum én minstens tien keer achter elkaar" --
+    sloeg aan op alles wat zijn hoogste waarde even vasthoudt: een SpO2 die
+    minutenlang 96 % aanwijst, een opgesampled kanaal, een gekwantiseerde
+    sinus die bij 512 Hz honderden monsters per ademtop op zijn bovenste
+    niveau blijft. Een constant kanaal telde bovendien als 100 % geclipt,
+    terwijl dat vlak is, niet op de rail.
+
+    Nu: een rail is een PIEK in het amplitudehistogram. Het bereik wordt in
+    banden van CLIP_RAIL_FRACTION x het bereik verdeeld (of één
+    kwantisatiestap, als die groter is), uitgelijnd op het minimum en op
+    niveau-index afgerond zodat een kwantisatieniveau nooit op een bandrand
+    valt. De bovenste band moet CLIP_SPIKE_RATIO keer zoveel monsters dragen
+    als de twee banden er direct onder (per band), en minstens
+    CLIP_MIN_FRACTION van het kanaal. Een sinus -- ook gekwantiseerd -- haalt
+    hooguit ~2x (arcsinusverdeling); een rail waarop 5 % van de amplitude is
+    weggevallen haalt ~11x, 10 % ~21x. Daarna tellen, zoals voorheen, alleen
+    stukken van minstens tien monsters. Verhoudingen binnen hetzelfde kanaal,
+    dus eenheidsvrij.
+    """
+    x = np.asarray(data, dtype=float)
+    n = len(x)
+    if n < 20:
+        return 0
+    d_min, d_max = float(np.min(x)), float(np.max(x))
+    span = d_max - d_min
+    if not np.isfinite(span) or span <= 0:
+        return 0                               # constant: vlak, niet geclipt
+
+    w = CLIP_RAIL_FRACTION * span
+    # Kwantisatiestap: kleinste positieve afstand tussen voorkomende waarden.
+    # Is die groter dan de band, dan vallen er banden leeg en zegt de
+    # vergelijking met de banden eronder niets meer.
+    niveaus = np.unique(x)
+    if niveaus.size > 1:
+        stap = float(np.min(np.diff(niveaus)))
+        if stap > w:
+            w = stap
+
+    # Band-index per monster. `rint` in plaats van `floor`: bij gekwantiseerde
+    # data is (x - d_min) / w een geheel getal plus afrondingsruis, en die
+    # ruis mag een niveau niet in de band ernaast duwen.
+    k = np.rint((x - d_min) / w).astype(np.int64)
+    k_max = int(k.max())
+
+    def _rail(rail_k: int, onder_k: tuple) -> int:
+        rail = k == rail_k
+        p_rail = float(rail.mean())
+        p_onder = float(np.isin(k, onder_k).mean()) / 2.0   # per band
+        if p_rail < CLIP_MIN_FRACTION:
             return 0
-        d = np.diff(mask.astype(int))
-        starts = np.where(d == 1)[0] + 1
-        ends = np.where(d == -1)[0] + 1
-        if mask[0]:
-            starts = np.concatenate(([0], starts))
-        if mask[-1]:
-            ends = np.concatenate((ends, [len(mask)]))
-        runs = ends[:len(starts)] - starts[:len(ends)]
-        return int(np.sum(runs[runs >= min_run]))
+        if p_rail < CLIP_SPIKE_RATIO * max(p_onder, 1.0 / n):
+            return 0
+        return _count_runs(rail)
 
-    return _count_runs(at_max) + _count_runs(at_min)
+    return (_rail(k_max, (k_max - 1, k_max - 2))
+            + _rail(0, (1, 2)))
 
 
 def _estimate_line_noise_pct(data: np.ndarray, sf: float) -> float:

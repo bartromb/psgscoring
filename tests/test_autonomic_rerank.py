@@ -171,6 +171,7 @@ def test_score_is_de_bevroren_logistiek():
     np.testing.assert_allclose(_autonomic_score(feats), verwacht, rtol=1e-12)
 
 
+@pytest.mark.slow          # volledige pijplijn, ~9 s
 def test_pipeline_levert_de_provenance(monkeypatch):
     """Leveringsoppervlak: via run_pneumo_analysis met env-vlag aan draagt de
     arousal-summary de rerank-provenance; zonder vlag staat er niets.

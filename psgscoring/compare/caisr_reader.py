@@ -98,15 +98,21 @@ CAISR_RESP_CODES: dict[int, str | None] = {
 _AHI_CODES = frozenset({1, 2, 3, 4, 6})
 
 
-def read_caisr_resp_csv(path: str | Path) -> tuple[list[int], float]:
+def read_caisr_resp_csv(path: str | Path,
+                        original_fs: float | None = None) -> tuple[list[int], float]:
     """Lees een CAISR-resp-CSV.
 
-    Returns ``(labels, seconds_per_row)``. De tweede waarde wordt uit de
-    indexkolommen afgeleid in plaats van aangenomen: ``export_to_csv``
-    schrijft 1 Hz met een factor gelijk aan de oorspronkelijke
-    samplefrequentie, maar dat is een default en geen garantie. Een verkeerd
-    aangenomen tijdbasis verschuift elke onset zonder dat er iets aan de
-    vergelijking te zien is.
+    Returns ``(labels, seconds_per_row)``.
+
+    ``original_fs`` is de samplefrequentie waarin ``start_idx``/``end_idx``
+    tellen. Opgegeven: ``seconds_per_row = step / original_fs``, met ``step``
+    uit de indexkolommen. Weggelaten: 1,0 -- de aanname dat ``export_to_csv``
+    op 1 Hz heeft geschreven met een factor gelijk aan de oorspronkelijke
+    samplefrequentie. Dat is een default van CAISR en geen garantie, en tot
+    11-10-2026 stond die aanname hier ONVOORWAARDELIJK: de stap werd afgeleid
+    en vervolgens genegeerd, zodat een CSV op een andere tijdbasis elke onset
+    stil verschoof zonder dat er iets aan de vergelijking te zien was. Geef
+    ``original_fs`` mee waar hij bekend is.
     """
     rows: list[tuple[int, int, int]] = []
     with Path(path).open(newline="") as fh:
@@ -137,11 +143,16 @@ def read_caisr_resp_csv(path: str | Path) -> tuple[list[int], float]:
             f"{path}: rijbreedte {span} wijkt af van de stap {step}; "
             "de tijdbasis is niet eenduidig")
 
-    # export_to_csv gebruikt originalFs als factor en schrijft 1 Hz, dus
-    # step monsters == 1 seconde. We leiden de secondenbreedte daarom af als
-    # step / originalFs, waarbij originalFs uit step volgt: één rij is per
-    # constructie één seconde.
-    seconds_per_row = 1.0
+    if original_fs is not None:
+        if original_fs <= 0:
+            raise ValueError(f"{path}: original_fs moet positief zijn, "
+                             f"niet {original_fs!r}")
+        seconds_per_row = step / float(original_fs)
+    else:
+        # export_to_csv gebruikt originalFs als factor en schrijft 1 Hz, dus
+        # step monsters == 1 seconde. Zonder originalFs is dat een AANNAME;
+        # zie de docstring.
+        seconds_per_row = 1.0
     return [r[2] for r in rows], seconds_per_row
 
 

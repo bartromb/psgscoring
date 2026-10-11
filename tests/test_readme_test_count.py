@@ -13,6 +13,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parent.parent
 
 
@@ -34,6 +36,7 @@ def _collected_count() -> int:
     return int(m.group(1))
 
 
+@pytest.mark.slow          # collecteert de hele suite in een subproces
 def test_readme_test_count_matches_collection():
     readme = _readme_count()
     echt = _collected_count()

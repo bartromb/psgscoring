@@ -64,6 +64,26 @@ ZONDER_CONSUMENT = {
     "local_baseline_validation",
     # Draait op `sf_effort > 0`, niet op deze vlag.
     "mixed_apnea_decomposition",
+    # 11-10-2026: drie velden waarvan de FUNCTIE de vlag al als keyword leest
+    # (met de klinische default), maar waarvan de AANROEP -- die de legacy-
+    # sleutel uit het profiel moet halen -- in respiratory.py/pipeline.py
+    # zit en in een parallelle wijziging wordt bedraad:
+    #   thermistor_band_power_antialias -> pipeline._resolve_flow_channels
+    #       geeft `antialias=profile["THERMISTOR_BAND_POWER_ANTIALIAS"]`
+    #       door aan signal_quality.assess_thermistor_band_power;
+    #   stage_baseline_partial_epochs  -> respiratory._apply_stage_baseline
+    #       geeft `partial_epochs=sp["STAGE_BASELINE_PARTIAL_EPOCHS"]`
+    #       door aan signal.compute_stage_baseline;
+    #   linearise_after_dc_removal     -> respiratory._setup_hypop_channel
+    #       geeft `linearise_after_dc_removal=sp["LINEARISE_AFTER_DC_REMOVAL"]`
+    #       door aan signal.preprocess_flow.
+    # Tot die bedrading staan mesa_shhs/chicago_1999 voor de eerste twee NIET
+    # op het gepinde gedrag. Zodra de aanroep de sleutel leest, meldt
+    # test_de_lijst_bevat_geen_velden_die_inmiddels_wel_gelezen_worden dat ze
+    # hier weg moeten.
+    "thermistor_band_power_antialias",
+    "stage_baseline_partial_epochs",
+    "linearise_after_dc_removal",
 }
 
 
