@@ -34,11 +34,12 @@ from .indices import SLEEP_STAGES, per_hour, tst_hours
 from .respiratory import (
     detect_respiratory_events, reinstate_rule1a_arousal_hypopneas, _compute_summary,
 )
-from .spo2 import analyze_spo2, compute_hypoxic_burden
+from .spo2 import analyze_spo2, compute_hypoxic_burden, index_denominator_from_profile
 from .ancillary import (
+    csr_period_rectified_from_profile,
     analyze_position, analyze_heart_rate, analyze_snore, detect_cheyne_stokes,
 )
-from .plm import EVENT_LIST_CAP, analyze_plm
+from .plm import EVENT_LIST_CAP, analyze_plm, plm_resp_exclusion_from_profile
 from .ventilation import compute_ventilatory_burden
 
 # Arousal & RERA detection — in-package as of v0.8.0 (ported from YASAFlaskified).
@@ -51,6 +52,10 @@ except Exception:  # noqa: BLE001
 
 logger = logging.getLogger("psgscoring.pipeline")
 
+
+
+class _IntervalArmFailed(Exception):
+    """Interne vlag: het AHI-interval is al geschreven met een gefaalde arm."""
 
 def _breath_env_overrides() -> dict:
     """Env-overrides voor de drie experimentele scoringswijzigingen.
@@ -190,6 +195,14 @@ def run_pneumo_analysis(
             f"Unknown profile '{scoring_profile}'. "
             f"Available: {', '.join(sorted(SCORING_PROFILES))}")
     profile = SCORING_PROFILES[resolved_name]
+    # Knoppen die de hypopneedetector van dit profiel niet leest, zijn een
+    # stille no-op (de HYPOPNEA_STRICTNESS-les van v0.16.0). Zeg het.
+    from .profiles import profile_inert_fields
+    _inert = profile_inert_fields(resolved_name)
+    if _inert:
+        logger.warning("[pneumo] profiel %s zet knoppen die zijn hypopneedetector "
+                       "(%s) niet leest: %s", resolved_name,
+                       profile.get("HYPOPNEA_DETECTOR"), ", ".join(_inert))
     logger.info(
         "[pneumo] Scoring profile: %s (%s)",
         resolved_name,
@@ -426,7 +439,8 @@ def run_pneumo_analysis(
                 preprocess_flow(apnea_flow, sf_apnea,
                                 envelope_method=_env_method,
                                 envelope_fs=_env_fs, denoise=_denoise),
-                sf_apnea, hypno)
+                sf_apnea, hypno,
+                period_rectified=csr_period_rectified_from_profile(profile))
         except Exception as _e:                                  # noqa: BLE001
             # Onmeetbaar is NIET hetzelfde als "geen CSR". Zonder oordeel
             # valt de poort terug op niet graderen -- de kant met de kleinste
@@ -639,6 +653,7 @@ def run_pneumo_analysis(
     logger.info("[pneumo 1a/11] AHI confidence interval (3 profiles)...")
     try:
         _all_profiles = ["strict", "standard", "sensitive"]
+        _failed_arms = {}
         _profile_results = {}
         # Reuse the primary result for whichever interval profile is the same as
         # the primary. Match on the resolved profile name (_PROFILE_NAME), not the
@@ -680,11 +695,47 @@ def run_pneumo_analysis(
                     signal_quality = output.get("signal_quality"),  # v0.3.001 BUG2
                     _precomputed = _sweep_precomp,
                 )
+                if not _alt_resp.get("success", True):
+                    # Een gecrashte arm is geen AHI van 0,0. Buiten het
+                    # interval houden en zeggen waarom (review 11-10-2026).
+                    logger.warning("[pneumo] intervalarm %s mislukt (%s); "
+                                   "arm buiten het interval gehouden",
+                                   _pname, _alt_resp.get("error"))
+                    _failed_arms[_pname] = str(_alt_resp.get("error"))
+                    continue
                 _profile_results[_pname] = _alt_resp.get("summary", {})
 
         _ahi_strict    = _profile_results.get("strict", {}).get("ahi_total", 0)
         _ahi_standard  = _profile_results.get("standard", {}).get("ahi_total", 0)
         _ahi_sensitive = _profile_results.get("sensitive", {}).get("ahi_total", 0)
+        if _failed_arms:
+            # Interval, ernst en robuustheid alleen over de armen die liepen.
+            _ok = {k: v for k, v in (("strict", _ahi_strict),
+                                     ("standard", _ahi_standard),
+                                     ("sensitive", _ahi_sensitive))
+                   if k not in _failed_arms}
+            _arm_out = {}
+            for _k in ("strict", "standard", "sensitive"):
+                if _k in _failed_arms:
+                    _arm_out[_k] = {"ahi": None, "oahi": None, "severity": None,
+                                    "success": False, "error": _failed_arms[_k]}
+                else:
+                    _o = _profile_results.get(_k, {}).get("oahi", _ok[_k])
+                    _arm_out[_k] = {"ahi": round(_ok[_k], 1), "oahi": round(_o, 1),
+                                    "severity": _ahi_severity(_ok[_k])}
+            _vals = list(_ok.values())
+            output["ahi_interval"] = {
+                **_arm_out,
+                "interval": [round(min(_vals), 1), round(max(_vals), 1)] if _vals else None,
+                "robustness_grade": "C",
+                "robustness_label": "Uncertain — an interval arm failed: "
+                                    + ", ".join(sorted(_failed_arms)),
+                "failed_arms": dict(_failed_arms),
+                "primary_profile": scoring_profile,
+            }
+            output["respiratory"]["profile_comparison"] = {
+                _k: {"oahi": _arm_out[_k]["oahi"]} for _k in _arm_out}
+            raise _IntervalArmFailed()
 
         # Dezelfde ernstbanden als de rest van het pakket (_ahi_severity);
         # hier stond een lokale kopie.
@@ -726,6 +777,8 @@ def run_pneumo_analysis(
         logger.info("[pneumo] AHI interval: [%.1f – %.1f] (%s → %s → %s), robustness: %s",
                      _ahi_strict, _ahi_sensitive, _sev_strict, _sev_standard,
                      _sev_sensitive, _robustness)
+    except _IntervalArmFailed:
+        pass
     except Exception as e:
         logger.warning("AHI interval computation failed: %s", e)
         output["ahi_interval"] = {"error": str(e)}
@@ -782,7 +835,9 @@ def run_pneumo_analysis(
     # ── Step 2: SpO2 ───────────────────────────────────────────────────────
     logger.info("[pneumo 2/11] SpO2 analysis...")
     if spo2_data is not None:
-        output["spo2"] = _run_step("spo2", lambda: analyze_spo2(spo2_data, sf_spo2, hypno))
+        output["spo2"] = _run_step("spo2", lambda: analyze_spo2(
+            spo2_data, sf_spo2, hypno, artifact_epochs=artifact_epochs,
+            index_denominator=index_denominator_from_profile(profile)))
         # v0.8.16: SpO2-frequentietoets (AASM: hooguit 3 s middeling). Op de
         # NATIEVE frequentie uit de EDF-kop: `sf_spo2` is de frequentie van de
         # array na MNE's opbemonstering en kon de drempel nooit raken.
@@ -1438,6 +1493,7 @@ def run_pneumo_analysis(
             event_list_cap=None,
             offset_aasm=_plm_offset_aasm(profile),
             bilateral_window_s=_plm_bilateral_window_s(profile),
+            resp_exclusion=plm_resp_exclusion_from_profile(profile),
         ))
     else:
         output["plm"] = {"success": False, "error": "No leg-EMG channels", "summary": {}}
@@ -1453,7 +1509,8 @@ def run_pneumo_analysis(
             # De envelope is van het REFERENTIEkanaal gebouwd; de frequentie
             # hoort daar dan ook bij, niet bij het apneukanaal.
             output["cheyne_stokes"] = detect_cheyne_stokes(
-                flow_env_csr, sf_ref, hypno
+                flow_env_csr, sf_ref, hypno,
+                period_rectified=csr_period_rectified_from_profile(profile),
             )
         except Exception as e:
             logger.warning("CSR detection failed: %s", e)
