@@ -366,7 +366,8 @@ def _flag_csr_events(
 # ---------------------------------------------------------------------------
 
 def _get_ecg_assessment(ecg_data, tecg, r_peaks, thorax_raw, abdomen_raw,
-                        sf_flow, sf_ecg, onset_idx, end_idx):
+                        sf_flow, sf_ecg, onset_idx, end_idx,
+                        spectral_resolution: str = "event"):
     """Compute ECG-derived effort assessment for one event.
 
     Handles sample-rate conversion between flow and ECG signals.
@@ -382,6 +383,7 @@ def _get_ecg_assessment(ecg_data, tecg, r_peaks, thorax_raw, abdomen_raw,
             ecg=ecg_data, thorax_raw=thorax_raw, abdomen_raw=abdomen_raw,
             sf=sf_ecg, onset_idx=ecg_onset, end_idx=ecg_end,
             tecg=tecg, r_peaks=r_peaks,
+            spectral_resolution=spectral_resolution,
         )
     except Exception as exc:
         logger.debug("ECG effort assessment failed for event %d-%d: %s",
@@ -498,6 +500,10 @@ def detect_respiratory_events(
         # v0.4.1: STABILITY_FILTER_CV + PEAK_MIN_CONSECUTIVE_BREATHS toegevoegd
         # voor monotonieherstel (zie SESSION_2026-04-26_summary.md)
         sp = scoring_profile or {}
+        from .spo2 import nadir_time_axis_from_profile
+        from .ecg_effort import spectral_resolution_from_profile
+        _NADIR_AXIS = nadir_time_axis_from_profile(sp)
+        _SPEC_RES   = spectral_resolution_from_profile(sp)
         _HYPOP_THRESH  = sp.get("HYPOPNEA_THRESHOLD", HYPOPNEA_THRESHOLD)
         _DESAT_PCT     = sp.get("DESATURATION_DROP_PCT", DESATURATION_DROP_PCT)
         _POST_WIN      = sp.get("POST_EVENT_WINDOW_S", 45)
@@ -860,6 +866,8 @@ def detect_respiratory_events(
             shape_evidence=shape_evidence,
             two_pass=two_pass,
             rejected=rejected_ap,
+            nadir_time_axis=_NADIR_AXIS,
+            spectral_resolution=_SPEC_RES,
         )
         result["rejected_apneas"] = rejected_ap
         result["n_mmsd_rejected_apneas"] = len(rejected_ap)
@@ -1008,6 +1016,8 @@ def detect_respiratory_events(
             phase_angle_needs_effort=phase_angle_needs_effort,
             shape_evidence=shape_evidence,
             snore_data=snore_data, sf_snore=sf_snore,
+            nadir_time_axis=_NADIR_AXIS,
+            spectral_resolution=_SPEC_RES,
         )
         events = new_events
 
@@ -2277,6 +2287,11 @@ def _detect_apneas(
     two_pass: bool = False,
     # Audit van kandidaten die op MMSD sneuvelen; None = niet bijhouden.
     rejected: list | None = None,
+    # Review 11-10-2026: nadir-regel op de tijdas en spectrale effortresolutie
+    # komen uit het profiel (spo2.nadir_time_axis_from_profile,
+    # ecg_effort.spectral_resolution_from_profile).
+    nadir_time_axis: bool = True,
+    spectral_resolution: str = "event",
 ) -> list[dict]:
     """Detecteer apnea-events: ≥90% flow-reductie gedurende ≥10s (AASM)."""
     events: list[dict] = []
@@ -2335,7 +2350,8 @@ def _detect_apneas(
 
             _ecg_ass = _get_ecg_assessment(
                 ecg_data, tecg, r_peaks, thorax_raw, abdomen_raw,
-                sf_flow, sf_ecg or sf_flow, sub_idx[0], sub_idx[-1] + 1
+                sf_flow, sf_ecg or sf_flow, sub_idx[0], sub_idx[-1] + 1,
+                spectral_resolution=spectral_resolution,
             ) if tecg is not None else None
             _cls = dict(
                 onset_idx=sub_idx[0], end_idx=sub_idx[-1] + 1,
@@ -2368,6 +2384,7 @@ def _detect_apneas(
                 spo2_data, onset_s, sub_dur, sf_spo2, global_spo2_bl,
                 post_win_s=post_event_win_s,
                 global_baseline_min_local_pct=desat_global_bl_min_local_pct,
+                nadir_time_axis=nadir_time_axis,
             )
             events.append({
                 "type":               ev_type,
@@ -2513,6 +2530,8 @@ def _detect_hypopneas(
     shape_evidence: tuple[bool, float] = (False, 1.0),
     snore_data: np.ndarray | None = None,
     sf_snore: float | None = None,
+    nadir_time_axis: bool = True,
+    spectral_resolution: str = "event",
 ) -> tuple[list[dict], list[dict]]:
     """Return (all_events_including_new_hypopneas, rejected_candidates)."""
     # Build apnea exclusion mask (±5 s around each confirmed apnea)
@@ -2626,6 +2645,7 @@ def _detect_hypopneas(
                 spo2_data, onset_s, sub_dur, sf_spo2, global_spo2_bl,
                 post_win_s=post_event_win_s,
                 global_baseline_min_local_pct=desat_global_bl_min_local_pct,
+                nadir_time_axis=nadir_time_axis,
             )
             rule1a = desat is not None and desat >= desat_pct
 
@@ -2682,7 +2702,8 @@ def _detect_hypopneas(
                 effort_baseline=effort_bl, sf=sf_flow,
                 ecg_assessment=_get_ecg_assessment(
                     ecg_data, tecg, r_peaks, thorax_raw, abdomen_raw,
-                    sf_flow, sf_ecg or sf_flow, hy_oi, hy_ei
+                    sf_flow, sf_ecg or sf_flow, hy_oi, hy_ei,
+                    spectral_resolution=spectral_resolution,
                 ) if tecg is not None else None,
                 flattening_index=_ev_flat,
                 signal_quality=signal_quality,  # v0.3.001 BUG2 gate
