@@ -8,9 +8,12 @@ This module provides a unified framework for running PSG respiratory
 event scoring under multiple historical and dataset-specific rule sets.
 
 Profile families:
-    - clinical : AASM-compliant profiles (v1/v2/v3 + CMS + exploratory)
-    - dataset  : Faithful reproduction of NSRR scoring conventions
-    - legacy   : Pre-AASM Chicago criteria
+    - clinical    : AASM-compliant profiles (v1/v2/v3 + CMS)
+    - dataset     : Faithful reproduction of NSRR scoring conventions
+    - legacy      : Pre-AASM Chicago criteria
+    - exploratory : measurement arms (strict/sensitive bracket, graded
+                    variants, envelope axis); not for clinical use until
+                    measured against human scoring
 
 Usage:
     >>> from psgscoring.profiles import get_profile, list_profiles
@@ -18,10 +21,17 @@ Usage:
     >>> profile.hypopnea.flow_reduction_threshold
     0.30
 
-    >>> list_profiles()
-    ['aasm_v3_rec', 'aasm_v3_strict', 'aasm_v3_sensitive',
-     'aasm_v2_rec', 'aasm_v1_rec', 'cms_medicare',
-     'mesa_shhs', 'chicago_1999']
+    >>> list_profiles()  # sorted; 22 profiles in four families
+    ['aasm_v1_rec', 'aasm_v2_rec', 'aasm_v3_amplitude', 'aasm_v3_breath',
+     'aasm_v3_breath_dual', 'aasm_v3_breath_dual_v2', 'aasm_v3_dual',
+     'aasm_v3_env_breath', 'aasm_v3_env_chunked', 'aasm_v3_env_decimated',
+     'aasm_v3_env_rectify', 'aasm_v3_fusion', 'aasm_v3_pair_scalefree',
+     'aasm_v3_pressure', 'aasm_v3_prob', 'aasm_v3_prob_dual', 'aasm_v3_rec',
+     'aasm_v3_sensitive', 'aasm_v3_strict', 'chicago_1999', 'cms_medicare',
+     'mesa_shhs']
+
+    >>> list_profiles(family="dataset")
+    ['mesa_shhs']
 
 References:
     Iber et al. 2007 (v1) - AASM Manual 1st edition
@@ -37,7 +47,7 @@ License: BSD-3-Clause
 from __future__ import annotations
 
 import warnings
-from dataclasses import dataclass, field, asdict, replace
+from dataclasses import dataclass, field, asdict, replace, fields, MISSING
 from typing import Any, Dict, List, Optional
 
 __all__ = [
@@ -53,6 +63,9 @@ __all__ = [
     "PROFILES",
     "PROFILE_GROUPS",
     "LEGACY_ALIASES",
+    "profile_metadata",
+    "FIELD_DETECTOR_PATH",
+    "profile_inert_fields",
 ]
 
 
@@ -869,6 +882,27 @@ class PostProcessingRules:
 
     Env: `PSGSCORING_AROUSAL_GENERIC_DERIVATIONS`.
     """
+    arousal_derivation_mode: Optional[str] = None
+    """Arousal-afleidingsmodus: "single", "multi", of None.
+
+    `None` (default) = de familieregel die constants.py sinds v0.9.0 toepast:
+    'single' voor `family == "dataset"`, 'multi' voor al het andere. Een
+    expliciete waarde wint van die regel. Env `PSGSCORING_AROUSAL_DERIVATION`
+    wint in pipeline.py van allebei.
+
+    Waarom een veld en niet langer alleen de familie. 'multi' (centraal +
+    occipitaal + frontaal, event-level vereniging + EOG-reject) is sinds
+    v0.9.0 de klinische default; 'single' is het pad van paper v31/v37 en van
+    de NSRR-reproductie. Dat onderscheid hing aan `family`, en `chicago_1999`
+    heeft family 'legacy': het rendert dus 'multi', terwijl al zijn andere
+    pins van het enkele tijdperk zijn. Dat stond nergens. Nu staat het bij de
+    pin in de registry, en de twee bevroren profielen zetten de waarde
+    expliciet op wat ze renderen (mesa_shhs 'single', chicago_1999 'multi').
+
+    De renderer weigert bij import elke andere waarde dan "single"/"multi"/
+    None, zodat een typefout niet stil naar 'single' degradeert. Zie
+    tests/test_arousal_derivation_mode_field.py."""
+
     arousal_alpha_band_wide: bool = False
     # Pleth fase 1 (2026-09-08): autonome re-ranker (PWA + hartslag) op de
     # LGBM-kandidaten, top-K met K = de drempelkeuze. Gerepliceerd op 40
@@ -1476,8 +1510,14 @@ class PostProcessingRules:
     zette.
 
     Default `None` = het event houdt de confidence uit `classify_apnea_type`.
-    Zet op `0.80` om het gedrag van vóór 31-08-2026 te herstellen, bijvoorbeeld
-    voor een reproductie."""
+
+    AFGEDWONGEN: geen enkel geregistreerd profiel zet dit veld.
+    `tests/test_csr_reclassification_claims.py` eist `None` op ALLE profielen,
+    de bevroren incluis. Het oude gedrag (vloer 0,80) is daarom alleen buiten
+    de registry om te herstellen, voor een reproductie: rechtstreeks via
+    `reclassify_csr_events(..., confidence_floor=0.80)`, of met een eigen,
+    niet-geregistreerd `Profile` via `dataclasses.replace`. Een registry-pin
+    op 0,80 breekt die test, en dat is de bedoeling."""
 
     arousal_rem_baseline_alpha: bool = False
     """Meet REM-arousals tegen een ALPHA-basislijn in plaats van alpha+theta+beta.
@@ -2512,6 +2552,10 @@ _mesa_shhs = Profile(
         arousal_generic_derivations=False,
         shape_evidence_two_pass=False,
         arousal_autonomic_rerank=False,
+        # 11-10-2026: de afleidingsmodus EXPLICIET. Tot dan volgde hij uit
+        # family == "dataset" (-> 'single'); dat is wat paper v31/v37 draaide.
+        # De waarde verandert niet, alleen waar ze staat.
+        arousal_derivation_mode="single",
         stability_filter_enabled=True,
         stability_filter_cv=0.45,
         # GEPIND. De herclassificatie raakt de OAHI (`_oahi_at` selecteert
@@ -2637,6 +2681,16 @@ _chicago_1999 = Profile(
         arousal_generic_derivations=False,
         shape_evidence_two_pass=False,
         arousal_autonomic_rerank=False,
+        # 11-10-2026: de afleidingsmodus EXPLICIET, en op 'multi'. LET OP: de
+        # rationale van de pins hierboven (bevroren, enkel tijdperk) zou
+        # 'single' willen, maar dit profiel heeft family 'legacy', niet
+        # 'dataset', en de familieregel in constants.py rendert daarom sinds
+        # v0.9.0 'multi'. Dat is het gedrag dat elke meting met chicago_1999
+        # sinds v0.9.0 heeft gehad. 'single' pinnen zou een bevroren profiel
+        # veranderen; daarom staat hier wat het RENDERT, niet wat de pins
+        # bedoelen. Omzetten naar 'single' is een gedragswijziging die een
+        # eigen beslissing en een hermeting vraagt.
+        arousal_derivation_mode="multi",
         # GEPIND op het gedrag van vóór 13-08-2026: dit profiel reproduceert
         # de Chicago-criteria van 1999 en hoort niet mee te bewegen met
         # reparaties aan de sensorpoorten. Zie
@@ -2657,8 +2711,9 @@ _chicago_1999 = Profile(
     ),
 )
 
-# ---- AASM v3 STRICT (exploratory) ----
-# Conservative variant of v3_rec. Rejects borderline candidates.
+# ---- AASM v3 DUAL-SENSOR apneas (clinical) ----
+# aasm_v3_rec with apneas detected on BOTH flow sensors; the thermistor is
+# additive and never removes an event. Hypopneas stay on nasal pressure.
 _aasm_v3_dual = Profile(
     name="aasm_v3_dual",
     display_name="AASM v3 — Rule 1A, dual-sensor apneas",
@@ -2980,7 +3035,10 @@ _aasm_v3_strict = Profile(
         square_root_linearisation=True,
     ),
     spo2=SpO2Rules(
-        baseline_window_s=120.0,
+        # `baseline_window_s=120.0` stond hier expliciet = de default; het veld
+        # wordt door niets gelezen (spo2.py houdt 120 s hard aan), dus de pin
+        # suggereerde een keuze die er niet was. Verwijderd 11-10-2026,
+        # byte-identiek. Zie tests/test_profile_fields_have_a_consumer.py.
         nadir_search_s=30.0,  # ← strict: conservative window (v0.3.2 behaviour)
         global_p95_fallback=True,
     ),
@@ -3026,7 +3084,10 @@ _aasm_v3_sensitive = Profile(
         square_root_linearisation=True,
     ),
     apnea=ApneaRules(
-        flow_reduction_threshold=0.90,
+        # `flow_reduction_threshold=0.90` stond hier expliciet = de default;
+        # het veld wordt door niets gelezen (respiratory.py leest de
+        # moduleconstante APNEA_THRESHOLD = 0.10), dus de pin suggereerde een
+        # knop die niet bestaat. Verwijderd 11-10-2026, byte-identiek.
         sensor="thermistor",
         min_duration_s=10.0,
         max_duration_s=120.0,  # v0.2.8: extended for UARS
@@ -3063,6 +3124,10 @@ _aasm_v3_sensitive = Profile(
 # against human scoring. `aasm_v3_rec` remains the reference arm; nothing here
 # changes it.
 
+# Eén sjabloon, vier EIGEN instanties: elke arm neemt `replace()` ervan. Tot
+# 11-10-2026 deelden de vier profielen dit ene mutabele object, zodat een
+# toekenning op het ene stil de drie andere veranderde. Zie
+# tests/test_profile_rules_identity.py.
 _ENVELOPE_ARM_HYPOPNEA = HypopneaRules(
     flow_reduction_threshold=0.30,
     min_duration_s=10.0,
@@ -3190,7 +3255,7 @@ _aasm_v3_env_chunked = Profile(
         "last samples differ by ~30% because an FFT wraps circularly."
     ),
     citation="Rombaut et al. 2026 — envelope axis (blockwise Hilbert); see the CHANGELOG entry for the measurement and the decision rule.",
-    hypopnea=_ENVELOPE_ARM_HYPOPNEA,
+    hypopnea=replace(_ENVELOPE_ARM_HYPOPNEA),
     post_processing=PostProcessingRules(
         summary_after_reclassification=True,
         envelope_method="hilbert_chunked",
@@ -3214,7 +3279,7 @@ _aasm_v3_env_rectify = Profile(
         "boundaries and the measured percentage reduction both move."
     ),
     citation="Rombaut et al. 2026 — envelope axis (rectify + lowpass); see the CHANGELOG entry for the measurement and the decision rule.",
-    hypopnea=_ENVELOPE_ARM_HYPOPNEA,
+    hypopnea=replace(_ENVELOPE_ARM_HYPOPNEA),
     post_processing=PostProcessingRules(
         summary_after_reclassification=True,
         envelope_method="rectify_lowpass",
@@ -3241,7 +3306,7 @@ _aasm_v3_env_breath = Profile(
         "decision rule; this one changes only the envelope."
     ),
     citation="Rombaut et al. 2026 — envelope axis (breath amplitude); see the CHANGELOG entry for the measurement and the decision rule.",
-    hypopnea=_ENVELOPE_ARM_HYPOPNEA,
+    hypopnea=replace(_ENVELOPE_ARM_HYPOPNEA),
     post_processing=PostProcessingRules(
         summary_after_reclassification=True,
         envelope_method="breath_amplitude",
@@ -3267,7 +3332,7 @@ _aasm_v3_env_decimated = Profile(
         "raster each leave a fingerprint."
     ),
     citation="Rombaut et al. 2026 — envelope axis (decimated Hilbert); see the CHANGELOG entry for the measurement and the decision rule.",
-    hypopnea=_ENVELOPE_ARM_HYPOPNEA,
+    hypopnea=replace(_ENVELOPE_ARM_HYPOPNEA),
     post_processing=PostProcessingRules(
         summary_after_reclassification=True,
         envelope_fs=10.0,
@@ -3404,8 +3469,9 @@ def resolve_profile_name(name: str) -> str:
     if name in LEGACY_ALIASES:
         new_name = LEGACY_ALIASES[name]
         warnings.warn(
-            f"Profile name '{name}' is deprecated in psgscoring v0.4.0 "
-            f"and will be removed in v0.5.0. Use '{new_name}' instead.",
+            f"Profile name '{name}' is a deprecated legacy alias (since "
+            f"v0.4.0) and may be dropped in a future release. "
+            f"Use '{new_name}' instead.",
             DeprecationWarning,
             stacklevel=3,
         )
@@ -3444,8 +3510,10 @@ def profile_metadata(name: str) -> Dict[str, Any]:
     """
     Return audit-ready metadata dict for a profile.
 
-    Used by pipeline.py to attach profile information to every analysis
-    output for full traceability.
+    A public convenience for exports and tests. NOT read by pipeline.py: the
+    pipeline builds ``output["meta"]`` itself from the rendered legacy dict
+    (``scoring_profile``, ``scoring_label``, ``hypopnea_criterion``, ...).
+    Keep the two in step by hand if a field is added here.
     """
     p = get_profile(name)
     return {
@@ -3462,3 +3530,70 @@ def profile_metadata(name: str) -> Dict[str, Any]:
         "desat_or_arousal":   p.hypopnea.desat_or_arousal,
         "citation":           p.citation,
     }
+
+
+# ============================================================
+# Detectorpad per veld
+# ============================================================
+
+#: Welk hypopneedetectorpad een profielveld LEEST. Een veld dat alleen het
+#: andere pad leest, is op een profiel inert: zetten verandert niets, en dat
+#: ziet er in een meting uit als 'geen effect'.
+#:
+#: Volgt de CODE (pipeline.py), niet de bedoeling:
+#:   * de vijf 'breath_graded'-velden worden uitsluitend in stap 7b gelezen,
+#:     binnen `if HYPOPNEA_DETECTOR == "breath_graded"`;
+#:   * de Rule 1A-herstelpas (stap 8) heeft GEEN detectorpoort en draait ook
+#:     onder breath_graded, op de kandidaten die de ENVELOPE-detector afwees.
+#:     `rule1a_*`/`rule1b_*` zijn daar dus niet inert, al is het effect op dat
+#:     pad twijfelachtig (envelope-kandidaten in een ademteug-gescoorde
+#:     lijst). Wie die poort toevoegt, zet deze regels op "envelope";
+#:   * `desat_or_arousal`/`desat_required` worden op beide paden gelezen
+#:     (Rule 1A-poort, provenance/`hypopnea_criterion`, ahi_rule_conformity).
+#:
+#: Niet genoemd = "both". Waarden: "breath_graded" | "envelope" | "both".
+FIELD_DETECTOR_PATH: Dict[str, str] = {
+    "hypopnea_strictness":                    "breath_graded",
+    "hypopnea_arousal_weight":                "breath_graded",
+    "hypopnea_desat_width":                   "breath_graded",
+    "hypopnea_arousal_latency_grading":       "breath_graded",
+    "desat_low_baseline_relaxation":          "breath_graded",
+    "rule1a_arousal_enabled":                 "both",
+    "rule1a_gap_max_breaths":                 "both",
+    "rule1a_arousal_min_flow_reduction_pct":  "both",
+    "rule1a_arousal_max_duration_s":          "both",
+    "rule1a_arousal_min_local_reduction_pct": "both",
+    "rule1b_graded":                          "both",
+    "rule1b_min_proba":                       "both",
+    "rule1b_arousal_window_s":                "both",
+    "arousal_limb_wired":                     "both",
+    "desat_or_arousal":                       "both",
+    "desat_required":                         "both",
+}
+
+
+def profile_inert_fields(profile) -> List[str]:
+    """Velden met een niet-default waarde die de hypopneedetector van dit
+    profiel niet leest, alfabetisch. Leeg = niets inert.
+
+    `profile` is een `Profile` of een geregistreerde naam. Vergeleken wordt
+    met de dataclass-default van het veld (`dataclasses.fields`), over
+    `post_processing` en `hypopnea`; velden zonder default (of met een
+    default_factory) tellen niet mee.
+
+    Bedoeld als waarschuwing bij de start van de pijplijn -- in pipeline.py,
+    direct na het oplossen van het profiel -- en als poort in de tests: geen
+    geregistreerd profiel mag inerte knoppen dragen
+    (tests/test_profile_inert_fields.py).
+    """
+    p = get_profile(profile) if isinstance(profile, str) else profile
+    pad = p.post_processing.hypopnea_detector
+    uit: List[str] = []
+    for obj in (p.post_processing, p.hypopnea):
+        for f in fields(obj):
+            leest = FIELD_DETECTOR_PATH.get(f.name, "both")
+            if leest in ("both", pad) or f.default is MISSING:
+                continue
+            if getattr(obj, f.name) != f.default:
+                uit.append(f.name)
+    return sorted(uit)
