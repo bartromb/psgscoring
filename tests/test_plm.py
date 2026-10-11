@@ -145,9 +145,16 @@ def test_a_movement_at_the_end_of_a_respiratory_event_is_excluded():
 
 
 def test_the_exclusion_window_is_narrow():
-    """Een halve seconde aan weerszijden — niet het hele event."""
+    """Een halve seconde aan weerszijden van het EINDE — de oude regel.
+
+    Dit was tot 11-10-2026 het enige gedrag; sinds `plm_resp_exclusion`
+    ("aasm", default) beslaat het venster het hele event, en dan zou een
+    beweging op 100 s binnen een event dat op 105 s eindigt WEL respiratoir
+    zijn. De oude semantiek wordt hier expliciet gevraagd (`mode="end"`);
+    tests/test_plm_resp_exclusion.py dekt de AASM-regel.
+    """
     lms = _lms([100, 110])
-    eligible, n_resp = _exclude_resp_associated(lms, resp_ends=[105.0])
+    eligible, n_resp = _exclude_resp_associated(lms, resp_ends=[105.0], mode="end")
     assert n_resp == 0, "5 s ervandaan hoort niet uitgesloten te worden"
     assert len(eligible) == 2
 

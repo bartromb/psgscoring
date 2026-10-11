@@ -34,6 +34,8 @@ from pathlib import Path
 
 import numpy as np
 
+from .utils import is_sleep
+
 logger = logging.getLogger(__name__)
 
 FS = 50
@@ -113,10 +115,22 @@ def to_50hz(x: np.ndarray, sf: float) -> np.ndarray:
 
 
 def prepare_input(eeg, sf_eeg, eog, sf_eog, emg, sf_emg) -> np.ndarray:
-    """(3, n) float32 op 50 Hz: EEG, EOG, kin-EMG — in die volgorde."""
-    kan = [normalize(to_50hz(eeg, sf_eeg)), normalize(to_50hz(eog, sf_eog)),
-           normalize(to_50hz(emg, sf_emg))]
-    n = min(k.size for k in kan)
+    """(3, n) float32 op 50 Hz: EEG, EOG, kin-EMG — in die volgorde.
+
+    Elk kanaal wordt met zijn EIGEN sf naar 50 Hz gebracht. Lopen de drie
+    daarna meer dan 1 s uiteen, dan is een sf verkeerd opgegeven (een EMG op
+    64 Hz dat als 128 Hz binnenkomt, duurt na herbemonstering half zo lang)
+    -- dat is een fout, niet iets om stil af te knippen op de kortste.
+    """
+    kan = [to_50hz(eeg, sf_eeg), to_50hz(eog, sf_eog), to_50hz(emg, sf_emg)]
+    lengtes = [k.size for k in kan]
+    if max(lengtes) - min(lengtes) > FS:
+        raise ValueError(
+            "EEG/EOG/EMG lopen na herbemonstering uiteen: "
+            f"{[round(n / FS, 1) for n in lengtes]} s; klopt de opgegeven sf "
+            f"(sf_eeg={sf_eeg}, sf_eog={sf_eog}, sf_emg={sf_emg})?")
+    kan = [normalize(k) for k in kan]
+    n = min(lengtes)
     return np.stack([k[:n] for k in kan]).astype(np.float32)
 
 
@@ -160,10 +174,13 @@ def prob_to_events(p: np.ndarray, fs: float, thr: float, min_dur_s: float = 3.0,
 
 
 def gate_sleep(events, hypno: list, epoch_s: float = 30.0):
+    """Alleen events waarvan de onset in een slaap-epoch valt. `is_sleep`
+    leest zowel tekst ("N2") als getallen (2); `SLEEP` kende alleen tekst,
+    zodat een numeriek hypnogram ALLE events wegpoortte."""
     out = []
     for a, b in events:
         ep = int(a // epoch_s)
-        if 0 <= ep < len(hypno) and hypno[ep] in SLEEP:
+        if 0 <= ep < len(hypno) and is_sleep(hypno[ep]):
             out.append((a, b))
     return out
 
@@ -173,8 +190,16 @@ def detect_arousals_unet(eeg, sf_eeg, eog, sf_eog, emg, sf_emg, hypno: list, *,
                          min_interval_s: float = 0.0,
                          artifact_epochs=None,
                          threads: int | None = None) -> dict:
-    """Zelfde vorm als ``detect_arousals``: {"success", "events", "summary", "error"}."""
-    from .arousal import _recompute_arousal_summary, enforce_min_arousal_interval
+    """Zelfde vorm als ``detect_arousals``: {"success", "events", "summary", "error"}.
+
+    Artefact-epochs: de replicatie telde arousals in artefact-epochs gewoon
+    mee en haalde die epochs alleen uit de NOEMER. Dat blijft zo (het
+    gerepliceerde gedrag verandert niet); `summary["artifact_epochs_policy"]`
+    zegt het erbij, want de LGBM-keten doet het anders (daar beslist de
+    profielvlag `arousal_uses_artifact_epochs` over de DETECTIE).
+    """
+    from .arousal import (_recompute_arousal_summary, enforce_min_arousal_interval,
+                          finalize_arousal_events)
     t0 = time.time()
     try:
         X = prepare_input(eeg, sf_eeg, eog, sf_eog, emg, sf_emg)
@@ -198,15 +223,28 @@ def detect_arousals_unet(eeg, sf_eeg, eog, sf_eog, emg, sf_emg, hypno: list, *,
     stats: dict = {}
     if min_interval_s and min_interval_s > 0:
         events = enforce_min_arousal_interval(events, float(min_interval_s), stats)
+    events = finalize_arousal_events(events, hypno)
     art = set(int(i) for i in (artifact_epochs or []))
     summary = _recompute_arousal_summary(events, hypno, art)
+    # Welk gewicht er WERKELIJK draaide. Met PSGSCORING_UNET_SKIP_SHA=1 slaat
+    # `available()` de wacht over; dan is de metadata-waarde geen uitspraak
+    # over het bestand en rapporteren we de checksum van het geladen bestand.
+    skip_sha = os.environ.get("PSGSCORING_UNET_SKIP_SHA") == "1"
+    onnx_sha = sha256_of(ONNX_PATH) if skip_sha else meta().get("onnx_sha256")
     summary.update({
         "detector": "unet_v1", "unet_threshold": float(threshold),
         "unet_n_raw": len(raw_ev), "min_interval_s": float(min_interval_s or 0.0),
         "n_interval_merged": int(stats.get("n_merged", 0)),
-        "unet_onnx_sha256": meta().get("onnx_sha256"),
+        "unet_onnx_sha256": onnx_sha,
+        "unet_skip_sha": skip_sha,
+        "models": {"arousal_unet_v1": {"file": ONNX_PATH.name, "sha256": onnx_sha,
+                                       "skip_sha": skip_sha}},
         "unet_t_total_s": round(time.time() - t0, 2), "unet_t_forward_s": round(t_fwd, 2),
         "unet_n_samples": int(X.shape[-1]),
+        "n_artifact_epochs": len(art),
+        "artifact_epochs_policy": (
+            "unet_v1 telt arousals in artefact-epochs mee (gerepliceerd gedrag); "
+            "artefact-epochs vallen alleen uit de noemer van de index"),
     })
     logger.info("[arousal] unet_v1: %d events (%d vóór samenvoeging) op τ %.2f, "
                 "%.1f s (voorwaarts %.1f s)", len(events), len(raw_ev),

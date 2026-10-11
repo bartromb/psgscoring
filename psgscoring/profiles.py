@@ -2124,6 +2124,73 @@ class PostProcessingRules:
     dat is ook het getal dat tot de pipeline-review van 11-10-2026
     gerapporteerd werd."""
 
+    spo2_nadir_time_axis: bool = True
+    """Meet de "nadir binnen 3 s"-regel van `get_desaturation` in TIJD.
+
+    Het zoeksegment werd eerst op 50-100 % gefilterd en pas daarna
+    geïndexeerd, dus een sensoruitval van 10 s aan het begin van een event
+    schoof de nadir-index 10 posities naar voren: een echte 4 %-desaturatie
+    met nadir op 11 s las als "nadir op 1 s" en werd op de circulatoire regel
+    afgewezen (None naast een correcte min_spo2). Met de vlag blijft de
+    tijd-as staan; zonder ongeldige samples is het pad byte-identiek.
+
+    Rekenfout, geen scoringskeuze -- daarom default aan, zoals `plm_time_base`.
+    Uitgezonderd `mesa_shhs` en `chicago_1999` (paper v31/v37).
+    Legacy-sleutel `SPO2_NADIR_TIME_AXIS`; lezer `spo2.nadir_time_axis_from_profile`.
+    """
+
+    csr_period_rectified: bool = False
+    """Richt de bandgefilterde flow-envelope gelijk vóór de CSR-autocorrelatie.
+
+    `detect_cheyne_stokes` bandfiltert op 0,005-0,05 Hz, een band zonder
+    gelijkstroom, en nam daar `np.abs` van. Een nulgemiddelde sinus
+    gelijkrichten verdubbelt zijn frequentie, dus `periodicity_s` was T/2
+    (88 s -> 44 s) of, als T/2 onder de ondergrens van 40 s viel, 3T/2
+    (60 s -> 90 s). `csr_detected` bleef meestal waar; het getal in het
+    rapport en in `_flag_csr_events` was fout.
+
+    `False` = geen gelijkrichting (de reparatie). `True` is het oude gedrag,
+    gepind op `mesa_shhs` en `chicago_1999`.
+    Legacy-sleutel `CSR_PERIOD_RECTIFIED`; lezer `ancillary.csr_period_rectified_from_profile`.
+    """
+
+    plm_resp_exclusion: str = "aasm"
+    """Welk venster een beenbeweging respiratoir maakt.
+
+    `"aasm"`: de beweging overlapt de periode van 0,5 s vóór het BEGIN van een
+    apneu/hypopneu tot 0,5 s na het einde (AASM, LM-regel). `"end"`: alleen
+    `einde +/- 0,5 s`, wat `plm.py` tot nu deed -- een beweging midden in een
+    apneu van 30 s telde dan gewoon mee in de PLM-index.
+
+    Default `"aasm"`; `"end"` gepind op `mesa_shhs` en `chicago_1999`.
+    Legacy-sleutel `PLM_RESP_EXCLUSION`; lezer `plm.plm_resp_exclusion_from_profile`.
+    """
+
+    spo2_index_denominator: str = "artifact_free_sleep"
+    """Noemer van ODI en T90/T80/T70 in `analyze_spo2`.
+
+    `"artifact_free_sleep"`: dezelfde noemer als de AHI -- artefact-epochs
+    uit teller en noemer, en de percentages over het aantal GELDIGE samples,
+    zodat sensoruitval ze niet verdunt. `"sleep"`: alle slaapsamples, incl.
+    artefact-epochs en uitval (het oude gedrag, gepind op `mesa_shhs` en
+    `chicago_1999`). Werkt alleen als de pipeline `artifact_epochs` aan
+    `analyze_spo2` doorgeeft; zonder die lijst is de uitkomst ongewijzigd.
+    Legacy-sleutel `SPO2_INDEX_DENOMINATOR`; lezer `spo2.index_denominator_from_profile`.
+    """
+
+    spectral_effort_resolution: str = "event"
+    """Vensterlengte van de spectrale effortclassificatie (`ecg_effort`).
+
+    `"4s"`: `nperseg = 4 * sf`, bins van 0,25 Hz -- de ademband 0,1-0,5 Hz
+    is dan twee bins en een ademritme op 0,15-0,18 Hz lekt grotendeels naar
+    de DC-bin erbuiten, terwijl de hartband zeven bins krijgt. `"event"`:
+    het hele event als venster (10-60 s, dus 0,017-0,1 Hz per bin) met
+    integratie van de dichtheid per band.
+
+    Default `"event"`; `"4s"` gepind op `mesa_shhs` en `chicago_1999`.
+    Legacy-sleutel `SPECTRAL_EFFORT_RESOLUTION`; lezer `ecg_effort.spectral_resolution_from_profile`.
+    """
+
 
 @dataclass
 class Profile:
@@ -2635,6 +2702,14 @@ _mesa_shhs = Profile(
         # Idem voor de PLM-tijdbasis: die is per 21-08-2026 default aan omdat
         # het een rekenfout was, maar dit profiel moet reproduceerbaar blijven.
         plm_time_base=False,
+        # Idem voor de vijf reparaties van 11-10-2026 (nadir-tijdas, CSR-
+        # gelijkrichting, PLM-uitsluitingsvenster, SpO2-noemer, spectrale
+        # resolutie): allemaal gepind op het oude gedrag.
+        spo2_nadir_time_axis=False,
+        csr_period_rectified=True,
+        plm_resp_exclusion="end",
+        spo2_index_denominator="sleep",
+        spectral_effort_resolution="4s",
         # En idem voor de AASM-regel van 10 s tussen twee arousals, default aan
         # sinds 30-08-2026. Die verandert de ARO USALTELLING (op PSG-IPA SN3
         # 173 -> 159), en dit profiel reproduceert de NSRR-conventie.
@@ -2764,6 +2839,12 @@ _chicago_1999 = Profile(
         # PostProcessingRules.rip_quality_scale_free.
         rip_quality_scale_free=False,
         plm_time_base=False,
+        # Zie mesa_shhs: de vijf reparaties van 11-10-2026 gepind op oud.
+        spo2_nadir_time_axis=False,
+        csr_period_rectified=True,
+        plm_resp_exclusion="end",
+        spo2_index_denominator="sleep",
+        spectral_effort_resolution="4s",
         # Zie mesa_shhs: de 10 s-regel tussen arousals staat sinds 30-08-2026
         # default aan en verandert de arousaltelling, en de
         # CSR-herclassificatie staat sinds 31-08-2026 default uit en raakt de

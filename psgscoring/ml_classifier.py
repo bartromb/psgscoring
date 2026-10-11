@@ -43,6 +43,8 @@ from typing import Any, Optional
 
 import numpy as np
 
+from .utils import check_model_file
+
 logger = logging.getLogger("psgscoring.ml_classifier")
 
 # Feature column order — must match build_lightgbm_dataset.py FEATURE_COLUMNS
@@ -64,6 +66,11 @@ FEATURE_COLUMNS: tuple[str, ...] = (
 
 
 _BOOSTER_CACHE: dict[str, Any] = {}
+#: Per pad: {"file", "sha256", "manifest"} van de geladen booster, zodat de
+#: meta kan zeggen WELK model er gedraaid heeft (zie data/models.json).
+_BOOSTER_IDENTITY: dict[str, dict] = {}
+#: Manifestsleutel van het gebundelde model.
+MANIFEST_KEY = "lightgbm_v06_q7holdout"
 
 
 def _resolve_path(path: str) -> Path:
@@ -91,10 +98,22 @@ def load_booster(path: str):
     resolved = _resolve_path(path)
     if not resolved.exists():
         raise FileNotFoundError(f"LightGBM model not found: {path} (resolved to {resolved})")
+    # Checksumwacht (zelfde geest als arousal_unet.available): het gebundelde
+    # bestand moet zijn wat het manifest zegt. Een eigen model onder een
+    # andere naam laadt gewoon, met zijn echte sha in de identiteit.
+    identity = check_model_file(MANIFEST_KEY, resolved)
     booster = lgb.Booster(model_file=str(resolved))
+    namen = list(booster.feature_name())
+    if namen != list(FEATURE_COLUMNS):
+        raise ValueError(
+            f"{resolved.name}: feature-namen van de booster ({len(namen)}) "
+            f"wijken af van FEATURE_COLUMNS ({len(FEATURE_COLUMNS)}); "
+            f"eerste verschil bij "
+            f"{next((i for i, (a, b) in enumerate(zip(namen, FEATURE_COLUMNS)) if a != b), min(len(namen), len(FEATURE_COLUMNS)))}")
     _BOOSTER_CACHE[path] = booster
-    logger.info("[ml] Loaded booster %s (%d features expected)",
-                resolved.name, len(FEATURE_COLUMNS))
+    _BOOSTER_IDENTITY[path] = identity
+    logger.info("[ml] Loaded booster %s (%d features expected, sha256 %s…)",
+                resolved.name, len(FEATURE_COLUMNS), identity["sha256"][:12])
     return booster
 
 
@@ -154,6 +173,13 @@ def _extract_candidate_features(
                                           or candidate.get("desat") or 0.0),
         "min_spo2":                 float(candidate.get("min_spo2") or 95.0),
         "confidence":               float(candidate.get("confidence") or 0.7),
+        # Letterlijk dezelfde regel als in build_lightgbm_dataset.py (regel
+        # 134, MESA-ab-test), dus training en inferentie zijn consistent:
+        # `uncertain` (een niet-onderverdeelde apneu) is daar 0 -- en dat
+        # geldt evengoed voor `obstructive`/`central`/`mixed`, want geen van
+        # die typenamen bevat "apnea". Het feature is in de praktijk alleen 1
+        # voor een kaal type "apnea". Niet "repareren": het model is op deze
+        # codering getraind.
         "is_apnea":                 1 if "apnea" in ev_type and "hypopnea" not in ev_type else 0,
         "is_hypopnea_obstructive":  1 if ev_type in ("hypopnea", "hypopnea_obstructive") else 0,
         "is_hypopnea_central":      1 if ev_type == "hypopnea_central" else 0,
@@ -255,6 +281,8 @@ def apply_ml_reclassification(
             "score_mean":         float(scores.mean()),
             "score_p50":          float(np.percentile(scores, 50)),
             "type_counts_output": dict(type_counts),
+            # Welk model: bestand + sha256 (zie data/models.json).
+            "models":             {MANIFEST_KEY: dict(_BOOSTER_IDENTITY.get(booster_path) or {})},
         }
     except Exception as e:
         logger.warning("[ml] Re-classification failed, keeping rule-based result: %s", e)

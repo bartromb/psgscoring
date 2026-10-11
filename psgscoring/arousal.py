@@ -30,6 +30,7 @@ import numpy as np
 from scipy.ndimage import label
 
 from .indices import per_hour
+from .utils import check_model_file, epoch_bounds, file_sha256, to_microvolts
 from scipy.signal import find_peaks  # v0.8.40: consolidated imports
 
 logger = logging.getLogger("psgscoring.arousal")
@@ -93,6 +94,10 @@ _AROUSAL_LGBM_FEATURE_ORDER: list[str] = [
     "emg_var_ratio", "hr_shift_rel", "pos_in_night",
 ]
 _AROUSAL_LGBM_BOOSTER = None  # cached after first use
+#: {"file", "sha256", "manifest"} van de geladen booster (data/models.json);
+#: gaat als `summary["models"]["arousal_classifier_v3"]` mee.
+_AROUSAL_LGBM_IDENTITY: dict | None = None
+_AROUSAL_LGBM_MANIFEST_KEY = "arousal_classifier_v3"
 
 
 def _emg_usable_for_lgbm(emg_data, n_eeg: int) -> bool:
@@ -134,16 +139,31 @@ def _is_arousal_lgbm_enabled() -> bool:
 
 
 def _load_arousal_lgbm_booster():
-    global _AROUSAL_LGBM_BOOSTER
+    global _AROUSAL_LGBM_BOOSTER, _AROUSAL_LGBM_IDENTITY
     if _AROUSAL_LGBM_BOOSTER is not None:
         return _AROUSAL_LGBM_BOOSTER
     if not Path(AROUSAL_LGBM_MODEL_PATH).exists():
         raise FileNotFoundError(
             f"Arousal LGBM model not found at {AROUSAL_LGBM_MODEL_PATH}; "
-            "ship arousal_classifier_v3.txt into myproject/data/."
+            "ship arousal_classifier_v3.txt into psgscoring/data/ (or point "
+            "PSGSCORING_AROUSAL_LGBM_MODEL at it)."
         )
+    # Checksumwacht, zelfde geest als arousal_unet.available(): het bestand
+    # dat `arousal_classifier_v3.txt` heet moet zijn wat data/models.json
+    # zegt. Een eigen model onder een andere naam (env-pad) laadt gewoon, met
+    # zijn echte sha in de identiteit. Een mismatch gooit, en de aanroeper
+    # valt dan terug op het regelgebaseerde pad met `model_unavailable`.
+    identity = check_model_file(_AROUSAL_LGBM_MANIFEST_KEY, AROUSAL_LGBM_MODEL_PATH)
     import lightgbm as lgb  # noqa: WPS433
-    _AROUSAL_LGBM_BOOSTER = lgb.Booster(model_file=AROUSAL_LGBM_MODEL_PATH)
+    booster = lgb.Booster(model_file=AROUSAL_LGBM_MODEL_PATH)
+    n_feat = int(booster.num_feature())
+    if n_feat != len(_AROUSAL_LGBM_FEATURE_ORDER):
+        raise ValueError(
+            f"{Path(AROUSAL_LGBM_MODEL_PATH).name}: booster verwacht {n_feat} "
+            f"features, _AROUSAL_LGBM_FEATURE_ORDER telt er "
+            f"{len(_AROUSAL_LGBM_FEATURE_ORDER)}")
+    _AROUSAL_LGBM_BOOSTER = booster
+    _AROUSAL_LGBM_IDENTITY = identity
     return _AROUSAL_LGBM_BOOSTER
 
 
@@ -380,6 +400,28 @@ def _recompute_arousal_summary(
     }
 
 
+def finalize_arousal_events(events: list[dict], hypno: list) -> list[dict]:
+    """Vul `end_s`, `epoch` en `stage` aan waar een detectorweg ze niet zet.
+
+    `_recompute_arousal_summary` leest `a.get("stage", "W")`: een eventlijst
+    zonder stadium geeft dus een correcte totaalindex naast NREM/REM-indices
+    van 0,0. De autonome re-ranker leverde precies zo'n lijst (onset, duur,
+    score, kans) en het U-Net zette geen `epoch`. Hier aanroepen vóór ELKE
+    samenvatting; wat er al staat blijft staan, en het hypnogram mag tekst
+    of getallen dragen -- het stadium wordt letterlijk overgenomen.
+    """
+    for e in events or []:
+        onset = float(e.get("onset_s") or 0.0)
+        if e.get("end_s") is None:
+            e["end_s"] = _safe(onset + float(e.get("duration_s") or 0.0))
+        if e.get("epoch") is None:
+            e["epoch"] = int(onset // EPOCH_LEN_S)
+        if e.get("stage") is None:
+            ep = int(e["epoch"])
+            e["stage"] = hypno[ep] if (hypno and 0 <= ep < len(hypno)) else "W"
+    return events
+
+
 # ═══════════════════════════════════════════════════════════════
 # CONSTANTEN  (AASM, v0.8.11 — verbeterd)
 # ═══════════════════════════════════════════════════════════════
@@ -393,11 +435,18 @@ PRESLEEP_MIN_S        = 10.0    # ≥10s slaap vóór arousal vereist
 #: er slaap-EPOCHS voorafgaan, en een epoch waarin net een arousal zat heet nog
 #: steeds N2 -- die check ziet een vorige arousal dus niet.
 AROUSAL_MIN_INTERVAL_S = 10.0
-POST_RESP_WINDOW_S    = 15.0    # arousal binnen 15s na resp. event = respiratoir
-# Zoveel VOOR het einde van een event begint het koppelvenster. Komt uit
-# correlate_arousals_to_respiratory (window_pre_s); staat hier als constante
-# zodat het event-locked werkpunt dezelfde geometrie gebruikt in plaats van
-# een eigen getal.
+# Bovengrens van het koppelvenster: tot zoveel seconden NA het einde van een
+# respiratoir event heet een arousal respiratoir. De ondergrens van de
+# KOPPELING is de event-onset (zie `arousal_couples_to_event`); het
+# event-locked werkpunt hieronder gebruikt een ander, smaller venster.
+POST_RESP_WINDOW_S    = 15.0
+# Het EVENT-LOCKED werkpunt (lagere classifierdrempel rond respiratoire
+# events) kijkt van `einde - 5 s` tot `einde + POST_RESP_WINDOW_S`. Dat is
+# NIET het koppelvenster van `correlate_arousals_to_respiratory`, dat sinds
+# v0.23.0 bij de event-ONSET begint: een kandidaat vroeg in een lang event
+# krijgt dus de gewone drempel en wordt, als hij die haalt, wél gekoppeld.
+# De 5 s is het oude rapportagevenster (`window_pre_s`), hier als constante
+# bewaard zodat het werkpunt geen eigen getal draagt.
 AROUSAL_PRE_RESP_WINDOW_S = 5.0
 RERA_FLOW_LIMIT_THR   = 0.80    # flow 80–100% = flow-limitatie (plateau)
 RERA_MIN_DUR_S        = 10.0    # ≥10s flow-limitatie voor RERA
@@ -522,12 +571,10 @@ def _is_sleep(stage) -> bool:
 
 def _build_stage_mask(hypno: list, sf: float,
                        total_samples: int, stages) -> np.ndarray:
-    spe  = int(sf * EPOCH_LEN_S)
     mask = np.zeros(total_samples, dtype=bool)
     for ep_i, stage in enumerate(hypno):
         if stage in stages:
-            s = ep_i * spe
-            e = min(s + spe, total_samples)
+            s, e = epoch_bounds(ep_i, sf, total_samples)
             mask[s:e] = True
     return mask
 
@@ -619,15 +666,18 @@ def _detect_cvr_confidence_boost(
             return 0.0
 
         mean_pre  = float(np.mean(hr_pre))
-        mean_post = float(np.max(hr_post[:max(1, len(hr_post)//3)]))
+        # PIEK in het eerste derde van het post-venster, geen gemiddelde:
+        # de tachycardie na een arousal is kort, en een gemiddelde over het
+        # hele venster zou hem wegmiddelen. Heette tot 11-10-2026 `mean_post`.
+        peak_post = float(np.max(hr_post[:max(1, len(hr_post)//3)]))
         # Minimum van pre-venster (bradycardie)
         min_pre   = float(np.min(hr_pre))
 
         brady_present = (mean_pre - min_pre) >= brady_delta_bpm
-        tachy_present = (mean_post - mean_pre) >= tachy_delta_bpm
+        tachy_present = (peak_post - mean_pre) >= tachy_delta_bpm
 
         if brady_present and tachy_present:
-            strength = min(1.0, (mean_post - min_pre) / 30.0)
+            strength = min(1.0, (peak_post - min_pre) / 30.0)
             return round(0.10 + 0.10 * strength, 2)
         if tachy_present:
             return 0.10
@@ -664,7 +714,8 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
     1. Theta band (4-8 Hz) toegevoegd — veel arousals bij ouderen
     2. Alpha ingeperkt tot 8-11 Hz — voorkomt spindle vals-positieven
     3. Sigma band (12-15 Hz) apart gedetecteerd en UITGESLOTEN
-    4. Abruptheid-criterium: vermogen moet >2× toenemen t.o.v. 3s ervoor
+    4. Abruptheid-criterium: vermogen moet >=1,5× toenemen t.o.v. 3s ervoor
+       (`ABRUPT_RATIO_THRESH`; was 2,0 vóór v0.8.11)
     5. Pre-sleep check valideert hypnogram (niet alleen arousal-vrij)
     6. Robuustere basislijn (mediaan van laagste 50% periodes)
 
@@ -772,6 +823,10 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
     # mutation, which was fragile under the 8 parallel workers + the multi-derivation
     # loop). Explicit caller values win; else LGBM-candidate values in hybrid mode;
     # else the module defaults. Byte-identical to the old global-swap behaviour.
+    # De waarden van de AANROEPER, vóór het invullen van de hybride
+    # kandidaatdrempels: de terugval na een mislukt classifierfilter moet
+    # precies die krijgen, niet de verruimde.
+    _ratio_arg, _abrupt_arg = ratio_thresh, abrupt_thresh
     if ratio_thresh is None:
         ratio_thresh = AROUSAL_LGBM_CAND_RATIO if _hybrid else AROUSAL_RATIO_THRESH
     if abrupt_thresh is None:
@@ -786,15 +841,13 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
     result = {"success": False, "events": [], "summary": {}, "error": None}
     try:
         n_samples = len(eeg_data)
-        spe       = int(sf * EPOCH_LEN_S)
 
         # v0.8.11 FIX: Converteer EEG naar µV als het in Volt lijkt te zijn
         # raw.get_data() geeft Volt (bijv. 50 µV = 5e-5 V)
-        # Bandpower in Volt² geeft ~1e-10 waarden → numerieke problemen
-        eeg_uv = eeg_data.copy()
-        if np.max(np.abs(eeg_uv)) < 0.01:  # max < 10 mV → waarschijnlijk Volt
-            eeg_uv = eeg_uv * 1e6
-            logger.debug("Arousal EEG: V→µV conversie (max=%.1f µV)", np.max(np.abs(eeg_uv)))
+        # Bandpower in Volt² geeft ~1e-10 waarden → numerieke problemen.
+        # Sinds 11-10-2026 via `utils.to_microvolts` (één heuristiek met de
+        # PLM-detector: V / mV / µV, gemeten na aftrek van de gelijkspanning).
+        eeg_uv = to_microvolts(eeg_data, label="Arousal EEG")
 
         # ── Bandvermogen tijdreeksen (v0.8.11: theta + alpha_narrow + beta) ──
         _alpha_band = ALPHA_MANUAL_BAND if alpha_band_wide else ALPHA_NARROW_BAND
@@ -947,10 +1000,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
             from scipy.signal import butter, filtfilt  # local import for backward compat
             try:
                 # v0.8.11 FIX: converteer EMG naar µV (zelfde issue als EEG/PLM)
-                emg_work = emg_data[:n_samples].copy()
-                if np.max(np.abs(emg_work)) < 0.01:
-                    emg_work = emg_work * 1e6
-                    logger.debug("Arousal EMG: V→µV conversie")
+                emg_work = to_microvolts(emg_data[:n_samples], label="Arousal EMG")
                 # v0.8.40: Guard tegen ongeldige bandpass bij lage sf
                 nyq = sf / 2.0
                 high = min(100.0, nyq - 1.0)
@@ -1022,8 +1072,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
         for ep_i, stage in enumerate(hypno):
             if ep_i in artifact_set:
                 continue
-            s2 = ep_i * spe
-            e2 = min(s2 + spe, n_samples)
+            s2, e2 = epoch_bounds(ep_i, sf, n_samples)
             if _is_sleep(stage):
                 sleep_sample_mask[s2:e2] = True
                 search_mask[s2:e2] = True
@@ -1034,8 +1083,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
         for ep_i, stage in enumerate(hypno):
             if ep_i in artifact_set:
                 continue
-            s = ep_i * spe
-            e = min(s + spe, n_samples)
+            s, e = epoch_bounds(ep_i, sf, n_samples)
             # V.A Note 3: een arousal in een WAKE-epoch tussen lights out en
             # lights on telt mee. Zonder deze regel krijgt zo'n epoch geen
             # masker en bestaat de arousal niet -- ook niet als het slaapmasker
@@ -1080,8 +1128,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
             for ep_i, stage in enumerate(hypno):
                 if ep_i in artifact_set:
                     continue
-                s = ep_i * spe
-                e = min(s + spe, n_samples)
+                s, e = epoch_bounds(ep_i, sf, n_samples)
                 if _is_nrem(stage):
                     local_bl = arousal_bl_nrem_arr[s:e]
                     if spectral_shift:
@@ -1298,23 +1345,22 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
         # diagnostics.
         if _hybrid and result.get("events"):
             try:
-                eeg_uv_for_lgbm = eeg_data.copy()
-                if np.max(np.abs(eeg_uv_for_lgbm)) < 0.01:
-                    eeg_uv_for_lgbm = eeg_uv_for_lgbm * 1e6
+                eeg_uv_for_lgbm = to_microvolts(eeg_data, label="Arousal EEG (LGBM)")
                 emg_uv_for_lgbm = None
                 if emg_data is not None:
-                    emg_uv_for_lgbm = emg_data[:n_samples].copy()
-                    if np.max(np.abs(emg_uv_for_lgbm)) < 0.01:
-                        emg_uv_for_lgbm = emg_uv_for_lgbm * 1e6
+                    emg_uv_for_lgbm = to_microvolts(emg_data[:n_samples],
+                                                    label="Arousal EMG (LGBM)")
                 # Werkpunt: profielwaarde als die er is, anders de
                 # moduleconstante (die zelf al een env-override kent).
                 _thr = (float(lgbm_threshold) if lgbm_threshold is not None
                         else AROUSAL_LGBM_THRESHOLD)
-                # Event-locked werkpunt. Het venster is EXACT dat van
-                # correlate_arousals_to_respiratory (event-onset tot
-                # POST_RESP_WINDOW_S na het einde), zodat detectie en koppeling
-                # dezelfde geometrie delen -- een event dat het venster toelaat
-                # maar de koppeling niet erkent, komt nergens in terug.
+                # Event-locked werkpunt: de lagere drempel geldt voor
+                # kandidaten met onset in [einde - AROUSAL_PRE_RESP_WINDOW_S,
+                # einde + POST_RESP_WINDOW_S] van een respiratoir event. Dat is
+                # SMALLER dan het koppelvenster van
+                # correlate_arousals_to_respiratory, dat bij de event-ONSET
+                # begint: een kandidaat vroeg in een lang event krijgt de
+                # gewone drempel en wordt, als hij die haalt, wel gekoppeld.
                 _thr_per = None
                 if event_locked_threshold is not None and resp_event_ends:
                     _lo = float(event_locked_threshold)
@@ -1354,8 +1400,15 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                 # index te komen. Zelfde lijst als pre_lgbm_events, plus
                 # proba -- een aparte lijst zodat bestaande lezers van
                 # pre_lgbm_events niets zien veranderen.
+                #
+                # De VOLLEDIGE kandidaat gaat mee (end_s, stage, epoch,
+                # dominant_band, emg_confirmed, ...), niet alleen onset en
+                # duur: de autonome re-ranker bouwt hieruit zijn events, en
+                # zonder stadium gaf de samenvatting NREM/REM-indices van 0,0
+                # naast een correcte totaalindex.
                 result["lgbm_candidates"] = [
-                    {"onset_s": float(c.get("onset_s", 0.0)),
+                    {**c,
+                     "onset_s": float(c.get("onset_s", 0.0)),
                      "duration_s": float(c.get("duration_s", 0.0)),
                      "proba": float(pr)}
                     for c, pr in zip(result["events"], proba)
@@ -1364,6 +1417,9 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                 result["summary"] = _recompute_arousal_summary(
                     kept, hypno, set(artifact_epochs or []),
                 )
+                # Welk model er filterde: bestand + sha256 (data/models.json).
+                result["summary"]["models"] = {
+                    _AROUSAL_LGBM_MANIFEST_KEY: dict(_AROUSAL_LGBM_IDENTITY or {})}
                 # `_recompute_arousal_summary` bouwt een VERSE dict, dus de
                 # duurtellers uit fase 2 vielen hier weg zodra de classifier
                 # draaide -- en dat is juist het pad dat de klinische profielen
@@ -1392,15 +1448,30 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
                     "opnieuw detecteren op de regelgebaseerde drempels", e,
                 )
                 _lgbm_ok = False
-                result = detect_arousals(
-                    eeg_data, sf, hypno, emg_data=emg_data,
-                    artifact_epochs=artifact_epochs, hr_data=hr_data,
-                    sf_hr=sf_hr,
+                # ALLE vlaggen mee, niet alleen de spectrale. Tot 11-10-2026
+                # ontbraken rem_alpha_baseline, score_wake_arousals,
+                # alpha_band_wide, de expliciete ratio/abrupt-drempels,
+                # lgbm_threshold, resp_event_ends en event_locked_threshold:
+                # een vlag die aan stond was na een mislukt filter stil uit.
+                # `min_interval_s` gaat NIET mee: de 10 s-regel draait
+                # hieronder op het eindresultaat, en tweemaal samenvoegen
+                # zou `n_interval_merged` op nul zetten.
+                _herhaal_kw = dict(
+                    emg_data=emg_data, artifact_epochs=artifact_epochs,
+                    hr_data=hr_data, sf_hr=sf_hr,
+                    ratio_thresh=_ratio_arg, abrupt_thresh=_abrupt_arg,
                     spectral_shift=spectral_shift,
                     shift_delta=shift_delta, shift_abrupt=shift_abrupt,
                     hysteresis=hysteresis, exit_ratio=exit_ratio,
-                    _no_hybrid=True,
+                    lgbm=lgbm, lgbm_threshold=lgbm_threshold,
+                    resp_event_ends=resp_event_ends,
+                    event_locked_threshold=event_locked_threshold,
+                    rem_alpha_baseline=rem_alpha_baseline,
+                    score_wake_arousals=score_wake_arousals,
+                    alpha_band_wide=alpha_band_wide,
                 )
+                result = detect_arousals(eeg_data, sf, hypno, _no_hybrid=True,
+                                         **_herhaal_kw)
                 result["lgbm_error"] = str(e)
 
     except Exception as e:
@@ -1420,7 +1491,7 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
             _bewaar = {k: result["summary"].get(k)
                        for k in ("n_too_long_discarded", "too_long_discarded_s",
                                  "max_duration_s", "lgbm_threshold",
-                                 "lgbm_n_pre", "lgbm_n_post")
+                                 "lgbm_n_pre", "lgbm_n_post", "models")
                        if isinstance(result.get("summary"), dict)
                        and k in result["summary"]}
             result["summary"] = _recompute_arousal_summary(
@@ -1446,6 +1517,24 @@ def detect_arousals(eeg_data: np.ndarray, sf: float,
 # ═══════════════════════════════════════════════════════════════
 # MULTI-DERIVATIE  (v0.8.1 — event-level union over EEG-afleidingen)
 # ═══════════════════════════════════════════════════════════════
+
+def _op_eeg_frequentie(x, sf_x, sf_eeg: float, label: str):
+    """Breng een hulpkanaal (EOG, kin-EMG) op de EEG-samplefrequentie.
+
+    De LGBM-keten indexeert EOG en EMG per sample naast het EEG
+    (`emg_data[:n_samples]`, `_eog_reject_occipital`) en het U-Net krijgt één
+    sf mee: een kanaal op een andere frequentie zou daar stil verkeerd
+    uitgelijnd zijn. ``sf_x`` None of gelijk aan ``sf_eeg`` = ongewijzigd
+    (de pipeline leest alle kanalen uit één Raw met één sfreq).
+    """
+    if x is None or sf_x is None or abs(float(sf_x) - float(sf_eeg)) < 1e-9:
+        return x
+    from mne.filter import resample
+    logger.info("[arousal] %s van %.2f naar %.2f Hz herbemonsterd", label,
+                float(sf_x), float(sf_eeg))
+    return resample(np.asarray(x, dtype=np.float64), up=float(sf_eeg),
+                    down=float(sf_x), npad="auto", verbose=False)
+
 
 def _min_interval_from_env(explicit: float) -> float:
     """De 10 s-regel ook leesbaar voor wie de pipeline NIET gebruikt.
@@ -1639,8 +1728,19 @@ def _eog_reject_occipital(events, eog_data, sf, factor: float = 3.0):
 # (meetscripts/pleth_fase1_extract.py): elk verschil zou een ander model
 # uitrollen dan er gevalideerd is.
 
-_AUTONOMIC_MODEL: dict = json.loads(
-    (Path(__file__).parent / "data" / "autonomic_rerank_v1.json").read_text())
+_AUTONOMIC_MODEL_PATH = Path(__file__).parent / "data" / "autonomic_rerank_v1.json"
+_AUTONOMIC_MODEL: dict = json.loads(_AUTONOMIC_MODEL_PATH.read_text())
+
+
+def _autonomic_identity() -> dict:
+    """{"file", "sha256", "manifest"} van de coëfficiënten (data/models.json).
+    Geen wacht: tests/test_autonomic_rerank.py bewaakt de waarden zelf, en
+    een importfout op een manifestverschil zou de hele module meetrekken."""
+    try:
+        return check_model_file("autonomic_rerank_v1", _AUTONOMIC_MODEL_PATH)
+    except (ValueError, OSError):
+        return {"file": _AUTONOMIC_MODEL_PATH.name,
+                "sha256": file_sha256(_AUTONOMIC_MODEL_PATH), "manifest": False}
 
 
 def _autonomic_score(feats: np.ndarray) -> np.ndarray:
@@ -1705,8 +1805,23 @@ def _hr_series_1hz(hr_raw: np.ndarray, sf: float):
     n = int(len(hr_raw) // sf)
     if n < 600:
         return None, False
-    r = np.nanmedian(np.asarray(hr_raw[:int(n * sf)], dtype=float)
-                     .reshape(n, int(sf)), axis=1)
+    hr = np.asarray(hr_raw, dtype=float)
+    if float(sf).is_integer():
+        # Gehele sf: de oude reshape, byte-identiek.
+        r = np.nanmedian(hr[:int(n * sf)].reshape(n, int(sf)), axis=1)
+    else:
+        # Niet-gehele sf (255,74 Hz; of 0,25 Hz op een traag kanaal):
+        # `reshape(n, int(sf))` gooide hier een ValueError. Bin per seconde
+        # op floor(i / sf); een seconde zonder sample (sf < 1) wordt NaN en
+        # telt daardoor mee in de bruikbaarheidsdrempel hieronder.
+        bins = np.floor(np.arange(hr.size) / sf).astype(int)
+        r = np.full(n, np.nan)
+        geldig = bins < n
+        grenzen = np.searchsorted(bins[geldig], np.arange(n + 1))
+        for k in range(n):
+            a, b = grenzen[k], grenzen[k + 1]
+            if b > a:
+                r[k] = np.nanmedian(hr[a:b])
     r[(r < 30) | (r > 180)] = np.nan
     return r, bool(np.mean(np.isnan(r)) < 0.5)
 
@@ -1776,17 +1891,27 @@ def autonomic_rerank_selection(candidates, threshold, pleth, sf_pleth,
             if not (np.isnan(piek) or np.isnan(ref)):
                 hr_rise = float(piek - ref)
         stage = hypno[min(len(hypno) - 1, int(o // 30))] if hypno else "N2"
+        # `_is_rem`, niet `== "R"`: een numeriek hypnogram draagt 4.
         feats[i] = [float(c["proba"]), pwa_min_ratio, pwa_flag, hr_rise,
-                    min(d, 30.0), 1.0 if stage == "R" else 0.0]
+                    min(d, 30.0), 1.0 if _is_rem(stage) else 0.0]
 
     k = int(np.sum(feats[:, 0] >= float(threshold)))
     scores = _autonomic_score(feats)
     idx = np.argsort(-scores)[:k]
-    ev = [{"onset_s": float(kands[i]["onset_s"]),
-           "duration_s": float(kands[i]["duration_s"]),
-           "autonomic_score": float(scores[i]),
-           "lgbm_proba": float(kands[i]["proba"])}
-          for i in sorted(idx, key=lambda i: kands[i]["onset_s"])]
+    # De hele kandidaat gaat mee (stage, epoch, end_s, dominant_band, ...),
+    # plus score en kans. Tot 11-10-2026 droeg een event hier vier velden,
+    # en de samenvatting las daarna `a.get("stage", "W")`: NREM/REM-indices
+    # 0,0 naast een correcte totaalindex. `finalize_arousal_events` vult aan
+    # wat een kale kandidatenlijst (onset, duur, kans) niet draagt.
+    ev = []
+    for i in sorted(idx, key=lambda i: kands[i]["onset_s"]):
+        e = {kk: v for kk, v in kands[i].items() if kk != "proba"}
+        e.update({"onset_s": float(kands[i]["onset_s"]),
+                  "duration_s": float(kands[i]["duration_s"]),
+                  "autonomic_score": float(scores[i]),
+                  "lgbm_proba": float(kands[i]["proba"])})
+        ev.append(e)
+    ev = finalize_arousal_events(ev, hypno)
     ev = enforce_min_arousal_interval(ev, float(min_interval_s or 0.0))
     prov.update({"active": True, "k": k, "n_candidates": len(kands),
                  "n_selected": len(ev), "threshold": float(threshold),
@@ -1831,8 +1956,12 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
     per = []
     for item in derivations:
         name, eeg = item[0], item[1]
+        # Optioneel derde element: de sf van DEZE afleiding. Stond in de
+        # docstring maar werd tot 11-10-2026 genegeerd -- elke afleiding
+        # draaide op `sf`, ook een kanaal dat op een andere frequentie staat.
+        sf_i = float(item[2]) if (len(item) > 2 and item[2]) else sf
         rt, at = pct.get(name, (None, None))
-        res = detect_arousals(eeg, sf, hypno,
+        res = detect_arousals(eeg, sf_i, hypno,
                               score_wake_arousals=score_wake_arousals,
                               alpha_band_wide=alpha_band_wide,
                               emg_data=emg_data,
@@ -1908,7 +2037,7 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
 
     _first = per[0][1].get("summary", {}) or {}
     for _k in ("lgbm_available", "lgbm_skipped_reason", "lgbm_threshold",
-               "event_locked_threshold"):
+               "event_locked_threshold", "models"):
         if _k in _first:
             summ[_k] = _first[_k]
 
@@ -1918,7 +2047,8 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
     # de leveringstest ving (thr in de summary, nul kandidaten). Duplicaten
     # tussen afleidingen zijn onschadelijk: de koppeling vraagt alleen "ligt
     # er EEN kandidaat met p >= drempel in het venster".
-    _alle_kand = [c for _, r in per for c in (r.get("lgbm_candidates") or [])]
+    _alle_kand = [{**c, "derivation": name}
+                  for name, r in per for c in (r.get("lgbm_candidates") or [])]
     if any("lgbm_n_pre" in (r.get("summary") or {}) for _, r in per):
         summ["lgbm_n_pre"] = sum((r.get("summary") or {}).get("lgbm_n_pre", 0)
                                  for _, r in per)
@@ -1955,6 +2085,7 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
             _ev, _prov = None, {"active": False,
                                 "reason": f"{type(e).__name__}: {e}"}
         if _ev is not None:
+            _ev = finalize_arousal_events(_ev, hypno)
             out["events"] = _ev
             _summ_new = _recompute_arousal_summary(
                 _ev, hypno, set(artifact_epochs or []))
@@ -1963,6 +2094,9 @@ def detect_arousals_multi(derivations, sf: float, hypno: list,
             # -- de bekende val van de verse-dict-recompute.
             behouden = {k: v for k, v in summ.items() if k not in _summ_new}
             summ = {**_summ_new, **behouden}
+            if _prov.get("active"):
+                summ["models"] = {**(summ.get("models") or {}),
+                                  "autonomic_rerank_v1": _autonomic_identity()}
             out["summary"] = summ
         out["summary"]["autonomic_rerank"] = _prov
     return out
@@ -2023,6 +2157,13 @@ def correlate_arousals_to_respiratory(
 
     AASM definitie respiratoire arousal:
       Arousal die optreedt binnen 15s na het EINDE van een apnea of hypopnea.
+
+    Wat de code DOET (v0.23.0, `arousal_couples_to_event`): een arousal is
+    gekoppeld als haar onset in ``[event_onset, event_einde + window_post_s]``
+    ligt -- dezelfde regel als de scoring in breath_scoring.py. ``window_pre_s``
+    staat nog in de signatuur maar bepaalt de koppeling niet meer; het
+    event-locked classifierwerkpunt gebruikt wél een venster vanaf
+    ``einde - AROUSAL_PRE_RESP_WINDOW_S`` (zie de constanten bovenaan).
 
     Geeft terug:
       - Respiratoire arousals (gekoppeld aan event)
@@ -2276,12 +2417,10 @@ def detect_reras(
 
         # ── Verbind met slaap ──
         sleep_stages = {"N1","N2","N3","R",1,2,3,4}
-        spe = int(sf_flow * EPOCH_LEN_S)
         sleep_mask = np.zeros(len(flow_norm), dtype=bool)
         for ep_i, stage in enumerate(hypno):
             if stage in sleep_stages:
-                s = ep_i * spe
-                e = min(s + spe, len(sleep_mask))
+                s, e = epoch_bounds(ep_i, sf_flow, len(sleep_mask))
                 sleep_mask[s:e] = True
 
         # ── Label flow-limitatie segmenten ──
@@ -2482,6 +2621,8 @@ def run_arousal_respiratory_analysis(
     autonomic_rerank: bool = False,
     arousal_detector: str = "lgbm",
     unet_threshold: float = 0.35,
+    sf_eog: float | None = None,
+    sf_emg: float | None = None,
 ) -> dict:
     """
     Master-functie: detecteer arousals, RERAs en koppel aan respiratoire events.
@@ -2501,12 +2642,25 @@ def run_arousal_respiratory_analysis(
     hypno       : slaapfase-lijst
     emg_data    : optioneel chin-EMG signaal voor REM arousal criterium
     artifact_epochs : epoch-indices met artefacten (uitgesloten uit detectie + indices)
+    sf_eog, sf_emg : samplefrequentie van EOG en kin-EMG als die van ``sf_eeg``
+                  afwijkt. Beide kanalen worden dan expliciet naar ``sf_eeg``
+                  herbemonsterd: de LGBM-keten indexeert ze per sample naast
+                  het EEG en het U-Net krijgt één sf mee. ``None`` = gelijk
+                  aan ``sf_eeg`` (de pipeline leest alle kanalen uit één Raw).
 
     Returns
     -------
     dict met arousals, koppeling, RERAs en samenvatting
     """
     output = {"success": False, "error": None}
+
+    # De 10 s-regel: de env-override ÉÉN keer hier, zodat elke detectorweg
+    # (LGBM single/multi én U-Net) dezelfde waarde ziet. Tot 11-10-2026 lazen
+    # alleen de LGBM-paden `PSGSCORING_AROUSAL_MIN_INTERVAL_S`; het U-Net
+    # kreeg het ruwe argument.
+    min_interval_s = _min_interval_from_env(min_interval_s)
+    eog_data = _op_eeg_frequentie(eog_data, sf_eog, sf_eeg, "EOG")
+    emg_data = _op_eeg_frequentie(emg_data, sf_emg, sf_eeg, "kin-EMG")
 
     # ── Stap 1: Arousals detecteren ──────────────────────────────
     logger.info("[arousal 1/3] EEG-arousal detectie...")
@@ -2607,6 +2761,10 @@ def run_arousal_respiratory_analysis(
     if str(arousal_detector) == "unet_v1" and _unet_reason and isinstance(ar_result.get("summary"), dict):
         ar_result["summary"]["detector"] = "lgbm"
         ar_result["summary"]["unet_fallback_reason"] = _unet_reason
+    # Vangnet vóór de koppeling: elke weg hoort stage/epoch/end_s al te
+    # dragen (de detectoren roepen dit zelf aan vóór hun samenvatting), maar
+    # de koppeling en de RERA-detectie lezen die velden ook.
+    ar_result["events"] = finalize_arousal_events(ar_result.get("events") or [], hypno)
     output["arousals"] = ar_result
 
     arousals = ar_result.get("events", [])
@@ -2671,7 +2829,8 @@ def run_arousal_respiratory_analysis(
     # een factor kunnen schelen. Alleen doorgeven wat er is -- op een profiel
     # zonder classifier blijven de sleutels weg.
     for _k in ("detector", "unet_threshold", "unet_fallback_reason", "unet_n_raw",
-               "unet_t_total_s", "unet_onnx_sha256",
+               "unet_t_total_s", "unet_onnx_sha256", "unet_skip_sha",
+               "artifact_epochs_policy", "models",
                "lgbm_available", "lgbm_skipped_reason", "lgbm_threshold",
                "lgbm_n_pre", "lgbm_n_post", "n_event_locked",
                "event_locked_threshold", "min_interval_s", "n_interval_merged",
