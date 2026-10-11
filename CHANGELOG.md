@@ -1,3 +1,237 @@
+# Unreleased — 2026-10-11 — codereview verwerkt: 15 nieuwe profielvelden, provenance zegt wat er liep, modelidentiteit als data
+
+Een leesreview van de hele bibliotheek (`docs/code_review_20261011.md`) is in één dag
+verwerkt: vijf parallelle werkpakketten (pipeline, respiratoire detectie, arousal/SpO2/
+PLM/CSR, signaal/kwaliteit/tests, profielen) elk met tests die eerst faalden op de oude
+code. **Geen versiebump en geen release**: dat is een aparte beslissing. De regel van het
+huis geldt overal: een reparatie die een gescoord of gerapporteerd getal verschuift, staat
+achter een profielveld met de reparatie als default op de klinische profielen en het oude
+gedrag gepind op `mesa_shhs` en `chicago_1999` (zelfde idioom als `plm_time_base`); twee
+reparaties die eerst gemeten moeten worden staan default **uit** op elk profiel
+(`hypopnea_mask_excludes_apnea_band=True`, `linearise_after_dc_removal=False`).
+
+## Wat een getal verschuift (klinische profielen; bevroren profielen gepind op oud)
+
+- **Thermistorpoort `respiratory_band` zonder aliasing** (`thermistor_band_power_antialias`).
+  `x[::q]` decimeerde zonder anti-aliasfilter, zodat netbrom of ECG-doorslag in de
+  0,02–4 Hz-noemer terugvouwde: ademhaling 0,20 Hz + 50 Hz-toon op 0,7× amplitude gaf 0,671
+  (< drempel 0,70) in plaats van 1,000, en een gezonde thermistor werd op
+  `aasm_v3_breath_dual` afgekeurd. Nu `scipy.signal.decimate` (FIR, zero-phase). De drempel
+  0,70 is ongewijzigd maar **met aliasing geijkt** (9 Somnomedics-montages); hij moet op de
+  server opnieuw worden afgeleid — `scripts/calibrate_thermistor_band_power.py` drukt per
+  montage de fractie onder beide decimatiemodi.
+- **SpO2-nadir op de tijdas** (`spo2_nadir_time_axis`). `get_desaturation` filterde het
+  segment op 50–100 % vóór `argmin`, zodat 10 s sensoruitval aan de onset een echte
+  4 %-desaturatie met nadir op +11 s als "nadir op 1 s" las en afwees (None naast een
+  correcte min_spo2). Rekenfout, geen scoringskeuze.
+- **CSR-periode zonder gelijkrichting** (`csr_period_rectified`, default False = reparatie).
+  `np.abs` op een al nulgemiddelde 0,005–0,05 Hz-band verdubbelde de grondfrequentie:
+  `periodicity_s` was T/2 of 3T/2 (88 s → 44, 60 s → 90), en `_flag_csr_events` vlagde op
+  het verkeerde interval. `csr_detected` zelf bleef meestal staan.
+- **PLM-uitsluiting per AASM** (`plm_resp_exclusion="aasm"`, bevroren `"end"`): een
+  beenbeweging die overlapt met 0,5 s vóór de onset tot 0,5 s na het einde van een
+  apneu/hypopneu is respiratoir; voorheen alleen einde ± 0,5 s, zodat een beweging midden
+  in een apneu van 30 s in de PLM-index telde. Bilaterale samenvoeging eindigt bij het
+  laatste einde.
+- **ODI/T90 op de AHI-noemer** (`spo2_index_denominator="artifact_free_sleep"`, bevroren
+  `"sleep"`): `analyze_spo2(artifact_epochs=…)` sluit artefact-epochs uit en rekent de
+  percentages over geldige samples; de pipeline geeft de lijst nu door.
+- **Spectrale effortresolutie** (`spectral_effort_resolution="event"`, bevroren `"4s"`):
+  4 s-Welch gaf bins van 0,25 Hz, de ademband 0,1–0,5 Hz was twee bins tegen zeven
+  cardiale; nu het hele event met dichtheidsintegratie (0,15 Hz effort + 1,2 Hz hart:
+  `indeterminate` → `effort_present`).
+- **Continue herstelbasislijn** (`recovery_baseline_mode="interpolated"`, bevroren
+  `"block"`): Fix 1 (basislijn na apneu) plakte vlakke 10 s-blokken van een ruwe P95 in een
+  geïnterpoleerde, stagegemengde basislijn, met hardgecodeerde 300 s/P95 waar `mesa_shhs`
+  120 s/P85 gebruikt; de claim "~4 % van de ankers" gold alleen op nachten zonder apneus.
+- **Gemengde-apneudecompositie op de effort-envelope** (`mixed_decomposition_on_envelope`,
+  bevroren False): op |ruwe RIP| werd een band met DC-offset nooit gedecomponeerd en een
+  nulgemiddelde band brak bij de eerste nuldoorgang af; de confidence-vloer 0,85/0,80 is
+  van het nieuwe pad af (hetzelfde patroon dat bij CSR op 14-08 is verwijderd).
+- **Fasesplitsing op de nuldoorgang** (`breath_phase_split="zero_crossing"`, bevroren
+  `"midpoint"`): `detect_breaths` splitste elke cyclus op het tijdsmidden, zodat
+  `insp_segment` bij I:E 1:2 een derde expiratie bevatte en de afvlakkingsindex verdunde.
+  Golden: `rdi` 50,6 → 44,2 (`cms_arousal`) en 37,8 → 31,5 (`arousal_autodetect_breath`)
+  via de RERA-telling; geen AHI-blad beweegt.
+- **Stadium-basislijn draait ook op een floor-lengte-hypnogram**
+  (`stage_baseline_partial_epochs`, bevroren False): `np.repeat(stage_ep, spe)[:n]` was
+  korter dan de envelope zodra `len(hypno)·spe < n` — het normale geval met YASA/NSRR —
+  gooide `IndexError`, en de aanroeper slikte dat op DEBUG. De "stage-specifieke basislijn"
+  uit README en paper draaide dus op de meeste echte opnames niet.
+- **Indices op de definitieve eventlijst** (`indices_on_final_event_list`, bevroren
+  False): positie-AHI en PLM-uitsluiting werden op de lijst van stap 1 berekend terwijl
+  7b, Rule 1B, LightGBM, lange-eventsplitsing en de desaturatiebegrenzing die lijst nog
+  veranderden; nu één keer, na de laatste mutatie (stap 8c). De arousalstap krijgt een
+  expliciete momentopname.
+- **Eén slaaptijd** (`ancillary_tst_excludes_artifacts`, bevroren False):
+  `indices.tst_hours(hypno, artifact_epochs)` is de noemer van de externe arousal-index en
+  de CSR-dichtheid, zoals van de AHI; de LightGBM-feature `tst_h` blijft bewust zonder
+  artefactcorrectie.
+- **Eén REM-AHI** (`rem_ahi_alias_excludes_uncertain`, bevroren False): `rem_ahi`/`nrem_ahi`
+  zijn aliassen van `ahi_rem`/`ahi_nrem` (dezelfde events als `ahi_total`); de eigen
+  herberekening in `_compute_rera_rdi` telde kale `uncertain`-apneus mee en het
+  REM-predominante fenotype las dat paar — de tegenspraak van v0.27.7 stond één sleutelnaam
+  verderop nog.
+- **Apneudesaturatie leest `POST_EVENT_WINDOW_S`** (byte-identiek op 45 s;
+  `aasm_v3_strict` met 30 s verschuift, geen veld: de bevroren profielen staan op 45 s).
+- **Samenvatting stratificeert alleen apneus op confidence.** `oahi_conf60`,
+  `oahi_thresholds`, `oahi_sweep`/`robustness_grade` en `ahi_excl_noise` tellen hypopneeën
+  altijd mee; `p_scored` blijft op het event. De premisse "envelope-hypopneeën dragen
+  altijd 0,70" klopte niet eens: ze droegen de subtypeerzekerheid van `classify_apnea_type`
+  (0,3 zonder effortkanalen). Golden: `oahi_conf60` 6,3 → 25,3 (= `ahi_total`) op drie
+  cases. Geen veld: op elk profiel een boekhoudfout.
+
+## Twee reparaties die eerst gemeten moeten worden (default uit op elk profiel)
+
+- `hypopnea_mask_excludes_apnea_band=True` (oud gedrag): het hypopneemasker snijdt samples
+  onder de apneudrempel weg en knipt een hypopneu met een korte bijna-stilstand in twee te
+  korte stukken (7/4/7 s: geen event; met `False` één kandidaat van 18 s). Eenzijdig effect,
+  preregistreren en meten.
+- `linearise_after_dc_removal=False` (oud gedrag): de wortel-linearisatie van de neusdruk
+  staat vóór elke DC-verwijdering; met een offset van 0,5× de amplitude meet een echte
+  50 %-daling als 80 %. Raakt elk dual-montage; eerst meten op de 20 eigen PSG's en MESA.
+
+## Provenance: de uitvoer beschrijft de run, niet het verzoek
+
+- Een onbekende profielnaam gooit `KeyError` in plaats van stil op `aasm_v3_rec` te scoren
+  met de verkeerde naam in `meta` (dezelfde klasse als de stille no-ops van 23-08 en 29-08).
+- Faalt de ademteug-gegradeerde detector, dan staat dat in `respiratory.breath_detector`
+  (`status: exception`, `fallback: envelope`) en `meta.detector_fallback`.
+- `ahi_rule` en `meta.hypopnea_criterion` zeggen wat er liep: een gefaalde arousalstap,
+  een ontbrekend EEG-kanaal of de detectorterugval geeft `desat_only` met reden (`as_run`);
+  het normale geval is byte-identiek.
+- `meta.channel_rates` / `channel_rates_source`: natieve frequentie per kanaal uit de
+  EDF-kop; de SpO2-toets (< 0,33 Hz) kan nu vuren (`spo2.spo2_native_samplerate`). De
+  CSR-detector krijgt de frequentie van het referentiekanaal; `meta.channels_used` toont de
+  kanaalmap ná de thermistorpoort; de hardgecodeerde 256 Hz-terugval is weg.
+- **Modelidentiteit** (`psgscoring/data/models.json`): beide LightGBM-laders weigeren een
+  afwijkende sha256 en toetsen de featuregeometrie (`num_feature()==50`,
+  `feature_name()==FEATURE_COLUMNS`); `summary["models"]` (arousal, re-ranker, U-Net) en
+  `meta["models"]` (ml_classifier); bij `PSGSCORING_UNET_SKIP_SHA=1` de echte checksum van
+  het geladen bestand plus `unet_skip_sha`, niet langer de metadata-waarde.
+- Een gecrashte arm van de AHI-intervalsweep valt buiten het interval (`failed_arms`,
+  `robustness_grade C`) in plaats van als AHI 0,0 mee te tellen; `error_type` op een
+  mislukte detectie; `PSGSCORING_STRICT=1` werpt TypeError/IndexError/ValueError opnieuw
+  (voor tests).
+- `rejected_apneas` + `n_mmsd_rejected_apneas`: MMSD-afgewezen apneukandidaten met
+  `reject_reason mmsd_<val>`, los van `rejected_hypopneas`. Effortbanden met afwijkende
+  lengte vallen weg met reden (`effort_dropped`) in plaats van `success=False`.
+- `profiles.FIELD_DETECTOR_PATH` en `profile_inert_fields()`: knoppen die de gekozen
+  hypopneedetector niet leest; de pipeline waarschuwt bij de start. Geen geregistreerd
+  profiel draagt inerte niet-default knoppen. Bevinding: de Rule 1A-herstelpas heeft geen
+  detectorpoort en draait ook onder `breath_graded`.
+- Patiëntnaam, geslacht en geboortedatum uit de EDF-kop staan niet meer in het log; alleen
+  aanwezigheid en apparaat.
+
+## Arousal
+
+- `finalize_arousal_events`: re-ranker-events dragen stadium/epoch/einde/band — de
+  NREM/REM-arousalindices en bandtellingen waren 0,0 naast een correcte totaalindex op
+  `aasm_v3_rec` met Pleth + HR. Elke detectorweg levert dezelfde sleutelset (test).
+- LGBM-terugval bindt alle vlaggen (alpha-band, wake, drempels, …); de 10 s-env geldt ook
+  op het U-Net-pad; `sf_eog`/`sf_emg` met expliciete herbemonstering; `prepare_input`
+  weigert een lengteverschil; `gate_sleep` leest numerieke hypnogrammen; het artefactbeleid
+  van `unet_v1` staat in de summary; multi honoreert sf per afleiding; re-ranker herkent
+  REM als 4.
+- `utils.epoch_bounds` in alle maskerbouwers (geen drift op 255,74 of 0,25 Hz — het
+  PLM-tijdbasispatroon); `_hr_series_1hz` zonder `reshape`; `utils.to_microvolts`
+  (V/mV/µV na detrend) voor PLM en arousal; `timeseries` NaN → None.
+
+## Respiratoir, klein
+
+- SpO2-kruiscontaminatie vergelijkt met het event dat in de tijd voorafgaat, niet het laatst
+  toegevoegde. Hypopnee-subtypering (§6.1) krijgt de ruwe banden (`thorax_raw`/
+  `abdomen_raw`); op de envelopes was het paradoxcriterium blind. `flow_reduction` is
+  overal een verhouding en `flow_reduction_pct` het percentage (**YASAFlaskified-lezers op
+  herstelde/ademteug-events zien nu 0,475 i.p.v. 47,5**). De voorbewerkingscache sleutelt
+  op elk veld dat de voorbewerking raakt. Snappen naar ademteuggrenzen trekt een event niet
+  onder zijn minimumduur. Dode effortpoort in regel 5b weg; docstrings gecorrigeerd.
+
+## Profielen en API
+
+- De poort op dode profielvelden sleutelt op (dataclass, veld): `ApneaRules.
+  flow_reduction_threshold` en `SpO2Rules.baseline_window_s` worden door niets gelezen; de
+  misleidende pins op `aasm_v3_sensitive`/`aasm_v3_strict` zijn weg (byte-identiek), de
+  velden staan als schuld met hun beoogde consument.
+- Snapshots van de gerenderde dicts van `mesa_shhs` en `chicago_1999`
+  (`tests/golden/profile_*.json`): elke afwijking faalt, ook een nieuwe sleutel.
+- `arousal_derivation_mode` als echt veld; `mesa_shhs` pint `"single"`, `chicago_1999`
+  `"multi"` — wat het al rendert (familie `legacy`), vastgelegd in plaats van stil opgelost.
+- Elke envelope-arm een eigen `HypopneaRules`; `_types.py` beschrijft de werkelijke uitvoer
+  (test tegen de golden-case); `psgscoring.__all__` draagt de profiel-API; deprecatie
+  zonder verwijderversie; `list_profiles()`-voorbeeld op 22.
+
+## Harnas en pakket
+
+- **Golden-harnas**: tolerantie per bladtype (1e-3 voor indices, onsets en duren; 1e-2 voor
+  confidences; exact voor gehele getallen en tekst) in plaats van 0,25, dat de 3-decimale
+  digest tenietdeed. De gezegende baseline haalde die tolerantie ongewijzigd (9/9) — de
+  verschuivingen hieronder zijn dus echt.
+- **Kanaalkwaliteit meet de sensor, niet het bestand** (`signal_quality_channels`):
+  vlakheid als fractie van de robuuste schaal (0,3 %), clipping als histogrampiek op de
+  rail, SpO2 en positie als discrete rollen, uitkomst per rol gesleuteld. SpO2 en positie
+  waren in elke golden-case "poor", µV-gedeclareerde RIP "100 % vlak", en twee rollen op
+  één kanaal overschreven elkaar. Informatief (log + `output["channel_quality"]`;
+  YASAFlaskified rendert het niet). Eerste directe unit-tests voor deze module.
+- **`expected_scorer_agreement`**: envelop van onderaf in plaats van cumulatief maximum —
+  70 events kreeg 0,83 (boven het SN5-anker 0,56) en 33 → 34 sprong met 0,28; band en F1
+  zijn nu consistent.
+- **CAISR-lezer**: `read_caisr_resp_csv(path, original_fs=…)` berekent de rijbreedte als
+  `step / original_fs`; zonder blijft de 1 Hz-aanname, nu expliciet in plaats van
+  afgeleid-en-genegeerd.
+- **`channel_map_from_user`** meldt een override naar een onbestaand kanaal (WARNING) en
+  registreert hem op `ChannelMap.ignored`; de pipeline schrijft
+  `meta.channel_overrides_ignored`.
+- **Tests**: split-night- en pre_lgbm-fixtures leveren nu PLM's en arousals en falen in
+  plaats van te skippen; `test_no_unexpected_hard_dependencies` blokkeert yasa/lightgbm/
+  onnxruntime in een subproces; `slow`-marker geregistreerd (nergens gedeselecteerd);
+  `test_assess_weak_channel` aangescherpt met schaalvrije tegenhangers;
+  `test_profile_fields_have_a_consumer` sleutelt op (dataclass, veld). Collectie 1 510 →
+  1 883.
+- **Packaging/CI**: de sdist draagt `tests/__init__.py`, `tests/golden/`, `docs/*.md`,
+  `scripts/*.py` en `psgscoring/*.md` (327 bestanden, alle door git gevolgde testbronnen);
+  `hypothesis` uit de `test`-extra; `mne<2` toegelicht; `tests.yml` SHA-gepind, `[denoise]`
+  in de CI-installatie, nieuwe job `sdist-manifest` die de sdist tegen `git ls-files`
+  legt — de les van 0.35.0 als poort in plaats van als herinnering.
+- **Nieuw script** `scripts/calibrate_thermistor_band_power.py` voor de herijking van
+  `THERMISTOR_BAND_POWER_MIN` op de server (beide decimatiemodi, `--csv`, `--selftest`).
+
+## Golden
+
+Herzegend na lezing van het verschil: elk verschoven blad is toegeschreven door per
+case de nieuwe sleutels één voor één op hun oude waarde terug te zetten
+(`scratchpad/attribute_golden.py`, uitkomst per case):
+
+| case | blad | oud → nieuw | oorzaak |
+|---|---|---|---|
+| hypopnea_clean, spo2_dropout, cms_arousal | `resp.oahi_conf60` | 6,3 → 25,3 (= `ahi_total`) | summary stratificeert alleen apneus (geen veld) |
+| hypopnea_clean, spo2_dropout, cms_arousal | `events[2].conf` | 0,40 → 0,43 | `breath_phase_split` (afvlakkingsindex → subtypeerzekerheid) |
+| cms_arousal | `resp.rdi` | 50,6 → 44,2 | `breath_phase_split` (RERA/FRI-telling) |
+| arousal_autodetect_breath | `resp.rdi` | 37,8 → 31,5 | `breath_phase_split` |
+| alle 9 | `quality.channels.*` | sleutel kanaalnaam → rol; SpO2 clip/flat 90–100 % → 0; `mv_scale_effort` RIP 100 % vlak → 0 | schaalvrije kanaalkwaliteit (informatief) |
+| 8 van 9 | `quality.overall_grade` | acceptable/poor → good (`poor_quality` blijft poor) | idem |
+
+Geen enkel AHI-, apneu- of hypopneeblad beweegt; `plm`/`position` zitten niet in de digest.
+De 600 s-synthetiek kan de meeste nieuwe velden niet raken (geen artefact-epochs, geen
+CSR, hypnogram dekt de opname precies): hun effect is alleen op echte opnames te zien en
+staat als meetpunt open (§Open).
+
+## Open (meten, niet hier beslist)
+
+- `THERMISTOR_BAND_POWER_MIN` herijken op de 9 Somnomedics-montages met het nieuwe script.
+- `hypopnea_mask_excludes_apnea_band=False` en `linearise_after_dc_removal=True`
+  preregistreren en meten (PSG-IPA n=5, MESA n=30/150, 20 eigen PSG's).
+- De velden met default-aan maar zonder golden-dekking (`spo2_nadir_time_axis`,
+  `csr_period_rectified`, `plm_resp_exclusion`, `spo2_index_denominator`,
+  `spectral_effort_resolution`, `recovery_baseline_mode`,
+  `mixed_decomposition_on_envelope`, `stage_baseline_partial_epochs`) op MESA n=30 en
+  PSG-IPA vergelijken met de oude waarde vóór de volgende release.
+- `ApneaRules.flow_reduction_threshold` en `SpO2Rules.baseline_window_s` bedraden (schuld).
+- `chicago_1999` rendert multi-derivatie terwijl zijn overige pins single-tijdperk zijn:
+  beslissing + hermeting als het 'single' moet worden.
+- YASAFlaskified: `flow_reduction` op herstelde/ademteug-events is nu een verhouding;
+  `rem_ahi` blijft bestaan als alias.
+
 # v0.35.2 — 2026-10-10 — documentatierelease: de README van 0.35.x op de PyPI-landingspagina
 
 Geen enkele regel code verandert; YASAFlaskified blijft op 0.35.1 gepind (byte-gelijke

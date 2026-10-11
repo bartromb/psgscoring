@@ -41,28 +41,28 @@
     "profile": "aasm_v3_rec",
     "quality": {
       "channels": {
-        "ABDOMEN": {
+        "abdomen": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "FLOW": {
+        "flow": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "SPO2": {
-          "clip_pct": 90.1,
-          "flat_pct": 90.2,
-          "grade": "poor"
+        "spo2": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
         },
-        "THORAX": {
+        "thorax": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         }
       },
-      "overall_grade": "acceptable"
+      "overall_grade": "good"
     },
     "resp": {
       "ahi_excl_noise": 31.6,
@@ -99,38 +99,38 @@
     "profile": "aasm_v3_rec",
     "quality": {
       "channels": {
-        "ABDOMEN": {
+        "abdomen": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "EEG C4-M1": {
+        "eeg": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "EMG chin": {
+        "emg": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "FLOW": {
+        "flow": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "SPO2": {
-          "clip_pct": 100.0,
-          "flat_pct": 100.0,
-          "grade": "poor"
+        "spo2": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
         },
-        "THORAX": {
+        "thorax": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         }
       },
-      "overall_grade": "acceptable"
+      "overall_grade": "good"
     },
     "resp": {
       "ahi_excl_noise": 0.0,
@@ -183,38 +183,38 @@
     "profile": "aasm_v3_breath",
     "quality": {
       "channels": {
-        "ABDOMEN": {
+        "abdomen": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "EEG C4-M1": {
+        "eeg": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "EMG chin": {
+        "emg": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "FLOW": {
+        "flow": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "SPO2": {
-          "clip_pct": 100.0,
-          "flat_pct": 100.0,
-          "grade": "poor"
+        "spo2": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
         },
-        "THORAX": {
+        "thorax": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         }
       },
-      "overall_grade": "acceptable"
+      "overall_grade": "good"
     },
     "resp": {
       "ahi_excl_noise": 18.9,
@@ -226,7 +226,7 @@
       "n_rejected_hypopneas": 19,
       "oahi_all": 18.9,
       "oahi_conf60": 18.9,
-      "rdi": 37.8,
+      "rdi": 31.5,
       "rule1a_arousal_reinstated": 0,
       "rule1b_reinstated": 0,
       "success": true
@@ -260,7 +260,7 @@
         "type": "hypopnea_mixed"
       },
       {
-        "conf": 0.4,
+        "conf": 0.43,
         "d": 14.4,
         "t": 119.2,
         "type": "hypopnea"
@@ -275,28 +275,28 @@
     "profile": "cms_medicare",
     "quality": {
       "channels": {
-        "ABDOMEN": {
+        "abdomen": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "FLOW": {
+        "flow": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "SPO2": {
-          "clip_pct": 90.1,
-          "flat_pct": 90.2,
-          "grade": "poor"
+        "spo2": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
         },
-        "THORAX": {
+        "thorax": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         }
       },
-      "overall_grade": "acceptable"
+      "overall_grade": "good"
     },
     "resp": {
       "ahi_excl_noise": 25.3,
@@ -308,8 +308,8 @@
       "n_events": 4,
       "n_rejected_hypopneas": 15,
       "oahi_all": 25.3,
-      "oahi_conf60": 6.3,
-      "rdi": 50.6,
+      "oahi_conf60": 25.3,
+      "rdi": 44.2,
       "rule1a_arousal_reinstated": 0,
       "rule1b_reinstated": 0,
       "success": true
@@ -358,28 +358,28 @@
     "profile": "aasm_v3_rec",
     "quality": {
       "channels": {
-        "ABDOMEN": {
+        "abdomen": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "FLOW": {
+        "flow": {
           "clip_pct": 0.0,
           "flat_pct": 5.8,
           "grade": "acceptable"
         },
-        "SPO2": {
-          "clip_pct": 90.1,
-          "flat_pct": 90.2,
-          "grade": "poor"
+        "spo2": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
         },
-        "THORAX": {
+        "thorax": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         }
       },
-      "overall_grade": "acceptable"
+      "overall_grade": "good"
     },
     "resp": {
       "ahi_excl_noise": 25.3,
@@ -426,7 +426,7 @@
         "type": "hypopnea_mixed"
       },
       {
-        "conf": 0.4,
+        "conf": 0.43,
         "d": 14.4,
         "t": 119.2,
         "type": "hypopnea"
@@ -441,28 +441,28 @@
     "profile": "aasm_v3_rec",
     "quality": {
       "channels": {
-        "ABDOMEN": {
+        "abdomen": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "FLOW": {
+        "flow": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "SPO2": {
-          "clip_pct": 90.1,
-          "flat_pct": 90.2,
-          "grade": "poor"
+        "spo2": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
         },
-        "THORAX": {
+        "thorax": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         }
       },
-      "overall_grade": "acceptable"
+      "overall_grade": "good"
     },
     "resp": {
       "ahi_excl_noise": 25.3,
@@ -474,7 +474,7 @@
       "n_events": 4,
       "n_rejected_hypopneas": 15,
       "oahi_all": 25.3,
-      "oahi_conf60": 6.3,
+      "oahi_conf60": 25.3,
       "rdi": 25.3,
       "rule1a_arousal_reinstated": 0,
       "rule1b_reinstated": 0,
@@ -530,28 +530,28 @@
     "profile": "aasm_v3_rec",
     "quality": {
       "channels": {
-        "ABDOMEN": {
-          "clip_pct": 0.0,
-          "flat_pct": 100.0,
-          "grade": "poor"
-        },
-        "FLOW": {
+        "abdomen": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "SPO2": {
-          "clip_pct": 90.1,
-          "flat_pct": 90.2,
-          "grade": "poor"
-        },
-        "THORAX": {
+        "flow": {
           "clip_pct": 0.0,
-          "flat_pct": 100.0,
-          "grade": "poor"
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "spo2": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "thorax": {
+          "clip_pct": 0.0,
+          "flat_pct": 0.0,
+          "grade": "good"
         }
       },
-      "overall_grade": "poor"
+      "overall_grade": "good"
     },
     "resp": {
       "ahi_excl_noise": 31.6,
@@ -601,24 +601,24 @@
     "profile": "aasm_v3_rec",
     "quality": {
       "channels": {
-        "ABDOMEN": {
+        "abdomen": {
           "clip_pct": 0.0,
           "flat_pct": 33.3,
           "grade": "poor"
         },
-        "FLOW": {
+        "flow": {
           "clip_pct": 0.0,
           "flat_pct": 33.3,
           "grade": "poor"
         },
-        "SPO2": {
-          "clip_pct": 90.1,
-          "flat_pct": 90.2,
-          "grade": "poor"
-        },
-        "THORAX": {
+        "spo2": {
           "clip_pct": 0.0,
-          "flat_pct": 33.3,
+          "flat_pct": 0.0,
+          "grade": "good"
+        },
+        "thorax": {
+          "clip_pct": 0.0,
+          "flat_pct": 33.4,
           "grade": "poor"
         }
       },
@@ -669,7 +669,7 @@
         "type": "hypopnea_mixed"
       },
       {
-        "conf": 0.4,
+        "conf": 0.43,
         "d": 14.4,
         "t": 119.2,
         "type": "hypopnea"
@@ -684,28 +684,28 @@
     "profile": "aasm_v3_rec",
     "quality": {
       "channels": {
-        "ABDOMEN": {
+        "abdomen": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "FLOW": {
+        "flow": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         },
-        "SPO2": {
-          "clip_pct": 91.0,
-          "flat_pct": 91.1,
-          "grade": "poor"
+        "spo2": {
+          "clip_pct": 0.0,
+          "flat_pct": 2.5,
+          "grade": "good"
         },
-        "THORAX": {
+        "thorax": {
           "clip_pct": 0.0,
           "flat_pct": 0.0,
           "grade": "good"
         }
       },
-      "overall_grade": "acceptable"
+      "overall_grade": "good"
     },
     "resp": {
       "ahi_excl_noise": 25.3,
@@ -717,7 +717,7 @@
       "n_events": 4,
       "n_rejected_hypopneas": 15,
       "oahi_all": 25.3,
-      "oahi_conf60": 6.3,
+      "oahi_conf60": 25.3,
       "rdi": 25.3,
       "rule1a_arousal_reinstated": 0,
       "rule1b_reinstated": 0,
