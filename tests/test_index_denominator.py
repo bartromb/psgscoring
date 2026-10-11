@@ -202,9 +202,13 @@ def test_uncertain_apneas_are_excluded_from_both_or_neither():
 
 def test_the_filter_still_removes_genuine_noise():
     """Weghalen wat onder 0,40 zit blijft het doel; alleen de populatie
-    verandert."""
+    verandert.
+
+    De ruis is hier een APNEU met lage classifier-confidence. Hypopneeën
+    dragen geen classificatiezekerheid en tellen in elke stratificatie altijd
+    mee (zie tests/test_summary_hypopnea_confidence.py)."""
     ev = _mixed(n_hyp=10, n_uncertain=0, conf=0.9)
-    ev += [{"type": "hypopnea", "onset_s": 9000.0 + i * 60, "duration_s": 20.0,
+    ev += [{"type": "obstructive", "onset_s": 9000.0 + i * 60, "duration_s": 15.0,
             "stage": "N2", "confidence": 0.20} for i in range(4)]
     s = _compute_summary(ev, ["N2"] * 400)
     assert s["ahi_excl_noise"] < s["ahi_total"], "de ruisfilter doet niets meer"

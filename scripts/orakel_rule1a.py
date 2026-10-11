@@ -86,8 +86,11 @@ def draai_arm(raw, hypno, arm, ref_arousals):
     herst = [_tup(e) for e in evs if e.get("rule1a_arousal")]
     # Debietbewijs per herstelling, voor de post-hoc poortafleiding
     # (docs/orakel_rule1a_poort_preregistratie_20260917.md): dezelfde
-    # velden die de kandidaatpoort in de bibliotheek leest.
-    herst_velden = [(e.get("flow_reduction"), e.get("local_reduction_pct"),
+    # velden die de kandidaatpoort in de bibliotheek leest, in PROCENTEN.
+    # `flow_reduction` is overal een verhouding (0,475); het percentage staat
+    # onder `flow_reduction_pct`. Tot 0.35.2 droeg een herstelde hypopneu het
+    # percentage onder de eerste sleutel, en las dit script die.
+    herst_velden = [(e.get("flow_reduction_pct"), e.get("local_reduction_pct"),
                      float(e.get("duration_s") or 0.0))
                     for e in evs if e.get("rule1a_arousal")]
     summ = r.get("summary", {}) or {}

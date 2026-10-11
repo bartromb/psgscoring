@@ -583,7 +583,11 @@ def score_hypopneas_breathwise(
                 "epoch": int(t0 // epoch_len_s),
                 "desaturation_pct": None if desat is None else round(desat, 2),
                 "min_spo2": None if nadir is None else round(nadir, 1),
-                "flow_reduction": round(100.0 * d_red, 1),
+                # Verhouding, zoals de cascade en `_types.RespiratoryEvent`;
+                # het percentage staat ernaast. Tot 0.35.2 stond hier het
+                # percentage onder de sleutel van de verhouding.
+                "flow_reduction": round(d_red, 3),
+                "flow_reduction_pct": round(100.0 * d_red, 1),
                 "confidence": round(p, 3),
                 "p_scored": round(p, 3),
                 "n_breaths": int(j - i + 1),

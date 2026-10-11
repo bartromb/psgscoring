@@ -144,20 +144,109 @@ def _build_postapnea_recovery_mask(
     return mask
 
 
+def _hypopnea_envelope_mask(
+    norm_smooth: np.ndarray,
+    hypop_thresh: float,
+    apnea_thresh: float,
+    exclude_apnea_band: bool,
+) -> np.ndarray:
+    """Envelope-masker voor hypopneekandidaten.
+
+    Met `exclude_apnea_band` (het gedrag tot 0.35.2, en nog overal de
+    profieldefault) vallen samples onder `apnea_thresh` uit het masker. De
+    bevestigde apneus staan dan al in `excl`, dus dit raakt alleen een korte
+    bijna-stilstand (<10 s) MIDDEN in een hypopneu -- en knipt die kandidaat
+    in twee stukken die elk de duureis missen. Zie
+    profiles.hypopnea_mask_excludes_apnea_band.
+    """
+    mask = norm_smooth < hypop_thresh
+    if exclude_apnea_band:
+        mask &= ~(norm_smooth < apnea_thresh)
+    return mask
+
+
+def _breath_is_reduced(
+    ratio: float, hypop_thresh: float, apnea_thresh: float,
+    exclude_apnea_band: bool,
+) -> bool:
+    """Dezelfde schakelaar voor de ademteugregel van de gecorrigeerde pas."""
+    return ratio < hypop_thresh and (ratio >= apnea_thresh or not exclude_apnea_band)
+
+
+def _dynamic_baseline_excluding(
+    flow_env: np.ndarray,
+    sf: float,
+    exclude: np.ndarray,
+    window_s: float,
+    percentile: float,
+) -> np.ndarray:
+    """`compute_dynamic_baseline`, maar zonder de samples in `exclude`.
+
+    Zelfde ankers (elke 10 s), zelfde venster, zelfde stabiliteitsregel
+    (`seg > 0,30 * anker`) en dezelfde np.interp. Met een leeg masker is de
+    uitkomst identiek aan compute_dynamic_baseline(flow_env, sf, window_s,
+    percentile). Een venster dat volledig in het masker valt, valt terug op
+    zijn eigen samples: beter een opgeblazen anker dan geen anker.
+    """
+    win  = int(window_s * sf)
+    n    = len(flow_env)
+    step = max(1, int(sf * 10))
+    keep = ~exclude
+
+    sample_points   = np.arange(0, n, step)
+    baseline_sparse = np.empty(len(sample_points))
+    for idx, center in enumerate(sample_points):
+        start = max(0, center - win // 2)
+        end   = min(n, center + win // 2)
+        seg   = flow_env[start:end][keep[start:end]]
+        if seg.size == 0:
+            seg = flow_env[start:end]
+        anchor = np.percentile(seg, percentile)
+        stable = seg[seg > 0.30 * anchor]
+        baseline_sparse[idx] = (
+            np.percentile(stable, percentile) if len(stable) > 10 else anchor
+        )
+    baseline = np.interp(np.arange(n), sample_points, baseline_sparse)
+    return np.maximum(baseline, 1e-6)
+
+
 def _recompute_baseline_with_recovery_excluded(
     flow_env: np.ndarray,
     sf: float,
     recovery_mask: np.ndarray,
     original_baseline: np.ndarray,
     min_recovery_fraction: float = 0.05,
+    mode: str = "block",
+    window_s: float = 300.0,
+    percentile: float = 95.0,
+    blend=None,
 ) -> np.ndarray:
     """
-    Pas de dynamische basislijn aan op plekken waar de recovery mask een
-    significante fractie van het venster bedekt.
+    Fix 1 -- herreken de hypopneebasislijn zonder de post-apneu-recovery.
 
-    Alleen de ~4% van ankerposities waar recovery-samples aanwezig zijn
-    worden herberekend — geen volledige tweede basislijnberekening.
+    ``mode="interpolated"`` (profieldefault, zie
+    profiles.recovery_baseline_mode): herreken de ijle ankers met de
+    profielparameters `window_s`/`percentile` zonder de recovery-samples,
+    één np.interp, en geef het resultaat aan `blend` -- de aanroeper levert
+    daarin dezelfde stadium-/positiemenging die `original_baseline` kreeg.
+    Zonder `blend` komt de kale dynamische basislijn terug.
+
+    ``mode="block"`` is het gedrag tot 0.35.2, gepind op `mesa_shhs` en
+    `chicago_1999`: alleen de ankers waar recovery-samples meer dan
+    `min_recovery_fraction` van het venster bedekken worden herberekend, met
+    een vast venster van 300 s en een vaste P95, en als VLAK blok van 10 s in
+    de (verder geïnterpoleerde, gemengde) originele basislijn geschreven.
+    Hoeveel ankers dat raakt hangt van de apneudichtheid af; het is geen
+    vast percentage.
     """
+    if mode == "interpolated":
+        dyn = _dynamic_baseline_excluding(
+            flow_env, sf, recovery_mask, window_s=window_s, percentile=percentile)
+        return blend(dyn) if blend is not None else dyn
+    if mode != "block":
+        raise ValueError(
+            f"recovery_baseline_mode must be 'interpolated' or 'block', got {mode!r}")
+
     step       = int(sf * 10)
     win        = int(sf * 300)
     min_stable = int(sf * 30)
@@ -212,13 +301,25 @@ def _spo2_cross_contaminated(
     events bij matig OSAS geflagd → massale ondertelling van hypopnees.
     De flag is nu INFORMATIEF — de desaturatie wordt nog steeds berekend.
 
+    "Vorige" is het event dat in de TIJD voorafgaat, niet het laatst
+    toegevoegde. De hypopneedetector krijgt `events_so_far` binnen met alle
+    apneus er al in en voegt zijn kandidaten achteraan toe; het laatste
+    element is dan een apneu aan het eind van de nacht of de vorige hypopneu,
+    maar zelden de buur. Daarom het maximum van de eindtijden over alle
+    events die vóór `onset_s` beginnen.
+
     Returns True als de SpO2-koppeling mogelijk contaminated is.
     """
     if not events_so_far:
         return False
-    last = events_so_far[-1]
-    last_end = last["onset_s"] + last["duration_s"]
-    return (onset_s - last_end) < post_event_window_s
+    vorige_eind = max(
+        (ev["onset_s"] + ev["duration_s"] for ev in events_so_far
+         if ev["onset_s"] < onset_s),
+        default=None,
+    )
+    if vorige_eind is None:
+        return False
+    return (onset_s - vorige_eind) < post_event_window_s
 
 
 def _flag_csr_events(
@@ -346,13 +447,53 @@ def detect_respiratory_events(
 
     Returns
     -------
-    dict with keys: success, events, rejected_hypopneas, summary,
-    breath_analysis, dual_sensor, _breaths, error,
-    n_gap_excluded, n_posthyperpnea_recovery_s.
+    dict with keys: success, events, rejected_hypopneas, rejected_apneas,
+    n_mmsd_rejected_apneas, summary, breath_analysis, dual_sensor, _breaths,
+    error, error_type, n_gap_excluded, n_posthyperpnea_recovery_s.
+
+    Bij een fout is ``success`` False en dragen ``error``/``error_type`` de
+    oorzaak. Met ``PSGSCORING_STRICT=1`` wordt een TypeError, IndexError of
+    ValueError opnieuw geworpen in plaats van gedegradeerd: een programmeerfout
+    hoort in een test zichtbaar te zijn, niet als "nacht zonder events" terug
+    te komen.
     """
     result: dict = {"success": False, "events": [], "summary": {}, "error": None,
                     "n_gap_excluded": 0, "n_posthyperpnea_recovery_s": 30}
     try:
+        # ── Effortbanden: lengte toetsen vóór er iets mee gerekend wordt ──
+        # thorax/abdomen reizen zonder eigen samplefrequentie mee en delen
+        # dus stilzwijgend sf_flow en de lengte van het flowkanaal. Klopte
+        # dat niet, dan liep het tot een IndexError in _compute_effort_baseline
+        # (booleaans masker langer dan de envelope), ving de buitenste except
+        # die op, en kwam de HELE detectie terug als success=False met nul
+        # events -- terwijl het flowkanaal gewoon te scoren was en alleen de
+        # subtypering haar effort miste. Nu valt de band weg, met reden, en
+        # draait de rest door. ECG heeft een eigen sf_ecg en wordt op index
+        # geknipt in _get_ecg_assessment.
+        _n_flow = len(flow_data)
+        _effort_weg: list[str] = []
+        _effort_len: dict[str, int] = {}
+        if thorax_data is not None and len(thorax_data) != _n_flow:
+            _effort_weg.append("thorax")
+            _effort_len["thorax"] = len(thorax_data)
+            thorax_data = None
+        if abdomen_data is not None and len(abdomen_data) != _n_flow:
+            _effort_weg.append("abdomen")
+            _effort_len["abdomen"] = len(abdomen_data)
+            abdomen_data = None
+        if _effort_weg:
+            result["effort_dropped"] = {
+                "channels": _effort_weg,
+                "reason": (
+                    "length_mismatch: flow heeft %d samples, %s" % (
+                        _n_flow, ", ".join(
+                            f"{k} {v}" for k, v in _effort_len.items()))),
+            }
+            logger.warning(
+                "[resp] effortband(en) %s weggelaten: %s -- subtypering loopt "
+                "zonder effort door", _effort_weg,
+                result["effort_dropped"]["reason"])
+
         # ── v0.8.15: Scoring profile → lokale drempels ────────────────────
         # v0.4.1: STABILITY_FILTER_CV + PEAK_MIN_CONSECUTIVE_BREATHS toegevoegd
         # voor monotonieherstel (zie SESSION_2026-04-26_summary.md)
@@ -440,16 +581,56 @@ def detect_respiratory_events(
         # (full result, unchanged) and the reruns reuse it. _cache(key, fn)
         # computes fn() once per key and reuses it on later calls.
         _pc = _precomputed if _precomputed is not None else {}
-        def _cache(_key, _fn):
-            if _key not in _pc:
-                _pc[_key] = _fn()
-            return _pc[_key]
 
+        # Elk profielveld dat de VOORBEWERKING binnengaat, in één sleutel.
+        # De cache deelt envelopes, basislijnen, uitvalmaskers, effort-
+        # basislijn en ademteugen tussen de sweep-armen, en dat is alleen
+        # geldig zolang de sleutel alles draagt wat die waarden beïnvloedt.
+        # Tot 0.35.2 ontbraken FLOW_GAP_SCALE_FREE (het uitvalmasker stond
+        # onder een kale sleutel) en de basislijnvelden voor effort_bl (die
+        # hangt via flow_norm van het basislijnvenster af). Een arm met een
+        # afwijkend veld kreeg dan stil de waarde van de arm die het eerst
+        # draaide. Elke cachesleutel draagt deze sleutel nu achter `::`; de
+        # naam en zijn eigen suffix ervoor blijven staan als documentatie
+        # van wat er in zit (en zodat `k.startswith("flow_env")` blijft
+        # werken voor wie in de cache kijkt).
+        #
         # Schaalvrije uitvaldetectie: profielvlag, default uit. De absolute
         # variant is op de neusdruk aantoonbaar dood (0,00 % van de samples op
         # mesa-sleep-0001) terwijl een losgeraakte canule ruist en dus als
         # aaneengesloten apneus scoort.
-        _gap_sf = bool((scoring_profile or {}).get("FLOW_GAP_SCALE_FREE", False))
+        _gap_sf = bool(sp.get("FLOW_GAP_SCALE_FREE", False))
+        # v0.5.1: profile-tunable baseline window/percentile
+        _BL_WIN_S  = sp.get("BASELINE_WINDOW_S", 300)
+        _BL_PCT    = sp.get("BASELINE_PERCENTILE", 95.0)
+        # v0.19.0: the envelope axis. These MUST appear in every cache key
+        # below that holds an envelope or anything derived from one. The cache
+        # exists because the interval reruns share their preprocessing, and
+        # that argument only holds while the preprocessing is profile-
+        # independent — which the envelope stopped being. Without the key, a
+        # group mixing envelope arms would score every arm on the first arm's
+        # envelope and report a suspiciously tight interval.
+        _ENV_METHOD = sp.get("ENVELOPE_METHOD", "hilbert")
+        _ENV_FS     = sp.get("ENVELOPE_FS", None)
+        # v0.20.0: wavelet denoising sits in bandpass_flow, so it changes the
+        # filtered waveform that FOUR consumers read (envelope, MMSD, breath
+        # detector, boundary snapping). It therefore belongs in the cache key
+        # for the same reason the envelope method does.
+        _DENOISE    = bool(sp.get("FLOW_WAVELET_DENOISE", False))
+        _ENV_KEY    = f"{_ENV_METHOD}|{_ENV_FS}|dn{int(_DENOISE)}"
+        _FORCE_LIN  = bool(sp.get("HYPOPNEA_FORCE_LINEARISATION", False))
+        # Waar een ademteug in inspiratie en expiratie gesplitst wordt; zie
+        # profiles.breath_phase_split. Zonder profiel het oude gedrag.
+        _PHASE_SPLIT = str(sp.get("BREATH_PHASE_SPLIT", "midpoint"))
+        _pre_key = "|".join(str(x) for x in (
+            _ENV_KEY, _BL_WIN_S, _BL_PCT, int(_gap_sf), int(_FORCE_LIN),
+            _PHASE_SPLIT))
+
+        def _cache(_key, _fn):
+            _key = f"{_key}::{_pre_key}"
+            if _key not in _pc:
+                _pc[_key] = _fn()
+            return _pc[_key]
 
         # ── Fix 5: Artefact-flanken — post-gap exclusiemasker ─────────────
         gap_mask_ap, n_gaps = _cache(
@@ -475,24 +656,7 @@ def detect_respiratory_events(
                 _tecg = None
 
         # ── Apnea-channel preprocessing (thermistor, no sqrt) ──────────────
-        # v0.5.1: profile-tunable baseline window/percentile
-        _BL_WIN_S  = sp.get("BASELINE_WINDOW_S", 300)
-        _BL_PCT    = sp.get("BASELINE_PERCENTILE", 95.0)
-        # v0.19.0: the envelope axis. These MUST appear in every cache key
-        # below that holds an envelope or anything derived from one. The cache
-        # exists because the interval reruns share their preprocessing, and
-        # that argument only holds while the preprocessing is profile-
-        # independent — which the envelope stopped being. Without the key, a
-        # group mixing envelope arms would score every arm on the first arm's
-        # envelope and report a suspiciously tight interval.
-        _ENV_METHOD = sp.get("ENVELOPE_METHOD", "hilbert")
-        _ENV_FS     = sp.get("ENVELOPE_FS", None)
-        # v0.20.0: wavelet denoising sits in bandpass_flow, so it changes the
-        # filtered waveform that FOUR consumers read (envelope, MMSD, breath
-        # detector, boundary snapping). It therefore belongs in the cache key
-        # for the same reason the envelope method does.
-        _DENOISE    = bool(sp.get("FLOW_WAVELET_DENOISE", False))
-        _ENV_KEY    = f"{_ENV_METHOD}|{_ENV_FS}|dn{int(_DENOISE)}"
+        # De profielvelden hiervoor staan hierboven bij `_pre_key`.
         _DN_INFO: dict = {}
         flow_env = _cache(f"flow_env|{_ENV_KEY}", lambda: preprocess_flow(
             flow_data, sf_flow, is_nasal_pressure=False,
@@ -549,8 +713,7 @@ def detect_respiratory_events(
                         and np.array_equal(hypop_flow, flow_data))
                 ),
                 baseline_window_s=_BL_WIN_S, baseline_percentile=_BL_PCT,
-                force_linearisation=bool(
-                    sp.get("HYPOPNEA_FORCE_LINEARISATION", False)),
+                force_linearisation=_FORCE_LIN,
                 envelope_method=_ENV_METHOD, envelope_fs=_ENV_FS,
                 denoise=_DENOISE,
                 denoise_info=_DN_INFO.setdefault("hypop_flow", {}),
@@ -560,9 +723,10 @@ def detect_respiratory_events(
 
         # ── Breath-by-breath analysis ────────────────────────────────────
         breaths, bb_apneas, bb_hypopneas = _cache(
-            f"breaths|dn{int(_DENOISE)}", lambda: _run_breath_analysis(
+            f"breaths|dn{int(_DENOISE)}|{_PHASE_SPLIT}", lambda: _run_breath_analysis(
                 hypop_flow if hypop_flow is not None else flow_data,
                 sf_hy, hypno, result, denoise=_DENOISE,
+                phase_split=_PHASE_SPLIT,
             ))
 
         # Duurtolerantie in seconden. Kan pas HIER: de omrekening leest de
@@ -618,12 +782,17 @@ def detect_respiratory_events(
         # voor beide, zoals vóór 22-08-2026.
         _ap_thresh = APNEA_THRESHOLD
         if apnea_on_thermistor:
+            # `_t` is hier al een FRACTIE VAN DE BASISLIJN (0,28 bij een
+            # daling van 0,72): constants.py rendert het dataclassveld
+            # flow_reduction_threshold_thermistor als 1 - daling, net als
+            # HYPOPNEA_THRESHOLD. Alleen de env-override hieronder is als
+            # DALING geschreven, zoals het dataclassveld, en wordt hier
+            # omgerekend.
             _t = (scoring_profile or {}).get("APNEA_THRESHOLD_THERMISTOR")
             # Env-override voor metingen, zoals PSGSCORING_PLM_TIME_BASE en
-            # PSGSCORING_AROUSAL_LGBM. Uitgedrukt als DALING (0,72), net als
-            # het profielveld; intern is het een fractie van de basislijn.
-            # Onleesbaar -> profielwaarde, met waarschuwing: stil de verkeerde
-            # drempel hanteren maakt een meting ongeldig zonder dat het opvalt.
+            # PSGSCORING_AROUSAL_LGBM. Onleesbaar -> profielwaarde, met
+            # waarschuwing: stil de verkeerde drempel hanteren maakt een
+            # meting ongeldig zonder dat het opvalt.
             _env = os.environ.get("PSGSCORING_APNEA_REDUCTION_THERMISTOR")
             if _env:
                 try:
@@ -662,6 +831,10 @@ def detect_respiratory_events(
 
         events: list[dict]    = []
         rejected: list[dict] = []
+        # Apart van `rejected` (de hypopneekandidaten): die lijst voedt
+        # REINSTATABLE_REJECTIONS en de ML-promotor, en een apneu die op MMSD
+        # sneuvelt hoort daar niet via de achterdeur in terecht te komen.
+        rejected_ap: list[dict] = []
 
         # ── Detect apneas ─────────────────────────────────────────────────
         events = _detect_apneas(
@@ -679,10 +852,20 @@ def detect_respiratory_events(
             min_qualifying_fraction=_QUAL_FRAC,
             gap_stats=_gap_stats_ap,
             desat_global_bl_min_local_pct=_DESAT_GBL,
+            # Hetzelfde venster als de hypopneelus. Dit ontbrak, dus de
+            # apneus draaiden op de default van 45 s ongeacht het profiel;
+            # alleen aasm_v3_strict (30 s) merkt het verschil.
+            post_event_win_s=_POST_WIN,
             phase_angle_needs_effort=phase_angle_needs_effort,
             shape_evidence=shape_evidence,
             two_pass=two_pass,
+            rejected=rejected_ap,
         )
+        result["rejected_apneas"] = rejected_ap
+        result["n_mmsd_rejected_apneas"] = len(rejected_ap)
+        if rejected_ap:
+            logger.info("MMSD: %d apneukandidaten afgewezen (restademhaling)",
+                        len(rejected_ap))
 
         # ── Fix 1: Herbereken hypopnea-basislijn zonder post-apnea recovery ─
         RECOVERY_S = 30.0
@@ -691,10 +874,45 @@ def detect_respiratory_events(
             recovery_mask = _build_postapnea_recovery_mask(
                 events, len(hypop_env), sf_hy, recovery_s=RECOVERY_S
             )
+            # Zie profiles.recovery_baseline_mode. Zonder profiel het oude
+            # gedrag ("block"), zoals bij de andere voorbewerkingsvelden.
+            _RECOV_MODE = str(sp.get("RECOVERY_BASELINE_MODE", "block"))
+
+            def _meng_als_origineel(dyn):
+                """Dezelfde stadium-/positiemenging die `hypop_baseline` kreeg.
+
+                Gedeeld kanaal (`hypop_env is flow_env`): _build_baseline gaf
+                compute_stage_baseline de dynamische basislijn mee en
+                middelde; eigen kanaal: _setup_hypop_channel riep
+                compute_stage_baseline zonder die basislijn aan. Daarna in
+                beide gevallen de positiereset, als die er was. Elke stap
+                valt stil terug, precies zoals het origineel.
+                """
+                bl = dyn
+                try:
+                    stage_bl = compute_stage_baseline(
+                        hypop_env, sf_hy, hypno, artifact_epochs,
+                        dynamic_baseline=dyn if hypop_env is flow_env else None)
+                    bl = (bl + stage_bl) / 2
+                except Exception as e:
+                    logger.debug("Fix1: stadiummenging overgeslagen: %s", e)
+                if pos_data is not None and sf_pos is not None and pos_changes:
+                    try:
+                        pc_hy = [{**pc, "sample": int(pc["time_s"] * sf_hy)}
+                                 for pc in pos_changes]
+                        bl = reset_baseline_at_position_changes(
+                            bl, hypop_env, sf_hy, pc_hy)
+                    except Exception as e:
+                        logger.debug("Fix1: positiereset overgeslagen: %s", e)
+                return bl
+
             # Geef bestaande basislijn mee — geen dubbele berekening
             hypop_baseline_corrected = _recompute_baseline_with_recovery_excluded(
                 hypop_env, sf_hy, recovery_mask,
                 original_baseline=hypop_baseline,
+                mode=_RECOV_MODE,
+                window_s=_BL_WIN_S, percentile=_BL_PCT,
+                blend=_meng_als_origineel,
             )
             n_recovery_samples = int(recovery_mask.sum())
             logger.info("Fix1: post-apnea recovery mask: %d samples uitgesloten uit basislijn "
@@ -706,10 +924,12 @@ def detect_respiratory_events(
         # Herbereken hypop_norm met gecorrigeerde basislijn
         hypop_norm_corrected = np.clip(hypop_env / hypop_baseline_corrected, 0, 2)
         hypop_norm_corrected_smooth = uniform_filter1d(hypop_norm_corrected, _smooth_win)
-        envelope_mask_corrected = (
-            (hypop_norm_corrected_smooth < _HYPOP_THRESH)
-            & ~(hypop_norm_corrected_smooth < APNEA_THRESHOLD)
-        )
+        # Zie profiles.hypopnea_mask_excludes_apnea_band: True = oud gedrag,
+        # op elk profiel, tot het gemeten is.
+        _MASK_EXCL_AP = bool(sp.get("HYPOPNEA_MASK_EXCLUDES_APNEA_BAND", True))
+        envelope_mask_corrected = _hypopnea_envelope_mask(
+            hypop_norm_corrected_smooth, _HYPOP_THRESH, APNEA_THRESHOLD,
+            exclude_apnea_band=_MASK_EXCL_AP)
         # v0.8.14: peak + envelope merge voor gecorrigeerde pass
         # Peak-mask herberekenen met gecorrigeerde basislijn
         # v0.2.8: same consecutive breath requirement as initial pass
@@ -722,7 +942,9 @@ def detect_respiratory_events(
                 mid_idx = min(mid_idx, len(hypop_baseline_corrected) - 1)
                 local_bl = float(hypop_baseline_corrected[max(0,mid_idx)])
                 ratio_c = amps[bi] / local_bl if local_bl > 1e-9 else 1.0
-                reduced_c.append(ratio_c < _HYPOP_THRESH and ratio_c >= APNEA_THRESHOLD)
+                reduced_c.append(_breath_is_reduced(
+                    ratio_c, _HYPOP_THRESH, APNEA_THRESHOLD,
+                    exclude_apnea_band=_MASK_EXCL_AP))
             i = 0
             while i < len(breaths):
                 if not reduced_c[i]:
@@ -820,7 +1042,10 @@ def detect_respiratory_events(
         # Vóór de CSR-markering en vóór de summary, want dit beweegt duren en
         # dus elke telling die erop volgt. Default "envelope" = ongewijzigd.
         if str(sp.get("EVENT_BOUNDARIES", "envelope")).lower() == "breath":
-            events, _snap = snap_events_to_breaths(events, breaths or [])
+            events, _snap = snap_events_to_breaths(
+                events, breaths or [],
+                hypopnea_min_duration_s=HYPOPNEA_MIN_DUR_S,
+                apnea_min_duration_s=APNEA_MIN_DUR_S)
             result["event_boundary_snap"] = _snap
             if _snap["n_snapped"]:
                 logger.info(
@@ -876,8 +1101,17 @@ def detect_respiratory_events(
         result["success"]            = True
 
     except Exception as e:
-        result["error"]     = str(e)
-        result["traceback"] = traceback.format_exc()
+        result["error"]      = str(e)
+        result["error_type"] = type(e).__name__
+        result["traceback"]  = traceback.format_exc()
+        # Een programmeerfout die hier landt komt terug als success=False met
+        # een lege eventlijst, en dat leest in de AHI-intervalsweep van de
+        # pipeline als een arm met AHI 0. In productie is degraderen de juiste
+        # keuze (de rest van het rapport blijft bruikbaar); in een test niet,
+        # want dan meet de test een nul in plaats van de fout te zien.
+        if (os.environ.get("PSGSCORING_STRICT") == "1"
+                and isinstance(e, (TypeError, IndexError, ValueError))):
+            raise
     return result
 
 
@@ -970,7 +1204,13 @@ def split_long_events(
     return uit, rejected, stats
 
 
-def snap_events_to_breaths(events: list, breaths: list) -> tuple[list, dict]:
+def snap_events_to_breaths(
+    events: list,
+    breaths: list,
+    *,
+    hypopnea_min_duration_s: float | None = None,
+    apnea_min_duration_s: float | None = None,
+) -> tuple[list, dict]:
     """Verschuif elke eventgrens naar de dichtstbijzijnde ademteuggrens.
 
     De cascadedetector legt een grens waar de envelope zijn drempel kruist, op
@@ -988,11 +1228,20 @@ def snap_events_to_breaths(events: list, breaths: list) -> tuple[list, dict]:
     zou het naar een volledige ademteug oprekken en daarmee een duur veranderen
     die onder elke AASM-drempel hoort te blijven.
 
+    En de omgekeerde kant: snappen mag een event ook niet ONDER zijn
+    minimumduur trekken. Ligt de onset net vóór een rand en de offset net ná
+    een rand, dan schuiven de grenzen naar elkaar toe en wordt 10,5 s 8,0 s --
+    terwijl de >=10 s-eis al op de envelope-duur getoetst is. Met
+    `hypopnea_min_duration_s`/`apnea_min_duration_s` blijven in dat geval de
+    envelope-grenzen staan en telt `n_kept_min_duration` het; zonder die
+    argumenten is het gedrag ongewijzigd.
+
     Returns
     -------
     (events, stats) — nieuwe lijst, originelen niet gemuteerd.
     """
     stats = {"n_events": len(events), "n_snapped": 0, "n_unchanged": 0,
+             "n_kept_min_duration": 0,
              "median_onset_shift_s": None, "median_offset_shift_s": None}
     if not events or not breaths:
         stats["n_unchanged"] = len(events)
@@ -1025,6 +1274,15 @@ def snap_events_to_breaths(events: list, breaths: list) -> tuple[list, dict]:
         if (t1 - t0) < float(np.median(np.diff(randen))) or n1 <= n0:
             uit.append(e)
             stats["n_unchanged"] += 1
+            continue
+        _min = (hypopnea_min_duration_s if "hypopnea" in str(e.get("type", ""))
+                else apnea_min_duration_s)
+        if _min is not None and (n1 - n0) < _min <= (t1 - t0):
+            # De envelope-duur haalde het minimum, de gesnapte niet: dan is
+            # snappen geen verfijning van de grens maar een tweede duurtoets
+            # met een andere uitkomst. Envelope-grenzen houden.
+            uit.append(e)
+            stats["n_kept_min_duration"] += 1
             continue
         nieuw = dict(e)
         nieuw["onset_s"] = round(n0, 2)
@@ -1524,7 +1782,13 @@ def reinstate_rule1a_arousal_hypopneas(
             "stage":            cand["stage"],
             "desaturation_pct": cand.get("desat"),
             "min_spo2":         cand.get("min_spo2"),
-            "flow_reduction":   cand.get("flow_reduction_pct"),
+            # Verhouding onder `flow_reduction`, zoals de cascade; het
+            # percentage ernaast. Tot 0.35.2 stond hier het percentage onder
+            # de sleutel van de verhouding, en droeg een herstelde hypopneu
+            # 47,5 waar een cascade-hypopneu 0,475 droeg.
+            "flow_reduction":   (None if cand.get("flow_reduction_pct") is None
+                                 else safe_r(float(cand["flow_reduction_pct"]) / 100.0, 3)),
+            "flow_reduction_pct": cand.get("flow_reduction_pct"),
             "local_reduction_pct": cand.get("local_reduction_pct"),
             "confidence":       0.7,
             # v0.12.3+: 1A is de correcte AASM-regel. `rule_legacy` en de
@@ -1760,11 +2024,17 @@ def _setup_hypop_channel(
         return flow_env, flow_norm, baseline, sf_flow
 
 
-def _run_breath_analysis(hypop_raw, hypop_sf, hypno, result, denoise=False):
-    """Voer breath-by-breath analyse uit: detecteer ademhalingen en bereken amplitudes."""
+def _run_breath_analysis(hypop_raw, hypop_sf, hypno, result, denoise=False,
+                         phase_split="midpoint"):
+    """Voer breath-by-breath analyse uit: detecteer ademhalingen en bereken amplitudes.
+
+    `phase_split` bepaalt waar een ademcyclus in inspiratie en expiratie
+    gesplitst wordt (zie profiles.breath_phase_split); dat raakt
+    `insp_segment` en dus de afvlakkingsindex die naar de classificatie gaat.
+    """
     try:
         filt   = bandpass_flow(hypop_raw, hypop_sf, denoise=denoise)
-        breaths = detect_breaths(filt, hypop_sf)
+        breaths = detect_breaths(filt, hypop_sf, phase_split=phase_split)
         if len(breaths) > 10:
             ratios = compute_breath_amplitudes(breaths, hypop_sf)
             for b_i, br in enumerate(breaths):
@@ -2000,9 +2270,13 @@ def _detect_apneas(
     gap_stats: dict | None = None,
     # None = altijd overnemen = bestaand gedrag; zie profiles.
     desat_global_bl_min_local_pct: float | None = None,
+    # Nadir-zoekvenster na het eventeinde, uit het profiel (POST_EVENT_WINDOW_S).
+    post_event_win_s: float = 45,
     phase_angle_needs_effort: bool = False,
     shape_evidence: tuple[bool, float] = (False, 1.0),
     two_pass: bool = False,
+    # Audit van kandidaten die op MMSD sneuvelen; None = niet bijhouden.
+    rejected: list | None = None,
 ) -> list[dict]:
     """Detecteer apnea-events: ≥90% flow-reductie gedurende ≥10s (AASM)."""
     events: list[dict] = []
@@ -2021,7 +2295,26 @@ def _detect_apneas(
             continue
         # MMSD validation
         if mmsd_norm is not None:
-            if float(np.mean(mmsd_norm[idx[0] : idx[-1] + 1])) > MMSD_APNEA_THRESH:
+            _mmsd_mean = float(np.mean(mmsd_norm[idx[0] : idx[-1] + 1]))
+            if _mmsd_mean > MMSD_APNEA_THRESH:
+                # Niet stil laten verdwijnen: elke andere afwijzing in dit
+                # bestand laat een kandidaat met reden achter, en zonder dit
+                # was in een review niet te zien dat hier >= 10 s onder 10 %
+                # had gestaan. Zelfde sleutels als de hypopneekandidaten
+                # (type/stage/epoch), maar in een EIGEN lijst.
+                if rejected is not None:
+                    _on = idx[0] / sf_flow
+                    _ep = int(_on // EPOCH_LEN_S)
+                    rejected.append({
+                        "type":       "apnea",
+                        "onset_s":    safe_r(_on),
+                        "duration_s": safe_r(dur_s),
+                        "stage":      hypno[_ep] if _ep < len(hypno) else "W",
+                        "epoch":      _ep,
+                        "indices":    (int(idx[0]), int(idx[-1]) + 1),
+                        "mmsd_mean":  safe_r(_mmsd_mean, 3),
+                        "reject_reason": f"mmsd_{safe_r(_mmsd_mean, 3)}",
+                    })
                 continue
 
         # v0.8.22: split events die te lang zijn
@@ -2073,6 +2366,7 @@ def _detect_apneas(
                 _alt = None
             desat, min_spo2 = get_desaturation(
                 spo2_data, onset_s, sub_dur, sf_spo2, global_spo2_bl,
+                post_win_s=post_event_win_s,
                 global_baseline_min_local_pct=desat_global_bl_min_local_pct,
             )
             events.append({
@@ -2405,9 +2699,11 @@ def _detect_hypopneas(
             if hypopnea_subtype_aasm:
                 from .classify import classify_hypopnea_type
 
+                # De RUWE banden, niet de envelopes: criterium 3 is een
+                # fasehoek en die bestaat alleen op een oscillerend signaal.
                 hy_sub, hy_conf, hy_det = classify_hypopnea_type(
                     onset_s=onset_s, duration_s=sub_dur, breaths=breaths,
-                    thorax_env=thorax_env, abdomen_env=abdomen_env, sf=sf_flow,
+                    thorax_raw=thorax_raw, abdomen_raw=abdomen_raw, sf=sf_flow,
                     snore_present=_snore_during(
                         snore_data, sf_snore, onset_s, sub_dur),
                 )
@@ -2699,18 +2995,25 @@ def _compute_summary(
     avg_conf   = safe_r(float(np.mean(confs))) if confs else None
 
     # ── Confidence-gestratificeerde OAHI (conf > 0.60) ─────────────────
-    # OAHI_CONF60 is de officiële OAHI: enkel obstructieve apneas + hypopneas
-    # met betrouwbaarheid > 0.60. Dit is de klinisch relevante index.
-    # oahi_all = alle events ongeacht confidence (voor vergelijking).
-    # Hypopneas krijgen altijd conf=0.70 (gescoord op desaturatie, Rule 1A)
-    # en tellen dus altijd mee.
+    # OAHI_CONF60 is de officiële OAHI: obstructieve apneas met
+    # betrouwbaarheid > 0.60 plus ALLE hypopneas. Dit is de klinisch
+    # relevante index. oahi_all = alle events ongeacht confidence.
+    #
+    # De stratificatie gaat uitsluitend over apneus. `confidence` is daar de
+    # zekerheid van de subtypering (obstructief/centraal/gemengd). Bij een
+    # hypopneu betekent het veld iets anders: op de envelope-detector de
+    # subtypeerzekerheid van classify_apnea_type (0,3 zonder effortkanalen),
+    # op de ademteugdetector `p_scored` (0,30-1,0, hoe goed het event aan de
+    # AASM-conjunctie voldoet). Geen van beide zegt of het een hypopneu IS --
+    # dat heeft de detector al beslist. Tot 0.35.2 filterde deze index er
+    # toch op, zodat op `aasm_v3_breath` elke hypopneu met p_scored < 0,60 uit
+    # de OAHI viel terwijl hij wel in ahi_total stond.
     CONF_THRESHOLD = 0.60
     obstr_conf = [e for e in obstr     if (e.get("confidence") or 0) >  CONF_THRESHOLD]
-    hyp_conf   = [e for e in hypopneas if (e.get("confidence") or 0) >= CONF_THRESHOLD]
-    oahi_conf60 = idx(len(obstr_conf) + len(hyp_conf), total_sleep_h)
+    oahi_conf60 = idx(len(obstr_conf) + len(hypopneas), total_sleep_h)
     oahi_all    = idx(len(obstr) + len(hypopneas), total_sleep_h)
 
-    # Confidence-verdeling per categorie (apneas only; hypopneas fixed at 0.70)
+    # Confidence-verdeling per categorie (alleen apneus, zie hierboven)
     def _conf_band(events_list):
         """Tel events per confidence-band (hoog/matig/grens/laag)."""
         bands = {"high": 0, "moderate": 0, "borderline": 0, "low": 0}
@@ -2726,10 +3029,9 @@ def _compute_summary(
 
     # OAHI per drempel (voor drempelgevoeligheidstabel in rapport)
     def _oahi_at(threshold):
-        """Bereken OAHI bij een gegeven confidence-drempel."""
-        ob = [e for e in obstr     if (e.get("confidence") or 0) >  threshold]
-        hy = [e for e in hypopneas if (e.get("confidence") or 0) >= threshold]
-        return idx(len(ob) + len(hy), total_sleep_h)
+        """Bereken OAHI bij een gegeven confidence-drempel (apneus; alle hypopneas)."""
+        ob = [e for e in obstr if (e.get("confidence") or 0) > threshold]
+        return idx(len(ob) + len(hypopneas), total_sleep_h)
 
     # v0.4.1: 3-punt klinisch gekalibreerde confidence sweep
     # Kalibratie op PSG-IPA: gemiddelde breedte ~3.9/h (matches AASM
@@ -2928,9 +3230,12 @@ def _compute_summary(
         # De noemer was nooit het probleem: die is dezelfde `total_sleep_h`.
         # Het was de teller, en die hoort dezelfde populatie te hebben als
         # ahi_total zodat het verschil uitsluitend de ruisfilter is.
+        #
+        # De ruisfilter gaat alleen over apneus: hypopneeën dragen geen
+        # classifier-confidence (zie de OAHI-stratificatie hierboven).
         "ahi_excl_noise": idx(
-            len([e for e in (apneas + hypopneas)
-                 if (e.get("confidence") or 1) >= 0.40]),
+            len([e for e in apneas if (e.get("confidence") or 1) >= 0.40])
+            + len(hypopneas),
             total_sleep_h,
         ),
 

@@ -71,7 +71,7 @@ def test_toegenomen_afvlakking_maakt_het_obstructief():
     th, ab = _effort(200.0)
     sub, _conf, det = classify_hypopnea_type(
         onset_s=120.0, duration_s=20.0, breaths=ademteugen,
-        thorax_env=th, abdomen_env=ab, sf=SF)
+        thorax_raw=th, abdomen_raw=ab, sf=SF)
     assert sub == "obstructive", det
     assert "flattening" in det["criteria_met"], det
 
@@ -84,7 +84,7 @@ def test_gelijke_afvlakking_pleit_niet_voor_obstructie():
     th, ab = _effort(200.0)
     _sub, _c, det = classify_hypopnea_type(
         onset_s=120.0, duration_s=20.0, breaths=ademteugen,
-        thorax_env=th, abdomen_env=ab, sf=SF)
+        thorax_raw=th, abdomen_raw=ab, sf=SF)
     assert "flattening" not in det["criteria_met"], det
 
 
@@ -94,7 +94,7 @@ def test_paradox_die_pas_bij_het_event_begint_is_obstructief():
     th, ab = _effort(200.0, paradox_vanaf=120.0)
     sub, _c, det = classify_hypopnea_type(
         onset_s=120.0, duration_s=20.0, breaths=_ademteugen(35, 0.10),
-        thorax_env=th, abdomen_env=ab, sf=SF)
+        thorax_raw=th, abdomen_raw=ab, sf=SF)
     assert sub == "obstructive", det
     assert "paradox" in det["criteria_met"], det
 
@@ -109,7 +109,7 @@ def test_chronische_paradox_pleit_NIET_voor_obstructie():
     th, ab = _effort(200.0, paradox_vanaf=0.0)
     _sub, _c, det = classify_hypopnea_type(
         onset_s=120.0, duration_s=20.0, breaths=_ademteugen(35, 0.10),
-        thorax_env=th, abdomen_env=ab, sf=SF)
+        thorax_raw=th, abdomen_raw=ab, sf=SF)
     assert "paradox" not in det["criteria_met"], (
         "chronische paradox telt als obstructiekenmerk; dan vuurt elke "
         "losgekoppelde band")
@@ -121,7 +121,7 @@ def test_snurken_maakt_het_obstructief():
     th, ab = _effort(200.0)
     sub, _c, det = classify_hypopnea_type(
         onset_s=120.0, duration_s=20.0, breaths=_ademteugen(35, 0.10),
-        thorax_env=th, abdomen_env=ab, sf=SF, snore_present=True)
+        thorax_raw=th, abdomen_raw=ab, sf=SF, snore_present=True)
     assert sub == "obstructive"
     assert "snoring" in det["criteria_met"]
 
@@ -136,7 +136,7 @@ def test_zonder_snurkkanaal_wordt_dat_gemeld_en_niet_verzwegen():
     th, ab = _effort(200.0)
     _sub, _c, det = classify_hypopnea_type(
         onset_s=120.0, duration_s=20.0, breaths=_ademteugen(35, 0.10),
-        thorax_env=th, abdomen_env=ab, sf=SF, snore_present=None)
+        thorax_raw=th, abdomen_raw=ab, sf=SF, snore_present=None)
     assert "snoring" in det["criteria_unavailable"], det
     assert det["complete"] is False, (
         "een oordeel op twee van de drie criteria mag zich niet als volledig "
@@ -149,7 +149,7 @@ def test_centraal_alleen_als_geen_enkel_kenmerk_aanwezig_is():
     th, ab = _effort(200.0)
     sub, _c, det = classify_hypopnea_type(
         onset_s=120.0, duration_s=20.0, breaths=_ademteugen(35, 0.10),
-        thorax_env=th, abdomen_env=ab, sf=SF, snore_present=False)
+        thorax_raw=th, abdomen_raw=ab, sf=SF, snore_present=False)
     assert sub == "central", det
     assert det["criteria_met"] == []
     assert det["complete"] is True
@@ -165,7 +165,7 @@ def test_effortvlakheid_speelt_geen_enkele_rol():
     sub, _c, _det = classify_hypopnea_type(
         onset_s=120.0, duration_s=20.0,
         breaths=_ademteugen(30, 0.10) + _ademteugen(5, 0.45, start=120.0),
-        thorax_env=th, abdomen_env=ab, sf=SF)
+        thorax_raw=th, abdomen_raw=ab, sf=SF)
     assert sub == "obstructive", (
         "de afvlakking pleit voor obstructie; een vlakke effortband mag dat "
         "niet omkeren")
@@ -176,10 +176,62 @@ def test_zonder_bruikbare_gegevens_geen_bewering():
     te oordelen, en `uncertain` is het eerlijke antwoord."""
     sub, conf, det = classify_hypopnea_type(
         onset_s=120.0, duration_s=20.0, breaths=[],
-        thorax_env=None, abdomen_env=None, sf=SF)
+        thorax_raw=None, abdomen_raw=None, sf=SF)
     assert sub == "uncertain", det
     assert conf <= 0.5
     assert len(det["criteria_unavailable"]) == 3
+
+
+# ── De banden moeten RUW zijn, geen envelope ──────────────────────────────
+
+def test_een_effort_envelope_draagt_geen_paradox():
+    """Criterium 3 meet de FASEHOEK tussen thorax en abdomen, en een fasehoek
+    bestaat alleen op een oscillerend signaal. `preprocess_effort` levert de
+    amplitude-envelope: twee banden in tegenfase hebben dezelfde envelope,
+    dus daarop is de paradox onzichtbaar.
+
+    Tot 0.35.2 gaf `_detect_hypopneas` precies die envelopes door. De regel
+    draaide daardoor in de keten met criterium 3 structureel blind, terwijl
+    deze unit-tests -- met ruwe sinussen in de fixture -- groen bleven.
+    """
+    from psgscoring.signal import preprocess_effort
+
+    # Gemoduleerde amplitude (zoals echte ademhaling) en een GLADDE
+    # faseverschuiving naar tegenfase tussen 118 en 122 s. Een harde
+    # tekenomslag zou door het bandfilter nagalmen en de envelope zelf
+    # verstoren; dan meet de test het filter in plaats van het criterium.
+    t = np.arange(int(200.0 * SF)) / SF
+    mod = 1.0 + 0.3 * np.sin(2 * np.pi * 0.02 * t)
+    th = mod * np.sin(2 * np.pi * 0.25 * t)
+    phi = np.pi * np.clip((t - 118.0) / 4.0, 0, 1)
+    ab = mod * np.sin(2 * np.pi * 0.25 * t + phi)
+    env_th, env_ab = preprocess_effort(th, SF), preprocess_effort(ab, SF)
+
+    kw = dict(onset_s=120.0, duration_s=20.0, breaths=_ademteugen(35, 0.10), sf=SF)
+    _s, _c, op_envelope = classify_hypopnea_type(
+        thorax_raw=env_th, abdomen_raw=env_ab, **kw)
+    _s, _c, op_ruw = classify_hypopnea_type(thorax_raw=th, abdomen_raw=ab, **kw)
+    assert "paradox" in op_ruw["criteria_met"], op_ruw
+    assert op_ruw["phase_angle_event"] >= 45 > op_ruw["phase_angle_baseline"]
+    assert "paradox" not in op_envelope["criteria_met"], op_envelope
+    assert op_envelope["phase_angle_event"] < 45, (
+        "op de envelopes is de tegenfase onzichtbaar; dit hoort klein te zijn")
+
+
+def test_de_detectieketen_geeft_de_ruwe_banden_door():
+    """Leveringsoppervlak: de aanroep in `_detect_hypopneas` moet de ruwe
+    banden meegeven, niet de envelopes die ernaast in scope staan."""
+    import inspect
+    import re
+
+    from psgscoring import respiratory
+
+    bron = inspect.getsource(respiratory._detect_hypopneas)
+    m = re.search(r"classify_hypopnea_type\((.*?)\)\n", bron, re.S)
+    assert m, "aanroep van classify_hypopnea_type niet gevonden"
+    aanroep = m.group(1)
+    assert "thorax_raw=thorax_raw" in aanroep and "abdomen_raw=abdomen_raw" in aanroep, aanroep
+    assert "thorax_env=" not in aanroep and "abdomen_env=" not in aanroep, aanroep
 
 
 @pytest.mark.parametrize("aantal_kenmerken,verwacht", [
@@ -193,7 +245,7 @@ def test_een_kenmerk_is_genoeg(aantal_kenmerken, verwacht):
                      paradox_vanaf=120.0 if aantal_kenmerken >= 3 else None)
     sub, _c, _d = classify_hypopnea_type(
         onset_s=120.0, duration_s=20.0, breaths=ademteugen,
-        thorax_env=th, abdomen_env=ab, sf=SF,
+        thorax_raw=th, abdomen_raw=ab, sf=SF,
         snore_present=(aantal_kenmerken >= 1))
     assert sub == verwacht
 

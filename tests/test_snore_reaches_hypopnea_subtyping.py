@@ -46,7 +46,7 @@ def test_snurken_tijdens_het_event_maakt_het_obstructief():
     th, ab = _effort(200.0)
     sub, _c, det = classify_hypopnea_type(
         onset_s=120.0, duration_s=20.0, breaths=_ademteugen(35, 0.10),
-        thorax_env=th, abdomen_env=ab, sf=32.0, snore_present=True)
+        thorax_raw=th, abdomen_raw=ab, sf=32.0, snore_present=True)
     assert sub == "obstructive"
     assert "snoring" in det["criteria_met"]
 
@@ -58,7 +58,7 @@ def test_met_een_snurkkanaal_is_het_oordeel_VOLLEDIG():
     th, ab = _effort(200.0)
     _s, _c, det = classify_hypopnea_type(
         onset_s=120.0, duration_s=20.0, breaths=_ademteugen(35, 0.10),
-        thorax_env=th, abdomen_env=ab, sf=32.0, snore_present=False)
+        thorax_raw=th, abdomen_raw=ab, sf=32.0, snore_present=False)
     assert det["complete"] is True, det
     assert "snoring" not in det["criteria_unavailable"]
 
@@ -67,7 +67,7 @@ def test_zonder_kanaal_blijft_het_oordeel_onvolledig():
     th, ab = _effort(200.0)
     _s, _c, det = classify_hypopnea_type(
         onset_s=120.0, duration_s=20.0, breaths=_ademteugen(35, 0.10),
-        thorax_env=th, abdomen_env=ab, sf=32.0, snore_present=None)
+        thorax_raw=th, abdomen_raw=ab, sf=32.0, snore_present=None)
     assert det["complete"] is False
     assert "snoring" in det["criteria_unavailable"]
 
@@ -78,10 +78,10 @@ def test_geen_snurken_en_geen_ander_kenmerk_geeft_CENTRAAL_niet_uncertain():
     th, ab = _effort(200.0)
     sub_met, _c, _d = classify_hypopnea_type(
         onset_s=120.0, duration_s=20.0, breaths=_ademteugen(35, 0.10),
-        thorax_env=th, abdomen_env=ab, sf=32.0, snore_present=False)
+        thorax_raw=th, abdomen_raw=ab, sf=32.0, snore_present=False)
     sub_zonder, _c2, _d2 = classify_hypopnea_type(
         onset_s=120.0, duration_s=20.0, breaths=_ademteugen(35, 0.10),
-        thorax_env=th, abdomen_env=ab, sf=32.0, snore_present=None)
+        thorax_raw=th, abdomen_raw=ab, sf=32.0, snore_present=None)
     assert sub_met == "central"
     assert sub_zonder == "uncertain"
 

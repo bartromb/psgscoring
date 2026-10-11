@@ -73,7 +73,7 @@ def test_de_vlag_bereikt_de_subtypering():
 
     sub, _conf, det = classify_hypopnea_type(
         onset_s=300.0, duration_s=20.0, breaths=None,
-        thorax_env=None, abdomen_env=None, sf=32.0,
+        thorax_raw=None, abdomen_raw=None, sf=32.0,
         snore_present=_snore_during(_burst(32.0), 32.0, 300.0, 20.0))
     assert "snoring" in det["criteria_unavailable"]
     assert det["complete"] is False

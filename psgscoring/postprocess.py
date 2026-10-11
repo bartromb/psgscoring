@@ -117,12 +117,25 @@ def reclassify_csr_events(
 # 2. Mixed apnea decomposition
 # ---------------------------------------------------------------------------
 
+def _mixed_decomposition_on_envelope(profile: dict | None) -> bool:
+    """Leest `MIXED_DECOMPOSITION_ON_ENVELOPE` uit de legacy-profieldict.
+
+    Zonder profiel de dataclassdefault (True); zie
+    profiles.mixed_decomposition_on_envelope.
+    """
+    return bool((profile or {}).get("MIXED_DECOMPOSITION_ON_ENVELOPE", True))
+
+
 def decompose_mixed_apneas(
     events: list,
     thorax_data: np.ndarray | None,
     abdomen_data: np.ndarray | None,
     sf_effort: float,
     central_threshold_s: float = 10.0,
+    *,
+    on_envelope: bool = True,
+    thorax_env: np.ndarray | None = None,
+    abdomen_env: np.ndarray | None = None,
 ) -> list:
     """
     Decompose mixed apneas into central and obstructive portions.
@@ -130,6 +143,18 @@ def decompose_mixed_apneas(
     For each mixed apnea, the effort signal (thorax + abdomen) is analysed
     to determine the duration of the central portion (absent effort) and
     the obstructive portion (resumed effort against closed airway).
+
+    Effort is measured on the amplitude ENVELOPE (``on_envelope=True``, the
+    profile default): either the envelopes the pipeline already computed
+    (``thorax_env``/``abdomen_env``, from ``signal.preprocess_effort``) or,
+    when only raw belts are passed, envelopes derived here with the same
+    function. The historical path (``on_envelope=False``, pinned on
+    ``mesa_shhs``/``chicago_1999``) summed ``|thorax| + |abdomen|`` on the raw
+    belts: a belt with a DC offset then never dropped below 20 % of the
+    segment maximum (central portion 0.0 s, nothing ever decomposed), and a
+    zero-mean belt ended the "central" run at its first zero crossing. That
+    path also floored the confidence of a decomposed event at 0.85/0.80; the
+    envelope path leaves the classifier's confidence alone.
 
     G2 assumption (AASM-conform): the central phase is at the START of
     the event, the obstructive phase is at the END. This matches the
@@ -160,18 +185,27 @@ def decompose_mixed_apneas(
     -------
     list[dict] — modified events with decomposition metadata.
     """
-    if thorax_data is None and abdomen_data is None:
+    if on_envelope:
+        # De envelope van de pijplijn, of ter plekke dezelfde berekening op
+        # de ruwe band (bandfilter 0,03-2 Hz, envelope, 2 s gladgestreken).
+        from .signal import preprocess_effort
+
+        if thorax_env is None and thorax_data is not None and sf_effort > 0:
+            thorax_env = preprocess_effort(np.asarray(thorax_data, dtype=float), sf_effort)
+        if abdomen_env is None and abdomen_data is not None and sf_effort > 0:
+            abdomen_env = preprocess_effort(np.asarray(abdomen_data, dtype=float), sf_effort)
+        banden = [b for b in (thorax_env, abdomen_env) if b is not None]
+    else:
+        banden = [np.abs(b) for b in (thorax_data, abdomen_data) if b is not None]
+
+    if not banden:
         return events
 
-    # Use sum of thorax + abdomen for effort detection
-    if thorax_data is not None and abdomen_data is not None:
-        # Align lengths
-        min_len = min(len(thorax_data), len(abdomen_data))
-        effort = np.abs(thorax_data[:min_len]) + np.abs(abdomen_data[:min_len])
-    elif thorax_data is not None:
-        effort = np.abs(thorax_data)
-    else:
-        effort = np.abs(abdomen_data)
+    # Som van thorax + abdomen, op gelijke lengte gebracht
+    min_len = min(len(b) for b in banden)
+    effort = np.zeros(min_len)
+    for b in banden:
+        effort = effort + np.asarray(b[:min_len], dtype=float)
 
     n_decomposed = 0
     n_reclassified = 0
@@ -214,7 +248,11 @@ def decompose_mixed_apneas(
             ev["mixed_decomposed"] = True
             ev["original_type"] = "mixed"
             ev["type"] = "central"
-            ev["confidence"] = max(ev.get("confidence", 0.5), 0.85)
+            if not on_envelope:
+                # Oude vloer; op het envelope-pad blijft de confidence van
+                # de classifier staan -- de decompositie meet duur, geen
+                # zekerheid.
+                ev["confidence"] = max(ev.get("confidence", 0.5), 0.85)
             n_reclassified += 1
             n_decomposed += 1
             modified.append(ev)
@@ -224,13 +262,25 @@ def decompose_mixed_apneas(
         low_effort = seg < effort_threshold
 
         # Find the central portion: contiguous low-effort from event start
-        # (AASM: mixed apnea starts central, transitions to obstructive)
+        # (AASM: mixed apnea starts central, transitions to obstructive).
+        #
+        # On the envelope path the run may START within the first 2 s: the
+        # envelope is smoothed with a 2 s moving average, so the pre-event
+        # breathing amplitude bleeds about one second into the event and
+        # the very first sample is never "low". Counting still runs from
+        # the event onset. The raw path keeps zero grace, i.e. the
+        # historical rule unchanged.
+        grace = int(2.0 * sf_effort) if on_envelope else 0
         central_samples = 0
-        for val in low_effort:
-            if val:
-                central_samples += 1
-            else:
-                break
+        first_low = next(
+            (k for k in range(min(grace + 1, len(low_effort))) if low_effort[k]),
+            None,
+        )
+        if first_low is not None:
+            k = first_low
+            while k < len(low_effort) and low_effort[k]:
+                k += 1
+            central_samples = k
 
         central_dur = central_samples / sf_effort
         obstr_dur = dur_s - central_dur
@@ -247,7 +297,8 @@ def decompose_mixed_apneas(
         if central_dur >= central_threshold_s:
             ev["original_type"] = "mixed"
             ev["type"] = "central"
-            ev["confidence"] = max(ev.get("confidence", 0.5), 0.80)
+            if not on_envelope:
+                ev["confidence"] = max(ev.get("confidence", 0.5), 0.80)
             n_reclassified += 1
 
         modified.append(ev)
@@ -424,11 +475,22 @@ def postprocess_respiratory_events(
     ahi_interval: dict | None = None,
     csr_reclassification: bool = True,
     csr_confidence_floor: float | None = None,
+    mixed_decomposition_on_envelope: bool | None = None,
+    scoring_profile: dict | None = None,
+    thorax_env: np.ndarray | None = None,
+    abdomen_env: np.ndarray | None = None,
 ) -> dict:
     """
     Run all post-processing refinements on respiratory events.
 
     Call this after the main pipeline has completed CSR flagging.
+
+    ``mixed_decomposition_on_envelope`` kiest het effortpad van
+    ``decompose_mixed_apneas``; ``None`` leest
+    ``MIXED_DECOMPOSITION_ON_ENVELOPE`` uit ``scoring_profile`` (de
+    legacy-dict), en zonder profiel geldt de dataclassdefault (True).
+    ``thorax_env``/``abdomen_env`` zijn de envelopes die de pijplijn al
+    berekende; ontbreken ze, dan worden ze uit de ruwe banden afgeleid.
 
     Returns
     -------
@@ -466,8 +528,12 @@ def postprocess_respiratory_events(
 
     # Step 2: Mixed apnea decomposition
     if sf_effort > 0:
+        on_env = (mixed_decomposition_on_envelope
+                  if mixed_decomposition_on_envelope is not None
+                  else _mixed_decomposition_on_envelope(scoring_profile))
         events = decompose_mixed_apneas(
             events, thorax_data, abdomen_data, sf_effort,
+            on_envelope=on_env, thorax_env=thorax_env, abdomen_env=abdomen_env,
         )
         result["n_mixed_decomposed"] = sum(
             1 for e in events if e.get("mixed_decomposed")
