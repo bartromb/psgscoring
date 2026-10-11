@@ -32,8 +32,10 @@ from .pipeline import run_pneumo_analysis
 # Type definitions (for IDE autocomplete and mypy)
 from ._types import (
     RespiratoryEvent, ClassifyDetail, ScoringSummary,
-    SpO2Summary, PLMSummary, PositionSummary, PneumoResults,
+    SpO2Summary, SpO2Block, PLMSummary, PositionSummary, PneumoResults,
     OAHIThresholds, OAHISweep3pt, ConfidenceBands,
+    AHIInterval, AHIIntervalArm, AnchorBaselineBlock, ChannelQualityBlock,
+    CheyneStokesBlock, HypoxicBurdenBlock, MetaBlock, PostprocessBlock,
 )
 
 from .respiratory import (
@@ -163,7 +165,15 @@ __all__ = [
 ]
 
 # v0.4.0: profile-based scoring
-from psgscoring.profiles import (
+from psgscoring.profiles import (  # noqa: E402
     Profile, get_profile, list_profiles, list_profile_groups,
-    PROFILES, PROFILE_GROUPS,
+    PROFILES, PROFILE_GROUPS, profile_metadata,
 )
+
+# 11-10-2026: the profile API was imported after `__all__` and left out of
+# it, so `from psgscoring import *` never carried it and linters read the
+# import as unused. Appended here rather than moving the import block.
+__all__ += [
+    "Profile", "get_profile", "list_profiles", "list_profile_groups",
+    "PROFILES", "PROFILE_GROUPS", "profile_metadata",
+]

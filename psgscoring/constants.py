@@ -51,6 +51,23 @@ CROSS_CONTAM_WINDOW_S  = 15.0   # v0.8.14: was 30; flag only, not blocker
 
 from .profiles import PROFILES as _PROFILES_REGISTRY
 
+_AROUSAL_DERIVATION_MODES = ("single", "multi")
+
+
+def _arousal_derivation_mode(explicit, family: str, name: str) -> str:
+    """Explicit `PostProcessingRules.arousal_derivation_mode`, else the v0.9.0
+    family rule ('single' for dataset profiles, 'multi' otherwise).
+
+    Anything else is refused at import time so a typo in the registry cannot
+    degrade silently to 'single' further down the pipeline."""
+    if explicit is None:
+        return "single" if family == "dataset" else "multi"
+    if explicit not in _AROUSAL_DERIVATION_MODES:
+        raise ValueError(
+            f"profile {name!r}: arousal_derivation_mode must be one of "
+            f"{_AROUSAL_DERIVATION_MODES} or None, got {explicit!r}")
+    return explicit
+
 
 def _profile_to_legacy_dict(profile) -> dict:
     """Render a Profile dataclass into the dict format respiratory.py expects.
@@ -191,7 +208,10 @@ def _profile_to_legacy_dict(profile) -> dict:
         # v0.9.0: arousal-derivation mode. Multi-derivation (central + occipital +
         # frontal, event-level union + EOG-reject) is the DEFAULT for clinical use;
         # dataset profiles stay 'single' so NSRR/MESA reproduction is byte-identical.
-        "AROUSAL_DERIVATION_MODE":    "single" if profile.family == "dataset" else "multi",
+        # 11-10-2026: an explicit `arousal_derivation_mode` wins; None keeps the
+        # family rule. The frozen profiles pin it to what they rendered before.
+        "AROUSAL_DERIVATION_MODE":    _arousal_derivation_mode(
+            pp.arousal_derivation_mode, profile.family, profile.name),
         "FAMILY":                     profile.family,
         # Audit metadata — read by pipeline.py for output["meta"]["profile"]
         "_PROFILE_NAME":          profile.name,
