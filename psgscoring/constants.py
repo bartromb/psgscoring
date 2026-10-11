@@ -198,6 +198,13 @@ def _profile_to_legacy_dict(profile) -> dict:
         "ENVELOPE_FS":                pp.envelope_fs,
         # v0.20.0: wavelet denoising of the flow signal, off everywhere.
         "FLOW_WAVELET_DENOISE":       pp.flow_wavelet_denoise,
+        # 11-10-2026: vier reparaties achter een veld. De eerste staat overal
+        # op het oude gedrag (True) tot hij gemeten is; de andere drie zijn
+        # op mesa_shhs/chicago_1999 op het oude gedrag gepind.
+        "HYPOPNEA_MASK_EXCLUDES_APNEA_BAND": pp.hypopnea_mask_excludes_apnea_band,
+        "RECOVERY_BASELINE_MODE":     pp.recovery_baseline_mode,
+        "MIXED_DECOMPOSITION_ON_ENVELOPE": pp.mixed_decomposition_on_envelope,
+        "BREATH_PHASE_SPLIT":         pp.breath_phase_split,
         # v0.14.1: which channel the non-apnea analyses read (sweep, anchoring,
         # arousal coupling, CSR, ventilatory burden). "apnea" = legacy.
         "FLOW_REFERENCE":             pp.flow_reference,

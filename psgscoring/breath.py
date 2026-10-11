@@ -24,6 +24,7 @@ def detect_breaths(
     sf: float,
     min_breath_s: float = 1.0,
     max_breath_s: float = 15.0,
+    phase_split: str = "midpoint",
 ) -> list[dict]:
     """
     Segment individual breaths via zero-crossings on the bandpass-filtered
@@ -32,6 +33,16 @@ def detect_breaths(
     The input signal should already be bandpass-filtered (0.05–3 Hz via
     ``signal.bandpass_flow``); snoring vibrations are therefore removed before
     this function is called.
+
+    phase_split
+        Where a cycle is split into its two phases. ``"midpoint"`` (the
+        historical behaviour, kept as the default for direct callers) splits
+        at the temporal half of the cycle; at an I:E of 1:2 that point lies
+        inside expiration, so ``insp_segment`` carries expiratory samples and
+        the flattening index computed from it is diluted. ``"zero_crossing"``
+        splits at the zero crossing between the two half-waves, which is what
+        the docstring above has always described. See
+        ``profiles.breath_phase_split``.
 
     Returns
     -------
@@ -43,6 +54,10 @@ def detect_breaths(
         amplitude           – peak-to-trough (AASM definition)
         insp_segment        – numpy array of the inspiratory phase
     """
+    if phase_split not in ("midpoint", "zero_crossing"):
+        raise ValueError(
+            f"phase_split must be 'midpoint' or 'zero_crossing', got {phase_split!r}")
+
     if len(flow_filtered) < int(sf * 2):
         return []
 
@@ -73,8 +88,16 @@ def detect_breaths(
         seg  = flow_filtered[start:cycle_end]
         mid  = start + np.argmax(np.abs(seg[: len(seg) // 2 + 1]))
 
-        first_half  = flow_filtered[start           : start + dur_samp // 2]
-        second_half = flow_filtered[start + dur_samp // 2 : cycle_end]
+        if phase_split == "zero_crossing":
+            # `crossings[k]` is the last sample BEFORE the sign change, so
+            # the samples of one sign run from crossings[k] + 1 through
+            # crossings[k + 1] inclusive. Each half is then single-signed.
+            phase_end   = crossings[i + 1] + 1
+            first_half  = flow_filtered[start + 1 : phase_end]
+            second_half = flow_filtered[phase_end : cycle_end + 1]
+        else:
+            first_half  = flow_filtered[start           : start + dur_samp // 2]
+            second_half = flow_filtered[start + dur_samp // 2 : cycle_end]
 
         if np.mean(first_half) > np.mean(second_half):
             peak_insp  = float(np.max(first_half))

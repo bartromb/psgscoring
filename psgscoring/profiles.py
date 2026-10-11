@@ -2191,6 +2191,79 @@ class PostProcessingRules:
     Legacy-sleutel `SPECTRAL_EFFORT_RESOLUTION`; lezer `ecg_effort.spectral_resolution_from_profile`.
     """
 
+    hypopnea_mask_excludes_apnea_band: bool = True
+    """Snijd samples onder APNEA_THRESHOLD uit het hypopneemasker.
+
+    De gecorrigeerde pas bouwt zijn masker als `(norm < 0,70) & ~(norm <
+    0,10)`, en de ademteugregel eist `ratio >= 0,10`. Bevestigde apneus zijn
+    dan al via `excl` (±5 s) uitgesloten, dus de uitsluiting raakt alleen
+    samples onder 10 % die GEEN apneu werden: een korte bijna-stilstand van
+    minder dan 10 s midden in een hypopneu. Die valt uit het masker, de
+    kandidaat breekt in twee stukken, en twee stukken van 7 s halen de
+    >=10 s-eis geen van beide -- een hypopneu van 18 s met een 30 %-daling
+    verdwijnt.
+
+    **Default `True` = het oude gedrag, op ALLE profielen.** Dit verandert
+    kandidaten op elke opname en moet eerst gemeten worden (PSG-IPA en MESA)
+    voordat het op de klinische profielen om mag. `False` laat de hele
+    daling onder 70 % als één kandidaat door; de apneus komen er dan nog
+    steeds niet in, want die staan al in `excl`."""
+
+    recovery_baseline_mode: str = "interpolated"
+    """Hoe Fix 1 (post-apneu-hyperpneu) de hypopneebasislijn herrekent.
+
+    ``"block"`` is het gedrag tot 0.35.2: per anker waar recovery-samples
+    liggen een VLAK blok van 10 s in een verder lineair geïnterpoleerde
+    basislijn, met een vast venster van 300 s en een vaste P95 (`0,3 * p95`)
+    ongeacht BASELINE_WINDOW_S/BASELINE_PERCENTILE, en een kale P95
+    teruggeschreven waar de basislijn (dynamisch + stadium) / 2 was. Op elke
+    blokrand springt `hypop_norm = env / basislijn` mee -- rond de events
+    zelf, want daar ligt de hyperpneu.
+
+    ``"interpolated"`` herrekent de ijle ankers met de profielparameters,
+    zonder de recovery-samples, met één np.interp, en past daarna dezelfde
+    stadium-/positiemenging toe die de oorspronkelijke basislijn kreeg. Met
+    een leeg recovery-masker is dat de profielbasislijn zelf.
+
+    **Default `"interpolated"`**; `"block"` gepind op `mesa_shhs` en
+    `chicago_1999` (paper v31/v37)."""
+
+    mixed_decomposition_on_envelope: bool = True
+    """Meet de effort voor de gemengde-apneu-decompositie op de ENVELOPE.
+
+    `postprocess.decompose_mixed_apneas` sommeerde `|thorax| + |abdomen|` op
+    de ruwe banden en noemde samples onder 20 % van het segmentmaximum "geen
+    effort". Een RIP-band met gelijkspanningsoffset staat daar nooit onder
+    (|0,1 V| > 20 % van 0,15 V), dus het centrale deel was 0,0 s en geen
+    gemengde apneu werd ooit gedecomponeerd; een band zonder offset kruist
+    elke halve ademteug de nul, dus daar hield het centrale deel op bij de
+    eerste nuldoorgang. Daarbovenop zette de oude code de confidence van een
+    gedecomponeerd event op minstens 0,85/0,80.
+
+    `True`: de amplitude-envelope van `preprocess_effort` (bandfilter
+    0,03-2 Hz, 2 s gladgestreken), meegegeven door de aanroeper of ter plekke
+    afgeleid uit de ruwe banden; geen confidence-vloer. `False` = het oude
+    pad. **Default `True`**; `False` gepind op `mesa_shhs` en
+    `chicago_1999`."""
+
+    breath_phase_split: str = "zero_crossing"
+    """Waar `detect_breaths` een ademcyclus in inspiratie en expiratie splitst.
+
+    ``"midpoint"`` (gedrag tot 0.35.2) splitst op de temporele helft van de
+    cyclus. Bij een I:E van 1:2 -- de normale verhouding in rust -- ligt die
+    helft midden in de expiratie, zodat `insp_segment` voor een derde uit
+    expiratoire samples bestaat. Dat segment voedt `compute_flattening_index`
+    (fractie van |flow| boven 80 % van de piek); expiratoire samples met
+    kleinere |flow| drukken die index omlaag, en `avg_flattening` reist via
+    de hypopnee-subtypering mee naar de classificatie.
+
+    ``"zero_crossing"`` splitst op de nuldoorgang tussen de twee halve
+    golven -- wat de docstring van `detect_breaths` altijd al beschreef.
+
+    **Default `"zero_crossing"`**; `"midpoint"` gepind op `mesa_shhs` en
+    `chicago_1999`. Directe aanroepers van `detect_breaths` (signal.py,
+    signal_quality.py) houden de functiedefault `"midpoint"`."""
+
 
 @dataclass
 class Profile:
@@ -2710,6 +2783,14 @@ _mesa_shhs = Profile(
         plm_resp_exclusion="end",
         spo2_index_denominator="sleep",
         spectral_effort_resolution="4s",
+        # En idem voor de drie reparaties van 11-10-2026 die een gescoord
+        # getal verschuiven (continue recovery-basislijn, decompositie op de
+        # envelope, fasesplitsing op de nuldoorgang): hier het oude gedrag.
+        # `hypopnea_mask_excludes_apnea_band` staat overal nog op het oude
+        # gedrag en hoeft niet gepind.
+        recovery_baseline_mode="block",
+        mixed_decomposition_on_envelope=False,
+        breath_phase_split="midpoint",
         # En idem voor de AASM-regel van 10 s tussen twee arousals, default aan
         # sinds 30-08-2026. Die verandert de ARO USALTELLING (op PSG-IPA SN3
         # 173 -> 159), en dit profiel reproduceert de NSRR-conventie.
@@ -2845,6 +2926,11 @@ _chicago_1999 = Profile(
         plm_resp_exclusion="end",
         spo2_index_denominator="sleep",
         spectral_effort_resolution="4s",
+        # Zie mesa_shhs: de drie reparaties van 11-10-2026 die een gescoord
+        # getal verschuiven, hier op het gedrag van vóór die datum.
+        recovery_baseline_mode="block",
+        mixed_decomposition_on_envelope=False,
+        breath_phase_split="midpoint",
         # Zie mesa_shhs: de 10 s-regel tussen arousals staat sinds 30-08-2026
         # default aan en verandert de arousaltelling, en de
         # CSR-herclassificatie staat sinds 31-08-2026 default uit en raakt de

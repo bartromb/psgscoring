@@ -167,7 +167,9 @@ def classify_apnea_type(
     4. **Effort clearly present** → obstructive
     5. **Truly flat** – no raw movement, low envelope → central
     5b. **ECG-derived reclassification** (v0.8.23) – TECG + spectral
-        analysis overrides RIP-based obstructive if cardiac artefact only.
+        analysis turns a would-be borderline default (rule 6) into central
+        when the RIP effort is cardiac artefact only. It sits AFTER rule 4,
+        so an event with clear effort (rule 4) never reaches it.
     6. **Borderline default** → obstructive (low confidence)
        If LightGBM model available, confidence is calibrated by model.
 
@@ -175,9 +177,10 @@ def classify_apnea_type(
     ----------
     ecg_assessment : dict, optional
         Output of ``ecg_effort.ecg_effort_assessment()``.
-        If provided and ``reclassify_as_central`` is True, events that
-        would otherwise be classified as obstructive (rules 4, 6) are
-        reclassified as central.
+        If provided and ``reclassify_as_central`` is True, an event that
+        would otherwise fall through to the borderline default (rule 6) is
+        reclassified as central. Rule-4 events have already returned by
+        then and are not affected.
     flattening_index : float, optional
         Mean inspiratory flattening index for the event (0–1).
         >0.30 indicates flow limitation (supports obstructive);
@@ -498,20 +501,25 @@ def classify_apnea_type(
     # is detected by ancillary.detect_cheyne_stokes() and applied
     # downstream by postprocess.reclassify_csr_events() — not here.
     # Rule 5b is per-event ECG-based effort reclassification only.
+    #
+    # No effort guard here: rule 4 has already returned every event with
+    # effort_ratio > EFFORT_PRESENT_RATIO, so at this point the ratio is at
+    # most that value. The former `effort_ratio < EFFORT_PRESENT_RATIO * 2`
+    # test (v0.8.30, "relaxed from 1.5x to 2x") was therefore always true
+    # and never guarded anything; it is gone rather than left to suggest a
+    # band that cannot be reached.
     if ecg_assessment is not None and ecg_assessment.get("reclassify_as_central"):
         detail["ecg_assessment"] = {
             k: v for k, v in ecg_assessment.items()
             if k not in ("tecg_detail", "spectral_detail")
         }
-        # v0.8.30: relaxed threshold from 1.5× to 2× EFFORT_PRESENT
-        if effort_ratio < EFFORT_PRESENT_RATIO * 2.0:
-            conf = 0.75
-            if ecg_assessment.get("ecg_effort_present") is False:
-                conf = 0.85  # both TECG and spectral agree
-            detail["decision_reason"] = (
-                f"ecg_reclassified_central_effort={safe_r(effort_ratio,3)}"
-            )
-            return "central", safe_r(_conf(conf, 5), 2), detail
+        conf = 0.75
+        if ecg_assessment.get("ecg_effort_present") is False:
+            conf = 0.85  # both TECG and spectral agree
+        detail["decision_reason"] = (
+            f"ecg_reclassified_central_effort={safe_r(effort_ratio,3)}"
+        )
+        return "central", safe_r(_conf(conf, 5), 2), detail
 
     # ── Rule 6: Borderline default ────────────────────────────────────────
     # v0.8.30: if effort is in the low-but-not-absent range and no
@@ -686,13 +694,20 @@ def classify_hypopnea_type(
     onset_s: float,
     duration_s: float,
     breaths: list | None,
-    thorax_env: np.ndarray | None,
-    abdomen_env: np.ndarray | None,
+    thorax_raw: np.ndarray | None,
+    abdomen_raw: np.ndarray | None,
     sf: float,
     snore_present: bool | None = None,
     baseline_s: float = HYPOPNEA_BASELINE_S,
 ) -> tuple[str, float, dict]:
     """Subtypeer een hypopneu volgens AASM v3 §6.1 (optionele criteria).
+
+    `thorax_raw`/`abdomen_raw` zijn de RUWE (oscillerende) banden, niet de
+    amplitude-envelopes: criterium 3 meet een fasehoek, en die bestaat alleen
+    op een oscillerend signaal. Twee banden in tegenfase hebben dezelfde
+    envelope. Tot 0.35.2 heetten de parameters `thorax_env`/`abdomen_env` en
+    gaf de detectieketen ook werkelijk de envelopes door, waardoor het
+    paradoxcriterium in de keten blind was.
 
     WAAROM DIT NIET `classify_apnea_type` IS
     ----------------------------------------
@@ -766,11 +781,11 @@ def classify_hypopnea_type(
         detail["criteria_unavailable"].append("flattening")
 
     # ── 3. Paradox tijdens, maar niet ervóór ──────────────────────────────
-    if thorax_env is not None and abdomen_env is not None and sf > 0:
+    if thorax_raw is not None and abdomen_raw is not None and sf > 0:
         o_i, e_i = int(onset_s * sf), int(einde_s * sf)
         p_i = max(0, int((onset_s - baseline_s) * sf))
-        hoek_ev = _compute_phase_angle(thorax_env, abdomen_env, o_i, e_i, sf)
-        hoek_bl = _compute_phase_angle(thorax_env, abdomen_env, p_i, o_i, sf)
+        hoek_ev = _compute_phase_angle(thorax_raw, abdomen_raw, o_i, e_i, sf)
+        hoek_bl = _compute_phase_angle(thorax_raw, abdomen_raw, p_i, o_i, sf)
         detail["phase_angle_event"] = safe_r(hoek_ev, 1)
         detail["phase_angle_baseline"] = safe_r(hoek_bl, 1)
         if hoek_ev is None or hoek_bl is None:

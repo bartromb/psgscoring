@@ -77,8 +77,11 @@ def test_ontbrekend_veld_wordt_niet_stil_doorgelaten():
 
 
 def test_herstelde_event_draagt_zijn_debietdaling():
+    """`flow_reduction` is de VERHOUDING (zoals de cascade en `_types.py`);
+    het percentage staat onder `flow_reduction_pct`."""
     rein, _ = _run([_cand(red=47.5, local=33.0)])
-    assert rein[0]["flow_reduction"] == 47.5
+    assert rein[0]["flow_reduction"] == pytest.approx(0.475)
+    assert rein[0]["flow_reduction_pct"] == 47.5
     assert rein[0]["local_reduction_pct"] == 33.0
 
 
