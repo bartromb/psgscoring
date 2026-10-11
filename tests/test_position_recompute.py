@@ -126,14 +126,20 @@ def test_the_recompute_is_wired_for_every_graded_profile():
         "aasm_v3_prob_dual"}, graded_profiles
 
 
-def test_the_pipeline_recomputes_position_after_the_graded_step():
-    """Structureel: de aanroep staat ná de merge, niet ervoor."""
+def test_the_pipeline_computes_position_after_the_graded_step():
+    """Structureel: de positieanalyse staat ná de merge van stap 7b.
+
+    Sinds de pipeline-review van 11-10-2026 is er geen herberekening meer:
+    positie en PLM draaien één keer, in stap 8c, op de definitieve eventlijst (zie
+    tests/test_indices_on_final_event_list.py). De eis blijft dezelfde: wat
+    de positietabel telt, is wat het rapport toont.
+    """
     import pathlib
     src = (pathlib.Path(__file__).resolve().parent.parent
            / "psgscoring" / "pipeline.py").read_text()
     i_merge = src.index('output["respiratory"]["breath_detector"] = _bdiag')
-    i_pos = src.index("positieanalyse herrekend")
-    assert i_merge < i_pos, "de herberekening staat niet na stap 7b"
+    i_pos = src.index("analyze_position(")
+    assert i_merge < i_pos, "de positieanalyse staat niet na stap 7b"
 
 
 # ─────────────────────────────────────────────────────────────

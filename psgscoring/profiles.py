@@ -2066,6 +2066,64 @@ class PostProcessingRules:
     ``breath_amplitude``, which never build an analytic signal.
     """
 
+    indices_on_final_event_list: bool = True
+    """Reken positie-AHI en PLM-exclusie op de DEFINITIEVE eventlijst.
+
+    Tot de pipeline-review van 11-10-2026 draaiden `analyze_position` en
+    `analyze_plm` als stap 3 en 6 op de eventlijst van stap 1, terwijl de
+    voorwaardelijke vereniging, de ademteug-gegradeerde hypopneedetector
+    (7b), Rule 1B-herstel, de LightGBM-herclassificatie, het splitsen van
+    lange events en de desaturatiebegrenzing die lijst daarna nog
+    veranderden. Alleen 7b rekende de positie opnieuw; de PLM-stap -- die
+    beenbewegingen binnen 0,5 s van een eventeinde uitsluit -- nooit. Een
+    index op een andere eventset dan het rapport toont: dezelfde fout als de
+    stadium-AHI van v0.27.7.
+
+    Met `True` draaien beide één keer, na de laatste mutatie van de lijst
+    (stap 8c). Byte-identiek waar geen latere stap de lijst verandert;
+    verschuift plm_index en positie-AHI waar dat wel gebeurt -- op
+    `mesa_shhs` op elke nacht, want de LightGBM-stap herclassificeert daar.
+
+    **Default `True`.** `mesa_shhs` en `chicago_1999` blijven op `False`:
+    die reproduceren paper v31/v37, zelfde idioom als `plm_time_base`."""
+
+    ancillary_tst_excludes_artifacts: bool = True
+    """Laat de arousal-index op extern aangeleverde arousals en de
+    CSR-dichtheid (G.1(b)) door dezelfde slaaptijd delen als de AHI.
+
+    `pipeline.py` kende drie definities van slaaptijd: `_compute_summary` en
+    de RERA-index sluiten artefact-epochs uit, de externe arousal-index en
+    de CSR-dichtheid deelden door de VOLLEDIGE slaaptijd. Twee indices op
+    dezelfde nacht met een andere noemer, en het verschil was nergens te
+    zien.
+
+    Met `True` is `indices.tst_hours(hypno, artifact_epochs)` overal de
+    noemer. Byte-identiek waar de artefactset leeg is. De LightGBM-feature
+    `tst_h` blijft met opzet zonder artefactcorrectie: zo is het model
+    getraind.
+
+    **Default `True`.** `mesa_shhs` en `chicago_1999` blijven op `False`
+    (reproductie van paper v31/v37)."""
+
+    rem_ahi_alias_excludes_uncertain: bool = True
+    """Welk paar de aliassen `rem_ahi`/`nrem_ahi` in de samenvatting dragen.
+
+    `_compute_rera_rdi` rekende een eigen REM/NREM-AHI over ALLE events,
+    inclusief de kale `uncertain`-apneus die `ahi_total` en `ahi_rem` juist
+    uitsluiten, en het REM-predominante fenotype las dat paar. De eigen
+    berekening is weg; de sleutels blijven als alias omdat YASAFlaskified
+    ze leest.
+
+    `True`: alias van `ahi_rem`/`ahi_nrem` (dezelfde events als `ahi_total`).
+    `False`: alias van `ahi_rem_incl_uncertain`/`ahi_nrem_incl_uncertain`,
+    wat per constructie het oude getal is. De klinische profielen produceren
+    geen `uncertain`, dus alleen de datasetprofielen zien verschil.
+
+    **Default `True`.** `mesa_shhs` en `chicago_1999` blijven op `False`:
+    daar hoort de REM-AHI bij de NSRR-gekalibreerde `ahi_incl_uncertain`, en
+    dat is ook het getal dat tot de pipeline-review van 11-10-2026
+    gerapporteerd werd."""
+
 
 @dataclass
 class Profile:
@@ -2632,6 +2690,15 @@ _mesa_shhs = Profile(
         # Threshold 0.65 = bias-near-zero operating point on q=7 holdout.
         ml_classifier_path="data/lightgbm_v06_q7holdout.txt",
         ml_threshold=0.65,
+        # GEPIND op het gedrag van vóór de pipeline-review van 11-10-2026,
+        # zelfde reden als plm_time_base: positie/PLM op de lijst van stap 1
+        # (de LightGBM-stap
+        # verandert hier elke nacht de lijst), de externe arousal-index en de
+        # CSR-dichtheid zonder artefactcorrectie, en de REM-AHI-alias op het
+        # `incl_uncertain`-paar. Zie de drie velden in PostProcessingRules.
+        indices_on_final_event_list=False,
+        ancillary_tst_excludes_artifacts=False,
+        rem_ahi_alias_excludes_uncertain=False,
     ),
 )
 
@@ -2708,6 +2775,11 @@ _chicago_1999 = Profile(
         shape_evidence_grading=False,
         stability_filter_all_hypopnea_subtypes=False,
         thermistor_gate="envelope_agreement",
+        # Zie mesa_shhs: gepind op het gedrag van vóór de pipeline-review
+        # van 11-10-2026.
+        indices_on_final_event_list=False,
+        ancillary_tst_excludes_artifacts=False,
+        rem_ahi_alias_excludes_uncertain=False,
     ),
 )
 
