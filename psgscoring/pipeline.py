@@ -1661,6 +1661,10 @@ def run_pneumo_analysis(
                 ahi_interval=output["respiratory"].get("summary", {}).get("ahi_interval"),
                 csr_reclassification=_csr_reclassification(profile),
                 csr_confidence_floor=profile.get("CSR_CONFIDENCE_FLOOR"),
+                # Het profiel beslist of de gemengde-apneudecompositie op de
+                # effort-envelope rekent (review 11-10-2026); de bevroren
+                # profielen pinnen het oude |ruw|-pad.
+                scoring_profile=profile,
             )
             output["respiratory"]["events"] = pp["events"]
             output["postprocess"] = {
