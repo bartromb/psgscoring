@@ -23,7 +23,13 @@ van uit te drukken. De aanroeper hoort dat verschil te tonen.
 
 from __future__ import annotations
 
-__all__ = ["hours_of", "per_hour"]
+from .constants import EPOCH_LEN_S
+
+__all__ = ["SLEEP_STAGES", "hours_of", "per_hour", "tst_hours"]
+
+#: De vier AASM-labels die slaap zijn. Expliciet, en niet `!= "W"`: een
+#: hypnogram kan ook "ART", "?" of None dragen, en dat is geen slaap.
+SLEEP_STAGES = frozenset({"N1", "N2", "N3", "R"})
 
 
 def per_hour(n: float | None, hours: float | None,
@@ -55,6 +61,23 @@ def hours_of(hypno: list, predicate, epoch_len_s: float,
     n = sum(1 for i, s in enumerate(hypno or [])
             if predicate(s) and i not in art)
     return n * epoch_len_s / 3600.0
+
+
+def tst_hours(hypno: list | None, artifact_epochs: list | None = None) -> float:
+    """Totale slaaptijd in uren: slaapepochs min artefact-epochs.
+
+    Eén definitie. `pipeline.py` rekende dit op vier plaatsen zelf uit, met
+    drie varianten -- met en zonder artefact-epochs, met `* 30 / 3600` naast
+    `EPOCH_LEN_S` -- zodat de arousal-index op extern aangeleverde arousals
+    door een andere noemer deelde dan de AHI op dezelfde nacht.
+
+    Dit is dezelfde noemer als `tst_hours` in de respiratoire samenvatting
+    (`respiratory._compute_summary`, die niet-W telt): op een hypnogram met
+    alleen de vijf AASM-labels zijn de twee gelijk. Een echte 0.0 wanneer er
+    niets overblijft; `per_hour` maakt daar ``None`` van.
+    """
+    return hours_of(hypno or [], lambda s: s in SLEEP_STAGES, EPOCH_LEN_S,
+                    set(artifact_epochs or []))
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -25,17 +25,12 @@ import os
 
 import numpy as np
 
-try:
-    import mne
-    _MNE_AVAILABLE = True
-except ImportError:
-    _MNE_AVAILABLE = False
-
 from .utils import channel_map_from_user
+from .constants import EPOCH_LEN_S
 from .signal import (
     compute_dynamic_baseline, preprocess_flow,
 )
-from .indices import per_hour
+from .indices import SLEEP_STAGES, per_hour, tst_hours
 from .respiratory import (
     detect_respiratory_events, reinstate_rule1a_arousal_hypopneas, _compute_summary,
 )
@@ -138,12 +133,23 @@ def run_pneumo_analysis(
     hypno           : string hypnogram list ['W','N1','N2','N3','R',...]
     channel_map     : optional manual channel overrides (UI selection)
     artifact_epochs : list of epoch indices with artefacts (from YASA)
-    scoring_profile : Profile name. New canonical names (v0.4.0+):
-                        - 'aasm_v3_rec'       (default, AASM 2023 Rule 1A)
-                        - 'aasm_v3_strict', 'aasm_v3_sensitive'
-                        - 'aasm_v2_rec', 'aasm_v1_rec'
-                        - 'cms_medicare', 'mesa_shhs', 'chicago_1999'
-                      Legacy names (deprecated, still work):
+    scoring_profile : Profile name; the registry in ``psgscoring.profiles``
+                      is the source of truth (``list_profiles()``,
+                      ``list_profile_groups()``). An unknown name raises
+                      ``KeyError``. Names at this writing (22):
+                        - 'aasm_v3_rec' (default), 'aasm_v3_strict',
+                          'aasm_v3_sensitive', 'aasm_v2_rec', 'aasm_v1_rec',
+                          'cms_medicare'
+                        - 'mesa_shhs', 'chicago_1999' (frozen reproduction
+                          profiles: pinned to published behaviour)
+                        - 'aasm_v3_dual', 'aasm_v3_breath',
+                          'aasm_v3_breath_dual', 'aasm_v3_breath_dual_v2',
+                          'aasm_v3_prob', 'aasm_v3_prob_dual',
+                          'aasm_v3_pressure', 'aasm_v3_amplitude',
+                          'aasm_v3_fusion', 'aasm_v3_pair_scalefree',
+                          'aasm_v3_env_breath', 'aasm_v3_env_chunked',
+                          'aasm_v3_env_decimated', 'aasm_v3_env_rectify'
+                      Legacy aliases (deprecated, still resolve):
                         - 'strict', 'standard', 'sensitive'
     arousal_events  : optional list of pre-scored arousals to use for
                       Rule 1B reinstatement, bypassing internal
@@ -153,11 +159,22 @@ def run_pneumo_analysis(
                       validation against scorer-derived AHI variants
                       that include arousal-coupled hypopneas
                       (e.g. NSRR ``ahi_hp3u``).
+    split_night     : None or 'off' (default) = no split-night analysis;
+                      'auto' = detect the diagnostic/therapeutic breakpoint
+                      from flow and SpO2; 'manual' = use
+                      ``split_night_breakpoint_s``. The whole-night indices
+                      stay as AASM prescribes; segment indices come
+                      alongside under ``output["split_night"]``.
+    split_night_breakpoint_s : breakpoint in seconds from recording start,
+                      read only when ``split_night == 'manual'``.
 
     Returns
     -------
-    Nested dict with keys: meta, channel_availability, respiratory, spo2,
-    position, heart_rate, snore, plm, arousal, cheyne_stokes.
+    Nested dict with top-level keys:
+      meta, channel_availability, signal_quality, respiratory, ahi_interval,
+      channel_quality, anchor_baseline, spo2, position, heart_rate, snore,
+      plm, arousal, cheyne_stokes, hypoxic_burden, postprocess, and
+      split_night (only when requested).
     """
     # v0.4.0: resolve legacy aliases (strict/standard/sensitive) with
     # DeprecationWarning. New names pass through unchanged.
@@ -165,10 +182,14 @@ def run_pneumo_analysis(
     resolved_name = resolve_profile_name(scoring_profile)
 
     from .constants import SCORING_PROFILES
-    profile = SCORING_PROFILES.get(
-        resolved_name,
-        SCORING_PROFILES["aasm_v3_rec"],
-    )
+    # Geen stille terugval op aasm_v3_rec: een typefout in de profielnaam
+    # scoorde dan op het defaultprofiel en schreef de VERKEERDE naam in
+    # meta["scoring_profile"]. Dezelfde fout als profiles.get_profile gooit.
+    if resolved_name not in SCORING_PROFILES:
+        raise KeyError(
+            f"Unknown profile '{scoring_profile}'. "
+            f"Available: {', '.join(sorted(SCORING_PROFILES))}")
+    profile = SCORING_PROFILES[resolved_name]
     logger.info(
         "[pneumo] Scoring profile: %s (%s)",
         resolved_name,
@@ -184,6 +205,11 @@ def run_pneumo_analysis(
     _denoise    = bool(profile.get("FLOW_WAVELET_DENOISE", False))
 
     ch = channel_map_from_user(channel_map, raw.ch_names)
+    # Natieve frequentie per kanaal, uit de EDF-kop waar die er is. MNE
+    # bemonstert op naar de hoogste, dus `get()` hieronder geeft terecht
+    # info["sfreq"] voor de ARRAY -- maar de SpO2-toets verderop moet weten
+    # wat de oximeter werkelijk leverde.
+    _rates, _rates_src = _native_channel_rates(raw)
 
     output: dict = {
         "meta": {
@@ -197,6 +223,8 @@ def run_pneumo_analysis(
             "channels_used": ch,
             "all_channels":  raw.ch_names,
             "sfreq":         raw.info["sfreq"],
+            "channel_rates": _rates,
+            "channel_rates_source": _rates_src,
             "duration_min":  round(raw.times[-1] / 60, 1),
             "scoring_profile": resolved_name,
             "scoring_label":   profile["label"],
@@ -344,7 +372,6 @@ def run_pneumo_analysis(
     try:
         from .signal_quality import compare_rip_pair
         if thorax_data is not None and abdomen_data is not None:
-            sf_rip = raw.info.get("sfreq", 256) if hasattr(raw, "info") else 256
             output["signal_quality"] = compare_rip_pair(
                 thorax_data, abdomen_data, sf_rip,
                 scale_free=bool(profile.get("RIP_QUALITY_SCALE_FREE", False)),
@@ -655,19 +682,15 @@ def run_pneumo_analysis(
                 )
                 _profile_results[_pname] = _alt_resp.get("summary", {})
 
-        def _severity(ahi):
-            if ahi < 5: return "normal"
-            if ahi < 15: return "mild"
-            if ahi < 30: return "moderate"
-            return "severe"
-
         _ahi_strict    = _profile_results.get("strict", {}).get("ahi_total", 0)
         _ahi_standard  = _profile_results.get("standard", {}).get("ahi_total", 0)
         _ahi_sensitive = _profile_results.get("sensitive", {}).get("ahi_total", 0)
 
-        _sev_strict    = _severity(_ahi_strict)
-        _sev_standard  = _severity(_ahi_standard)
-        _sev_sensitive = _severity(_ahi_sensitive)
+        # Dezelfde ernstbanden als de rest van het pakket (_ahi_severity);
+        # hier stond een lokale kopie.
+        _sev_strict    = _ahi_severity(_ahi_strict)
+        _sev_standard  = _ahi_severity(_ahi_standard)
+        _sev_sensitive = _ahi_severity(_ahi_sensitive)
 
         _sevs = [_sev_strict, _sev_standard, _sev_sensitive]
         if _sevs[0] == _sevs[1] == _sevs[2]:
@@ -745,9 +768,14 @@ def run_pneumo_analysis(
                     "Mond-ademen verdacht: anchor_ratio=%.2f — hypopnea-confidence mogelijk verlaagd",
                     anchor_info.get("anchor_ratio", 0),
                 )
-        except Exception as e:
-            logger.debug("Anchor baseline failed: %s", e)
-            output["anchor_baseline"] = {"anchor_reliable": False}
+        except Exception as e:  # noqa: BLE001
+            # Op WARNING, met de reden: op DEBUG was een gefaalde ankerbasislijn
+            # in productie onzichtbaar, en het rapport meldde dan alleen
+            # "niet betrouwbaar" zonder dat iemand kon zien waarom.
+            logger.warning("[pneumo 1c] ankerbasislijn mislukt (%s): %s",
+                           type(e).__name__, e)
+            output["anchor_baseline"] = {"anchor_reliable": False,
+                                         "error": str(e)}
     else:
         output["anchor_baseline"] = {"anchor_reliable": False}
 
@@ -755,22 +783,21 @@ def run_pneumo_analysis(
     logger.info("[pneumo 2/11] SpO2 analysis...")
     if spo2_data is not None:
         output["spo2"] = _run_step("spo2", lambda: analyze_spo2(spo2_data, sf_spo2, hypno))
-        # v0.8.16: SpO2 samplerate check (AASM: max 3s averaging)
-        if sf_spo2 is not None and sf_spo2 < 0.33:
+        # v0.8.16: SpO2-frequentietoets (AASM: hooguit 3 s middeling). Op de
+        # NATIEVE frequentie uit de EDF-kop: `sf_spo2` is de frequentie van de
+        # array na MNE's opbemonstering en kon de drempel nooit raken.
+        _sf_spo2_native = _rates.get(ch.get("spo2"), sf_spo2)
+        if _sf_spo2_native is not None and _sf_spo2_native < 0.33:
             output["spo2"]["spo2_low_samplerate"] = True
             logger.warning("[pneumo] SpO2 samplerate %.2f Hz < 0.33 Hz "
-                           "(>3s averaging — may underestimate ODI)", sf_spo2)
+                           "(>3s averaging — may underestimate ODI)",
+                           _sf_spo2_native)
         output["spo2"]["spo2_samplerate"] = sf_spo2
+        output["spo2"]["spo2_native_samplerate"] = _sf_spo2_native
     else:
         output["spo2"] = {"success": False, "error": "No SpO2 channel", "summary": {}}
 
-    # ── Step 3: Position ───────────────────────────────────────────────────
-    logger.info("[pneumo 3/9] Position analysis...")
-    output["position"] = (
-        _run_step("position", lambda: analyze_position(pos_data, sf_pos, hypno, resp.get("events", [])))
-        if pos_data is not None
-        else {"success": False, "error": "No position channel", "summary": {}}
-    )
+    # (Positie en PLM: zie stap 8c, op de definitieve eventlijst.)
 
     # ── Step 4: Heart rate ─────────────────────────────────────────────────
     logger.info("[pneumo 4/9] Heart rate...")
@@ -801,37 +828,15 @@ def run_pneumo_analysis(
         else {"success": False, "error": "No snore channel", "summary": {}}
     )
 
-    # ── Step 6: PLM ────────────────────────────────────────────────────────
-    logger.info("[pneumo 6/9] PLM detection...")
-    if (leg_l_data is not None or leg_r_data is not None
-            or leg_uni_data is not None):
-        # v0.23.0: tijdbasis van de RMS-vensters. Profielvlag `plm_time_base`,
-        # env-override PSGSCORING_PLM_TIME_BASE=0/1.
-        _plm_tb = bool(profile.get("PLM_TIME_BASE", False))
-        _plm_tb_env = os.environ.get("PSGSCORING_PLM_TIME_BASE")
-        if _plm_tb_env is not None:
-            _plm_tb = _plm_tb_env == "1"
-        # Het ongezijderde kanaal gaat door de linkertak -- die is niet
-        # links-specifiek, ze is gewoon de eerste van de twee. De provenance
-        # in meta["plm_channels"] zegt wat het werkelijk was.
-        output["plm"] = _run_step("plm", lambda: analyze_plm(
-            leg_l_data if leg_l_data is not None else leg_uni_data,
-            leg_r_data,
-            sf_leg or raw.info["sfreq"], hypno,
-            resp_events=resp.get("events", []),
-            artifact_epochs=artifact_epochs,
-            time_base_fix=_plm_tb,
-            # Niet hier afkappen: `plm_arousal_index` moet over de hele nacht
-            # rekenen. De payloadgrens gaat er in _cap_plm_event_list() af,
-            # na _compute_arousal_etiology().
-            event_list_cap=None,
-            offset_aasm=_plm_offset_aasm(profile),
-            bilateral_window_s=_plm_bilateral_window_s(profile),
-        ))
-    else:
-        output["plm"] = {"success": False, "error": "No leg-EMG channels", "summary": {}}
-
     # ── Step 7: Arousal detection ──────────────────────────────────────────
+    # De arousalkoppeling heeft de events als INVOER nodig en draait vóór stap
+    # 7b, dus zij ziet per definitie niet de definitieve lijst. Dat is bewust
+    # en staat hier expliciet; alle INDICES over de lijst (positie, PLM) komen
+    # na de laatste mutatie, in stap 8c.
+    _resp_events_for_arousal = list(resp.get("events", []) or [])
+    # Eén slaaptijd-noemer voor de randindices (externe arousal-index,
+    # CSR-dichtheid): zie PostProcessingRules.ancillary_tst_excludes_artifacts.
+    _tst_art = bool(profile.get("ANCILLARY_TST_EXCLUDES_ARTIFACTS", True))
     if arousal_events is not None:
         logger.info(
             "[pneumo 7/9] Using %d externally provided arousals "
@@ -843,10 +848,11 @@ def run_pneumo_analysis(
         ext["error"]   = None
         ext["source"]  = "external"
         ext["events"]  = list(arousal_events)
-        # Compute arousal index against TST from hypno (best-effort).
-        from .constants import EPOCH_LEN_S as _EPOCH
-        n_tst_eps = sum(1 for s in hypno if s in ("N1", "N2", "N3", "R"))
-        tst_h     = (n_tst_eps * _EPOCH) / 3600.0 if n_tst_eps else 0.0
+        # Arousal-index op dezelfde noemer als de AHI-familie: slaapepochs
+        # min artefact-epochs. Hier werd door de VOLLEDIGE slaaptijd gedeeld.
+        # Profielvlag `ancillary_tst_excludes_artifacts` (reproductieprofielen
+        # op het oude gedrag).
+        tst_h = tst_hours(hypno, artifact_epochs if _tst_art else None)
         ext["summary"]["arousal_index"] = (
             round(len(arousal_events) / tst_h, 2) if tst_h > 0 else None
         )
@@ -968,7 +974,7 @@ def run_pneumo_analysis(
                 flow_data   = ref_flow,
                 flow_norm   = flow_env_norm,
                 sf_flow     = sf_ref,
-                resp_events = resp.get("events", []),
+                resp_events = _resp_events_for_arousal,
                 hypno       = hypno,
                 emg_data    = emg_data,
                 # Alleen de AROUSALSTAP; de lijst blijft elders doen wat ze
@@ -1047,6 +1053,7 @@ def run_pneumo_analysis(
     # Vervangt ALLEEN de hypopneeën; apneus blijven uit de bestaande detector
     # (die haalt F1 0,83-0,93 op PSG-IPA en doet de effort-subtypering).
     if str(profile.get("HYPOPNEA_DETECTOR", "envelope")) == "breath_graded":
+        _graded_applied = False
         try:
             from .breath_scoring import score_hypopneas_breathwise
             _resp = output.get("respiratory", {}) or {}
@@ -1135,34 +1142,25 @@ def run_pneumo_analysis(
             output["respiratory"]["summary"] = _compute_summary(
                 merged, hypno, artifact_epochs)
             output["respiratory"]["breath_detector"] = _bdiag
+            _graded_applied = True
             logger.info("[pneumo 7b] breath-graded hypopneas: %d scored from "
                         "%d candidates (SpO2 lag %.0fs)",
                         _bdiag.get("n_scored", 0), _bdiag.get("n_candidates", 0),
                         _bdiag.get("spo2_lag_s") or -1)
-
-            # De positieanalyse draaide in stap 6 op de eventlijst van DAT
-            # moment. Deze stap heeft zojuist elke hypopnee vervangen, dus de
-            # AHI-per-positie sloeg nog op de envelope-detector terwijl de
-            # rest van het rapport de gegradeerde events toont. Dat raakt elk
-            # profiel met breath_graded — breath, prob en beide duale — en
-            # daarmee ook de positionele fenotypering verderop, die
-            # `ahi_per_pos` leest.
-            #
-            # Herberekenen in plaats van corrigeren: de positieverdeling zelf
-            # verandert niet, alleen de events erin, en analyze_position is de
-            # enige plek waar die koppeling gelegd wordt.
-            if pos_data is not None and sf_pos:
-                try:
-                    output["position"] = analyze_position(
-                        pos_data, sf_pos, hypno, merged)
-                    logger.info("[pneumo 7b] positieanalyse herrekend op de "
-                                "gegradeerde eventlijst (%d events)", len(merged))
-                except Exception as e:  # noqa: BLE001
-                    logger.warning("[pneumo 7b] positieanalyse niet te "
-                                   "herrekenen, oude waarden blijven: %s", e)
+            # De positie- en PLM-indices volgen in stap 8c, op de lijst zoals
+            # die na ALLE mutaties is; hier hoeft niets herrekend te worden.
         except Exception as e:  # noqa: BLE001 — nooit de hele run laten vallen
             logger.warning("[pneumo] breath-graded detector failed, keeping "
                            "envelope result: %s", e)
+            # De terugval hoort in de UITVOER, niet alleen in het log: zonder
+            # dit droeg de uitslag een breath-profielnaam en een breath-conform
+            # `ahi_rule` terwijl de envelope-detector gedraaid had. Stap 9b
+            # leest `detector_fallback` voor het regeloordeel.
+            if not _graded_applied:
+                output["respiratory"]["breath_detector"] = {
+                    "status": "exception", "error": str(e),
+                    "fallback": "envelope"}
+                output["meta"]["detector_fallback"] = "envelope"
 
     # ── Step 8: Rule 1B reinstatement ─────────────────────────────────────
     logger.info("[pneumo 8/10] Rule 1B reinstatement...")
@@ -1289,7 +1287,10 @@ def run_pneumo_analysis(
                 arousals=_ml_arousals,
                 hypno=hypno,
                 sig_dur_s=raw.times[-1],
-                tst_h=sum(1 for s in hypno if s in ("N1","N2","N3","R")) * 30 / 3600.0,
+                # ZONDER artefact-epochs, met opzet: zo is dit model getraind
+                # en zo zijn de NSRR/paper-cijfers gemaakt. Met de artefact-
+                # gecorrigeerde slaaptijd zou de feature verschuiven.
+                tst_h=tst_hours(hypno),
                 overall_qual5=_qual5,
                 median_spo2=_median_spo2,
                 thermistor_type=_therm_type,
@@ -1324,9 +1325,9 @@ def run_pneumo_analysis(
                 _sf_s = sf_spo2 or sf_flow or 1.0
                 _sleep = np.zeros(len(spo2_data), dtype=bool)
                 for _ep, _st in enumerate(hypno):
-                    if _st in ("N1", "N2", "N3", "R"):
-                        _a = int(_ep * 30.0 * _sf_s)
-                        _b = int((_ep + 1) * 30.0 * _sf_s)
+                    if _st in SLEEP_STAGES:
+                        _a = int(_ep * EPOCH_LEN_S * _sf_s)
+                        _b = int((_ep + 1) * EPOCH_LEN_S * _sf_s)
                         if _a < len(_sleep):
                             _sleep[_a:min(_b, len(_sleep))] = True
                 if _sleep.any():
@@ -1387,6 +1388,60 @@ def run_pneumo_analysis(
             logger.warning("[pneumo 8b/10] begrenzing overgeslagen: %s", e)
             output["respiratory"]["desat_reuse_limit"] = {"status": f"exception: {e}"}
 
+    # ── Stap 8c: positie en PLM op de DEFINITIEVE eventlijst ──────────────
+    # Beide nemen de eventlijst als invoer: de AHI per houding telt events per
+    # epoch, de PLM-stap sluit beenbewegingen binnen 0,5 s van een eventeinde
+    # uit. Tot 11-10-2026 draaiden ze als stap 3 en 6, op de lijst van stap 1,
+    # terwijl de voorwaardelijke vereniging, stap 7b, Rule 1B, de LightGBM-
+    # herclassificatie, het splitsen van lange events en de desaturatie-
+    # begrenzing die lijst daarna nog veranderden. Alleen 7b rekende de
+    # positie opnieuw; de PLM-exclusie nooit. Hier staat de lijst vast: stap 9
+    # markeert alleen nog (csr_flagged) en stap 11 verandert alleen labels, en
+    # geen van beide analyses kijkt naar het type.
+    #
+    # Profielvlag `indices_on_final_event_list`; `mesa_shhs` en `chicago_1999`
+    # staan op het oude gedrag en rekenen op de momentopname van stap 1 --
+    # dezelfde lijst die stap 3 en 6 destijds zagen.
+    _final_events = (output["respiratory"].get("events", []) or []
+                     if profile.get("INDICES_ON_FINAL_EVENT_LIST", True)
+                     else _resp_events_for_arousal)
+    logger.info("[pneumo 8c/11] Position analysis...")
+    output["position"] = (
+        _run_step("position", lambda: analyze_position(
+            pos_data, sf_pos, hypno, _final_events))
+        if pos_data is not None
+        else {"success": False, "error": "No position channel", "summary": {}}
+    )
+
+    logger.info("[pneumo 8c/11] PLM detection...")
+    if (leg_l_data is not None or leg_r_data is not None
+            or leg_uni_data is not None):
+        # v0.23.0: tijdbasis van de RMS-vensters. Profielvlag `plm_time_base`,
+        # env-override PSGSCORING_PLM_TIME_BASE=0/1.
+        _plm_tb = bool(profile.get("PLM_TIME_BASE", False))
+        _plm_tb_env = os.environ.get("PSGSCORING_PLM_TIME_BASE")
+        if _plm_tb_env is not None:
+            _plm_tb = _plm_tb_env == "1"
+        # Het ongezijderde kanaal gaat door de linkertak -- die is niet
+        # links-specifiek, ze is gewoon de eerste van de twee. De provenance
+        # in meta["plm_channels"] zegt wat het werkelijk was.
+        output["plm"] = _run_step("plm", lambda: analyze_plm(
+            leg_l_data if leg_l_data is not None else leg_uni_data,
+            leg_r_data,
+            sf_leg or raw.info["sfreq"], hypno,
+            resp_events=_final_events,
+            artifact_epochs=artifact_epochs,
+            time_base_fix=_plm_tb,
+            # Niet hier afkappen: `plm_arousal_index` moet over de hele nacht
+            # rekenen. De payloadgrens gaat er in _cap_plm_event_list() af,
+            # na _compute_arousal_etiology().
+            event_list_cap=None,
+            offset_aasm=_plm_offset_aasm(profile),
+            bilateral_window_s=_plm_bilateral_window_s(profile),
+        ))
+    else:
+        output["plm"] = {"success": False, "error": "No leg-EMG channels", "summary": {}}
+
     # ── Step 9: Cheyne-Stokes ──────────────────────────────────────────────
     logger.info("[pneumo 9/10] Cheyne-Stokes detection...")
     if ref_flow is not None:
@@ -1395,8 +1450,10 @@ def run_pneumo_analysis(
                 ref_flow, sf_ref,
                 envelope_method=_env_method, envelope_fs=_env_fs,
                 denoise=_denoise)
+            # De envelope is van het REFERENTIEkanaal gebouwd; de frequentie
+            # hoort daar dan ook bij, niet bij het apneukanaal.
             output["cheyne_stokes"] = detect_cheyne_stokes(
-                flow_env_csr, sf_apnea, hypno
+                flow_env_csr, sf_ref, hypno
             )
         except Exception as e:
             logger.warning("CSR detection failed: %s", e)
@@ -1413,9 +1470,6 @@ def run_pneumo_analysis(
         )
         output["respiratory"]["events"] = events_flagged
         # Herbereken summary met CSR-info
-        artifact_epochs_for_summary = output["respiratory"]["summary"].get(
-            "_artifact_epochs", None
-        )
         output["respiratory"]["summary"] = _compute_summary(
             events_flagged,
             hypno,
@@ -1462,8 +1516,19 @@ def run_pneumo_analysis(
     # consument gelezen. Zie docs/AASM_v3_conformiteit.md §1.1.
     try:
         if (output.get("respiratory") or {}).get("summary") is not None:
+            # Het oordeel over de RUN, niet alleen over het profiel: een
+            # gefaalde arousalstap of de detectorterugval van stap 7b maakt
+            # van een breath-profiel een desaturatie-only uitslag, en dan
+            # hoort `hypopnea_criterion` in het herkomstblok hetzelfde te
+            # zeggen. In het normale geval verandert hier niets.
             output["respiratory"]["summary"]["ahi_rule"] = ahi_rule_conformity(
-                profile)
+                profile, output)
+            _limb_ran, _limb_nota = _arousal_limb_as_run(profile, output)
+            if not _limb_ran and arousal_limb_is_effective(profile):
+                output["meta"]["hypopnea_criterion"] = _hypopnea_criterion_str(
+                    profile,
+                    as_run_reason=(_limb_nota
+                                   or "arousal step produced no detection"))
     except Exception as e:  # noqa: BLE001
         logger.warning("[pneumo] AHI-regeloordeel mislukt (%s): %s",
                        type(e).__name__, e)
@@ -1471,7 +1536,9 @@ def run_pneumo_analysis(
     logger.info("[pneumo 9b/11] RERA and RDI computation...")
     _compute_rera_rdi(output, hypno, arousals, artifact_epochs,
                       arousal_window_s=float(
-                          profile.get("RERA_AROUSAL_WINDOW_S", 15.0)))
+                          profile.get("RERA_AROUSAL_WINDOW_S", 15.0)),
+                      rem_alias_excludes_uncertain=bool(
+                          profile.get("REM_AHI_ALIAS_EXCLUDES_UNCERTAIN", True)))
 
     # ── Step 9c: clinical phenotype flags (POSA, REM-predominant) — v0.10.0 ──
     # Output-additive; derived from the already-computed position + REM/NREM indices.
@@ -1683,7 +1750,8 @@ def run_pneumo_analysis(
     # the fields survive and reflect the final events. None of these touch the
     # AHI / OSAS grade (golden regression stays byte-identical).
     _compute_dual_ahi(output, profile)                 # A1: Rule 1A vs 1B (4%) AHI
-    _annotate_csr_density(output, hypno)               # A2: CSR density criterion G.1(b)
+    _annotate_csr_density(output, hypno,               # A2: CSR density criterion G.1(b)
+                          artifact_epochs=(artifact_epochs if _tst_art else None))
     _compute_arousal_etiology(output, hypno)           # A3: resp/spont/PLM arousal indices
     _cap_plm_event_list(output, _plm_event_cap(profile))  # payloadgrens, NA A3
     _flag_apneas_at_cap(output, profile)               # A4: possible long-central-apnea truncation
@@ -1728,7 +1796,7 @@ def _maybe_apply_ripsum_fallback(
         return hypop_flow, sf_hypop
 
     try:
-        seg_n  = max(1, int(sf_hypop * 30))
+        seg_n  = max(1, int(sf_hypop * EPOCH_LEN_S))
         n_segs = len(hypop_flow) // seg_n
         if n_segs < 5:
             output["meta"]["flow_fallback"] = {
@@ -1936,7 +2004,44 @@ def _resolve_flow_channels(
             "thermistor_rejected": ch.get("flow_thermistor_rejected"),
             "thermistor_gate":    _gate_meta,
         }
+    # De kanaalmap zoals hij GEBRUIKT is, dus na de thermistorpoort. De
+    # aanroeper legde `channels_used` vast vóór deze functie `ch` herbond, en
+    # toonde een afgekeurde thermistor als gebruikt apneukanaal.
+    output["meta"]["channels_used"] = dict(ch)
     return apnea_flow, hypop_flow, sf_apnea, sf_hypop
+
+
+def _native_channel_rates(raw) -> tuple[dict, str]:
+    """Bemonsteringsfrequentie per kanaal zoals het BESTAND ze draagt.
+
+    MNE bemonstert een EDF met gemengde frequenties op naar de hoogste, dus
+    `raw.info["sfreq"]` zegt niets over het kanaal zelf: een SpO2 van 0,25 Hz
+    komt als 256 Hz binnen en de AASM-toets "SpO2 < 0,33 Hz" kon nooit vuren.
+    De natieve waarde staat in de EDF-kop en MNE bewaart haar in
+    `_raw_extras[0]` (`n_samps` per geselecteerd kanaal, `record_length` in
+    seconden). Zonder die kop -- een RawArray -- is `info["sfreq"]` het
+    eerlijke antwoord, en de bron zegt dat erbij.
+
+    Returns ``({kanaalnaam: Hz}, "edf_header" | "info_sfreq")``.
+    """
+    sfreq = float(raw.info["sfreq"])
+    try:
+        extras = (getattr(raw, "_raw_extras", None) or [{}])[0] or {}
+        n_samps = extras.get("n_samps")
+        rec = extras.get("record_length")
+        names = list(extras.get("ch_names") or [])
+        if n_samps is not None and rec is not None and names:
+            rec_s = float(np.asarray(rec, dtype=float).ravel()[0])
+            n_samps = np.asarray(n_samps, dtype=float).ravel()
+            if rec_s > 0 and len(n_samps) == len(names):
+                per_naam = {n: float(s) / rec_s for n, s in zip(names, n_samps)}
+                # Alleen wat nu nog in de raw zit (na drop/pick).
+                rates = {n: per_naam[n] for n in raw.ch_names if n in per_naam}
+                if rates:
+                    return rates, "edf_header"
+    except Exception as e:  # noqa: BLE001 -- provenance mag de run niet breken
+        logger.debug("[pneumo] natieve kanaalfrequenties niet leesbaar: %s", e)
+    return {n: sfreq for n in raw.ch_names}, "info_sfreq"
 
 
 def _pick_eeg(raw, ch) -> tuple:
@@ -2262,7 +2367,11 @@ def _compute_flow_norm(flow_data, sf_flow,
                               envelope_fs=envelope_fs, denoise=denoise)
         bl  = compute_dynamic_baseline(env, sf_flow)
         return np.clip(env / bl, 0, 2)
-    except Exception:
+    except Exception as e:  # noqa: BLE001
+        # Niet stil: zonder genormaliseerde flow draait de arousalkoppeling
+        # zonder flow-feature en de ventilatory burden valt weg.
+        logger.warning("[pneumo] flow-normalisatie mislukt (%s): %s",
+                       type(e).__name__, e)
         return None
 
 
@@ -2278,7 +2387,6 @@ def _compute_phenotypes(output: dict, hypno: list) -> None:
     AHI and every other index are untouched.
     """
     try:
-        from .constants import EPOCH_LEN_S
         summ = output.get("respiratory", {}).get("summary", {})
         if not summ:
             return
@@ -2325,8 +2433,13 @@ def _compute_phenotypes(output: dict, hypno: list) -> None:
             }
 
         # ---- REM-predominant OSA ----
-        rem_ahi = summ.get("rem_ahi")
-        nrem_ahi = summ.get("nrem_ahi")
+        # Het paar dat dezelfde events telt als ahi_total (respiratory.py);
+        # `rem_ahi`/`nrem_ahi` zijn daar aliassen van (zie _compute_rera_rdi).
+        # De terugval op de oude sleutels is er voor samenvattingen van vóór
+        # dat veld, niet voor de pipeline zelf.
+        rem_ahi = summ.get("ahi_rem") if "ahi_rem" in summ else summ.get("rem_ahi")
+        nrem_ahi = (summ.get("ahi_nrem") if "ahi_nrem" in summ
+                    else summ.get("nrem_ahi"))
         rem_min = sum(1 for s in hypno if s == "R") * (EPOCH_LEN_S / 60.0)
         if (ahi is not None and ahi >= 5 and rem_ahi is not None
                 and nrem_ahi is not None and nrem_ahi > 0 and rem_min >= 30):
@@ -2345,7 +2458,8 @@ def _compute_phenotypes(output: dict, hypno: list) -> None:
 
 def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
                       artifact_epochs: list | None = None,
-                      arousal_window_s: float = 15.0) -> None:
+                      arousal_window_s: float = 15.0,
+                      rem_alias_excludes_uncertain: bool = True) -> None:
     """Compute RERA index and RDI from FRI events + flattening + arousal coupling.
 
     Two RERA sources (v0.8.16):
@@ -2449,15 +2563,11 @@ def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
     rera_count = fri_rera_count + flat_rera_count
 
     # ── TST and indices ────────────────────────────────────────────────
-    from .constants import EPOCH_LEN_S
-    sleep_stages = {"N1", "N2", "N3", "R"}
-    art_set = set(artifact_epochs or [])
-    n_sleep = sum(1 for i, s in enumerate(hypno)
-                  if s in sleep_stages and i not in art_set)
     # Geen ondergrens: zie psgscoring/indices.py. Hier werd de RERA-index
     # en daarmee de RDI het aantal maal duizend op een opname zonder
-    # bruikbare slaaptijd.
-    tst_h = n_sleep * EPOCH_LEN_S / 3600
+    # bruikbare slaaptijd. Eén definitie van slaaptijd (tst_hours), dezelfde
+    # noemer als de AHI-familie.
+    tst_h = tst_hours(hypno, artifact_epochs)
 
     _ahi_raw = resp.get("summary", {}).get("ahi_total")
     rera_index = per_hour(rera_count, tst_h)
@@ -2489,15 +2599,17 @@ def _compute_rera_rdi(output: dict, hypno: list, arousals: list,
         resp["summary"]["n_fri"], tst_h)
     resp["summary"]["index_denominator_h"] = round(tst_h, 4)
 
-    # REM vs NREM AHI (v0.8.16)
-    rem_events  = [e for e in events if e.get("stage") == "R"]
-    nrem_events = [e for e in events if e.get("stage") in {"N1","N2","N3"}]
-    n_rem  = sum(1 for i, s in enumerate(hypno) if s == "R" and i not in art_set)
-    n_nrem = sum(1 for i, s in enumerate(hypno) if s in {"N1","N2","N3"} and i not in art_set)
-    rem_h  = n_rem * EPOCH_LEN_S / 3600     # zie psgscoring/indices.py
-    nrem_h = n_nrem * EPOCH_LEN_S / 3600
-    resp["summary"]["rem_ahi"]  = round(len(rem_events) / rem_h, 1) if n_rem > 0 else None
-    resp["summary"]["nrem_ahi"] = round(len(nrem_events) / nrem_h, 1) if n_nrem > 0 else None
+    # REM- en NREM-AHI: ALIASSEN van `ahi_rem`/`ahi_nrem` uit _compute_summary.
+    # Hier stond een eigen berekening over ALLE events, inclusief de kale
+    # `uncertain`-apneus die `ahi_total` (en dus `ahi_rem`) juist uitsluit:
+    # twee REM-AHI's onder bijna dezelfde naam, en het REM-predominante
+    # fenotype las de verkeerde. De sleutels blijven omdat YASAFlaskified ze
+    # als terugval en in het fenotypeblok leest. De reproductieprofielen
+    # houden het `incl_uncertain`-paar, dat per constructie het oude getal is
+    # (PostProcessingRules.rem_ahi_alias_excludes_uncertain).
+    _suffix = "" if rem_alias_excludes_uncertain else "_incl_uncertain"
+    resp["summary"]["rem_ahi"]  = resp["summary"].get(f"ahi_rem{_suffix}")
+    resp["summary"]["nrem_ahi"] = resp["summary"].get(f"ahi_nrem{_suffix}")
 
     logger.info("[pneumo] RERA: %d (FRI:%d + flattening:%d), index %.1f/h; "
                 "RDI: %.1f/h; REM-AHI: %s, NREM-AHI: %s",
@@ -2544,7 +2656,38 @@ def arousal_limb_is_effective(profile: dict) -> bool:
                 and profile.get("AROUSAL_LIMB_WIRED"))
 
 
-def ahi_rule_conformity(profile: dict) -> dict:
+def _arousal_limb_as_run(profile: dict, output: dict) -> tuple[bool, str | None]:
+    """Droeg de arousal-tak in DEZE run? Per profiel effectief is niet genoeg.
+
+    Twee manieren waarop de tak uitvalt zonder dat het profiel verandert: de
+    arousalstap leverde niets (geen EEG-kanaal, module niet geladen, exception
+    in de detector), of de ademteug-detector faalde en de envelope-detector
+    draaide in zijn plaats -- die heeft op de breath-profielen geen tak. Stap
+    7b graderde dan op desaturatie alleen, en het oordeel hoort dat te zeggen
+    in plaats van de aanbevolen regel te claimen.
+
+    Returns ``(effectief, nota)``. In het normale geval exact
+    ``(arousal_limb_is_effective(profile), None)``, zodat het oordeel daar
+    byte-identiek blijft.
+    """
+    prof = profile
+    nota: list[str] = []
+    fallback = (output.get("meta") or {}).get("detector_fallback")
+    if (fallback == "envelope"
+            and str(profile.get("HYPOPNEA_DETECTOR", "envelope")) == "breath_graded"):
+        prof = {**profile, "HYPOPNEA_DETECTOR": "envelope"}
+        nota.append("ademteug-detector faalde, envelope-detector gedraaid")
+    if not arousal_limb_is_effective(prof):
+        return False, ("; ".join(nota) or None)
+    ar = output.get("arousal") or {}
+    if not ar.get("success"):
+        nota.append("arousalstap zonder detectie "
+                    f"({ar.get('error') or 'onbekende reden'})")
+        return False, "; ".join(nota)
+    return True, ("; ".join(nota) or None)
+
+
+def ahi_rule_conformity(profile: dict, output: dict | None = None) -> dict:
     """Welke AASM-regel draagt deze AHI, en is dat er een die de manual kent?
 
     WAAROM DIT NAAST HET GETAL MOET STAAN
@@ -2561,17 +2704,26 @@ def ahi_rule_conformity(profile: dict) -> dict:
     gelezen. Een losse noot onderaan een rapport telt niet: het label reist mee
     met het getal, of het bestaat niet.
 
+    Met ``output`` erbij gaat het oordeel over de RUN: zie
+    `_arousal_limb_as_run`. Zonder ``output`` (en in het normale geval mét)
+    is het precies het profieloordeel.
+
     Returns
     -------
     dict met `verdict`, `conform`, `label`, `reason` en `aasm_version`.
     `label` is zelfstandig leesbaar -- wie alleen dat veld ziet, moet weten dat
-    het geen gewone AHI is.
+    het geen gewone AHI is. Week de run af van het profiel, dan staat de reden
+    ook los onder `as_run`.
     """
     versie = str(profile.get("_AASM_VERSION") or profile.get("aasm_version")
                  or "AASM v3 (2023)")
     desat = float(profile.get("DESATURATION_DROP_PCT", 3.0))
-    if arousal_limb_is_effective(profile):
-        return {
+    if output is None:
+        limb, nota = arousal_limb_is_effective(profile), None
+    else:
+        limb, nota = _arousal_limb_as_run(profile, output)
+    if limb:
+        rule = {
             "verdict": "v3_recommended",
             "conform": True,
             "label": "AHI",
@@ -2579,8 +2731,8 @@ def ahi_rule_conformity(profile: dict) -> dict:
                        f"de aanbevolen regel"),
             "aasm_version": versie,
         }
-    if desat >= 4.0:
-        return {
+    elif desat >= 4.0:
+        rule = {
             "verdict": "v3_optional_1b",
             "conform": True,
             "label": f"AHI ({desat:g}% desaturatie)",
@@ -2588,36 +2740,51 @@ def ahi_rule_conformity(profile: dict) -> dict:
                        f"in v3 OPTIONAL"),
             "aasm_version": versie,
         }
-    return {
-        "verdict": "desat_only",
-        "conform": False,
-        "label": f"AHI ({desat:g}% desaturatie, zonder arousal-tak)",
-        "reason": (
-            f"flowreductie + ≥{desat:g}% desaturatie zonder arousal-alternatief. "
-            f"Dat is niet de aanbevolen v3-regel (die kent de arousal-tak) en "
-            f"niet de optionele (die eist ≥4%). Het getal ligt daardoor "
-            f"systematisch lager dan een v3-conforme AHI, en de onderschatting "
-            f"is selectief: niet-desaturerende, arousal-gekwalificeerde "
-            f"hypopneus clusteren bij een herkenbaar fenotype."),
-        "aasm_version": versie,
-    }
+    else:
+        rule = {
+            "verdict": "desat_only",
+            "conform": False,
+            "label": f"AHI ({desat:g}% desaturatie, zonder arousal-tak)",
+            "reason": (
+                f"flowreductie + ≥{desat:g}% desaturatie zonder arousal-alternatief. "
+                f"Dat is niet de aanbevolen v3-regel (die kent de arousal-tak) en "
+                f"niet de optionele (die eist ≥4%). Het getal ligt daardoor "
+                f"systematisch lager dan een v3-conforme AHI, en de onderschatting "
+                f"is selectief: niet-desaturerende, arousal-gekwalificeerde "
+                f"hypopneus clusteren bij een herkenbaar fenotype."),
+            "aasm_version": versie,
+        }
+    if nota:
+        rule["reason"] = f"{rule['reason']} In deze run: {nota}."
+        rule["as_run"] = nota
+    return rule
 
 
-def _hypopnea_criterion_str(profile: dict) -> str | None:
-    """A5: human-readable hypopnea scoring criterion (AASM v3 VIII.D Note 1)."""
+def _hypopnea_criterion_str(profile: dict,
+                            as_run_reason: str | None = None) -> str | None:
+    """A5: human-readable hypopnea scoring criterion (AASM v3 VIII.D Note 1).
+
+    ``as_run_reason``: de tak is per profiel effectief maar droeg in deze run
+    niet (zie `_arousal_limb_as_run`); dan beschrijft de tekst wat er werkelijk
+    gescoord is, met die reden erbij. Zonder dit argument: het profiel.
+    """
     try:
         flow = round((1.0 - float(profile.get("HYPOPNEA_THRESHOLD", 0.70))) * 100)
         desat = float(profile.get("DESATURATION_DROP_PCT", 3.0))
         rule = str(profile.get("_AASM_RULE") or "")
         prefix = f"{rule}: " if rule[:1].isdigit() else ""
-        if arousal_limb_is_effective(profile):
+        if arousal_limb_is_effective(profile) and as_run_reason is None:
             return f"{prefix}≥{flow}% flow reduction ≥10 s + (≥{desat:g}% desaturation OR arousal)"
         if profile.get("DESAT_OR_AROUSAL"):
-            # Het profiel STAAT de arousal-tak toe, maar hij is niet bedraad.
-            # Zeggen wat er werkelijk gebeurt, met de reden erbij.
+            # Het profiel STAAT de arousal-tak toe, maar hij is niet bedraad
+            # -- of hij viel in deze run uit. Zeggen wat er werkelijk gebeurt,
+            # met de reden erbij.
+            waarom = (f"arousal limb permitted by the rule but not effective "
+                      f"in this run: {as_run_reason}" if as_run_reason else
+                      "arousal limb permitted by the rule but not enabled in "
+                      "this profile")
             return (f"{prefix}≥{flow}% flow reduction ≥10 s + ≥{desat:g}% "
-                    f"desaturation (arousal limb permitted by the rule but not "
-                    f"enabled in this profile)")
+                    f"desaturation ({waarom})")
         if profile.get("DESAT_REQUIRED"):
             return f"{prefix}≥{flow}% flow reduction ≥10 s + ≥{desat:g}% desaturation"
         return f"{prefix}≥{flow}% flow reduction ≥10 s"
@@ -2720,21 +2887,23 @@ def _compute_dual_ahi(output: dict, profile: dict) -> None:
         logger.warning("[pneumo] dual-AHI computation failed: %s", e)
 
 
-def _annotate_csr_density(output: dict, hypno: list) -> None:
+def _annotate_csr_density(output: dict, hypno: list,
+                          artifact_epochs: list | None = None) -> None:
     """A2: add the AASM v3 Cheyne-Stokes *density* criterion G.1(b) — ≥5 central
     apneas/hypopneas per hour of sleep over ≥2 h of monitoring — on top of the
     existing crescendo/decrescendo periodicity criterion G.1(a). Output-additive.
+
+    De uren slaap zijn dezelfde noemer als de AHI (tst_hours, artefact-epochs
+    uitgesloten); de bewakingsduur blijft de hele opname.
     """
     try:
         csr = output.get("cheyne_stokes", {})
         if not csr or csr.get("error"):
             return
-        from .constants import EPOCH_LEN_S
         events = output.get("respiratory", {}).get("events", []) or []
         n_central = sum(1 for e in events
                         if e.get("type") in ("central", "hypopnea_central"))
-        n_sleep_ep = sum(1 for s in hypno if s in ("N1", "N2", "N3", "R"))
-        tst_h = n_sleep_ep * EPOCH_LEN_S / 3600.0
+        tst_h = tst_hours(hypno, artifact_epochs)
         monitoring_h = len(hypno) * EPOCH_LEN_S / 3600.0
         central_idx = round(n_central / tst_h, 1) if tst_h > 0 else 0.0
         density_ok = bool(central_idx >= 5 and monitoring_h >= 2.0)
@@ -2780,8 +2949,11 @@ def _thermistor_gate(profile: dict) -> str:
     gate = str(profile.get("THERMISTOR_GATE", "envelope_agreement"))
     raw = os.environ.get("PSGSCORING_THERMISTOR_GATE")
     if raw:
-        if raw in _THERMISTOR_GATES:
-            gate = raw
+        # strip/lower zoals _arousal_detector: " Respiratory_Band " is
+        # dezelfde poort, geen onbekende.
+        r = raw.strip().lower()
+        if r in _THERMISTOR_GATES:
+            gate = r
         else:
             logger.warning(
                 "[pneumo] PSGSCORING_THERMISTOR_GATE=%r is geen bekende poort "
@@ -2835,7 +3007,19 @@ def _rule1a_gate_param(profielwaarde, envwaarde: str | None) -> float | None:
     letterlijk bij de aanroeper, zodat test_env_overrides_reachable ze ziet."""
     v = profielwaarde
     if envwaarde is not None and envwaarde.strip() != "":
-        v = None if envwaarde.strip().lower() in ("none", "off", "uit") else float(envwaarde)
+        e = envwaarde.strip().lower()
+        if e in ("none", "off", "uit"):
+            v = None
+        else:
+            # Onleesbaar = waarschuwen en profielwaarde aanhouden, zoals elke
+            # andere env-helper hier; een typefout in een meetvlag liet
+            # anders de hele run omvallen.
+            try:
+                v = float(e)
+            except ValueError:
+                logger.warning(
+                    "[pneumo] Rule 1A-poortparameter %r is geen getal; "
+                    "profielwaarde %r blijft staan", envwaarde, profielwaarde)
     return None if v is None else float(v)
 
 
@@ -3288,9 +3472,14 @@ def _parse_edf_patient_info(raw) -> dict:
         if len(rparts) >= 5:
             info["equipment"] = rparts[4].replace("_", " ") if rparts[4] != "X" else None
 
-    logger.info("[pneumo] EDF patient: %s, sex=%s, dob=%s, equipment=%s",
-                info.get("name"), info.get("sex"),
-                info.get("birthday_str"), info.get("equipment"))
+    # Geen naam, geslacht of geboortedatum in het log: logs reizen verder dan
+    # de uitslag (docker-logs, worker-uitvoer, bugmeldingen). Alleen OF de kop
+    # ze droeg -- dat zegt iets over de export -- en het apparaat.
+    logger.info("[pneumo] EDF header: name_present=%s, dob_present=%s, "
+                "equipment=%s",
+                info.get("name") is not None,
+                info.get("birthday_str") is not None,
+                info.get("equipment"))
     return info
 
 
