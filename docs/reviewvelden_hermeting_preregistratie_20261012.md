@@ -92,3 +92,24 @@ gebonden aan de systemd-unit; checkpoint per nacht. PSG-IPA 16 configuraties × 
 3 workers, ≈ 30 min, parallel. Uitvoer `docs/reviewvelden_hermeting_20261012/`
 (`mesa.json`, `psgipa.json`, `analyse.py`, `analyse_uitvoer.md`), verslag
 `docs/reviewvelden_hermeting_20261012.md`, daarna onafhankelijke nalezing.
+
+## Addendum, vóór de run: herijking `THERMISTOR_BAND_POWER_MIN` op de server
+
+De oorspronkelijke negen montages (augustus; deels werkstationbestanden op paden die de
+sessie-user niet meer kan lezen) zijn niet exact te reproduceren. In plaats daarvan: **alle
+uploads op de Hetzner-server die zowel een drukkanaal als een thermistorkanaal dragen**
+(productiemontage Somnomedics, `Pressure Flow` + `Flow Th.`; afwijkende namen worden
+gemeld, niet geraden), in situ, uploads read-only, losse container uit
+`yasaflaskified:0.38.10` met de code van `main` (bd4ee7f) via `PYTHONPATH`; geen
+patiëntgegevens verlaten de server, alleen bestandsnaam-hashes en getallen komen terug.
+
+Per montage: mediaan van de ademband-fractie over tien vensters, in beide decimatiemodi
+(`x[::q]` zoals geijkt, en FIR-anti-alias zoals nu default). Rapporteer de gesorteerde
+verdelingen, het aantal onder 0,70 per modus, en de montages die van kant wisselen.
+
+Beslisregel, vooraf: 0,70 **blijft** als onder anti-alias de verdeling een leeg gat heeft
+dat 0,70 bevat (zoals de oorspronkelijke 0,53-brede opening). Valt 0,70 onder anti-alias
+midden in een bezette zone, dan wordt het midden van de breedste lege opening tussen 0,40 en
+0,95 als nieuwe drempel **voorgesteld** (niet doorgevoerd) en aan Bart voorgelegd, met de
+lijst van montages die daardoor van oordeel wisselen. Zonder menselijke referentie per
+montage is dit een drempel-in-het-gat-argument, geen validatie.
