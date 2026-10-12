@@ -113,3 +113,32 @@ midden in een bezette zone, dan wordt het midden van de breedste lege opening tu
 0,95 als nieuwe drempel **voorgesteld** (niet doorgevoerd) en aan Bart voorgelegd, met de
 lijst van montages die daardoor van oordeel wisselen. Zonder menselijke referentie per
 montage is dit een drempel-in-het-gat-argument, geen validatie.
+
+## Addendum 12-10, 11:05 — tussenstand na 9 MESA-nachten en PSG-IPA compleet; tweede run op `aasm_v3_rec`
+
+Vastgelegd vóór de tweede run, op de tussenstand (`analyse_uitvoer.md`, 9/30):
+
+- Op `aasm_v3_breath_dual` zijn tien van de dertien armen **byte-identiek** aan `nieuw`
+  (0/0/9). Dat is geen meetfout maar ontwerp: de ademteug-gegradeerde detector leest het
+  ruwe signaal en niet de envelope (herstelbasislijn, masker, linearisatie), MESA-hypno-
+  grammen dekken de opname exact (stadiumbasislijn), de thermistor staat op 32 Hz
+  (anti-alias), PLM/ODI zitten niet in F1, en CSR/spectraal grepen op deze 9 nachten niet
+  in. Alleen `oud_fase` (en daardoor `alles_oud`) beweegt, marginaal (mediaan ΔF1 −0,0002,
+  3/5/1, p = 0,73). **De velden werken dus op het envelope-pad — `aasm_v3_rec`, de
+  bibliotheekdefault — en dat profiel kreeg in run 1 alleen `nieuw`/`alles_oud`.**
+- PSG-IPA (compleet) laat op `aasm_v3_rec` zien dat `oud_fase` en `oud_herstel` de
+  event-F1 verhogen (0,318 → 0,355 resp. 0,327, mediaan over vijf opnames) terwijl
+  `aan_masker` de bias van +1,51 naar +8,95 /u jaagt (binnen bereik 3/5 → 1/5: regel 2
+  → **blijft uit**, beslist). `aan_lineariseer` is op PSG-IPA onbeslisbaar (één
+  flowkanaal → `reuse`, geen linearisatie).
+
+Daarom nu, naast de lopende run 1: **run 2 op `aasm_v3_rec`, dezelfde 30 nachten**, armen
+`nieuw`, `alles_oud`, `oud_nadir`, `oud_csr`, `oud_spectraal`, `oud_herstel`,
+`oud_mixed`, `oud_fase`, `aan_masker`, `aan_lineariseer` (de vier aantoonbaar inerte
+armen vervallen). Dezelfde beslisregels 1–4; regel 1 wordt per veld op **rec** getoetst
+omdat daar het effect zit. 8 workers (geheugen), eigen thermische bewaker. Run 1 loopt
+door tot 30 nachten.
+
+Opgemerkt, niet aangeraakt (bibliotheek niet wijzigen tijdens een meting): of
+`spo2_nadir_time_axis` het ademteug-pad bereikt, is na de runs te controleren
+(`breath_scoring.py` leest SpO2 via een eigen route).
