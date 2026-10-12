@@ -109,7 +109,7 @@ jobs:
           /tmp/wheel-check/bin/python -c "import psgscoring; print('wheel ok:', psgscoring.__version__)"
           mkdir /tmp/sdist-check && tar -xzf dist/*.tar.gz -C /tmp/sdist-check --strip-components=1
           python -m venv /tmp/sdist-venv
-          /tmp/sdist-venv/bin/pip -q install "/tmp/sdist-check[full,ml,test]"
+          /tmp/sdist-venv/bin/pip -q install "/tmp/sdist-check[full,ml,test,denoise]"
           cd /tmp/sdist-check && /tmp/sdist-venv/bin/python -m pytest tests -q -p no:cacheprovider
       - name: Upload artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4

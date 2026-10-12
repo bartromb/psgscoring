@@ -1,3 +1,17 @@
+# v0.36.1 — 2026-10-12 — pakketreparatie: de testtelling hangt niet meer van een optionele extra af
+
+Inhoudelijk identiek aan 0.36.0. **0.36.0 is nooit op PyPI verschenen**: de publicatiepoort
+wees de sdist af op `tests/test_readme_test_count.py` — de README zegt 1 899 tests, maar in de
+sdist-omgeving (`[full,ml,test]`, zonder `denoise`) verzamelde pytest er 1 884, omdat
+`tests/test_wavelet_denoise.py` met een `importorskip` op moduleniveau zonder PyWavelets
+helemaal niet werd verzameld. Dezelfde les als 0.35.0, één laag dieper: de lokale
+sdist-controle uit handboek §4 was groen omdat de lokale venv PyWavelets wél had.
+
+Twee reparaties: de wavelet-tests worden altijd verzameld en slaan per test over
+(`skipif`), zodat de telling omgevingsonafhankelijk is; en de publicatiepoort installeert
+ook `[denoise]`, zodat die tests daar echt draaien. Lokaal gecontroleerd met een geblokkeerde
+`pywt`: telling 1 899 in beide omgevingen.
+
 # v0.36.0 — 2026-10-12 — codereview verwerkt: 15 nieuwe profielvelden, provenance zegt wat er liep, modelidentiteit als data; gemeten vóór de release
 
 **Voor de klinische lezer** (YASAFlaskified pint tot zijn volgende release 0.35.1): de scoring van

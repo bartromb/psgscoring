@@ -35,7 +35,15 @@ from scipy import signal as sp_signal
 from psgscoring.profiles import PROFILES, PostProcessingRules
 from psgscoring.signal import bandpass_flow, denoise_flow_wavelet, preprocess_flow
 
-pywt = pytest.importorskip("pywt", reason="PyWavelets is an optional extra")
+# Altijd verzamelen, per test overslaan: een `importorskip` op moduleniveau
+# liet deze module zonder PyWavelets helemaal uit de collectie vallen, zodat de
+# testtelling van de README afhing van een optionele extra (0.36.0 werd daarop
+# door de publicatiepoort afgewezen).
+try:
+    import pywt
+except ImportError:                                   # pragma: no cover
+    pywt = None
+pytestmark = pytest.mark.skipif(pywt is None, reason="PyWavelets is an optional extra")
 
 REPO = Path(__file__).resolve().parents[1]
 SF = 64.0

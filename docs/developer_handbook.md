@@ -168,6 +168,21 @@ Publishing is **automatic via a GitHub Release** — no API tokens, no manual `t
 .venv/bin/python -m build --sdist -o /tmp/sdist-out .
 mkdir -p /tmp/sdist-check && tar -xzf /tmp/sdist-out/psgscoring-*.tar.gz -C /tmp/sdist-check --strip-components=1
 (cd /tmp/sdist-check && /srv/CODE/psgscoring/.venv/bin/python -m pytest tests -q -p no:cacheprovider)
+```
+
+> **Draai de sdist-suite in een omgeving zoals de poort** (12-10-2026). De lokale venv
+> heeft meer extras dan `publish.yml` installeert (`[full,ml,test,denoise]`); 0.36.0 werd
+> afgewezen op een testtelling die van PyWavelets afhing, terwijl de lokale sdist-controle
+> groen was. Blokkeer daarom een optionele extra bij de controle, of installeer de sdist in
+> een verse venv met precies de extras van de poort. Testmodules mogen nooit op moduleniveau
+> `importorskip` gebruiken: dan valt de module uit de collectie en verschuift de telling.
+>
+> ```bash
+> mkdir -p /tmp/nopywt && printf 'raise ImportError("geblokkeerd")\n' > /tmp/nopywt/pywt.py
+> (cd /tmp/sdist-check && PYTHONPATH=/tmp/nopywt /srv/CODE/psgscoring/.venv/bin/python -m pytest tests -q -p no:cacheprovider)
+> ```
+
+```bash
 # 2. on main, after the version-bump PR is merged and CI is green:
 gh release create v0.7.2 --target main --title "..." --notes "..."   # notes from CHANGELOG.md
 ```
