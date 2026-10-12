@@ -103,6 +103,17 @@ def _normalise_arousal_block(block: dict) -> dict:
     return block
 
 
+
+def _cached_envelope(precomp: dict, prefix: str):
+    """De effort-envelope uit de voorbewerkingscache van de primaire pas, of
+    None als die er niet in staat (dan rekent postprocess hem zelf). De
+    sleutel draagt de envelope-instellingen en de cachesleutel als suffix;
+    de primaire pas levert er precies een per band."""
+    for k, v in (precomp or {}).items():
+        if isinstance(k, str) and k.startswith(prefix) and v is not None:
+            return v
+    return None
+
 def _run_step(step_name: str, fn):
     """Run an ancillary analysis, degrading to a ``{success: False, error}`` dict
     on any exception instead of crashing the whole run.
@@ -1672,6 +1683,11 @@ def run_pneumo_analysis(
                 # effort-envelope rekent (review 11-10-2026); de bevroren
                 # profielen pinnen het oude |ruw|-pad.
                 scoring_profile=profile,
+                # De enveloppen staan al in de voorbewerkingscache van stap 1
+                # (zelfde `preprocess_effort`, zelfde invoer); opnieuw rekenen
+                # kostte +17 % looptijd op breath_dual (profilering 12-10-2026).
+                thorax_env=_cached_envelope(_precomp, "thorax_env|"),
+                abdomen_env=_cached_envelope(_precomp, "abdomen_env|"),
             )
             output["respiratory"]["events"] = pp["events"]
             output["postprocess"] = {

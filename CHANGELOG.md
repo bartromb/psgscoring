@@ -1,4 +1,9 @@
-# Unreleased — 2026-10-11 — codereview verwerkt: 15 nieuwe profielvelden, provenance zegt wat er liep, modelidentiteit als data
+# v0.36.0 — 2026-10-12 — codereview verwerkt: 15 nieuwe profielvelden, provenance zegt wat er liep, modelidentiteit als data; gemeten vóór de release
+
+**Voor de klinische lezer** (YASAFlaskified pint tot zijn volgende release 0.35.1): de scoring van
+apneus en hypopneeën verandert op hele nachten niet meetbaar (MESA n = 30, beide profielen,
+`docs/reviewvelden_hermeting_20261012.md`); wat wél zichtbaar verandert op een verslag staat
+onderaan deze ingang onder "Wat verandert er op het verslag".
 
 Een leesreview van de hele bibliotheek (`docs/code_review_20261011.md`) is in één dag
 verwerkt: vijf parallelle werkpakketten (pipeline, respiratoire detectie, arousal/SpO2/
@@ -242,6 +247,33 @@ staat als meetpunt open (§Open).
   (schuld); `chicago_1999` multi/single-beslissing; YASAFlaskified-lezers van `flow_reduction`
   (nu verhouding) en `rem_ahi` (alias); de decompositie rekent de effort-enveloppen opnieuw
   (+17 % looptijd op `breath_dual`, profilering 12-10) — enveloppen uit `_precomp` doorgeven.
+
+## Wat verandert er op het verslag (t.o.v. 0.35.1)
+
+- **OAHI (conf > 0,60), de betrouwbaarheidsbanden en `ahi_excl_noise`** tellen hypopneeën
+  nu altijd mee (zoals gedocumenteerd); op een nacht met veel hypopneeën lag "OAHI conf > 0,60"
+  voorheen ver onder de AHI zonder dat er iets aan de hand was. Dit is de grootste zichtbare
+  verandering: dat getal springt omhoog naar ongeveer de AHI.
+- **PLM-index** kan op OSA-nachten dalen: een beenbeweging binnen een apneu/hypopneu telt nu
+  niet meer mee (AASM-venster van 0,5 s vóór onset tot 0,5 s na einde; voorheen alleen rond het
+  einde). Ook de bilaterale samenvoeging eindigt bij het laatste einde.
+- **ODI en T90/T80/T70** delen door de artefactvrije slaaptijd (dezelfde noemer als de AHI) en
+  rekenen percentages over geldige samples: op nachten met veel artefact-epochs of uitval iets
+  hoger.
+- **Apneu-subtypes**: een klein aantal gemengde apneus wordt centraal (MESA: 13 op 2 370 onder
+  `breath_dual`), doordat de decompositie het effort nu op de envelope meet.
+- **NREM- en REM-arousalindex** op `aasm_v3_rec` met Pleth + HR waren 0,0 naast een correcte
+  totaalindex; nu gevuld. **CSR-periodiciteit** in het verslag is de echte cyclusduur (was de
+  helft of anderhalf keer).
+- **Kanaalkwaliteit** ("overall grade") is niet langer "poor" op elke opname met SpO2 of
+  houding; het veld meet de sensor, niet de eenheid. Nieuwe `meta`-velden: `channel_rates`,
+  `channel_overrides_ignored`, `detector_fallback`, `models`; `ahi_rule` zegt wat er liep.
+- **AHI, apneu- en hypopneetelling**: geen meetbaar verschil op hele nachten (`rdi` beweegt
+  minimaal via de fasesplitsing). **Niet veranderd**: de twee uit-velden blijven uit.
+- **Voor integrators**: `flow_reduction` is overal een verhouding (was op herstelde/ademteug-
+  events een percentage; `flow_reduction_pct` bestaat), `rem_ahi`/`nrem_ahi` blijven als alias
+  van `ahi_rem`/`ahi_nrem`, een onbekende profielnaam gooit `KeyError`, patiëntgegevens staan
+  niet meer in het log.
 
 # v0.35.2 — 2026-10-10 — documentatierelease: de README van 0.35.x op de PyPI-landingspagina
 
