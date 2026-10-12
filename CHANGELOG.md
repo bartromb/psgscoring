@@ -216,21 +216,32 @@ De 600 s-synthetiek kan de meeste nieuwe velden niet raken (geen artefact-epochs
 CSR, hypnogram dekt de opname precies): hun effect is alleen op echte opnames te zien en
 staat als meetpunt open (§Open).
 
-## Open (meten, niet hier beslist)
+## Gemeten vóór een release (12-10-2026, `docs/reviewvelden_hermeting_20261012.md`)
 
-- `THERMISTOR_BAND_POWER_MIN` herijken op de 9 Somnomedics-montages met het nieuwe script.
-- `hypopnea_mask_excludes_apnea_band=False` en `linearise_after_dc_removal=True`
-  preregistreren en meten (PSG-IPA n=5, MESA n=30/150, 20 eigen PSG's).
-- De velden met default-aan maar zonder golden-dekking (`spo2_nadir_time_axis`,
-  `csr_period_rectified`, `plm_resp_exclusion`, `spo2_index_denominator`,
-  `spectral_effort_resolution`, `recovery_baseline_mode`,
-  `mixed_decomposition_on_envelope`, `stage_baseline_partial_epochs`) op MESA n=30 en
-  PSG-IPA vergelijken met de oude waarde vóór de volgende release.
-- `ApneaRules.flow_reduction_threshold` en `SpO2Rules.baseline_window_s` bedraden (schuld).
-- `chicago_1999` rendert multi-derivatie terwijl zijn overige pins single-tijdperk zijn:
-  beslissing + hermeting als het 'single' moet worden.
-- YASAFlaskified: `flow_reduction` op herstelde/ademteug-events is nu een verhouding;
-  `rem_ahi` blijft bestaan als alias.
+- **`THERMISTOR_BAND_POWER_MIN` herijkt op 210 unieke productiemontages** (in situ, beide
+  decimatiemodi): het anti-aliasfilter verandert op de 32 Hz-thermistor niets (max |Δ| 0,036,
+  één montage wisselt op de drempel); de verdeling van de ademband-fractie is **continu**, 0,70
+  ligt op de mediaan (51 % van de thermistors eronder) en er is geen leeg gat — anders dan de
+  negen augustus-montages (gat 0,53). Volgens de vooraf vastgelegde regel geen nieuwe drempel
+  afleidbaar: 0,70 blijft als **ongeijkte** waarde; alleen een referentie met beide sensoren
+  (EC-studie) kan hem ijken.
+- **De tien default-aan-velden tegen hun oude waarde, MESA n = 30 held-out + PSG-IPA n = 5,
+  beide profielen** (preregistratie 12-10, twee runs, onafhankelijk nagerekend): neutraal.
+  Grootste mediane ΔF1 0,0014, geen p < 0,05, biasverschuiving ≤ 0,16 /u, ernstconcordantie
+  hooguit één nacht. Op `aasm_v3_breath_dual` zijn negen velden byte-identiek (de
+  ademteugdetector leest het ruwe signaal en heeft een eigen desaturatieroute); alleen
+  `breath_phase_split` beweegt (mediaan −0,0014, 13/16/1, p = 0,80). De ene systematische
+  verschuiving is de **subtypering** door `mixed_decomposition_on_envelope`: 13 gemengde apneus
+  worden centraal op `breath_dual` (222 ← 209 centraal, 34 ← 47 gemengd), 4 op `rec`.
+- **De twee default-uit-velden blijven uit** (regel 2): `hypopnea_mask_excludes_apnea_band=False`
+  wint op MESA `rec` fors (ΔF1 +0,075 mediaan, 27/30, p = 6e-6, bias −5,84 → −0,37) maar jaagt
+  PSG-IPA van +1,51 naar +8,95 /u (binnen bereik 3/5 → 1/5) — het volgt het teken van de
+  bestaande bias, een compensatieknop zoals de duurtolerantie; `linearise_after_dc_removal=True`
+  verslechtert bias (−5,84 → −6,88) en ernst (16 → 13) op MESA `rec`.
+- Nog open: `ApneaRules.flow_reduction_threshold` en `SpO2Rules.baseline_window_s` bedraden
+  (schuld); `chicago_1999` multi/single-beslissing; YASAFlaskified-lezers van `flow_reduction`
+  (nu verhouding) en `rem_ahi` (alias); de decompositie rekent de effort-enveloppen opnieuw
+  (+17 % looptijd op `breath_dual`, profilering 12-10) — enveloppen uit `_precomp` doorgeven.
 
 # v0.35.2 — 2026-10-10 — documentatierelease: de README van 0.35.x op de PyPI-landingspagina
 

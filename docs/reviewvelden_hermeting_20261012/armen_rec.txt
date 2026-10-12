@@ -1,0 +1,10 @@
+nieuw:
+alles_oud:spo2_nadir_time_axis=False,csr_period_rectified=True,plm_resp_exclusion=end,spo2_index_denominator=sleep,spectral_effort_resolution=4s,recovery_baseline_mode=block,mixed_decomposition_on_envelope=False,stage_baseline_partial_epochs=False,breath_phase_split=midpoint,thermistor_band_power_antialias=False
+oud_nadir:spo2_nadir_time_axis=False
+oud_csr:csr_period_rectified=True
+oud_spectraal:spectral_effort_resolution=4s
+oud_herstel:recovery_baseline_mode=block
+oud_mixed:mixed_decomposition_on_envelope=False
+oud_fase:breath_phase_split=midpoint
+aan_masker:hypopnea_mask_excludes_apnea_band=False
+aan_lineariseer:linearise_after_dc_removal=True
