@@ -39,6 +39,53 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 RECORDINGS = [f"SN{i}" for i in range(1, 6)]
+_PRISTINE_PP: dict = {}
+
+
+def _parse_field_arms(specs):
+    """`label:VELD=waarde,...` -> [(label, {veld: waarde})]; zie validate_mesa."""
+    out = []
+    for spec in (specs or []):
+        label, _, rest = spec.partition(":")
+        fields = {}
+        for kv in filter(None, rest.split(",")):
+            k, _, v = kv.partition("=")
+            v = v.strip()
+            if v in ("True", "False", "None"):
+                v = {"True": True, "False": False, "None": None}[v]
+            else:
+                try:
+                    v = float(v) if "." in v else int(v)
+                except ValueError:
+                    pass
+            fields[k.strip()] = v
+        out.append((label.strip(), fields))
+    return out
+
+
+def _apply_fields(profile_name, fields):
+    """Zet post_processing-velden vanaf de pristine toestand van dit proces en
+    render de legacy-dicts opnieuw (12-10-2026; zelfde recept als validate_mesa)."""
+    import copy
+    import importlib
+    from dataclasses import fields as _dc_fields
+
+    from psgscoring.profiles import PROFILES as _P
+    if profile_name not in _PRISTINE_PP:
+        _PRISTINE_PP[profile_name] = copy.deepcopy(_P[profile_name].post_processing)
+    pp = copy.deepcopy(_PRISTINE_PP[profile_name])
+    bekend = {f.name for f in _dc_fields(pp)}
+    for k, v in (fields or {}).items():
+        if k not in bekend:
+            raise SystemExit(f"--field-arms: `{k}` is geen PostProcessingRules-veld")
+        setattr(pp, k, v)
+    _P[profile_name].post_processing = pp
+    import psgscoring.constants as C
+    importlib.reload(C)
+    import psgscoring.pipeline as PL
+    import psgscoring.respiratory as R
+    PL.SCORING_PROFILES = C.SCORING_PROFILES
+    R.SCORING_PROFILES = C.SCORING_PROFILES
 
 
 def _require(profiles, expect_version=None):
@@ -63,7 +110,7 @@ def _harness():
     return mod
 
 
-def analyse(sn_id, data_dir, profiles, expect_version):
+def analyse(sn_id, data_dir, profiles, expect_version, field_arms=None):
     if str(REPO) not in sys.path:
         sys.path.insert(0, str(REPO))          # ook in de worker
     import mne
@@ -100,15 +147,23 @@ def analyse(sn_id, data_dir, profiles, expect_version):
                              if s in ("N1", "N2", "N3", "R")) * 0.5, 1),
         "profiles": {},
     }
+    arms = field_arms or [("", None)]
     for prof in profiles:
+      for arm_label, fields in arms:
+        label = prof if not arm_label else f"{prof}|{arm_label}"
         try:
+            if field_arms:
+                _apply_fields(prof, fields)
             r = psgscoring.run_pneumo_analysis(raw, hypno=hypno1,
                                                scoring_profile=prof)
             resp = r.get("respiratory") or {}
             s, ev = resp.get("summary") or {}, resp.get("events") or []
             ahi = s.get("ahi_total")
-            out["profiles"][prof] = {
+            out["profiles"][label] = {
                 "ahi": None if ahi is None else round(float(ahi), 2),
+                "events": [(round(float(e["onset_s"]), 2),
+                            round(float(e["onset_s"]) + float(e.get("duration_s") or 0.0), 2),
+                            str(e.get("type"))) for e in ev if e.get("onset_s") is not None],
                 "n_events": len(ev),
                 "n_apnea": sum(1 for e in ev
                                if e.get("type") in ("obstructive", "central",
@@ -117,7 +172,7 @@ def analyse(sn_id, data_dir, profiles, expect_version):
                                   if "hypopnea" in str(e.get("type", ""))),
             }
         except Exception as e:                                    # noqa: BLE001
-            out["profiles"][prof] = {"error": f"{type(e).__name__}: {e}"[:160]}
+            out["profiles"][label] = {"error": f"{type(e).__name__}: {e}"[:160]}
     return out
 
 
@@ -163,6 +218,9 @@ def main():
     ap.add_argument("--expect-version", default=None,
                     help="faal als psgscoring een andere versie is (aanrader)")
     ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--field-arms", nargs="+", default=None,
+                    help="armen als `label:veld=waarde,...` op PostProcessingRules "
+                         "van elk profiel (zie validate_mesa.py)")
     a = ap.parse_args()
 
     v = _require(a.profiles, a.expect_version)
@@ -171,7 +229,8 @@ def main():
 
     rows = []
     with ProcessPoolExecutor(max_workers=a.workers) as ex:
-        futs = [ex.submit(analyse, sn, a.data_dir, a.profiles, a.expect_version)
+        _arms = _parse_field_arms(a.field_arms)
+        futs = [ex.submit(analyse, sn, a.data_dir, a.profiles, a.expect_version, _arms)
                 for sn in a.recordings]
         for f in as_completed(futs):
             r = f.result()
@@ -179,7 +238,9 @@ def main():
             print(f"  klaar: {r['recording']}"
                   + (f"  ({r['error']})" if "error" in r else ""), flush=True)
     rows.sort(key=lambda d: d["recording"])
-    report(rows, a.profiles)
+    _labels = (a.profiles if not a.field_arms else
+               [f"{p}|{lab}" for p in a.profiles for lab, _ in _parse_field_arms(a.field_arms)])
+    report(rows, _labels)
     if a.out:
         a.out.write_text(json.dumps(rows, indent=2))
         print(f"\ngeschreven: {a.out}")

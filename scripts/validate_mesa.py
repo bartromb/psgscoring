@@ -288,8 +288,40 @@ def parse_nsrr(xml_path, signal_duration_s,
 #  Eén opname
 # ─────────────────────────────────────────────────────────────────
 
-def _configs(strictness_values, profiles=None, dual_confirmation=False):
-    """[(label, profielnaam, strictness_of_None, conf_bool), ...].
+def _parse_field_arms(specs):
+    """`label:VELD=waarde,VELD=waarde` -> [(label, {veld: waarde}), ...].
+
+    Waarden: True/False/None, getal, anders tekst. Velden zijn attributen van
+    `PostProcessingRules` (snake_case), niet de legacy-sleutels."""
+    out = []
+    for spec in (specs or []):
+        label, _, rest = spec.partition(":")
+        fields = {}
+        for kv in filter(None, rest.split(",")):
+            k, _, v = kv.partition("=")
+            v = v.strip()
+            if v in ("True", "False", "None"):
+                v = {"True": True, "False": False, "None": None}[v]
+            else:
+                try:
+                    v = float(v) if "." in v else int(v)
+                except ValueError:
+                    pass
+            fields[k.strip()] = v
+        out.append((label.strip(), fields))
+    return out
+
+
+def _configs(strictness_values, profiles=None, dual_confirmation=False,
+             field_arms=None):
+    """[(label, profielnaam, strictness_of_None, conf_bool, velden_of_None), ...].
+
+    12-10-2026: `field_arms` = [(armlabel, {veld: waarde})] uit --field-arms.
+    Per profiel in `profiles` komt er per arm een configuratie
+    `profiel|armlabel` bij, waarin die velden op `post_processing` worden
+    gezet (de rest blijft de pristine registry van dit proces). De
+    rec-basislijn blijft als eerste, ongepatcht, zodat elke vergelijking
+    gepaard is.
 
     De basislijn `aasm_v3_rec` draait ALTIJD mee, zodat elke vergelijking
     gepaard is op dezelfde opname in plaats van tussen runs.
@@ -305,9 +337,14 @@ def _configs(strictness_values, profiles=None, dual_confirmation=False):
     `Pres`, `Flow` én `Therm`. PSG-IPA heeft één flowkanaal, en daar zijn de
     duale profielen aantoonbaar identiek aan hun ouder (gemeten 9 aug 2026).
     """
-    cfg = [("aasm_v3_rec", "aasm_v3_rec", None, False)]
+    cfg = [("aasm_v3_rec", "aasm_v3_rec", None, False, None)]
+    if field_arms:
+        for p in (profiles or ["aasm_v3_breath_dual"]):
+            for arm_label, fields in field_arms:
+                cfg.append((f"{p}|{arm_label}", p, None, False, dict(fields)))
+        return cfg
     if strictness_values and not profiles:
-        cfg += [(f"breath@{s:.2f}", "aasm_v3_breath", float(s), False)
+        cfg += [(f"breath@{s:.2f}", "aasm_v3_breath", float(s), False, None)
                 for s in strictness_values]
         return cfg
     # 07-10-2026: profielen × strictness, en per duaal profiel een arm met
@@ -319,10 +356,44 @@ def _configs(strictness_values, profiles=None, dual_confirmation=False):
         is_dual = bool(_P[p].post_processing.dual_sensor_apnea)
         for s_ in (strictness_values or [None]):
             suf = "" if s_ is None else f"@{s_:.2f}"
-            cfg.append((f"{p}{suf}", p, None if s_ is None else float(s_), False))
+            cfg.append((f"{p}{suf}", p, None if s_ is None else float(s_), False, None))
             if dual_confirmation and is_dual:
-                cfg.append((f"{p}+conf{suf}", p, None if s_ is None else float(s_), True))
+                cfg.append((f"{p}+conf{suf}", p, None if s_ is None else float(s_), True, None))
     return cfg
+
+
+_PRISTINE_PP: dict = {}
+
+
+def _apply_fields(profile_name, fields):
+    """Zet `post_processing`-velden van een profiel in dit werkproces, vanaf
+    de pristine toestand (12-10-2026, hermeting van de reviewvelden).
+
+    Eerst wordt het regelobject teruggezet op de kopie die bij de eerste
+    aanroep in dit proces is genomen, dan worden `fields` gezet, dan de
+    legacy-dicts opnieuw gerenderd en doorgegeven -- zelfde recept als
+    `_apply_strictness`. `fields=None` = alleen terugzetten."""
+    import copy
+    import importlib
+    from dataclasses import fields as _dc_fields
+
+    from psgscoring.profiles import PROFILES as _P
+    if profile_name not in _PRISTINE_PP:
+        _PRISTINE_PP[profile_name] = copy.deepcopy(_P[profile_name].post_processing)
+    pp = copy.deepcopy(_PRISTINE_PP[profile_name])
+    bekend = {f.name for f in _dc_fields(pp)}
+    for k, v in (fields or {}).items():
+        if k not in bekend:
+            raise SystemExit(f"--field-arms: `{k}` is geen PostProcessingRules-veld")
+        setattr(pp, k, v)
+    _P[profile_name].post_processing = pp
+    import psgscoring.constants as C
+    importlib.reload(C)
+    import psgscoring.pipeline as PL
+    import psgscoring.respiratory as R
+    PL.SCORING_PROFILES = C.SCORING_PROFILES
+    R.SCORING_PROFILES = C.SCORING_PROFILES
+    return C.SCORING_PROFILES[profile_name]
 
 
 def _apply_strictness(value, profile_name="aasm_v3_breath"):
@@ -407,7 +478,7 @@ def analyse_one(args):
     # standaardset terwijl report() de uitgebreide labels eist — dan valt
     # elke opname af en meldt het harnas 'geen bruikbare opnames'.
     (rec_id, data_dir, strictness_values, profiles, rip_scale_free,
-     desat_limit, therm_gate, dual_confirmation) = args
+     desat_limit, therm_gate, dual_confirmation, field_arms) = args
     data_dir = Path(data_dir)
     if rip_scale_free:
         _apply_rip_scale_free(True)
@@ -444,9 +515,12 @@ def analyse_one(args):
                 if os.environ.get("PSGSCORING_HARNESS_ARTIFACT_EPOCHS") == "1"
                 else [])
 
-    for label, prof, strict, conf in _configs(strictness_values, profiles,
-                                              dual_confirmation):
+    for label, prof, strict, conf, fields in _configs(strictness_values, profiles,
+                                                      dual_confirmation, field_arms):
         try:
+            if field_arms:
+                # Elke arm vertrekt van de pristine registry van dit proces.
+                _apply_fields(prof, fields)
             if strict is not None:
                 _apply_strictness(strict, prof)
             if conf:
@@ -536,6 +610,10 @@ def analyse_one(args):
         bd = r.get("breath_detector")
         if bd:
             rec["breath_detector"] = bd
+        if fields:
+            import psgscoring.constants as _C2
+            rec["field_arm"] = {k: _C2.SCORING_PROFILES[prof].get(k.upper())
+                                for k in fields}
         out["profiles"][label] = rec
     return out
 
@@ -742,6 +820,10 @@ def main():
                     help="extra arm '<profiel>+conf' per duaal profiel met "
                          "PSGSCORING_DUAL_SENSOR_CONFIRMATION="
                          "thermistor_or_consequence (07-10-2026)")
+    ap.add_argument("--field-arms", nargs="+", default=None,
+                    help="armen als `label:veld=waarde,veld=waarde` op "
+                         "PostProcessingRules van elk profiel in --profiles; "
+                         "de rec-basislijn blijft ongepatcht mee")
     ap.add_argument("--exclude-recordings-file", type=Path, default=None,
                     help="bestand met één opname-id per regel die NIET in de "
                          "steekproef mag (kalibratienachten)")
@@ -774,8 +856,9 @@ def main():
     else:
         picked = pool
 
+    _field_arms = _parse_field_arms(a.field_arms)
     labels = [c[0] for c in _configs(a.strictness, a.profiles,
-                                     a.dual_confirmation)]
+                                     a.dual_confirmation, _field_arms)]
     print(f"MESA-validatie — {len(picked)} van {len(pool)} beschikbare opnames "
           f"(seed {a.seed})")
     if excluded:
@@ -809,7 +892,8 @@ def main():
     todo = [x for x in picked if x not in done_ids]
 
     jobs = [(x, str(a.data_dir), a.strictness, a.profiles, a.rip_scale_free,
-             a.desat_limit, a.thermistor_gate, a.dual_confirmation) for x in todo]
+             a.desat_limit, a.thermistor_gate, a.dual_confirmation,
+             _field_arms) for x in todo]
     fh = ckpt.open("a") if ckpt else None
     with ProcessPoolExecutor(max_workers=a.workers) as ex:
         for i, r in enumerate(ex.map(analyse_one, jobs), 1):
@@ -885,6 +969,7 @@ def main():
             "rip_scale_free_flag": bool(a.rip_scale_free),
             "desat_limit": a.desat_limit,
             "thermistor_gate_forced": a.thermistor_gate,
+            "field_arms": a.field_arms,
             "thermistor_gate_per_profile": {
                 n: _prof[n].get("THERMISTOR_GATE") for n in labels if n in _prof},
         }
