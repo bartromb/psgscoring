@@ -47,12 +47,15 @@ def fmt_p(p):
 
 # ───────────────────────────── MESA ─────────────────────────────
 
-def laad_mesa():
-    j = HERE / "mesa.json"
+def laad_mesa(naam="mesa"):
+    j = HERE / f"{naam}.json"
     if j.exists():
         return json.loads(j.read_text())["results"]
+    pj = HERE / f"{naam}.partial.jsonl"
+    if not pj.exists():
+        return []
     rows = []
-    for line in (HERE / "mesa.partial.jsonl").read_text().splitlines():
+    for line in pj.read_text().splitlines():
         try:
             rows.append(json.loads(line))
         except Exception:
@@ -134,8 +137,8 @@ def subtype_tel(types):
     return t
 
 
-def mesa_sectie(rows):
-    out = ["## MESA (held-out nachten, referentie NSRR aasm15, matcher IoU 0,20 typeonbewust)", ""]
+def mesa_sectie(rows, PROF=PROF, ARMEN=ARMEN, kop="run 1"):
+    out = [f"## MESA {kop}: `{PROF}` (held-out nachten, referentie NSRR aasm15, matcher IoU 0,20 typeonbewust)", ""]
     n_ok = sum(1 for r in rows if "error" not in r)
     out.append(f"Opnames met resultaat: **{n_ok}** (van 30 gevraagd)." + ("" if n_ok == 30 else " *(tussenstand)*"))
     out.append("")
@@ -156,8 +159,8 @@ def mesa_sectie(rows):
     out.append("")
     out.append("Let op het teken: de tabel vergelijkt `nieuw` met de arm; voor de `oud_*`-armen is een positieve ΔF1 winst van de reparatie, voor de `aan_*`-armen is een **negatieve** ΔF1 winst van het inschakelen.")
     out.append("")
-    # rec
-    out.append("### `aasm_v3_rec`: alles_oud tegen nieuw")
+    # rec-anker (alleen zinvol in run 1, waar rec met nieuw/alles_oud meeliep)
+    out.append("### `aasm_v3_rec`: alles_oud tegen nieuw (in deze run)")
     paren = paar(rows, "aasm_v3_rec|nieuw", "aasm_v3_rec|alles_oud")
     if paren:
         s = regel_mesa(paren)
@@ -258,7 +261,12 @@ def main():
     md = ["# Hermeting reviewvelden — analyse-uitvoer", "",
           "Automatisch gegenereerd door `analyse.py`; preregistratie "
           "`docs/reviewvelden_hermeting_preregistratie_20261012.md`.", ""]
-    md += mesa_sectie(laad_mesa())
+    md += mesa_sectie(laad_mesa("mesa"))
+    ARMEN_REC = ["alles_oud", "oud_nadir", "oud_csr", "oud_spectraal", "oud_herstel",
+                 "oud_mixed", "oud_fase", "aan_masker", "aan_lineariseer"]
+    rec_rows = laad_mesa("mesa_rec")
+    if rec_rows:
+        md += mesa_sectie(rec_rows, PROF="aasm_v3_rec", ARMEN=ARMEN_REC, kop="run 2")
     md += psgipa_sectie(laad_psgipa())
     (HERE / "analyse_uitvoer.md").write_text("\n".join(md) + "\n")
     print("\n".join(md))
