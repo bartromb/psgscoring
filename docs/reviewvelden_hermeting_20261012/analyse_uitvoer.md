@@ -21,8 +21,8 @@ Opnames met resultaat: **30** (van 30 gevraagd).
 | oud_stadium | 30 | +0.0000 | +0.0000 | 0/0/30 | — | -0.53 → -0.53 | 18 → 18 | 4606 → 4606 | blijft default |
 | oud_fase | 30 | -0.0014 | -0.0036 | 13/16/1 | 0.795 | -0.53 → -0.44 | 18 → 18 | 4606 → 4625 | blijft default |
 | oud_antialias | 30 | +0.0000 | +0.0000 | 0/0/30 | — | -0.53 → -0.53 | 18 → 18 | 4606 → 4606 | blijft default |
-| aan_masker | 30 | +0.0000 | +0.0000 | 0/0/30 | — | -0.53 → -0.53 | 18 → 18 | 4606 → 4606 | blijft uit |
-| aan_lineariseer | 30 | +0.0000 | +0.0000 | 0/0/30 | — | -0.53 → -0.53 | 18 → 18 | 4606 → 4606 | blijft uit |
+| aan_masker | 30 | +0.0000 | +0.0000 | 0/0/30 | — | -0.53 → -0.53 | 18 → 18 | 4606 → 4606 | blijft uit (MESA-deel NEE) |
+| aan_lineariseer | 30 | +0.0000 | +0.0000 | 0/0/30 | — | -0.53 → -0.53 | 18 → 18 | 4606 → 4606 | blijft uit (MESA-deel NEE) |
 
 Let op het teken: de tabel vergelijkt `nieuw` met de arm; voor de `oud_*`-armen is een positieve ΔF1 winst van de reparatie, voor de `aan_*`-armen is een **negatieve** ΔF1 winst van het inschakelen.
 
@@ -62,8 +62,8 @@ Opnames met resultaat: **30** (van 30 gevraagd).
 | oud_herstel | 30 | +0.0000 | +0.0005 | 10/9/11 | 0.794 | -5.84 → -5.97 | 16 → 15 | 3625 → 3605 | blijft default |
 | oud_mixed | 30 | +0.0000 | +0.0000 | 0/0/30 | — | -5.84 → -5.84 | 16 → 16 | 3625 → 3625 | blijft default |
 | oud_fase | 30 | +0.0000 | +0.0017 | 11/11/8 | 1.000 | -5.84 → -5.80 | 16 → 16 | 3625 → 3635 | blijft default |
-| aan_masker | 30 | -0.0754 | -0.1044 | 2/27/1 | 6.2e-06 | -5.84 → -0.37 | 16 → 17 | 3625 → 4626 | blijft uit |
-| aan_lineariseer | 30 | +0.0000 | -0.0057 | 6/7/17 | 0.442 | -5.84 → -6.88 | 16 → 13 | 3625 → 3430 | blijft uit |
+| aan_masker | 30 | -0.0754 | -0.1044 | 2/27/1 | 6.2e-06 | -5.84 → -0.37 | 16 → 17 | 3625 → 4626 | MESA-deel JA — PSG-IPA (binnen bereik) beslist mee |
+| aan_lineariseer | 30 | +0.0000 | -0.0057 | 6/7/17 | 0.442 | -5.84 → -6.88 | 16 → 13 | 3625 → 3430 | blijft uit (MESA-deel NEE) |
 
 Let op het teken: de tabel vergelijkt `nieuw` met de arm; voor de `oud_*`-armen is een positieve ΔF1 winst van de reparatie, voor de `aan_*`-armen is een **negatieve** ΔF1 winst van het inschakelen.
 

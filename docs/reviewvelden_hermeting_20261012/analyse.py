@@ -123,10 +123,15 @@ def oordeel_default_aan(s):
 
 
 def oordeel_default_uit(s):
-    """Regel 2: kandidaat voor default-aan (MESA-deel)."""
-    ok = (s["med"] is not None and s["med"] > 0 and s["p"] is not None and s["p"] < 0.05
-          and abs(s["bias_nieuw"]) <= abs(s["bias_oud"]) and s["sev_nieuw"] >= s["sev_oud"])
-    return "kandidaat (MESA-deel JA; PSG-IPA beslist mee)" if ok else "blijft uit"
+    """Regel 2: kandidaat voor default-aan (MESA-deel).
+
+    Let op het teken: `s` is nieuw − arm, en bij een `aan_*`-arm is de ARM de
+    ingeschakelde reparatie. Inschakelen wint dus als nieuw − arm < 0 (de arm
+    heeft de hogere F1), |bias_arm| ≤ |bias_nieuw| en sev_arm ≥ sev_nieuw.
+    (Nalezing 12-10: stond eerst met omgekeerd teken.)"""
+    ok = (s["med"] is not None and s["med"] < 0 and s["p"] is not None and s["p"] < 0.05
+          and abs(s["bias_oud"]) <= abs(s["bias_nieuw"]) and s["sev_oud"] >= s["sev_nieuw"])
+    return "MESA-deel JA — PSG-IPA (binnen bereik) beslist mee" if ok else "blijft uit (MESA-deel NEE)"
 
 
 def subtype_tel(types):

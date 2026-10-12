@@ -65,8 +65,8 @@ alle armen op beide profielen. Thermische bewaker: piek 68 °C. Volledige tabell
 
 | veld | `aasm_v3_breath_dual` (run 1) | `aasm_v3_rec` (run 2) |
 |---|---|---|
-| nadir-tijdas, CSR-periode, spectrale resolutie, PLM-venster, ODI-noemer, stadiumbasislijn, anti-alias | **byte-identiek** (0/0/30) | byte-identiek (nadir, CSR, spectraal); PLM/ODI/stadium/anti-alias niet gedraaid (inert per ontwerp, zie addendum) |
-| herstelbasislijn (`recovery_baseline_mode`) | byte-identiek — de ademteugdetector leest de envelope niet | mediaan ΔF1 0,0000 (gem. +0,0005), 10/9/11, p = 0,79; bias −5,84 → −5,97; ernst 16 → 15; events 3625 → 3605 |
+| nadir-tijdas, CSR-periode, spectrale resolutie, PLM-venster, ODI-noemer, stadiumbasislijn, anti-alias | **gelijk in F1, AHI en eventtelling** (0/0/30; zie §3 voor de subtypelabels) | byte-identiek (nadir, CSR, spectraal); PLM/ODI/stadium/anti-alias niet gedraaid (inert per ontwerp, zie addendum) |
+| herstelbasislijn (`recovery_baseline_mode`) | gelijk in F1/AHI (1/30 nachten een ander hypopneesubtypelabel) — de ademteugdetector leest de envelope niet | mediaan ΔF1 0,0000 (gem. +0,0005), 10/9/11, p = 0,79; bias −5,84 → −5,97; ernst 16 → 15; events 3625 → 3605 |
 | fasesplitsing (`breath_phase_split`) | mediaan −0,0014 (gem. −0,0036), 13/16/1, p = 0,80; bias −0,53 → −0,44; ernst 18 → 18; events 4606 → 4625 | mediaan 0,0000 (gem. +0,0017), 11/11/8, p = 1,0; bias −5,84 → −5,80; ernst 16 → 16 |
 | mixed-decompositie | F1 byte-identiek (typeonbewust); **subtypes**: centraal 222 ← 209, gemengd 34 ← 47 | F1 byte-identiek; centraal 206 ← 202, gemengd 8 ← 12 |
 | **alles_oud** (netto review) | mediaan −0,0014, 13/16/1, p = 0,80; bias −0,44 → −0,53; ernst 18 → 18 | mediaan 0,0000 (gem. +0,0022), 14/10/6, p = 0,58; bias −6,00 → −5,84; ernst 15 → 16 |
@@ -127,6 +127,34 @@ onbeslisbaar (één flowkanaal, geen linearisatie). De DC-verwijdering doet wat 
   rekent de effort-enveloppen opnieuw); reparatie = enveloppen uit `_precomp` doorgeven; `rec`
   gelijk. Geen regressie in productie (pint 0.35.1).
 
-## 3. Onafhankelijke nalezing
+## 3. Onafhankelijke nalezing (12-10, aparte agent, eigen herberekening uit de ruwe JSON)
 
-Wordt hieronder aangevuld.
+- **Alle gerapporteerde getallen kloppen** (beide runs, alle armen, tertielen, subtypes, de 28
+  PSG-IPA-regels). Provenance: elke arm draagt op 30/30 opnames exact de bedoelde
+  sleutel/waarde-paren; anker `aasm_v3_rec` = `aasm_v3_rec|nieuw` op 30/30 in beide runs;
+  steekproef = eerste 30 van `opnames.txt` in beide runs; tussen prereg-sha 7814130 en de
+  run-sha is niets in `psgscoring/` gewijzigd. Run 1 bevatte ook alle rec-armen en die zijn
+  op 30/30 identiek aan run 2 (f1, ahi): de herhaling reproduceert.
+- **Eén fout in `analyse.py`, gerepareerd:** regel 2 stond met omgekeerd teken, waardoor de
+  kolom "oordeel" verzweeg dat `rec|aan_masker` op MESA alle drie de criteria haalt (ΔF1
+  +0,0754, 27/30, p = 6,2e-6; |bias| 5,84 → 0,37; ernst 16 → 17). §2.2 hierboven was al met de
+  hand juist geschreven; het eindoordeel (blijft uit, op PSG-IPA) verandert niet.
+- **"Byte-identiek" was te sterk.** F1, AHI en eventtelling zijn gelijk, maar op eventniveau
+  wisselen op `breath_dual` hypopnee-subtypelabels (`hypopnea` ↔ `hypopnea_mixed`/
+  `_central`): oud_herstel 1/30 nachten, oud_mixed 6/30, aan_masker 8/30 (48 events),
+  aan_lineariseer 10/30 (41 events); onzichtbaar voor de typeonbewuste matcher. Het verslag
+  zegt nu "gelijk in F1, AHI en eventtelling".
+- Wilcoxon: de normale benadering van het harnas tegen scipy-exact verschilt hooguit in de
+  derde decimaal (aan_masker 6,2e-6 tegen 9,3e-8); geen oordeel verschuift.
+- Een F1-gelijkspel kan een AHI-sprong verbergen: mesa-sleep-1862 onder `rec|aan_lineariseer`
+  F1 exact 8/17 in beide armen, AHI 19,1 → 12,2, events 95 → 61 — telt als "gelijk".
+- **`aan_masker` per tertiel (rec, nieuw − aan):** laag −0,0477 (2/7/1, bias +8,37 → +6,99),
+  midden −0,0681 (0/10/0, −4,75 → −6,87), hoog **−0,1305** (0/10/0, −4,73 → −17,64 zonder
+  masker). De winst van het masker groeit met de ernst en haalt de onderdetectie in het hoge
+  tertiel van −17,6 naar −4,7 /u; op het laag-prevalente PSG-IPA (bias al positief) jaagt
+  hetzelfde masker de bias naar +8,95. Dat is het duurtolerantiepatroon: het effect volgt het
+  teken van de bestaande bias per cohort. **Voor Bart:** als de klinische populatie op de
+  ernstige kant van MESA lijkt, is dit de grootste nog beschikbare F1-winst in de bibliotheek;
+  de prijs is overdetectie op lichte nachten. Een tertiel-afhankelijke beslissing is geen
+  optie zonder hermeting; de regel van het huis zegt: uit, tot een cohort met beide tekens het
+  beslist.
