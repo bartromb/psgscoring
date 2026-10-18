@@ -27,8 +27,22 @@ duurkwantielen — precies de duurafhankelijkheid die de niveaudetectie moest we
 uit de tien: 38,6 % "Upright" en 0 % "Right"; 71 % in één code en toch 36 % "Upright".
 
 Tweede laag: ook met goede niveaus kent de code oplopende waarden toe als Prone, Left, Supine,
-Right, Upright. Dat is een aanname, geen Somnomedics-tabel. **De legende van `Pos.`
-(code → STA/rug/links/rechts/buik) is aan Bart gevraagd.**
+Right, Upright. Dat is een aanname, geen Somnomedics-tabel. **De legende is gevonden** in het
+SOMNOmedics-supportartikel "Exporting the body position as EDF, what are the values standing
+for?" (support.somnomedics.de): de export schrijft de code van de sensor, **1 = prone,
+2 = upright, 3 = left, 4 = right, 5 = upright (toestel ondersteboven), 6 = supine**. Getoetst op
+de tien nachten met `Pos.` apart geladen (schone codes) tegen het opgeslagen hypnogram: code 2
+komt **0,0 % van de slaap** en 37 % van de wake voor (rechtop), code 6 is 44 % van de slaap
+(rug), code 1 2,5 % (buik), 3/4 28 %/26 % (zijligging), 5 nooit — consistent met de legende.
+Barts waarneming ("STA als rugligging") was dus de percentielmethode die code 2 en code 6 op
+duur rangschikte.
+
+**Toegepast op productie (18-10, ~16:30):** `YASAFLASKIFIED_POSITION_CODE_MAP=
+{"1":"Prone","2":"Upright","3":"Left","4":"Right","5":"Upright","6":"Supine"}` in
+`/data/slaapkliniek/.env` (back-up `/root/env-backup-…`), containers hercreëerd; in de worker
+geeft `analyze_position` op de CPAP-nacht `coded` met Supine 41,1 / Left 35,6 / Right 23,3 /
+Upright 0,0 — gelijk aan de schone 4 Hz-telling. Vervolg: de tabel als benoemde default
+`somnomedics_domino` in psgscoring opnemen zodat ze niet van een env afhangt.
 
 Reparatie (psgscoring 0.36.2): niveaudetectie op histogrampieken (ongevoelig voor de
 ringing), een optionele fabrikantentabel `position_code_map` (methode wordt dan `coded`; de
