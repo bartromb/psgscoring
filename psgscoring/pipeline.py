@@ -22,6 +22,7 @@ run_pneumo_analysis
 from __future__ import annotations
 import logging
 import os
+import re
 
 import numpy as np
 
@@ -35,6 +36,7 @@ from .respiratory import (
     detect_respiratory_events, reinstate_rule1a_arousal_hypopneas, _compute_summary,
 )
 from .spo2 import analyze_spo2, compute_hypoxic_burden, index_denominator_from_profile
+from .signal_quality import THERMISTOR_BAND_POWER_DEAD
 from .ancillary import (
     csr_period_rectified_from_profile,
     analyze_position, analyze_heart_rate, analyze_snore, detect_cheyne_stokes,
@@ -139,6 +141,7 @@ def run_pneumo_analysis(
     arousal_events: list | None = None,
     split_night: str | None = None,
     split_night_breakpoint_s: float | None = None,
+    position_code_map: dict | None = None,
 ) -> dict:
     """
     Run the full pneumological analysis on a single PSG recording.
@@ -183,6 +186,9 @@ def run_pneumo_analysis(
                       alongside under ``output["split_night"]``.
     split_night_breakpoint_s : breakpoint in seconds from recording start,
                       read only when ``split_night == 'manual'``.
+    position_code_map : dict | None, codetabel van de recorder voor het
+        houdingskanaal ({code: naam} met namen uit POSITION_MAP, in de
+        eenheid van de EDF); None = rangorde-gok met eerlijk label.
 
     Returns
     -------
@@ -265,6 +271,8 @@ def run_pneumo_analysis(
             # (AASM v3 VIII.D Note 1 — the criterion used must be stated).
             "hypopnea_criterion": _hypopnea_criterion_str(profile),
             "patient_info":  _parse_edf_patient_info(raw),
+            # 18-10-2026: therapiedruk aanwezig? Informatief, zie _detect_cpap_pressure.
+            "cpap_pressure": _detect_cpap_pressure(raw),
         },
         "channel_availability": {k: (v in raw.ch_names) for k, v in ch.items()},
     }
@@ -1479,9 +1487,13 @@ def run_pneumo_analysis(
                      if profile.get("INDICES_ON_FINAL_EVENT_LIST", True)
                      else _resp_events_for_arousal)
     logger.info("[pneumo 8c/11] Position analysis...")
+    _pos_units = (getattr(raw, "_orig_units", {}) or {}).get(ch.get("position") or "", "")
+    _pos_scale = {"mv": 1e3, "uv": 1e6, "µv": 1e6}.get(str(_pos_units).lower(), 1.0)
     output["position"] = (
         _run_step("position", lambda: analyze_position(
-            pos_data, sf_pos, hypno, _final_events))
+            pos_data, sf_pos, hypno, _final_events,
+            position_code_map=position_code_map,
+            position_unit_scale=_pos_scale))
         if pos_data is not None
         else {"success": False, "error": "No position channel", "summary": {}}
     )
@@ -1942,6 +1954,54 @@ def _maybe_apply_ripsum_fallback(
     return ripsum, sf_hypop
 
 
+_CPAP_PRESSURE_NAME = re.compile(r"cpap|^pressur$|pressur(?!e)|mask\s*pres|\bpap\b|p\.?mask", re.I)
+_CPAP_PRESSURE_UNITS = {"mbar", "cmh2o", "hpa"}
+CPAP_PRESSURE_MIN = 4.0      # mbar/cmH2O: daaronder is het geen therapiedruk
+CPAP_PRESSURE_MIN_MINUTES = 30.0
+
+
+def _detect_cpap_pressure(raw) -> dict:
+    """Is er een CPAP-drukkanaal en staat de druk een half uur aaneengesloten
+    boven 4 mbar? Informatief: het verandert geen index, het zet in `meta`
+    dat (een deel van) de nacht onder therapie stond. 18-10-2026: een
+    titratienacht werd als diagnostische nacht gescoord; het drukkanaal
+    (`Pressur`, mbar, 7-9 mbar vanaf uur 2) stond er de hele tijd bij."""
+    uit = {"detected": False, "channel": None, "onset_s": None,
+           "therapy_fraction": 0.0, "max": None}
+    try:
+        units = getattr(raw, "_orig_units", {}) or {}
+        kandidaten = [n for n in raw.ch_names
+                      if _CPAP_PRESSURE_NAME.search(n)
+                      or str(units.get(n, "")).lower() in _CPAP_PRESSURE_UNITS]
+        kandidaten = [n for n in kandidaten
+                      if not re.search(r"pressure\s*(flow|snore)", n, re.I)]
+        if not kandidaten:
+            return uit
+        naam = kandidaten[0]
+        x = raw.get_data(picks=[naam])[0]
+        sf = float(raw.info["sfreq"])
+        spe = max(1, int(round(EPOCH_LEN_S * sf)))
+        n_ep = x.size // spe
+        if n_ep == 0:
+            return uit
+        ep_mean = x[:n_ep * spe].reshape(n_ep, spe).mean(axis=1)
+        boven = ep_mean > CPAP_PRESSURE_MIN
+        uit["channel"] = naam
+        uit["max"] = round(float(np.nanmax(x)), 2)
+        uit["therapy_fraction"] = round(float(np.mean(boven)), 3)
+        nodig = int(np.ceil(CPAP_PRESSURE_MIN_MINUTES * 60 / EPOCH_LEN_S))
+        run = 0
+        for i, b in enumerate(boven):
+            run = run + 1 if b else 0
+            if run >= nodig:
+                uit["detected"] = True
+                uit["onset_s"] = float((i - run + 1) * EPOCH_LEN_S)
+                break
+    except Exception as e:  # noqa: BLE001 -- informatief, nooit de run laten vallen
+        uit["error"] = str(e)[:120]
+    return uit
+
+
 def _resolve_flow_channels(
     flow_data, sf_flow,
     flow_pressure_data, sf_fp,
@@ -2019,11 +2079,31 @@ def _resolve_flow_channels(
                 _therm_check = assess_flow_sensor_agreement(
                     flow_pressure_data, sf_fp or 0.0,
                     flow_therm_data, sf_ft or 0.0)
+            # 18-10-2026: "additief wijst niets af" gold voor een LAGE
+            # overeenstemming, niet voor afwezigheid van signaal. Een sensor
+            # zonder ademhaling kan de vereniging alleen valse apneus geven
+            # (CPAP-nacht: 165 thermistor-only apneus op een vlakke lijn).
+            # Daarom hier, voor elke poort, een eigen dode-vloer-toets.
             if additive_thermistor and not _therm_check["usable"]:
-                logger.warning(
-                    "[pneumo] lage sensorovereenstemming, thermistor WEL "
-                    "gebruikt (additief, wijst niets af): %s",
-                    _therm_check["reason"])
+                from .signal_quality import assess_thermistor_band_power as _atbp
+                _dood = _atbp(flow_therm_data, sf_ft or 0.0,
+                              min_fraction=THERMISTOR_BAND_POWER_DEAD,
+                              antialias=thermistor_band_power_antialias)
+                if not _dood["usable"]:
+                    _therm_check = {**_therm_check, "dead": True,
+                                    "band_power": _dood.get("band_power"),
+                                    "reason": ("dood kanaal, ook additief niet "
+                                               "gebruikt: " + str(_dood["reason"]))}
+                    logger.warning("[pneumo] thermistor niet gebruikt als "
+                                   "apneu-sensor: %s", _therm_check["reason"])
+                    flow_therm_data, sf_ft = None, None
+                    ch = {**ch, "flow_thermistor_rejected": ch.get("flow_thermistor")}
+                    ch.pop("flow_thermistor", None)
+                else:
+                    logger.warning(
+                        "[pneumo] lage sensorovereenstemming, thermistor WEL "
+                        "gebruikt (additief, wijst niets af): %s",
+                        _therm_check["reason"])
             elif not _therm_check["usable"]:
                 logger.warning(
                     "[pneumo] thermistor niet gebruikt als apneu-sensor: %s",

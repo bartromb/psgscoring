@@ -1,3 +1,35 @@
+# v0.36.2 — 2026-10-18 — houding: niveaus overleven de herbemonstering, codetabel van de recorder; dode thermistor ook additief geweerd; CPAP-druk gemeld
+
+Twee defecten uit de laatste tien productie-uploads (`docs/positie_en_cpap_20261018.md`).
+
+- **Houding.** Het Somnomedics-kanaal `Pos.` is een code 1–6 op 4 Hz. Na de volledige
+  EDF-lading brengt MNE het met een FFT naar 256 Hz; de ringing op elke overgang maakte van
+  zes niveaus één brug, `_position_levels` zag één breed plateau en de analyse viel op
+  **alle tien nachten** terug op de duurafhankelijke percentielmethode
+  (`position_mapping_method: percentile`). De niveaudetectie werkt nu op histogrampieken en
+  eist dat de samples zelf dicht bij een piek liggen (een continuüm blijft `percentile`).
+  Nieuw: `analyze_position(..., position_code_map=, position_unit_scale=)` en
+  `run_pneumo_analysis(..., position_code_map=)` — de codetabel van de recorder in de eenheid
+  van de EDF (de pipeline schaalt mV/µV terug); past de tabel op de gemeten codes, dan is de
+  methode `coded` en dragen de houdingen de naam van de fabrikant. Zonder tabel blijft het een
+  rangorde-gok en zegt de methode dat. Welke Somnomedics-code welke houding is, is een vraag
+  aan de kliniek; de bibliotheek raadt niet.
+- **Dode thermistor onder de additieve vereniging.** "Additief wijst niets af" gold voor een
+  lage overeenstemming, niet voor afwezigheid van signaal. Onder een CPAP-masker bleef een
+  vlakke thermistor (bandvermogen 0,00) de primaire apneusensor: 165 van 166 apneus
+  `thermistor_only`, OAHI 21,5 tegen < 4 manueel; met de thermistor afgewezen 1,0. Nieuw:
+  `THERMISTOR_BAND_POWER_DEAD = 0,20` — onder die vloer (vlak 0,00, witte ruis 0,10, drift
+  0,17) wordt de thermistor ook in additieve modus uitgesloten, voor elke poort, met
+  `thermistor_check.dead = true` en de reden. Boven de vloer verandert niets (de 07-10-keuze
+  blijft). Op de 210 productiemontages van 12-10 ligt 9 % onder 0,20.
+- **CPAP-druk.** `meta.cpap_pressure`: een kanaal met naam `cpap`/`pressur`/`mask` of eenheid
+  mbar/cmH2O/hPa dat ≥ 30 min aaneengesloten boven 4 staat, met begin, aandeel en maximum.
+  Informatief: geen index verandert; het verslag kan zeggen dat (een deel van) de nacht onder
+  therapie stond. De split-night-detector gebruikt het nog niet.
+
+Tests: `tests/test_positie_en_dode_thermistor.py` (11; faalden eerst op de oude code).
+Golden 9/9 ongewijzigd (geen houdingskanaal, geen thermistor in de synthetiek).
+
 # v0.36.1 — 2026-10-12 — pakketreparatie: de testtelling hangt niet meer van een optionele extra af
 
 Inhoudelijk identiek aan 0.36.0. **0.36.0 is nooit op PyPI verschenen**: de publicatiepoort

@@ -106,7 +106,7 @@ The stability guarantee lives in the **profiles**, not in the version number:
   it, and is pinned by a test.
 
 If you need scored values to stay identical across time — for a study, a
-regulatory submission, or a paper — **pin the version** (`psgscoring==0.36.1`)
+regulatory submission, or a paper — **pin the version** (`psgscoring==0.36.2`)
 and record which profile you used. Do not rely on a profile name alone.
 
 ## Installation
@@ -580,7 +580,7 @@ per idea evaluated, including the ones rejected.
 
 ## Architecture
 
-~22,000 lines across 24 submodules, 1,899 unit tests (CI: Python 3.9–3.12):
+~22,000 lines across 24 submodules, 1,911 unit tests (CI: Python 3.9–3.12):
 
 `constants` · `utils` · `signal` · `breath` · `breath_scoring` · `classify` · `spo2` · `plm` · `ancillary` · `arousal` · `arousal_unet` · `agreement` · `respiratory` · `indices` · `ventilation` · `pipeline` · `ml_classifier` · `profiles` · `postprocess` · `signal_quality` · `signal_quality_channels` · `split_night` · `ecg_effort` · `_types`
 

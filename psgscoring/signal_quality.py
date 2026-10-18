@@ -884,6 +884,16 @@ ergens anders. De drempel blijft tot de herijking op 0,70;
 `scripts/calibrate_thermistor_band_power.py` meet dezelfde montages in
 beide modi en hoort te draaien op de server waar die opnames staan."""
 
+THERMISTOR_BAND_POWER_DEAD = 0.20
+"""Onder deze ademfractie draagt een thermistor GEEN ademhaling meer: een
+vlakke lijn geeft 0,00, witte ruis analytisch (0,50-0,10)/(4,0-0,02) = 0,10,
+drift zonder ademhaling 0,17. Dit is geen scheidingsdrempel tussen goede en
+matige thermistors (die scheiding bestaat op de productiemontage niet, zie
+docs/reviewvelden_hermeting_20261012.md §1) maar de vloer waaronder een
+sensor ook in ADDITIEVE modus niet mag meedoen. Op 18-10-2026 bleef onder een
+CPAP-masker een thermistor met 0,00 de primaire apneusensor: 165 van 166
+apneus kwamen van die ene dode sensor (OAHI 21,5 tegen < 4 manueel)."""
+
 THERMISTOR_BAND_POWER_WINDOWS = 10
 """Vensters verspreid over de nacht; de mediaan telt. Eén venster uit het
 midden is niet representatief — op echte opnames scheelde dat een factor twee."""

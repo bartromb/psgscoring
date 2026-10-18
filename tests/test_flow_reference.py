@@ -6,10 +6,10 @@ Cheyne-Stokes-detectie en de ventilatory burden. Ze lazen allemaal het
 apneukanaal.
 
 Onder een vervangend profiel is dat ongevaarlijk — het apneukanaal *is* de flow
-van de opname. Onder `aasm_v3_dual` niet: dat profiel houdt de thermistor
-bewust als nominaal apneukanaal aan, óók wanneer die de kwaliteitstoets niet
-haalt, omdat de tweede detectiepas een slecht kanaal onschadelijk maakt vóór de
-apneutelling. Die vijf kennen geen tweede pas en erfden zo precies het
+van de opname. Onder `aasm_v3_dual` niet: dat profiel houdt een thermistor met
+een lage overeenstemming bewust als nominaal apneukanaal aan (sinds 18-10-2026
+niet meer een DODE thermistor, zie test_positie_en_dode_thermistor.py), omdat
+de tweede detectiepas een matig kanaal onschadelijk maakt vóór de apneutelling. Die vijf kennen geen tweede pas en erfden zo precies het
 vervangende falen dat de additieve opzet vermijdt.
 
 Op een echte opname las de ventilatory burden 20,4% in plaats van 42,6% — onder
@@ -121,11 +121,17 @@ def rec_out():
     return _run("aasm_v3_rec")
 
 
-def test_the_dual_profile_still_takes_the_thermistor_as_apnea_sensor(dual_out):
-    """De additieve keuze zelf blijft staan — die is niet wat hier verandert."""
+def test_a_dead_thermistor_is_rejected_even_under_the_additive_profile(dual_out):
+    """18-10-2026: "additief wijst niets af" gold voor een lage overeenstemming,
+    niet voor een kanaal zonder ademhaling. De thermistor van deze fixture is
+    witte ruis (ademfractie ~0,10, onder THERMISTOR_BAND_POWER_DEAD) en wordt
+    nu ook onder `aasm_v3_dual` geweerd -- op een CPAP-nacht gaf zo'n dode
+    sensor 165 valse apneus. De referentiekeuze hieronder blijft de neusdruk."""
     fc = dual_out["meta"]["flow_channels"]
-    assert fc["apnea_sensor"] == "Flow Th."
+    assert fc["apnea_sensor"] == "Pressure Flow"
+    assert fc["thermistor_rejected"] == "Flow Th."
     assert fc["thermistor_check"]["usable"] is False
+    assert fc["thermistor_check"].get("dead") is True
 
 
 def test_but_the_reference_channel_is_the_nasal_pressure(dual_out):

@@ -27,9 +27,19 @@ def analyze_position(
     sf: float,
     hypno: list,
     resp_events: list,
+    position_code_map: dict | None = None,
+    position_unit_scale: float = 1.0,
 ) -> dict:
     """
     Compute sleep time and AHI per body position.
+
+    ``position_code_map`` -- de codetabel van de recorder, ``{code: naam}`` met
+    namen uit ``POSITION_MAP`` (Prone/Left/Supine/Right/Upright), in de
+    eenheid waarin de EDF het kanaal schrijft; ``position_unit_scale`` brengt
+    de aangeleverde data (MNE levert mV-kanalen in volt) daarnaar terug.
+    Past de tabel op de gemeten codes, dan is de methode ``"coded"``; anders
+    valt de analyse terug op de rangorde-gok van ``_map_position_signal`` en
+    zegt dat in ``position_mapping_method``.
 
     Returns
     -------
@@ -39,8 +49,13 @@ def analyze_position(
     result: dict = {"success": False, "summary": {}, "error": None}
     try:
         n_epochs      = len(hypno)
-        # v0.8.12: auto-map raw ADC/voltage to 0-4 codes
-        pos_mapped, pos_method = _map_position_signal(pos_data)
+        pos_mapped, pos_method = (None, None)
+        if position_code_map:
+            pos_mapped, pos_method = _map_with_code_table(
+                pos_data, position_code_map, position_unit_scale)
+        if pos_mapped is None:
+            # v0.8.12: auto-map raw ADC/voltage to 0-4 codes
+            pos_mapped, pos_method = _map_position_signal(pos_data)
         pos_per_epoch = [_modal_position(pos_mapped, ep, sf) for ep in range(n_epochs)]
 
         pos_names = {0: "Prone", 1: "Left", 2: "Supine", 3: "Right", 4: "Upright"}
@@ -107,8 +122,56 @@ _POSITION_LEVEL_TOL      = 0.02   # clustertolerantie als fractie van het bereik
 _POSITION_LEVEL_SPREAD   = 3.0    # een plateau mag zoveel maal de tolerantie breed zijn
 
 
+_POSITION_CODE_TOL      = 0.10    # afstand tot een geheel getal om nog "code" te heten
+_POSITION_CODE_COVERAGE = 0.95    # zoveel van de samples moet op een code liggen
+
+
+def _map_with_code_table(pos_data: np.ndarray, table: dict, scale: float):
+    """Codes van de recorder -> 0-4 via de fabrikantentabel, of (None, None).
+
+    De EDF schrijft een geheel getal per houding (Somnomedics: 1-6 op 4 Hz).
+    Na de volledige lading staat daar ringing van de herbemonstering omheen,
+    dus afronden op het dichtstbijzijnde gehele getal is de juiste lezing
+    zolang bijna alle samples dicht bij een geheel getal liggen. Codes die
+    voorkomen maar niet in de tabel staan maken de tabel ongeldig: dan liever
+    de rangorde-gok met een eerlijk label dan een stille verkeerde naam."""
+    from .constants import POSITION_MAP
+    x = np.asarray(pos_data, dtype=float) * float(scale)
+    geldig = x[~np.isnan(x)]
+    if geldig.size == 0:
+        return None, None
+    afgerond = np.round(geldig)
+    if np.mean(np.abs(geldig - afgerond) <= _POSITION_CODE_TOL) < _POSITION_CODE_COVERAGE:
+        return None, None
+    codes, n = np.unique(afgerond.astype(int), return_counts=True)
+    min_n = max(1, int(_POSITION_LEVEL_MIN_FRAC * geldig.size))
+    frequent = [int(c) for c, k in zip(codes, n) if k >= min_n]
+    tabel = {int(k): str(v) for k, v in table.items()}
+    if not frequent or any(c not in tabel for c in frequent):
+        return None, None
+    naam_naar_code = {v: k for k, v in POSITION_MAP.items()}
+    if any(v not in naam_naar_code for v in tabel.values()):
+        raise ValueError(f"position_code_map kent namen buiten POSITION_MAP: {tabel}")
+    uit = np.full(x.shape, -1, dtype=int)
+    r = np.round(np.nan_to_num(x, nan=-999.0)).astype(int)
+    for c, naam in tabel.items():
+        uit[r == c] = naam_naar_code[naam]
+    # Zeldzame codes buiten de tabel (< 0,5 %) en ringing-uitschieters: aan
+    # het dichtstbijzijnde epoch-modus overlaten; hier -1 = onbekend.
+    return uit, "coded"
+
+
 def _position_levels(valid: np.ndarray) -> list[float] | None:
     """De discrete niveaus in een houdingssignaal, of None als het continu is.
+
+    18-10-2026: niet meer op gaten in de gesorteerde reeks, maar op pieken in
+    het histogram. De EDF schrijft de houding als code op 4 Hz; na de
+    volledige lading heeft MNE dat kanaal met een FFT naar 256 Hz gebracht en
+    de ringing op elke overgang legt een dunne brug tussen de niveaus. Op
+    gaten gaat die brug door voor één breed plateau (de niveaudetectie gaf op
+    alle tien productienachten van 18-10 None en de percentielmethode nam het
+    over); op pieken is de brug wat hij is: een paar procent samples tussen
+    twee pieken in.
 
     Een houdingssignaal is bijna altijd discreet: de recorder schrijft per
     houding een code of een vast spanningsniveau. Groeperen gebeurt op WAARDE,
@@ -129,22 +192,33 @@ def _position_levels(valid: np.ndarray) -> list[float] | None:
     span = float(np.max(valid) - np.min(valid))
     if span <= 0:
         return [float(valid[0])]
-    tol  = span * _POSITION_LEVEL_TOL
-    orde = np.sort(valid)
-    stukken = np.split(orde, np.flatnonzero(np.diff(orde) > tol) + 1)
-
-    min_n = max(1, int(len(orde) * _POSITION_LEVEL_MIN_FRAC))
-    niveaus, gedekt = [], 0
-    for stuk in stukken:
-        if len(stuk) < min_n:
+    tol = span * _POSITION_LEVEL_TOL
+    # Histogram met bakjes van een halve tolerantie; een niveau is een lokaal
+    # maximum dat op zichzelf al genoeg van de nacht draagt.
+    n_bins = max(50, int(np.ceil(2.0 / _POSITION_LEVEL_TOL)))
+    tel, randen = np.histogram(valid, bins=n_bins, range=(float(np.min(valid)), float(np.max(valid))))
+    mid = (randen[:-1] + randen[1:]) / 2
+    min_n = max(1, int(len(valid) * _POSITION_LEVEL_MIN_FRAC))
+    pieken = [i for i in range(len(tel))
+              if tel[i] >= min_n
+              and tel[i] >= (tel[i - 1] if i > 0 else 0)
+              and tel[i] >= (tel[i + 1] if i + 1 < len(tel) else 0)]
+    # Buurbakjes van één plateau samenvoegen (massa-gewogen midden).
+    niveaus: list[float] = []
+    for i in pieken:
+        if niveaus and abs(mid[i] - niveaus[-1]) <= tol:
             continue
-        if float(stuk[-1] - stuk[0]) > tol * _POSITION_LEVEL_SPREAD:
-            return None          # geen plateau maar een continuüm
-        niveaus.append(float(np.median(stuk)))
-        gedekt += len(stuk)
+        lo, hi = max(0, i - 1), min(len(tel), i + 2)
+        w = tel[lo:hi].astype(float)
+        niveaus.append(float(np.sum(mid[lo:hi] * w) / np.sum(w)))
     if len(niveaus) < 2 or len(niveaus) > _POSITION_MAX_LEVELS:
         return None
-    if gedekt / len(orde) < _POSITION_LEVEL_COVERAGE:
+    # Een continuüm heeft geen smalle pieken: eis dat de samples zelf dicht
+    # bij een niveau liggen, niet alleen dat er lokale maxima zijn.
+    afst = np.min(np.abs(valid[:, None] - np.asarray(niveaus)[None, :]), axis=1) \
+        if valid.size <= 2_000_000 else \
+        np.min(np.abs(valid[::max(1, valid.size // 2_000_000)][:, None] - np.asarray(niveaus)[None, :]), axis=1)
+    if float(np.mean(afst <= tol * _POSITION_LEVEL_SPREAD / 2)) < _POSITION_LEVEL_COVERAGE:
         return None
     return sorted(niveaus)
 

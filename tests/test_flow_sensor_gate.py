@@ -206,17 +206,36 @@ def test_substitutive_use_still_blocks_a_bad_thermistor():
     assert apnea is hypop
 
 
-def test_additive_use_keeps_a_bad_thermistor():
-    """Additief gebruik wijst niets af, dus een slecht kanaal kan hooguit
-    nul apneus bijdragen. Blokkeren voegt dan alleen risico toe."""
+def _breathing_out_of_step(seed=32, amp=1.0):
+    """Ademt op dezelfde frequentie, maar met een omgekeerde amplitudemodulatie:
+    lage envelope-overeenstemming met de druk, hoog ademband-vermogen."""
+    rng = np.random.default_rng(seed)
+    mod = 1.0 - 0.5 * np.sin(2 * np.pi * 0.01 * T)
+    return amp * mod * np.sin(2 * np.pi * 0.25 * T + 0.4) + 0.05 * amp * rng.normal(size=T.size)
+
+
+def test_additive_use_keeps_a_bad_but_breathing_thermistor():
+    """Additief gebruik wijst een LAGE OVEREENSTEMMING niet af: zo'n kanaal
+    ademt en kan apneus bijdragen die de druk mist (de 07-10-keuze)."""
+    p = _breathing(seed=32)
+    fc, apnea, hypop = _resolve_additive(p, _breathing_out_of_step(), additive=True)
+    assert fc["thermistor_check"]["usable"] is False, fc["thermistor_check"]
+    assert fc["thermistor_check"].get("dead") is not True
+    assert fc["apnea_sensor"] == "THERM", (
+        "bij additief gebruik hoort een ademende thermistor meegenomen te worden")
+
+
+def test_additive_use_rejects_a_dead_thermistor():
+    """18-10-2026: "kan hooguit nul apneus bijdragen" bleek onwaar -- een vlakke
+    thermistor onder een CPAP-masker gaf 165 valse apneus. Witte ruis heeft een
+    ademfractie van ~0,10, onder THERMISTOR_BAND_POWER_DEAD, en gaat eruit."""
     p = _breathing(seed=32)
     noise = np.random.default_rng(33).normal(size=T.size)
     fc, apnea, hypop = _resolve_additive(p, noise, additive=True)
-    assert fc["apnea_sensor"] == "THERM", (
-        "bij additief gebruik hoort de thermistor gewoon meegenomen te worden")
-    assert fc["thermistor_check"]["usable"] is False, (
-        "de meting hoort wel gerapporteerd te worden")
-    assert apnea is not hypop
+    assert fc["apnea_sensor"] == "PRESS"
+    assert fc["thermistor_rejected"] == "THERM"
+    assert fc["thermistor_check"].get("dead") is True
+    assert np.array_equal(apnea, hypop)
 
 
 def test_a_good_thermistor_is_used_either_way():
