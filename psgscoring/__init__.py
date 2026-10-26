@@ -76,6 +76,7 @@ from .arousal import (
 from .ventilation import compute_ventilatory_burden
 from .spo2 import analyze_spo2, compute_hypoxic_burden, detect_desaturations, get_desaturation
 from .plm import analyze_plm
+from .polygraphy import polygraphy_hypnogram, polygraphy_hypnogram_from_raw
 from .ancillary import (
     analyze_position,
     analyze_heart_rate,
@@ -150,6 +151,8 @@ __all__ = [
     "analyze_position",
     "analyze_heart_rate",
     "compute_event_hr_surge",
+    "polygraphy_hypnogram",
+    "polygraphy_hypnogram_from_raw",
     "analyze_snore",
     "detect_cheyne_stokes",
     # Post-processing

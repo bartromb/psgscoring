@@ -4,6 +4,24 @@ Geen versiebump en geen release: dat is een aparte beslissing. Aanleiding is de 
 25-10 (`docs/literatuur_update_20261025.md`) en de daaruit gekozen lijst (U-Net als standaard,
 vergelijkbare arousalmaten, HR-surge als rapportmaat, YASA-bovengrens, hPG-simulatie, U-Net opschalen).
 
+## `polygraphy`: analysevenster op signaalgeldigheid voor de polygrafieroute (waakpoort stap 1, 26-10)
+
+- Nieuw `psgscoring/polygraphy.py`: `epoch_validity` (per 30 s-epoch `flow_dead` = IQR ≤ 2 % van de
+  mediane epoch-IQR van de opname of 0, `spo2_invalid` = mediaan buiten 50–100 % of < 50 % van de
+  samples in bereik, `sensor_off` = een van beide; een de hele nacht dood flowkanaal telt niet
+  mee), `analysis_window` (regel B: eerste..laatste run van ≥ 4 geldige epochs, dode runs ≥ 6
+  epochs binnen het venster eruit), `polygraphy_hypnogram(signals, n_epochs, manual_window_s=)` →
+  "N2" binnen / "W" buiten het venster met provenance (venster in s, uitgesloten minuten per
+  reden, kanalen, drempels, handmatig venster) en `polygraphy_hypnogram_from_raw(raw, channel_map)`.
+  De bestaande slaappoort en TST-noemer doen de rest: geen tweede poortmechanisme. Drempels uit
+  stap 0 op de n150, niet bijgesteld. Aanleiding en afstelset-cijfers: `docs/hpg_simulatie_20261026.md`
+  (regel B neemt op de n150 13 605 van 23 604 waak-events weg, verliest 6 van 18 642 slaapevents,
+  nachten ≥ 5 /u naast het orakel 92 → 38). Preregistratie en beslisregel op 100 verse nachten:
+  `docs/waakpoort_preregistratie_20261026.md`; uitslag volgt in `docs/waakpoort_20261026.md`.
+- De pipeline zelf verandert niet: een PSG met hypnogram merkt hier niets van; alleen wie dit
+  hypnogram aanlevert (de polygrafieroute van YASAFlaskified) krijgt het venster. Tests:
+  `tests/test_polygraphy_window.py` (10; faalden eerst op de ontbrekende module).
+
 ## `unet_v2`: tweede U-Net-gewicht, opt-in (26-10); `arousal_unet_threshold=None` = werkpunt van het gewicht
 
 - Arm MS van de schaalmeting (`docs/arousal_unet_schaal_replicatie_20261026.md`) zit nu in de

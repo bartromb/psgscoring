@@ -396,6 +396,33 @@ run_pneumo_analysis(raw, hypnogram, scoring_profile="aasm_v3_breath_dual",
 `arousal_unet_threshold=None` (the default) means "the weight's own operating
 point" (0.35 for v1, 0.30 for v2); a number applies to either weight.
 
+### Polygraphy without a hypnogram — the signal-validity window (v0.37.0)
+
+A home polygraphy has no EEG, so there is no hypnogram and the respiratory
+indices are per hour of recording. Scoring every second of the recording is a
+mistake we measured: on 150 MESA nights with the EEG channels removed, 56 % of
+the events the polygraphy route scored started in a wake epoch, two thirds of
+them after the last sleep epoch, mostly on a detached sensor
+([`docs/hpg_simulatie_20261026.md`](https://github.com/bartromb/psgscoring/blob/main/docs/hpg_simulatie_20261026.md)).
+`polygraphy_hypnogram` builds the pseudo-hypnogram the route should pass
+instead of "N2" everywhere: epochs with dead flow (IQR ≤ 2 % of the night's
+median) or invalid SpO2 (outside 50–100 %) are "W" when they form the leading
+or trailing tail or a run of ≥ 3 min; a manual lights-off/on window can be
+added. The existing sleep gate and TST denominator do the rest.
+
+```python
+from psgscoring import polygraphy_hypnogram_from_raw
+hypno, prov = polygraphy_hypnogram_from_raw(raw, channel_map={"flow_pressure": "Nasal", "spo2": "SpO2"},
+                                            manual_window_s=(lights_off_s, lights_on_s))
+run_pneumo_analysis(raw, hypno, scoring_profile="aasm_v3_breath_dual")
+```
+
+The rule was fixed on those 150 nights and pre-registered before its test on
+100 further nights
+([`docs/waakpoort_preregistratie_20261026.md`](https://github.com/bartromb/psgscoring/blob/main/docs/waakpoort_preregistratie_20261026.md)).
+Wake with valid signal (falling asleep, WASO) is not addressed: that needs a
+sleep/wake proxy, a separate project.
+
 ### The envelope axis — four exploratory arms (v0.19.0, all off)
 
 Every threshold in the library is applied to an amplitude envelope, and until
@@ -609,7 +636,7 @@ per idea evaluated, including the ones rejected.
 
 ## Architecture
 
-~22,000 lines across 24 submodules, 1,952 unit tests (CI: Python 3.9–3.12):
+~22,000 lines across 24 submodules, 1,962 unit tests (CI: Python 3.9–3.12):
 
 `constants` · `utils` · `signal` · `breath` · `breath_scoring` · `classify` · `spo2` · `plm` · `ancillary` · `arousal` · `arousal_unet` · `agreement` · `respiratory` · `indices` · `ventilation` · `pipeline` · `ml_classifier` · `profiles` · `postprocess` · `signal_quality` · `signal_quality_channels` · `split_night` · `ecg_effort` · `_types`
 
