@@ -1,0 +1,107 @@
+{
+ "n": 100,
+ "n_fouten": 0,
+ "fouten": [],
+ "per_arm": {
+  "T": {
+   "ahi_med": 22.799999999999997,
+   "f1_med": 0.2504308729861371,
+   "n_events": 25593,
+   "n_apnea": 18429,
+   "n_in_nsrr_W": 14217,
+   "ernst_gelijk_ref": 48,
+   "s_per_nacht_med": 180.7
+  },
+  "V": {
+   "ahi_med": 16.85,
+   "f1_med": 0.4024602326212168,
+   "n_events": 17074,
+   "n_apnea": 9947,
+   "n_in_nsrr_W": 5734,
+   "ernst_gelijk_ref": 58,
+   "s_per_nacht_med": 177.15
+  },
+  "O": {
+   "ahi_med": 15.45,
+   "f1_med": 0.4914106213801905,
+   "n_events": 11510,
+   "n_apnea": 6839,
+   "n_in_nsrr_W": 0,
+   "ernst_gelijk_ref": 62,
+   "s_per_nacht_med": 170.85
+  }
+ },
+ "vs_orakel": {
+  "T": {
+   "abs_d_med": 7.35,
+   "abs_d_ge5": 65,
+   "ernst_gelijk_O": 52,
+   "d_med": 5.800000000000001
+  },
+  "V": {
+   "abs_d_med": 2.4000000000000004,
+   "abs_d_ge5": 30,
+   "ernst_gelijk_O": 78,
+   "d_med": 0.0
+  }
+ },
+ "wilcoxon_absd_T_min_V_p": 6.133260320886155e-10,
+ "absd_T_min_V_med": 2.499999999999998,
+ "o_events_totaal": 11510,
+ "o_events_buiten_V": 55,
+ "o_verlies_frac": 0.0047784535186794095,
+ "nsrr_slaap_min_buiten_V_totaal": 71.0,
+ "nachten_overknip_gt_5min": 3,
+ "uitgesloten_min_med": {
+  "before_window": 0.0,
+  "after_window": 55.75,
+  "inside_window": 0.0,
+  "total": 78.5
+ },
+ "venster_method": {
+  "signal_validity_window": 100
+ },
+ "tib_tst_tertielgrenzen": [
+  1.4657701711491444,
+  1.8284625158831005
+ ],
+ "per_tib_tst_tertiel": {
+  "laag": {
+   "T": {
+    "abs_d_med": 5.199999999999999,
+    "abs_d_ge5": 17
+   },
+   "V": {
+    "abs_d_med": 2.1000000000000014,
+    "abs_d_ge5": 5
+   }
+  },
+  "midden": {
+   "T": {
+    "abs_d_med": 7.4,
+    "abs_d_ge5": 22
+   },
+   "V": {
+    "abs_d_med": 2.200000000000001,
+    "abs_d_ge5": 10
+   }
+  },
+  "hoog": {
+   "T": {
+    "abs_d_med": 12.0,
+    "abs_d_ge5": 26
+   },
+   "V": {
+    "abs_d_med": 4.500000000000001,
+    "abs_d_ge5": 15
+   }
+  }
+ },
+ "beslisregel": {
+  "1_ge5_halveert": true,
+  "2_mediaan_lager_p<0.01": true,
+  "3_orakelverlies_le_0.5pct": true,
+  "4_ernst_gelijk_O_plus10": true,
+  "alle": true
+ }
+}

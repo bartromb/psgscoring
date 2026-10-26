@@ -17,7 +17,13 @@ vergelijkbare arousalmaten, HR-surge als rapportmaat, YASA-bovengrens, hPG-simul
   stap 0 op de n150, niet bijgesteld. Aanleiding en afstelset-cijfers: `docs/hpg_simulatie_20261026.md`
   (regel B neemt op de n150 13 605 van 23 604 waak-events weg, verliest 6 van 18 642 slaapevents,
   nachten ≥ 5 /u naast het orakel 92 → 38). Preregistratie en beslisregel op 100 verse nachten:
-  `docs/waakpoort_preregistratie_20261026.md`; uitslag volgt in `docs/waakpoort_20261026.md`.
+  `docs/waakpoort_preregistratie_20261026.md`. **Uitslag (`docs/waakpoort_20261026.md`, 100
+  testnachten, 26-10): alle vier de voorwaarden JA** — tegen het orakel (zelfde kanalen mét
+  NSRR-hypnogram) nachten ≥ 5 /u 65 → 30, mediane |ΔAHI| 7,35 → 2,40 /u (p = 6·10⁻¹⁰),
+  orakel-events verloren 0,48 % (grens 0,5 %, krap), ernst gelijk aan het orakel 52 → 78 van
+  100; events met onset in waak 14 217 → 5 734. De rest is waak met geldig signaal (inslapen,
+  WASO): een slaap/waak-proxy, apart te pre-registreren. Volgens de prereg wordt het venster de
+  polygrafieroute (YASAFlaskified 0.39.0 bij pin 0.37.0).
 - De pipeline zelf verandert niet: een PSG met hypnogram merkt hier niets van; alleen wie dit
   hypnogram aanlevert (de polygrafieroute van YASAFlaskified) krijgt het venster. Tests:
   `tests/test_polygraphy_window.py` (10; faalden eerst op de ontbrekende module).
