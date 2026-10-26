@@ -46,7 +46,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-full = ["yasa>=0.6", "lightgbm>=3.0", "onnxruntime>=1.16"]
+full = ["yasa>=0.6,<0.8", "lightgbm>=3.0", "onnxruntime>=1.16"]
 ml   = ["lightgbm>=3.0", "onnxruntime>=1.16"]
 # `hypothesis` stond hier zonder dat één test het importeerde (geverifieerd
 # 11-10-2026: alleen deze regel noemde het).
