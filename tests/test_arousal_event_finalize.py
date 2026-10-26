@@ -203,7 +203,7 @@ def test_lgbm_terugval_houdt_alpha_band_wide(monkeypatch):
 # ── het U-Net-pad ───────────────────────────────────────────────────────
 
 def _stub_unet(monkeypatch, gevangen: dict):
-    monkeypatch.setattr(au, "available", lambda: (True, None))
+    monkeypatch.setattr(au, "available", lambda *a, **k: (True, None))
 
     def _stub(eeg, sf_eeg, eog, sf_eog, emg, sf_emg, hypno, **kw):
         gevangen.update(kw, n_eeg=len(eeg), n_eog=len(eog), n_emg=len(emg),

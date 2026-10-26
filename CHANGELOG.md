@@ -4,6 +4,25 @@ Geen versiebump en geen release: dat is een aparte beslissing. Aanleiding is de 
 25-10 (`docs/literatuur_update_20261025.md`) en de daaruit gekozen lijst (U-Net als standaard,
 vergelijkbare arousalmaten, HR-surge als rapportmaat, YASA-bovengrens, hPG-simulatie, U-Net opschalen).
 
+## `unet_v2`: tweede U-Net-gewicht, opt-in (26-10); `arousal_unet_threshold=None` = werkpunt van het gewicht
+
+- Arm MS van de schaalmeting (`docs/arousal_unet_schaal_replicatie_20261026.md`) zit nu in de
+  bibliotheek als `psgscoring/data/arousal_unet_v2.onnx` (18,3 MB, sha256 `9a084f88…`, metadata in
+  `arousal_unet_v2.json`, rij in `models.json`): hetzelfde net en dezelfde keten als `unet_v1`,
+  getraind op 1 262 MESA- + 1 235 SHHS1-nachten. `arousal_detector="unet_v2"` of env
+  `PSGSCORING_AROUSAL_DETECTOR=unet_v2` zet het aan; **nergens profieldefault** — dat wacht op de
+  klinische aan/uit-controle en de doorwerkingsmeting, zoals bij v1. Elk gewicht heeft zijn eigen
+  checksumwacht (`arousal_unet.available(weight)`), sessiecache en terugval naar `lgbm` zonder
+  EOG/kin-EMG met reden; de provenance draagt `detector`, `unet_threshold`, `unet_onnx_sha256`
+  en `models["arousal_unet_v2"]`.
+- `PostProcessingRules.arousal_unet_threshold` is nu `None` = het eigen werkpunt van het gewicht
+  (`arousal_unet.default_threshold`: v1 0,35, v2 0,30 — het validatie-optimum; 0,35 ligt voor v2
+  buiten het vlakke F1-stuk). Een getal geldt voor elk gewicht; de env-override wint. **Gedrag van
+  v1 ongewijzigd** (0,35; golden 9/9). `pipeline._arousal_unet_threshold(profile, detector)`.
+- Tests: `tests/test_arousal_unet_v2.py` (8; faalden eerst), manifesttest op vijf modellen,
+  `test_unet_default` op `None`. Pakket +18 MB (beide gewichten worden meegeleverd; v1 blijft de
+  reproduceerbare standaard van de paper).
+
 ## `arousal_detector` default `unet_v1` op de klinische en exploratieve profielen (gebruikersbeslissing 25-10)
 
 - `PostProcessingRules.arousal_detector` staat op `"unet_v1"`; `"lgbm"` is GEPIND op de vijf

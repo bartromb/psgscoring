@@ -28,7 +28,9 @@ def test_field_default_is_unet_v1():
     assert pp.arousal_detector == "unet_v1"
     # Het werkpunt is bewust NIET veranderd: 0,35 is het PSG-IPA-tellingsneutrale
     # punt uit de replicatie; de keuze 0,35/0,25 staat open.
-    assert pp.arousal_unet_threshold == 0.35
+    assert pp.arousal_unet_threshold is None   # None = het werkpunt van het gewicht zelf
+    from psgscoring.arousal_unet import default_threshold
+    assert default_threshold("unet_v1") == 0.35
 
 
 def test_clinical_and_exploratory_profiles_default_to_unet():

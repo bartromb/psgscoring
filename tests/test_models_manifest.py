@@ -27,15 +27,15 @@ from psgscoring.utils import MODELS_MANIFEST_PATH, check_model_file, models_mani
 DATA = Path(ar.__file__).parent / "data"
 
 
-def test_het_manifest_bestaat_en_benoemt_de_vier_modellen():
+def test_het_manifest_bestaat_en_benoemt_de_vijf_modellen():
     assert MODELS_MANIFEST_PATH.exists()
     m = models_manifest()
     assert set(m) == {"arousal_classifier_v3", "lightgbm_v06_q7holdout",
-                      "autonomic_rerank_v1", "arousal_unet_v1"}
+                      "autonomic_rerank_v1", "arousal_unet_v1", "arousal_unet_v2"}
 
 
 @pytest.mark.parametrize("sleutel", ["arousal_classifier_v3", "lightgbm_v06_q7holdout",
-                                     "autonomic_rerank_v1", "arousal_unet_v1"])
+                                     "autonomic_rerank_v1", "arousal_unet_v1", "arousal_unet_v2"])
 def test_elk_manifestitem_klopt_met_het_bestand(sleutel):
     item = models_manifest()[sleutel]
     for veld in ("file", "sha256", "n_features", "feature_names", "trained_on",

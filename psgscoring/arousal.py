@@ -2620,7 +2620,7 @@ def run_arousal_respiratory_analysis(
     sf_pleth: float | None = None,
     autonomic_rerank: bool = False,
     arousal_detector: str = "lgbm",
-    unet_threshold: float = 0.35,
+    unet_threshold: float | None = None,
     sf_eog: float | None = None,
     sf_emg: float | None = None,
 ) -> dict:
@@ -2683,10 +2683,10 @@ def run_arousal_respiratory_analysis(
     # LGBM-keten mét reden in de samenvatting — nooit stil.
     _unet_reason = None
     _unet_result = None
-    if str(arousal_detector) == "unet_v1":
+    if str(arousal_detector) in ("unet_v1", "unet_v2"):
         from .arousal_unet import available as _unet_available
         from .arousal_unet import detect_arousals_unet
-        _ok, _why = _unet_available()
+        _ok, _why = _unet_available(str(arousal_detector))
         if not _ok:
             _unet_reason = _why
         elif eog_data is None:
@@ -2696,19 +2696,19 @@ def run_arousal_respiratory_analysis(
         else:
             _unet_result = detect_arousals_unet(
                 eeg_data, sf_eeg, eog_data, sf_eeg, emg_data, sf_eeg, hypno,
-                threshold=float(unet_threshold), min_interval_s=min_interval_s,
-                artifact_epochs=artifact_epochs)
+                threshold=unet_threshold, min_interval_s=min_interval_s,
+                artifact_epochs=artifact_epochs, weight=str(arousal_detector))
             if not _unet_result.get("success"):
-                _unet_reason = _unet_result.get("error") or "unet_v1 mislukt"
+                _unet_reason = _unet_result.get("error") or f"{arousal_detector} mislukt"
                 _unet_result = None
         if _unet_reason:
-            logger.warning("[arousal] unet_v1 niet gebruikt: %s — terugval op lgbm",
-                           _unet_reason)
+            logger.warning("[arousal] %s niet gebruikt: %s — terugval op lgbm",
+                           arousal_detector, _unet_reason)
     if _unet_result is not None:
         ar_result = _unet_result
         if autonomic_rerank:
             ar_result.setdefault("summary", {})["autonomic_rerank"] = {
-                "active": False, "reason": "unet_v1: re-ranker werkt op LGBM-kandidaten"}
+                "active": False, "reason": f"{arousal_detector}: re-ranker werkt op LGBM-kandidaten"}
     elif derivations:
         ar_result = detect_arousals_multi(derivations, sf_eeg, hypno,
                                           score_wake_arousals=score_wake_arousals,
@@ -2758,7 +2758,7 @@ def run_arousal_respiratory_analysis(
                     onset_offset_s)
         ar_result.setdefault("summary", {})["onset_offset_s"] = float(onset_offset_s)
 
-    if str(arousal_detector) == "unet_v1" and _unet_reason and isinstance(ar_result.get("summary"), dict):
+    if str(arousal_detector).startswith("unet_") and _unet_reason and isinstance(ar_result.get("summary"), dict):
         ar_result["summary"]["detector"] = "lgbm"
         ar_result["summary"]["unet_fallback_reason"] = _unet_reason
     # Vangnet vóór de koppeling: elke weg hoort stage/epoch/end_s al te

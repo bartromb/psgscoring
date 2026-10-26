@@ -372,6 +372,30 @@ chin EMG the pipeline falls back to the LightGBM chain and says so in
 `summary["unet_fallback_reason"]`; the autonomic re-ranker is bypassed when the
 U-Net is active.
 
+**`unet_v2` (opt-in since 2026-10-26).** The same network trained on 1,262 MESA
++ 1,235 SHHS1 nights, shipped as a second SHA-pinned ONNX graph with its own
+operating point (0.30). Pre-registered scale-up measurement
+([`docs/arousal_unet_schaal_replicatie_20261026.md`](https://github.com/bartromb/psgscoring/blob/main/docs/arousal_unet_schaal_replicatie_20261026.md)),
+each weight at its own validation threshold, paired per night:
+
+| cohort | nights | `unet_v1` median F1 | `unet_v2` median F1 | better on | p |
+|---|---|---|---|---|---|
+| SHHS1 (fresh, never seen) | 148 | 0.670 | **0.739** | 134/148 | 4·10⁻²⁴ |
+| MESA validation split | 76 | 0.683 | 0.699 | 50/76 | 0.005 |
+| PSG-IPA (scorer 1) | 5 | 0.749 (pooled) | 0.763 (pooled) | 4/5 | — |
+
+A fourth input channel (nasal pressure or thermistor flow) added nothing
+(ΔF1 0.000 on SHHS1, 73/73) and was rejected. `unet_v1` stays the default until
+the clinical on/off check and the downstream measurement are done for v2:
+
+```python
+run_pneumo_analysis(raw, hypnogram, scoring_profile="aasm_v3_breath_dual",
+                    arousal_detector="unet_v2")        # or PSGSCORING_AROUSAL_DETECTOR=unet_v2
+```
+
+`arousal_unet_threshold=None` (the default) means "the weight's own operating
+point" (0.35 for v1, 0.30 for v2); a number applies to either weight.
+
 ### The envelope axis — four exploratory arms (v0.19.0, all off)
 
 Every threshold in the library is applied to an amplitude envelope, and until
@@ -585,7 +609,7 @@ per idea evaluated, including the ones rejected.
 
 ## Architecture
 
-~22,000 lines across 24 submodules, 1,943 unit tests (CI: Python 3.9–3.12):
+~22,000 lines across 24 submodules, 1,952 unit tests (CI: Python 3.9–3.12):
 
 `constants` · `utils` · `signal` · `breath` · `breath_scoring` · `classify` · `spo2` · `plm` · `ancillary` · `arousal` · `arousal_unet` · `agreement` · `respiratory` · `indices` · `ventilation` · `pipeline` · `ml_classifier` · `profiles` · `postprocess` · `signal_quality` · `signal_quality_channels` · `split_night` · `ecg_effort` · `_types`
 

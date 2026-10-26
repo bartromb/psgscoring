@@ -1,0 +1,35 @@
+{
+ "source": "bench-uitvoer /srv/CODE/docs/arousal_unet_schaal_20261025/MS/model_best.pt (arm MS, buiten git)",
+ "source_sha256": "e75bee7a409e18afae44f407386ef5e5e17c14959772b7a5723f58e92f841c9d",
+ "onnx_sha256": "9a084f8814a517f5d0dc550261d70c88cf82289c6518e30eceae236060e219b3",
+ "config": {
+  "in_ch": 3,
+  "base": 16,
+  "pools": [
+   2,
+   4,
+   4,
+   4
+  ],
+  "k": 21
+ },
+ "tau_default": 0.3,
+ "tau_val": 0.3,
+ "tau_neutral": 0.2,
+ "val_f1": 0.7301,
+ "epoch": 56,
+ "opset": 17,
+ "input": "x[1,3,n] = (EEG, EOG, kin-EMG) @ 50 Hz, genormaliseerd, n deelbaar door 128",
+ "output": "p[1,n] kans per sample",
+ "max_abs_diff_vs_torch": {
+  "38400": 1.1920928955078125e-07,
+  "384000": 1.601874828338623e-07
+ },
+ "fs": 50,
+ "pad_multiple": 128,
+ "preprocessing": "als unet_v1: mne resample naar 50 Hz; per kanaal lopend gemiddelde en RMS (18 min, uniform_filter1d, mode nearest) verwijderd; clip ±20; float16-rondgang",
+ "postprocessing": "1 s lopend gemiddelde, drempel tau (default 0,30), gaten ≤ 1 s samengevoegd, ≥ 3 s, slaappoort, daarna de 10 s-samenvoeging van de keten",
+ "trained_on": "1 262 MESA- + 1 235 SHHS1-nachten (seed 20261025, 60 epochs, beste 56), zelfde architectuur en ingangen als unet_v1; bench/eeg/unet_scale/",
+ "frozen": "2026-10-26, schaalmeting docs/arousal_unet_schaal_replicatie_20261026.md (SHHS1-150b mediane F1 0,670 → 0,739, MESA-76 +0,011, PSG-IPA 4/5; flowkanaal afgewezen)",
+ "status": "opt-in; unet_v1 blijft de standaard tot de klinische aan/uit-controle en doorwerkingsmeting"
+}

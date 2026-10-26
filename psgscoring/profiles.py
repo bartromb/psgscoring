@@ -758,8 +758,14 @@ class PostProcessingRules:
 
     arousal_detector: str = "unet_v1"
     """v0.35.0: welke detector de arousal-kandidaten levert — ``"lgbm"`` (de
-    oude keten: regelkandidaten + LightGBM-filter) of ``"unet_v1"`` (het
-    bevroren 1D-U-Net op EEG + EOG + kin-EMG @ 50 Hz, `psgscoring/arousal_unet.py`).
+    oude keten: regelkandidaten + LightGBM-filter), ``"unet_v1"`` (het
+    bevroren 1D-U-Net op EEG + EOG + kin-EMG @ 50 Hz, `psgscoring/arousal_unet.py`)
+    of ``"unet_v2"`` (opt-in sinds 26-10-2026: hetzelfde net, getraind op 1 262
+    MESA- + 1 235 SHHS1-nachten — arm MS van de schaalmeting
+    `docs/arousal_unet_schaal_replicatie_20261026.md`: SHHS1-150b mediane F1
+    0,670 → 0,739 op 134/148, MESA-76 +0,011, PSG-IPA 4/5; eigen werkpunt 0,30;
+    nergens profieldefault tot de klinische aan/uit-controle en de
+    doorwerkingsmeting). Env ``PSGSCORING_AROUSAL_DETECTOR=unet_v2`` zet het aan.
 
     **Default "unet_v1" sinds 2026-10-25 op de klinische en exploratieve
     profielen (gebruikersbeslissing); "lgbm" GEPIND op de vijf profielen die een
@@ -782,12 +788,15 @@ class PostProcessingRules:
     nodig (``psgscoring[ml]``); ontbreekt het, dan terugval met reden, nooit
     stil."""
 
-    arousal_unet_threshold: float = 0.35
-    """Werkpunt τ van ``unet_v1`` op de kans per sample. 0,35 is het
-    tellingsneutrale punt op PSG-IPA uit de replicatie (ratio 1,02); op de
-    NSRR-cohorten telt het 0,72–0,85 (τ 0,25 is daar neutraal). Env-override
-    ``PSGSCORING_AROUSAL_UNET_THRESHOLD``. Welk werkpunt de standaard wordt is
-    Barts beslissing (prereg 27-09, §Beslisregel)."""
+    arousal_unet_threshold: float | None = None
+    """Werkpunt τ van het U-Net op de kans per sample. ``None`` (default sinds
+    26-10-2026) = het eigen werkpunt van het gewicht: ``unet_v1`` 0,35 (het
+    tellingsneutrale punt op PSG-IPA uit de replicatie, ratio 1,02; op de
+    NSRR-cohorten telt het 0,72–0,85, τ 0,25 is daar neutraal), ``unet_v2``
+    0,30 (validatie-optimum van de schaalmeting; 0,35 ligt voor dat gewicht
+    buiten het vlakke F1-stuk). Een getal geldt voor elk gewicht; env
+    ``PSGSCORING_AROUSAL_UNET_THRESHOLD`` wint. Het gedrag van v1 is
+    ongewijzigd (0,35). Welk werkpunt de standaard wordt is Barts beslissing."""
 
     arousal_lgbm: bool = True
     """Filter arousal-kandidaten met het op MESA getrainde LightGBM-model.
@@ -2656,6 +2665,7 @@ _aasm_v2_rec = Profile(
         # regelset; de arousals -- en via de koppeling de RDI -- bleven zo
         # byte-gelijk aan vóór 25-10.
         arousal_detector="lgbm",
+        arousal_unet_threshold=0.35,   # inert onder lgbm; gepind zodat het gerenderde profiel byte-gelijk blijft (26-10)
         arousal_onset_offset_s=0.0,
         # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
@@ -2707,6 +2717,7 @@ _aasm_v1_rec = Profile(
         # regelset; de arousals -- en via de koppeling de RDI -- bleven zo
         # byte-gelijk aan vóór 25-10.
         arousal_detector="lgbm",
+        arousal_unet_threshold=0.35,   # inert onder lgbm; gepind zodat het gerenderde profiel byte-gelijk blijft (26-10)
         arousal_onset_offset_s=0.0,
         # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
@@ -2761,6 +2772,7 @@ _cms_medicare = Profile(
         # regelset; de arousals -- en via de koppeling de RDI -- bleven zo
         # byte-gelijk aan vóór 25-10.
         arousal_detector="lgbm",
+        arousal_unet_threshold=0.35,   # inert onder lgbm; gepind zodat het gerenderde profiel byte-gelijk blijft (26-10)
         arousal_onset_offset_s=0.0,
         # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
@@ -2827,6 +2839,7 @@ _mesa_shhs = Profile(
         # regelset; de arousals -- en via de koppeling de RDI -- bleven zo
         # byte-gelijk aan vóór 25-10.
         arousal_detector="lgbm",
+        arousal_unet_threshold=0.35,   # inert onder lgbm; gepind zodat het gerenderde profiel byte-gelijk blijft (26-10)
         arousal_onset_offset_s=0.0,
         # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
@@ -2994,6 +3007,7 @@ _chicago_1999 = Profile(
         # regelset; de arousals -- en via de koppeling de RDI -- bleven zo
         # byte-gelijk aan vóór 25-10.
         arousal_detector="lgbm",
+        arousal_unet_threshold=0.35,   # inert onder lgbm; gepind zodat het gerenderde profiel byte-gelijk blijft (26-10)
         arousal_onset_offset_s=0.0,
         # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
