@@ -1,8 +1,11 @@
-# Ongereleased (werkboom na v0.36.2) — 2026-10-25 — U-Net-arousaldetector standaard op de klinische profielen; agreement-rapport met elke-overlap, 1 s-κ en verschuivingen; hartslagstijging per respiratoir event; YASA < 0.8 gepind
+# v0.37.0 — 2026-10-26 — U-Net-arousaldetector standaard op de klinische profielen; `unet_v2` opt-in; analysevenster op signaalgeldigheid voor de polygrafieroute; agreement-rapport met elke-overlap, 1 s-κ en verschuivingen; hartslagstijging per respiratoir event; YASA < 0.8 gepind
 
-Geen versiebump en geen release: dat is een aparte beslissing. Aanleiding is de literatuurcheck van
-25-10 (`docs/literatuur_update_20261025.md`) en de daaruit gekozen lijst (U-Net als standaard,
-vergelijkbare arousalmaten, HR-surge als rapportmaat, YASA-bovengrens, hPG-simulatie, U-Net opschalen).
+Aanleiding is de literatuurcheck van 25-10 (`docs/literatuur_update_20261025.md`) en de daaruit
+gekozen lijst (U-Net als standaard, vergelijkbare arousalmaten, HR-surge als rapportmaat,
+YASA-bovengrens, hPG-simulatie, U-Net opschalen). Alles hieronder is gemeten vóór de release; de
+metingen staan per onderdeel in `docs/`. Gedrag dat verandert zonder opt-in: de arousaldetector op
+de klinische profielen (`lgbm` → `unet_v1`) en de polygrafieroute zodra YASAFlaskified het venster
+aanlevert. Reproductieprofielen blijven byte-gelijk aan 0.36.2.
 
 ## `polygraphy`: analysevenster op signaalgeldigheid voor de polygrafieroute (waakpoort stap 1, 26-10)
 

@@ -106,7 +106,7 @@ The stability guarantee lives in the **profiles**, not in the version number:
   it, and is pinned by a test.
 
 If you need scored values to stay identical across time — for a study, a
-regulatory submission, or a paper — **pin the version** (`psgscoring==0.36.2`)
+regulatory submission, or a paper — **pin the version** (`psgscoring==0.37.0`)
 and record which profile you used. Do not rely on a profile name alone.
 
 ## Installation
