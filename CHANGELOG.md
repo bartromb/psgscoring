@@ -1,3 +1,117 @@
+# Ongereleased (werkboom na v0.36.2) — 2026-10-25 — U-Net-arousaldetector standaard op de klinische profielen; agreement-rapport met elke-overlap, 1 s-κ en verschuivingen; hartslagstijging per respiratoir event; YASA < 0.8 gepind
+
+Geen versiebump en geen release: dat is een aparte beslissing. Aanleiding is de literatuurcheck van
+25-10 (`docs/literatuur_update_20261025.md`) en de daaruit gekozen lijst (U-Net als standaard,
+vergelijkbare arousalmaten, HR-surge als rapportmaat, YASA-bovengrens, hPG-simulatie, U-Net opschalen).
+
+## `arousal_detector` default `unet_v1` op de klinische en exploratieve profielen (gebruikersbeslissing 25-10)
+
+- `PostProcessingRules.arousal_detector` staat op `"unet_v1"`; `"lgbm"` is GEPIND op de vijf
+  profielen die een externe regelset of een gepubliceerde dataset-analyse reproduceren
+  (`aasm_v2_rec`, `aasm_v1_rec`, `cms_medicare`, `mesa_shhs`, `chicago_1999` — dezelfde groep als
+  `arousal_lgbm=False`), zodat die byte-gelijk blijven. Het werkpunt blijft 0,35 (PSG-IPA-
+  tellingsneutraal); 0,25 (NSRR-neutraal) is een open beslissing. Env-override
+  `PSGSCORING_AROUSAL_DETECTOR=lgbm` geeft de keten van vóór 25-10 (meetarmen).
+- Grond: de pre-geregistreerde replicatie van 27-09 (SHHS1 150 verse nachten F1 0,543 → 0,676
+  op 134/147, p = 2e-22; MESA-76 0,556 → 0,687; PSG-IPA 0,745 op 5/5) en de doorwerkingsmeting
+  van 09-10 (AHI mediaan −0,2 /u op 100 MESA-nachten, RDI −0,9 /u, arousal-index −1,8 /u,
+  respiratoire F1 +0,003; arousal-F1 op 4 van 5 PSG-IPA-nachten omhoog).
+- Gevolg op een verslag: arousal-index en RDI bewegen (minder waar de LGBM-keten overtelde,
+  meer waar ze ondertelde), de AHI nauwelijks. De autonome re-ranker (0.33.0) is onder `unet_v1`
+  inert met reden in de provenance; onder `lgbm` werkt hij nog. Zonder EOG of kin-EMG valt de
+  keten terug op `lgbm` met `summary["unet_fallback_reason"]`; `onnxruntime` zit in `[ml]`/`[full]`.
+- Tests: `tests/test_unet_default.py` (6; faalden eerst op de oude default, incl. een
+  pipeline-test die onder `aasm_v3_breath_dual` zonder env `summary["detector"] == "unet_v1"`
+  eist en één die `mesa_shhs` op de LGBM-keten houdt); `test_arousal_unet.py` aangepast.
+  Golden 9/9 byte-identiek (`PSGSCORING_GOLDEN=1` gedraaid): de synthetische opnames hebben
+  geen EOG, dus daar valt de keten terug op `lgbm` — de verschuiving is alleen op echte
+  opnames gemeten (09-10). YASAFlaskified pint 0.36.2 en krijgt de nieuwe standaard pas bij
+  zijn volgende pin; de PDF toont de detector al als provenance (0.38.10).
+
+## `agreement.compare_event_sets`: koppelregel als parameter, 1 s-κ en grensverschuiving
+
+Gedragsidentiek op het default-pad (`matcher="iou"`, IoU ≥ 0,20; vastgelegde 0.36.2-uitkomst in
+`tests/test_agreement_matcher.py`, golden 9/9). Nieuw: `matcher="any"` (elke overlap > 0 s telt,
+grootste overlap eerst — de koppelregel van de arousalliteratuur, Pitkänen 2026 / Ehrlich 2024),
+`duration_s`, en per vergelijking `kappa_1s` (Cohen's κ op 1 s-maskers), `onset_shift_median_s` /
+`offset_shift_median_s` (b − a over gekoppelde paren) en `median_duration_a/_b`; `matcher` staat in
+de uitvoer. Aanleiding en meting: `docs/arousal_unet_matcher_vergelijking_20261025.md` — de
+U-Net-replicatie van 27-09 herscoord: F1 elke overlap 0,760 (PSG-IPA, gepoold) / 0,684 (SHHS1) /
+0,702 (MESA) tegen IoU-0,20 0,745 / 0,676 / 0,687; scoorderplafond PSG-IPA 0,679 → 0,692, κ 0,587;
+U-Net κ 0,54–0,59 (slaap 0,63–0,67). De koppelregel verplaatst detector en plafond ≤ 0,02:
+scoorders verschillen over het bestaan van een arousal, niet over de grenzen (onderling 0,33 s
+begin / 0,77 s einde). Tests: 12 (faalden eerst).
+
+## Hartslagstijging per respiratoir event (heart rate surge) als rapportmaat
+
+Huang e.a. (JACC Asia 2026, 10.1016/j.jacasi.2026.08.040): piekhartslag in het eventvenster min de
+gemiddelde hartslag van de 60 s vóór het event; op 4 790 deelnemers zwak gecorreleerd met de
+hypoxic burden (ρ 0,08) en C-index voor cardiovasculaire sterfte 0,77 → 0,81 bóven HB. Nieuw
+`ancillary.compute_event_hr_surge` en `output["hr_surge"]` (per-event ΔHR, gemiddelde/mediaan/p90,
+tellingen geldig/ongeldige basislijn/W, provenance `method: huang2026`, venster, basislijn, bron),
+gespiegeld in `heart_rate.summary.event_hr_surge_bpm`/`_method`/`_n`. Bibliotheekkeuzes (volledige
+tekst niet toegankelijk, alleen de abstractdefinitie): venster [onset, einde + 15 s], basislijn
+≥ 50 % plausibel anders event ongeldig, alleen een pulse-kanaal telt (ruw ECG → None met reden),
+events met onset in W niet. Geen index verandert; golden 9/9 byte-identiek. Tests:
+`tests/test_hr_surge.py` (14; faalden eerst). YASAFlaskified toont de rij in PDF en resultatenpagina
+zodra zijn pin het veld levert (tolerant voor afwezigheid).
+
+## YASA-bovengrens
+
+- `full = ["yasa>=0.6,<0.8", ...]` (en in YASAFlaskified `yasa>=0.7,<0.8`). YASA 0.8.0 (2-10-2026)
+  eist scikit-learn ≥ 1.6.1 en numpy ≥ 2.2.2, verwijdert `predict_proba` en de 0.4.0-classifiers;
+  tot nu hield alleen de sklearn-pin van YASAFlaskified de productie-image op 0.7.0. De overstap
+  naar 0.8 is een staging-wissel en gaat als meting (0.7 tegen 0.8 op de PSG-IPA-stagingset en
+  eigen nachten), niet als bijvangst van een build.
+
+## hPG-simulatie op MESA (meting nacht 25/26-10): zonder EEG mét hypnogram −2,55 /u op 150/150; de polygrafieroute zonder waakpoort is per nacht onbetrouwbaar
+
+- `scripts/hpg_simulatie_mesa.py` + `docs/hpg_simulatie_preregistratie_20261025.md`: per nacht
+  drie armen (`psg`; `hpg_hypno` zonder EEG/EOG/EMG met NSRR-hypnogram; `hpg` zonder EEG/EOG/EMG
+  met registratietijd als noemer, de polygrafieroute van YASAFlaskified), referentie en matcher
+  van `validate_mesa.py`. Beschrijvend: ΔAHI, ΔF1, ernstwissels, per tertiel. Vraag 1 van
+  roadmap-kandidaat C (hPG-profiel onder de conventie 2027).
+- **Uitslag** (`docs/hpg_simulatie_20261026.md`; 150 nachten, 0 fouten, psgscoring 0.36.2-werkboom,
+  `aasm_v3_breath_dual`, psg-arm op `unet_v1`): `hpg_hypno` verliest precies de arousal-gedragen
+  hypopneeën (2 709 van 10 213; apneus identiek), AHI mediaan −2,55 /u op 150/150, 27
+  ernstwissels alle omlaag, 24 ervan in het lage en middelste tertiel. `hpg` (de polygrafieroute
+  van YASAFlaskified: hypnogram alles N2, registratietijd als noemer) geeft ΔAHI mediaan +2,40
+  maar bereik −29 … +33 /u, 85/150 nachten ≥ 5 /u af, 66 ernstwissels in beide richtingen, F1
+  0,56 → 0,31, apneus 11 288 → 30 628. Decompositie: 56 % van de hpg-events begint in een
+  W-epoch, twee derde daarvan ná het laatste slaapepoch (vrijwel alle apneus, mediaan 40 s);
+  ΔAHI = noemereffect (−10,7 /u) + waak-events (+14,7 /u). In slaap scoort de hPG-keten gelijk aan
+  `hpg_hypno` (−1 event per nacht). De lezing vooraf in de prereg (daling door de noemer) was
+  verkeerd van teken: de waak-events waren niet voorzien.
+- **Gevolg**: niets gebouwd. Twee kandidaten voor een eigen prereg: een analysevenster/waakpoort
+  voor de polygrafieroute (signaalgeldigheid + beweging/houding, later WASO via hartslag/RIP) en
+  de arousalpoot op RIP/Pleth (roadmap-kandidaat C stap 2) voor de −2,55 /u.
+
+## Arousal-U-Net opgeschaald (bench, meting nacht 25/26-10): arm MS haalt de prereg-regel, het flowkanaal niet
+
+- Preregistratie `docs/arousal_unet_schaal_preregistratie_20261025.md`, uitslag
+  `docs/arousal_unet_schaal_replicatie_20261026.md`, keten en evaluatie in `bench/eeg/unet_scale/`
+  (`run_chain.sh`, `train_scale.py`, `evaluate_scale.py`, `export_onnx.py`); ruwe uitvoer buiten
+  git in `/srv/CODE/docs/arousal_unet_schaal_20261025/`. Drie armen tegen het bevroren `unet_v1`
+  (317 MESA-nachten): M = 1 262 MESA; MS = M + 1 235 SHHS1; MSF = MS + flowkanaal. Elk model op
+  zijn eigen val-τ (bevroren 0,25, M 0,25, MS 0,30, MSF 0,30), projectmatcher IoU 0,20 na de
+  10 s-samenvoeging, gepaard per nacht.
+- **SHHS1-150b (148 verse nachten, beslissend):** mediane F1 bevroren 0,670 → M 0,693 → **MS
+  0,739** → MSF 0,733; MS − bevroren +0,057 (134/13/1, p = 4·10⁻²⁴), count-ratio 0,97 → 0,92,
+  REM-F1 0,615 → 0,761 (REM-PPV 0,52 → 0,71). **MESA-76:** +0,011 (50/26, p = 0,005).
+  **PSG-IPA n = 5:** gepoold 0,749 → 0,763, niet lager op 4/5 (SN1 −0,086). **Flow (MSF − MS):**
+  0,000 op SHHS1 (73/73, p = 0,73), +0,003 op MESA, 1/4 op PSG-IPA → **niet gerechtvaardigd**.
+  Beslisregel: MS geslaagd; M en MSF falen alleen op de PSG-IPA-poort (3/5, 2/5).
+- Lezing: schaal alleen (M) brengt +0,025 op SHHS1 en +0,010 op MESA; het tweede cohort brengt
+  nog +0,032 op SHHS1 (domeinaanpassing) en niets op MESA. MS en MSF liepen tot de epochgrens
+  (60; beste 56/54) en waren nog niet uitgeleerd. Tegen het bibliotheekwerkpunt τ 0,35 is de
+  MS-winst groter (+0,056 SHHS1, +0,017 MESA); 0,35 ligt voor MS buiten het vlakke F1-stuk.
+- **Niets in de bibliotheek veranderd.** MS is volgens de prereg kandidaat voor een
+  `unet_v2`-gewicht; de ONNX-export staat klaar buiten git (`MS/arousal_unet_MS_kandidaat.onnx`,
+  sha256 `9a084f88…`, opset 17, afwijking tegen torch < 2·10⁻⁷). Inbouw naast `unet_v1`,
+  default en werkpunt (0,25 of 0,30) zijn een aparte beslissing met klinische aan/uit-controle
+  en doorwerkingsmeting; `unet_v1` blijft tot dan het gewicht. SHHS1-150b en MESA-76 zijn nu
+  twee keer als testset gebruikt en gelden voor een τ-keuze van `unet_v2` als afstelset.
+
 # v0.36.2 — 2026-10-18 — houding: niveaus overleven de herbemonstering, codetabel van de recorder; dode thermistor ook additief geweerd; CPAP-druk gemeld
 
 Twee defecten uit de laatste tien productie-uploads (`docs/positie_en_cpap_20261018.md`).
