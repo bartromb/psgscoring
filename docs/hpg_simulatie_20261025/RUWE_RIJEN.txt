@@ -1,0 +1,2 @@
+Ruwe rijen (met volledige eventlijsten, 16 MB) staan buiten git in /srv/CODE/docs/hpg_simulatie_20261025_raw/ (rijen.json, rijen.partial.jsonl).
+rapport.md, samenvatting.json en decompositie.json zijn daaruit afgeleid.

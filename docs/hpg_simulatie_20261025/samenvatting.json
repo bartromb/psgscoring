@@ -1,0 +1,175 @@
+{
+ "n": 150,
+ "n_fouten": 0,
+ "referentie": "aasm15",
+ "fouten": [],
+ "armen": {
+  "psg": {
+   "f1_mediaan": 0.5618532818532819,
+   "f1_gem": 0.5338334442661998,
+   "precisie_mediaan": 0.6012820512820513,
+   "recall_mediaan": 0.6077696961457413,
+   "ahi_bias": 0.08726858459838506,
+   "ahi_mae": 8.073750717336168,
+   "ahi_r": 0.782082834741212,
+   "ernst_gelijk": 94,
+   "n_hypopnea_som": 10213,
+   "n_apnea_som": 11288,
+   "n_hyp_rule1a_som": 2605,
+   "n_hyp_desat3_som": 7506,
+   "arousal_detector": [
+    "unet_v1"
+   ],
+   "seconden_mediaan": 210.25
+  },
+  "hpg_hypno": {
+   "f1_mediaan": 0.5472308488612836,
+   "f1_gem": 0.5134307959577823,
+   "precisie_mediaan": 0.6296296296296297,
+   "recall_mediaan": 0.5261971531007064,
+   "ahi_bias": -2.9520647487349483,
+   "ahi_mae": 8.465724553324248,
+   "ahi_r": 0.7843364177352673,
+   "ernst_gelijk": 93,
+   "n_hypopnea_som": 7504,
+   "n_apnea_som": 11288,
+   "n_hyp_rule1a_som": 0,
+   "n_hyp_desat3_som": 7348,
+   "arousal_detector": [
+    "None"
+   ],
+   "seconden_mediaan": 171.4
+  },
+  "hpg": {
+   "f1_mediaan": 0.3095223097112861,
+   "f1_gem": 0.32913604271474656,
+   "precisie_mediaan": 0.23852311985118257,
+   "recall_mediaan": 0.5337970006520321,
+   "ahi_bias": 2.506601917931718,
+   "ahi_mae": 11.332273925345955,
+   "ahi_r": 0.6296634961673624,
+   "ernst_gelijk": 68,
+   "n_hypopnea_som": 11618,
+   "n_apnea_som": 30628,
+   "n_hyp_rule1a_som": 0,
+   "n_hyp_desat3_som": 11280,
+   "arousal_detector": [
+    "None"
+   ],
+   "seconden_mediaan": 182.64999999999998
+  }
+ },
+ "gepaard": {
+  "hpg_hypno": {
+   "d_ahi_mediaan": -2.549999999999999,
+   "d_ahi_gem": -3.0393333333333334,
+   "d_ahi_min": -12.2,
+   "d_ahi_max": -0.20000000000000018,
+   "d_ahi_lager": 150,
+   "d_ahi_hoger": 0,
+   "d_ahi_abs_ge5": 23,
+   "wilcoxon_ahi_p": 2.3228406148614105e-26,
+   "wilcoxon_ahi_n": 150,
+   "d_f1_mediaan": -0.014268098175842292,
+   "d_f1_gem": -0.02040264830841742,
+   "d_f1_beter": 39,
+   "d_f1_slechter": 109,
+   "wilcoxon_f1_p": 1.8935320473418394e-10,
+   "wilcoxon_f1_n": 148,
+   "ernstwissel": {
+    "Severe->Moderate": 3,
+    "Moderate->Mild": 17,
+    "Mild->Normal": 7
+   },
+   "ernstwissel_n": 27,
+   "ernst_gelijk_aan_referentie_psg": 94,
+   "ernst_gelijk_aan_referentie_arm": 93
+  },
+  "hpg": {
+   "d_ahi_mediaan": 2.4,
+   "d_ahi_gem": 2.4193333333333333,
+   "d_ahi_min": -29.299999999999997,
+   "d_ahi_max": 33.1,
+   "d_ahi_lager": 56,
+   "d_ahi_hoger": 91,
+   "d_ahi_abs_ge5": 85,
+   "wilcoxon_ahi_p": 0.0009244957774241666,
+   "wilcoxon_ahi_n": 147,
+   "d_f1_mediaan": -0.20771538937693265,
+   "d_f1_gem": -0.20469740155145322,
+   "d_f1_beter": 1,
+   "d_f1_slechter": 147,
+   "wilcoxon_f1_p": 5.156511812427565e-26,
+   "wilcoxon_f1_n": 148,
+   "ernstwissel": {
+    "Severe->Moderate": 6,
+    "Moderate->Mild": 7,
+    "Mild->Moderate": 19,
+    "Normal->Mild": 8,
+    "Moderate->Severe": 20,
+    "Normal->Severe": 1,
+    "Mild->Severe": 2,
+    "Normal->Moderate": 1,
+    "Mild->Normal": 2
+   },
+   "ernstwissel_n": 66,
+   "ernst_gelijk_aan_referentie_psg": 94,
+   "ernst_gelijk_aan_referentie_arm": 68
+  }
+ },
+ "tertiel": {
+  "hpg_hypno": {
+   "laag": {
+    "n": 50,
+    "d_ahi_mediaan": -2.5,
+    "d_ahi_gem": -2.798,
+    "d_f1_mediaan": -0.014469564221848752,
+    "ernstwissel": 12
+   },
+   "midden": {
+    "n": 50,
+    "d_ahi_mediaan": -3.200000000000001,
+    "d_ahi_gem": -3.72,
+    "d_f1_mediaan": -0.017423513432462095,
+    "ernstwissel": 12
+   },
+   "hoog": {
+    "n": 50,
+    "d_ahi_mediaan": -2.3000000000000007,
+    "d_ahi_gem": -2.6,
+    "d_f1_mediaan": -0.012917575571840145,
+    "ernstwissel": 3
+   }
+  },
+  "hpg": {
+   "laag": {
+    "n": 50,
+    "d_ahi_mediaan": 4.399999999999999,
+    "d_ahi_gem": 5.910000000000001,
+    "d_f1_mediaan": -0.231396188300387,
+    "ernstwissel": 30
+   },
+   "midden": {
+    "n": 50,
+    "d_ahi_mediaan": 3.250000000000001,
+    "d_ahi_gem": 3.302,
+    "d_f1_mediaan": -0.2359485311074907,
+    "ernstwissel": 24
+   },
+   "hoog": {
+    "n": 50,
+    "d_ahi_mediaan": -2.1499999999999986,
+    "d_ahi_gem": -1.9539999999999997,
+    "d_f1_mediaan": -0.18334672202536428,
+    "ernstwissel": 12
+   }
+  }
+ },
+ "ernst": {},
+ "tertielgrenzen": [
+  13.293413173652695,
+  28.47161572052402
+ ],
+ "tib_tst_ratio_mediaan": 1.7265602469931638,
+ "aandeel_hyp_zonder_desat3_psg": 0.26505434250465093
+}
