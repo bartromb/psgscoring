@@ -87,3 +87,24 @@ het handmatige venster (van/tot, minuten na start) als override en
 `YASAFLASKIFIED_POLYGRAPHY_WINDOW=off` als terugweg (gecommit bd1984f, actief zodra de pin 0.37.0
 is). PDF en resultatenpagina tonen het venster en de uitgesloten tijd. In productie geldt dit voor
 elke polygrafie-upload vanaf de uitrol van YF 0.39.0; PSG's met hypnogram merken er niets van.
+
+## Aanvulling (zelfde ruwe rijen, nadere decompositie)
+
+- **Per nacht wint V op 58, is gelijk (binnen 0,5 /u) op 30 en verliest op 12.** De richting van
+  de restfout verandert: T ligt systematisch te hoog (52 nachten ≥ +5 /u, 13 ≤ −5), V is
+  gecentreerd (13 ≥ +5, 17 ≤ −5).
+- **De noemer is nu de dominante restfout.** V haalt 60 % van de waak-events weg, maar zijn noemer
+  ligt nog mediaan 2,62 u (IQR 1,97–3,57) boven de TST van het orakel (T: 3,88 u) — waak op
+  geldig signaal telt mee als analysetijd. De 12 verliesnachten zijn nachten waar de oude route
+  per ongeluk compenseerde: haar waak-apneus in de teller maskeerden de verdunning in de noemer.
+  Duidelijkst `mesa-sleep-4366` (TIB/TST 3,1; 298 waak-epochs buiten V, 149 min uitgesloten):
+  T −3,5 /u door compensatie, V −13,0 zonder. Een zichtbaar gemaakte fout, geen nieuwe.
+- **Over-knippen is één mechanisme**: een sensor die tijdens slaap losraakt. `mesa-sleep-1127`
+  verliest 27 slaapminuten en 33 orakel-events aan twee dode runs (4 en 23,5 min) ín het venster;
+  `mesa-sleep-0902` 23,5 min en 8 events aan vier dode runs rond 3,5–4 u in de opname. Samen
+  41 van de 55 verloren events (voorwaarde 3). Zonder SpO2 of flow kan de keten die minuten toch
+  niet scoren; het orakel scoort ze op de kanalen die wél werkten.
+- Uitgesloten tijd per reden over alle nachten: ná het venster op 78 nachten (mediaan 55,8 min,
+  max 378), vóór het venster op 6 (max 110 min), dode runs binnen het venster op 24 (90e
+  percentiel 33 min, max 193). Methode `signal_validity_window` op 100/100, handmatig venster
+  nergens.
