@@ -1,0 +1,267 @@
+{
+ "n": 30,
+ "fouten": [],
+ "controle": {
+  "gelijk": 30,
+  "sbu_beide_true": 30
+ },
+ "2_implementatie_H1": {
+  "n": 30,
+  "rel_apneus_mediaan_abs": 0.0,
+  "rel_apneus_mediaan": 0.0,
+  "rel_events_mediaan_abs": 0.0,
+  "n_gt5pct": 0,
+  "gt5pct": [],
+  "jaccard_mediaan": 1.0,
+  "jaccard_min": 1.0,
+  "stabiel": true
+ },
+ "2b_implementatie_H5": {
+  "n": 30,
+  "rel_apneus_mediaan_abs": 0.0,
+  "rel_apneus_mediaan": 0.0,
+  "rel_events_mediaan_abs": 0.0,
+  "n_gt5pct": 1,
+  "gt5pct": [
+   [
+    "mesa-sleep-0460",
+    45,
+    50,
+    11.1
+   ]
+  ],
+  "jaccard_mediaan": 1.0,
+  "jaccard_min": 0.4357142857142857,
+  "stabiel": true
+ },
+ "3_oud_pad_H1_old_vs_H1_new": {
+  "n": 30,
+  "rel_apneus_mediaan_abs": 18.333333333333332,
+  "rel_apneus_mediaan": -13.9937106918239,
+  "rel_events_mediaan_abs": 5.1007147498375565,
+  "n_gt5pct": 21,
+  "gt5pct": [
+   [
+    "mesa-sleep-0001",
+    80,
+    71,
+    -11.2
+   ],
+   [
+    "mesa-sleep-0111",
+    183,
+    3,
+    -98.4
+   ],
+   [
+    "mesa-sleep-0225",
+    220,
+    17,
+    -92.3
+   ],
+   [
+    "mesa-sleep-0460",
+    45,
+    34,
+    -24.4
+   ],
+   [
+    "mesa-sleep-0554",
+    120,
+    86,
+    -28.3
+   ],
+   [
+    "mesa-sleep-0583",
+    39,
+    10,
+    -74.4
+   ],
+   [
+    "mesa-sleep-0651",
+    168,
+    159,
+    -5.4
+   ],
+   [
+    "mesa-sleep-0899",
+    5,
+    4,
+    -20.0
+   ],
+   [
+    "mesa-sleep-0910",
+    152,
+    87,
+    -42.8
+   ],
+   [
+    "mesa-sleep-0934",
+    119,
+    91,
+    -23.5
+   ],
+   [
+    "mesa-sleep-1122",
+    13,
+    9,
+    -30.8
+   ],
+   [
+    "mesa-sleep-1224",
+    62,
+    40,
+    -35.5
+   ],
+   [
+    "mesa-sleep-1227",
+    76,
+    87,
+    14.5
+   ],
+   [
+    "mesa-sleep-1305",
+    98,
+    13,
+    -86.7
+   ],
+   [
+    "mesa-sleep-1395",
+    9,
+    12,
+    33.3
+   ],
+   [
+    "mesa-sleep-1589",
+    150,
+    125,
+    -16.7
+   ],
+   [
+    "mesa-sleep-1862",
+    13,
+    12,
+    -7.7
+   ],
+   [
+    "mesa-sleep-1892",
+    58,
+    10,
+    -82.8
+   ],
+   [
+    "mesa-sleep-1998",
+    106,
+    94,
+    -11.3
+   ],
+   [
+    "mesa-sleep-2083",
+    90,
+    27,
+    -70.0
+   ],
+   [
+    "mesa-sleep-2149",
+    3,
+    2,
+    -33.3
+   ]
+  ],
+  "jaccard_mediaan": 0.3562699007304739,
+  "jaccard_min": 0.02631578947368421,
+  "stabiel": false
+ },
+ "4_kwaliteit_H1": {
+  "n": 30,
+  "dF1_mediaan": 0.0,
+  "dF1_gem": -0.011926409137940937,
+  "beter": 13,
+  "slechter": 13,
+  "gelijk": 4,
+  "p_wilcoxon": 0.5090309131344882,
+  "dF1_apneu_mediaan": 0.0,
+  "bias_old": -5.07312780228995,
+  "bias_new": -0.529579918301781,
+  "bias_old_mediaan": -0.8274766847487909,
+  "bias_new_mediaan": -0.20979020979021,
+  "ernst_old": 23,
+  "ernst_new": 18,
+  "ratio_old_new_mediaan": 0.8333333333333334,
+  "ratio_min": 0.01639344262295082,
+  "ratio_max": 1.3333333333333333,
+  "tertielgrenzen": [
+   17.342657342657343,
+   29.407894736842106
+  ],
+  "per_tertiel": {
+   "laag": {
+    "n": 10,
+    "dF1_mediaan": 0.0020544427324088455,
+    "beter": 5,
+    "slechter": 4
+   },
+   "midden": {
+    "n": 10,
+    "dF1_mediaan": -0.0029607752382927732,
+    "beter": 3,
+    "slechter": 6
+   },
+   "hoog": {
+    "n": 10,
+    "dF1_mediaan": 0.0015473093249349645,
+    "beter": 5,
+    "slechter": 3
+   }
+  },
+  "sbu_old_false": 30,
+  "sbu_new_true": 30,
+  "uitslag": "MESA beslist niet"
+ },
+ "4b_kwaliteit_H5": {
+  "n": 30,
+  "dF1_mediaan": 0.0,
+  "dF1_gem": -0.012158302739577666,
+  "beter": 12,
+  "slechter": 14,
+  "gelijk": 4,
+  "p_wilcoxon": 0.41636985357024076,
+  "dF1_apneu_mediaan": 0.0,
+  "bias_old": -5.143009054987847,
+  "bias_new": -0.5747652680830093,
+  "bias_old_mediaan": -0.8274766847487909,
+  "bias_new_mediaan": -0.210035005834305,
+  "ernst_old": 21,
+  "ernst_new": 17,
+  "ratio_old_new_mediaan": 0.8680555555555556,
+  "ratio_min": 0.01639344262295082,
+  "ratio_max": 1.3333333333333333,
+  "tertielgrenzen": [
+   17.342657342657343,
+   29.407894736842106
+  ],
+  "per_tertiel": {
+   "laag": {
+    "n": 10,
+    "dF1_mediaan": -0.0015664160401002714,
+    "beter": 4,
+    "slechter": 5
+   },
+   "midden": {
+    "n": 10,
+    "dF1_mediaan": -0.0029607752382927732,
+    "beter": 3,
+    "slechter": 6
+   },
+   "hoog": {
+    "n": 10,
+    "dF1_mediaan": 0.0015473093249349645,
+    "beter": 5,
+    "slechter": 3
+   }
+  },
+  "sbu_old_false": 30,
+  "sbu_new_true": 30,
+  "uitslag": "MESA beslist niet"
+ }
+}
