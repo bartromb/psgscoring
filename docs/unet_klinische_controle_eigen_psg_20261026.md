@@ -77,27 +77,35 @@ Lezing volgens de preregistratie (n = 20, geen terugval):
   enkelsensor-apneus.
 - **ΔAHI (B − A): mediaan +0,6, gemiddeld +0,8, bereik −3,2 … +9,7 /u**; gelijk op 3/20; 12 van
   17 niet-nulverschillen positief (exacte tekentoets p = 0,14); **|ΔAHI| ≥ 5 /u op 1/20 (R06,
-  +9,7)** — binnen de verwachting "mediaan |Δ| < 1, nachten ≥ 5: 0 à 1". Per tertiel van de
+  +9,7)**. Tegen de verwachting uit de preregistratie: mediaan |ΔAHI| = 1,0 /u, precies op de
+  grens van "< 1" (de getekende mediaan is +0,6); nachten ≥ 5: 1, binnen "0 à 1". Ventilatoire
+  last: Δ 0,0 op 20/20 in alle vergelijkingen. Per tertiel van de
   opgeslagen AHI: laag n = 7 mediaan +1,0 (gemiddeld +1,9, max |Δ| 9,7), midden n = 7 +0,7
-  (+0,2, 3,2), hoog n = 6 +0,1 (+0,1, 1,0): de AHI-verschuiving zit in de lage en middentertielen.
+  (+0,2, 3,2), hoog n = 6 +0,15 (+0,1, 1,0): de AHI-verschuiving zit in de lage en middentertielen.
 - **Ernstklasse wisselt op 4/20, alle vier omhoog en alle vier in het lage/middentertiel:** R05
   normaal → licht (3,7 → 5,1), R06 licht → matig (8,0 → 17,7), R08 licht → matig (12,4 → 15,0),
   R15 normaal → licht (3,9 → 5,7). Drie van de vier zijn grensgevallen (5,1; 15,0; 5,7).
 - **Waar de AHI vandaan komt (post-hoc, §6 van `analyse_uitvoer.md`):** de desaturatie-
-  hypopneeën zijn over de drie armen gelijk (A 690 / B 694 / C 695 over 20 nachten); de
+  hypopneeën zijn over de drie armen vrijwel gelijk (A 690 / B 694 / C 695 over 20 nachten); de
   **arousal-hypopneeën gaan van 266 naar 335 (+69, +26 %)**, mediaan +2 per nacht, op R06 +15, R08
-  +16, R10 +16, R05 +10, R15 +9. De +9,7 /u van R06 is +15 arousal-hypopneeën op 1,8 h TST.
-- **Arousal-index: mediaan +2,4, gemiddeld +3,4, bereik −7,8 … +38,2 /u; hóger op 13 van 19
+  +16, R10 +16, R05 +10, R15 +9. De +9,7 /u van R06 is +15 arousal-hypopneeën op 1,8 h TST. De
+  splitsing is een proxy (desaturatie ≥ 3 % tegen < 3 %); op de `rule1a_arousal`-vlag van de
+  events is het 262 → 331 → 324, B − A eveneens +69 (per arm dragen 4 hypopneeën met desaturatie
+  2,66–2,99 % geen van beide vlaggen: gegradeerde acceptatie).
+- **Arousal-index: mediaan +2,35, gemiddeld +3,4, bereik −7,8 … +38,2 /u; hóger op 13 van 19
   niet-nulverschillen (p = 0,17)** — tegen de verwachting uit MESA (daar lager op 73/100). De
-  LGBM-keten telt op deze Somnomedics-montages met werkpunt 0,70 en drie afleidingen, de MESA-
+  LGBM-keten telt op deze Somnomedics-montages met werkpunt 0,70 en vier afleidingen uit drie
+  regio's (C3:A2, C4:A1, F4:A1, O2:A1), de MESA-
   doorwerking liep op generieke afleidingen met 0,80; welke telling dichter bij een menselijke
-  ligt, zegt deze meting niet (op PSG-IPA was de U-Net-telling op 4/5 dichter bij de scoorders).
+  ligt, zegt deze meting niet (op PSG-IPA lag de mediane count-ratio van het U-Net op 1,02 tegen
+  1,11 voor de LGBM-keten, index-bias +0,22 tegen +2,03 /u — replicatie 27-09; de arousal-F1 steeg
+  er op 4/5 in de doorwerking van 09-10 en op 5/5 in de replicatie).
   Meer dan 50 % verandering op 6/20: R01 (12,0 → 19,7), R06 (15,1 → 25,4), R13 (11,3 → 3,5), R15
   (9,8 → 14,9), R17 (4,8 → 8,8), R18 (43,4 → 81,6). **R18 is de uitschieter: 228 → 429 arousals
   op een nacht met 440 apneus** (respiratoire arousal-index 32,5 → 58,0) — het U-Net koppelt daar
   aan bijna elke apneu een arousal, de LGBM-keten aan de helft. Zes nachten hebben een TST
   onder 3 h (R03, R06, R07, R09, R12, R13); daar beweegt een index met een handvol events.
-- **ΔRDI: mediaan +1,4, bereik −13,2 (R03) … +12,6 (R06) /u**, lager op 6/20; de RDI volgt de
+- **ΔRDI: mediaan +1,45, bereik −13,2 (R03) … +12,6 (R06) /u**, lager op 6/20; de RDI volgt de
   arousaltelling via RERA (R18 70 → 114) en de hypopneeën.
 - **Overeenstemming van de arousallijsten B tegen A (elke overlap): F1 mediaan 0,562, precisie
   0,536, recall 0,616, κ_1s 0,382.** De twee detectoren zien dus voor een flink deel andere
@@ -110,7 +118,7 @@ Lezing volgens de preregistratie (n = 20, geen terugval):
 | ΔAHI | mediaan 0,0, gemiddeld 0,0, bereik −1,7 … +1,4 /u; gelijk 5/20; geen nacht ≥ 5 |
 | Δarousal-index | mediaan +1,8, gemiddeld +2,5, bereik −2,6 … +17,9; **hoger op 14/20** (p = 0,12); > 50 % alleen R13 (3,5 → 9,5, TST 2,8 h) |
 | Δarousals | mediaan +6, gemiddeld +10, bereik −19 … +94 (R18 429 → 523) |
-| ΔRDI | mediaan +0,1, bereik −2,9 … +6,0 |
+| ΔRDI | mediaan +0,15, bereik −2,9 … +6,0 |
 | apneus | identiek 20/20; hypopneeën mediaan 0, bereik −6 … +4 |
 | ernstklasse | 1 wissel: R05 licht → normaal (5,1 → 4,7) |
 | overeenstemming C tegen B | F1 mediaan 0,753, precisie 0,734, recall 0,776, κ_1s 0,691 |
@@ -120,7 +128,9 @@ Lezing volgens de preregistratie (n = 20, geen terugval):
 dus niet helemaal op: het tellingsneutrale werkpunt van v2 is op SHHS1/MESA tegen NSRR bepaald,
 niet op deze montages. De twee U-Nets lijken wél veel meer op elkaar (F1 0,75, κ 0,69) dan elk op
 de LGBM-keten (0,56 / 0,38). C tegen A samengevat: ΔAHI mediaan +0,5 (bereik −3,6 … +8,0; R06
-+8,0), Δarousal-index mediaan +3,5 (R18 +56,1), 3 ernstwissels (R06, R08, R15), F1 0,588.
++8,0), Δarousal-index mediaan +3,45 (R18 +56,1), 3 ernstwissels (R06, R08, R15), F1 0,588. De
+per-nacht-tabellen van C tegen B en C tegen A, met respiratoire arousal-index en RERA-telling,
+staan in `analyse_uitvoer.md` §3–4 (de RERA-index is niet apart gerapporteerd).
 
 ## 4. Drift van de LGBM-keten sinds 10-10 — en een bevinding buiten de preregistratie
 
@@ -130,10 +140,15 @@ niet veranderd), maar **AHI gelijk op slechts 5/20 en apneus O/C/M op 4/20**. Δ
 mediaan 0,0, gemiddeld +0,2, bereik −3,4 … +10,8 /u; |Δ| ≥ 2 op 6/20 (R02 −2,7, R04 **+10,8**,
 R09 −3,4, R10 +2,3, R12 +4,4, R16 −2,3); ernstklasse-wissels 2/20 (R04 licht → matig 9,0 → 19,8,
 R16 ernstig → matig 32,2 → 29,9). Op R04 gaan de apneus van 28 naar 85 (beide sensoren 9 → 54),
-op R14 van 158 naar 198 (hypopneeën 150 → 109), op R02 van 105 naar 80; het aantal CSR-gevlagde
-events gaat op R02 van 108 naar 0 en op R14 van 114 naar 0. Invoer identiek (zelfde epochs,
-artefacten, kanaalrollen, flowkanalen; alleen het EOG is in A toegevoegd en dat raakt de
-respiratoire stap niet).
+op R14 van 158 naar 198 (hypopneeën 150 → 109), op R02 van 105/2/0 naar 80/0/0. Op 8 van de 10
+nachten die op 10-10 CSR-vlaggen droegen gaat de telling naar 0 (R02 108, R03 16, R04 4, R05 8,
+R08 22, R09 17, R12 43, R14 114, R18 114 → 0; R01 43 → 42, R11 53 → 57) — de meest systematische
+0.36.x-signatuur in de data (past bij `csr_period_rectified` uit 0.36.0), raakt
+`ahi_csr_corrected`, niet `ahi_total`. Invoer identiek (zelfde epochs, artefacten, kanaalrollen,
+flowkanalen; alleen het EOG is in A toegevoegd en dat raakt de respiratoire stap niet). De
+thermistor is in 0.37.0 op R03 en R19 door de poort afgekeurd (`flow_thermistor_rejected`) waar
+0.35.1 hem accepteerde (ΔAHI daar −0,9 en 0,0); op R04 is hij níét afgekeurd (alleen-thermistor
+12 → 18), dus de R04-sprong heeft een andere drager.
 
 **Post-hoc driftcontrole (§5b van `analyse_uitvoer.md`):** dezelfde arm A op het vorige
 productie-image 0.38.12 (psgscoring **0.36.2**) voor R02, R04 en R14 is op AHI, apneus,
@@ -154,14 +169,14 @@ preregistratie en is hier alleen vastgesteld, niet verklaard.
 - **Vandaag in productie draait de oude arousalketen.** De uitrol van 10:40 veranderde de
   arousal-index op geen enkel verslag, want het EOG bereikt het U-Net niet. Wie dat wil
   repareren, zet de klaarstaande 0.39.2 uit; daarna verandert een PSG-verslag zoals in §2:
-  arousal-index mediaan +2,4 /u (meestal omhoog, op één nacht bijna verdubbeld), AHI mediaan +0,6
+  arousal-index mediaan +2,35 /u (meestal omhoog, op één nacht bijna verdubbeld), AHI mediaan +0,6
   /u via arousal-hypopneeën, 4 van 20 nachten een klasse omhoog rond de grenzen van 5 en 15 /u,
   apneus onveranderd.
 - **Geen default-wissel uit deze meting, zoals vooraf vastgelegd:** "niet slechter én verklaarbaar"
   is het hoogst haalbare zonder referentie. Verklaarbaar is het (arousalpoot van de 3 %-regel,
   RERA via de arousallijst); of de hogere arousaltelling van het U-Net op deze montages juister is
   dan die van de LGBM-keten, weet alleen een scoorder. De replicaties (SHHS1, MESA, PSG-IPA) zeggen
-  van wel op F1; de telling op PSG-IPA lag op 4/5 dichter bij de scoorders.
+  van wel op F1; op PSG-IPA lag de count-ratio van het U-Net op 1,02 tegen 1,11 voor de LGBM-keten.
 - **`unet_v2`** verschilt op deze nachten weinig van v1 (AHI mediaan 0,0, arousal-index +1,8,
   F1 0,75 onderling); de keuze blijft Barts en hoort bij de schaalmeting, niet hier.
 - **De 0.36.x-drift is het dringender punt voor de detectiekwaliteit:** AHI anders op 15/20
@@ -172,4 +187,21 @@ preregistratie en is hier alleen vastgesteld, niet verklaard.
 
 ## 6. Verificatie
 
-[Meting-verificatie volgt; bevindingen worden hieronder verwerkt.]
+Onafhankelijk nagerekend (meting-verificatie, 26-10, eigen script uit R01–R20.json, `drift_0362/`
+en de 10-10-uitvoer; alleen `agreement.compare_event_sets` uit de bibliotheek): de leverings-
+tabel (terugval 20/20, P ≡ A op elk veld inclusief volledige eventlijsten en provenance 20/20),
+alle cellen van de B-tegen-A-tabel, alle samenvattende cijfers van §2–§4, de 0.36.2 = 0.37.0-
+controle (hele summary, eventlijsten en kanalen gelijk op 3/3) en de codeclaims van §1 (tasks.py
+op 8b45b4c, pipeline.py/arousal.py op v0.37.0, Herkomst-tekst in de rapportlaag) repliceren; de
+preregistratie is na de start niet gewijzigd. **Besluit staat.** Verwerkt uit de 14 bevindingen:
+mediaan |ΔAHI| = 1,0 (niet "< 1"); de PSG-IPA-tellingsclaim was een F1-cijfer → count-ratio
+1,02 tegen 1,11; CSR-signatuur op 8 van 10 nachten; thermistor afgekeurd op R03/R19 in 0.37.0;
+vier afleidingen i.p.v. drie; R02 105/2/0; "vrijwel gelijk"; hypopneesplitsing als proxy met
+de `rule1a_arousal`-telling ernaast; exacte halven (+1,45, +0,15, +2,35, +3,45); ventilatoire
+last Δ 0,0 op 20/20; verwijzing naar de per-nacht-tabellen. Twee losse observaties: arm A
+(LGBM-pad) draagt geen `summary.detector`-sleutel — 0.37.0 schrijft die alleen op het U-Net-pad
+en bij terugval, de Herkomst-rij leunt dus op afwezigheid (bibliotheekgat, niet gerepareerd); en
+de werkboom miste de tag v0.37.0 lokaal (nu opgehaald). Niet verifieerbaar vanaf de werkstation:
+looptijd (plausibel: Σ t_total R02–R20 / 8 ≈ 58 min), de 67 bereikbaarheidscontroles, de lege
+jobqueue, het containerrecept, mode 600 van de koppeling, en de YF-suite (alleen het nieuwe
+testbestand opnieuw gedraaid: 6/6).
