@@ -40,6 +40,7 @@ from .signal_quality import THERMISTOR_BAND_POWER_DEAD
 from .ancillary import (
     csr_period_rectified_from_profile,
     analyze_position, analyze_heart_rate, analyze_snore, detect_cheyne_stokes,
+    compute_event_hr_surge,
 )
 from .plm import EVENT_LIST_CAP, analyze_plm, plm_resp_exclusion_from_profile
 from .ventilation import compute_ventilatory_burden
@@ -1677,6 +1678,29 @@ def run_pneumo_analysis(
             output["hypoxic_burden"] = {"hypoxic_burden": None, "error": str(e)}
     else:
         output["hypoxic_burden"] = {"hypoxic_burden": None}
+
+    # ── Step 10b: hartslagstijging per respiratoir event (Huang e.a., JACC
+    # Asia 2026) — rapportmaat naast hypoxic en ventilatory burden, op
+    # dezelfde eventlijst als de hypoxic burden. Verandert geen index. De
+    # hartslagreeks is die van stap 4 (pulse; een ruw ECG geeft None met
+    # reden). Falen mag de scoring nooit afbreken.
+    try:
+        _hs_events = (output["respiratory"].get("events", [])
+                      if output["respiratory"].get("success") else [])
+        hs = compute_event_hr_surge(hr_data, sf_hr, _hs_events, hypno,
+                                    source=_hr_source)
+        output["hr_surge"] = hs
+        _hr_blok = output.get("heart_rate") or {}
+        if _hr_blok.get("success") and isinstance(_hr_blok.get("summary"), dict):
+            _hr_blok["summary"]["event_hr_surge_bpm"] = hs.get("hr_surge_mean_bpm")
+            _hr_blok["summary"]["event_hr_surge_method"] = hs.get("method")
+            _hr_blok["summary"]["event_hr_surge_n"] = hs.get("n_events_valid")
+        if hs.get("hr_surge_mean_bpm") is not None:
+            logger.info("[pneumo 10b/11] HR surge: %.1f bpm (%d events)",
+                        hs["hr_surge_mean_bpm"], hs.get("n_events_valid", 0))
+    except Exception as e:  # noqa: BLE001 — rapportmaat, nooit blokkerend
+        logger.warning("HR surge failed: %s", e)
+        output["hr_surge"] = {"hr_surge_mean_bpm": None, "error": str(e)}
 
     # ── Step 11: Post-processing — central/mixed refinement ───────────────
     if output["respiratory"].get("success"):

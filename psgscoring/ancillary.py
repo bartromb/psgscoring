@@ -378,6 +378,151 @@ def analyze_heart_rate(
 
 
 # ---------------------------------------------------------------------------
+# Event-gebonden hartslagstijging (heart rate surge)
+# ---------------------------------------------------------------------------
+
+HR_SURGE_BASELINE_S = 60.0
+HR_SURGE_POST_EVENT_S = 15.0
+HR_SURGE_MIN_BASELINE_FRAC = 0.5
+_WAKE_STAGES = {"W", "Wake", "wake", "0", 0}
+
+
+def _hr_to_1hz(hr_data: np.ndarray, sf: float) -> np.ndarray:
+    """Plausibele hartslag op 1 Hz: het gemiddelde per seconde van de samples
+    tussen 20 en 250 bpm, NaN waar er in die seconde geen geldig sample is.
+    Een reeks onder 1 Hz wordt herhaald over de duur van elk sample."""
+    hr = np.asarray(hr_data, dtype=float).copy()
+    hr[(hr < HR_IMPLAUSIBLE_LOW) | (hr > HR_IMPLAUSIBLE_HIGH)] = np.nan
+    if sf <= 0:
+        raise ValueError(f"ongeldige samplefrequentie {sf}")
+    if abs(sf - 1.0) < 1e-9 or len(hr) == 0:
+        return hr
+    if sf < 1.0:
+        return np.repeat(hr, int(round(1.0 / sf)))
+    sec = np.floor(np.arange(len(hr)) / sf).astype(int)
+    n_sec = int(sec[-1]) + 1
+    valid = ~np.isnan(hr)
+    sums = np.bincount(sec[valid], weights=hr[valid], minlength=n_sec)
+    cnts = np.bincount(sec[valid], minlength=n_sec)
+    out = np.full(n_sec, np.nan)
+    m = cnts > 0
+    out[m] = sums[m] / cnts[m]
+    return out
+
+
+def compute_event_hr_surge(
+    hr_data,
+    sf_hr,
+    resp_events: list,
+    hypno: list,
+    source: str = "pulse",
+    baseline_s: float = HR_SURGE_BASELINE_S,
+    post_event_s: float = HR_SURGE_POST_EVENT_S,
+    min_baseline_fraction: float = HR_SURGE_MIN_BASELINE_FRAC,
+) -> dict:
+    """Hartslagstijging per respiratoir event en als nachtmaat (bpm).
+
+    Definitie, letterlijk uit Huang Z e.a., *Heart Rate Surge Improves
+    Cardiovascular Risk Stratification Beyond Hypoxic Burden in Sleep Apnea*,
+    JACC Asia 2026, doi 10.1016/j.jacasi.2026.08.040 (abstract): "Heart rate
+    surge was defined as peak heart rate within the event-aligned window minus
+    mean heart rate during the 60-second pre-event baseline." Op 4 790
+    deelnemers (mediaan 11,6 jaar follow-up) was de maat zwak gecorreleerd met
+    de hypoxic burden (ρ 0,08) en verhoogde ze de C-index voor cardiovasculaire
+    sterfte van 0,77 naar 0,81 bóven de hypoxic burden. Voorloper: de
+    "sleep-apnea-specific pulse-rate response" ΔHR van Azarbarzin e.a. (AJRCCM
+    2021): hoogste pulsfrequentie ná het event in een zoekvenster, uit de
+    oximeter-puls.
+
+    Wat de bibliotheek zelf kiest (de volledige tekst was op 25-10-2026 niet
+    toegankelijk; het abstract noemt de lengte van het eventvenster niet):
+      - eventvenster = [event-onset, event-einde + ``post_event_s``] (15 s, het
+        koppelvenster dat de keten ook voor arousal/RERA gebruikt): de piek
+        tijdens het event of kort na de heropening van de luchtweg;
+      - basislijn = gemiddelde van de ``baseline_s`` (60 s) vóór de onset, met
+        minstens de helft van die seconden plausibel (20–250 bpm), anders is
+        het event ongeldig — niet nul;
+      - nachtmaat = gemiddelde (en mediaan, p90) over de geldige events in
+        slaap; events met onset in een W-epoch tellen niet mee;
+      - alleen een pulse-kanaal (bpm) is een hartfrequentie; voor ``source``
+        "ecg" (ruwe golfvorm) is de uitkomst None met de reden, nooit een getal.
+
+    Dit verandert geen enkele index; het is een rapportmaat naast hypoxic en
+    ventilatory burden. Geen referentiewaarde: het artikel werkt met
+    cohortkwintielen.
+    """
+    events = [e for e in (resp_events or []) if e.get("onset_s") is not None]
+    result: dict = {
+        "hr_surge_mean_bpm": None,
+        "hr_surge_median_bpm": None,
+        "hr_surge_p90_bpm": None,
+        "per_event_bpm": [],
+        "n_events_total": len(events),
+        "n_events_valid": 0,
+        "n_events_invalid_baseline": 0,
+        "n_events_invalid_window": 0,
+        "n_events_wake": 0,
+        "unit": "bpm",
+        "method": "huang2026",
+        "source": source,
+        "baseline_s": float(baseline_s),
+        "window": {"start": "event_onset",
+                   "end": "event_end_plus_post_event_s",
+                   "post_event_s": float(post_event_s)},
+        "reason": None,
+    }
+    if hr_data is None or sf_hr is None:
+        result["reason"] = "geen hartslagreeks (pulse-kanaal ontbreekt)"
+        return result
+    if source != "pulse":
+        result["reason"] = (f"afgeleid van kanaalrol '{source}' zonder "
+                            "R-piekdetectie — geen hartfrequentie")
+        return result
+    if not events:
+        result["reason"] = "geen respiratoire events"
+        return result
+
+    hr1 = _hr_to_1hz(hr_data, float(sf_hr))
+    n_sec = len(hr1)
+    n_base = int(round(baseline_s))
+    deltas: list[float] = []
+    for e in events:
+        onset = float(e["onset_s"])
+        dur = float(e.get("duration_s") or 0.0)
+        ep = int(onset // EPOCH_LEN_S)
+        if hypno is not None and 0 <= ep < len(hypno) and hypno[ep] in _WAKE_STAGES:
+            result["n_events_wake"] += 1
+            continue
+        b0 = max(0, int(np.floor(onset - baseline_s)))
+        b1 = max(b0, min(n_sec, int(np.floor(onset))))
+        base = hr1[b0:b1]
+        base = base[~np.isnan(base)]
+        if len(base) < min_baseline_fraction * n_base:
+            result["n_events_invalid_baseline"] += 1
+            continue
+        w0 = max(0, int(np.floor(onset)))
+        w1 = min(n_sec, int(np.ceil(onset + dur + post_event_s)))
+        win = hr1[w0:w1]
+        win = win[~np.isnan(win)]
+        if len(win) == 0:
+            result["n_events_invalid_window"] += 1
+            continue
+        deltas.append(float(np.max(win) - np.mean(base)))
+
+    result["n_events_valid"] = len(deltas)
+    if not deltas:
+        result["reason"] = ("geen respiratoir event in slaap met een bruikbare "
+                            "basislijn en een bruikbaar venster")
+        return result
+    arr = np.asarray(deltas, dtype=float)
+    result["per_event_bpm"] = [safe_r(x, 1) for x in deltas]
+    result["hr_surge_mean_bpm"] = safe_r(float(np.mean(arr)), 1)
+    result["hr_surge_median_bpm"] = safe_r(float(np.median(arr)), 1)
+    result["hr_surge_p90_bpm"] = safe_r(float(np.percentile(arr, 90)), 1)
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Snoring
 # ---------------------------------------------------------------------------
 

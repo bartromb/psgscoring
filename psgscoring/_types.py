@@ -369,6 +369,30 @@ class HypoxicBurdenBlock(TypedDict, total=False):
     error: str
 
 
+class HrSurgeBlock(TypedDict, total=False):
+    """results["hr_surge"] (ancillary.compute_event_hr_surge): hartslagstijging
+    per respiratoir event, Huang e.a. JACC Asia 2026 — piek in het eventvenster
+    min gemiddelde van de 60 s ervoor; nachtmaat = gemiddelde over de events.
+    Rapportmaat; verandert geen index. De nachtmaat staat ook in
+    results["heart_rate"]["summary"]["event_hr_surge_bpm"]."""
+    hr_surge_mean_bpm: Optional[float]
+    hr_surge_median_bpm: Optional[float]
+    hr_surge_p90_bpm: Optional[float]
+    per_event_bpm: List[Optional[float]]
+    n_events_total: int
+    n_events_valid: int
+    n_events_invalid_baseline: int
+    n_events_invalid_window: int
+    n_events_wake: int
+    unit: str                     # "bpm"
+    method: str                   # "huang2026"
+    source: str                   # "pulse" | "ecg"
+    baseline_s: float
+    window: Dict
+    reason: Optional[str]         # waarom er geen getal is
+    error: str
+
+
 class PostprocessBlock(TypedDict, total=False):
     """results["postprocess"] (postprocess.postprocess_respiratory_events)."""
     n_csr_reclassified: int
@@ -425,5 +449,6 @@ class PneumoResults(TypedDict, total=False):
     anchor_baseline: AnchorBaselineBlock
     cheyne_stokes: CheyneStokesBlock
     hypoxic_burden: HypoxicBurdenBlock
+    hr_surge: HrSurgeBlock
     postprocess: PostprocessBlock
     split_night: Dict               # only when run_pneumo_analysis(..., split_night=...) is requested

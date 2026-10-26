@@ -79,6 +79,7 @@ from .plm import analyze_plm
 from .ancillary import (
     analyze_position,
     analyze_heart_rate,
+    compute_event_hr_surge,
     analyze_snore,
     detect_cheyne_stokes,
 )
@@ -148,6 +149,7 @@ __all__ = [
     # Ancillary
     "analyze_position",
     "analyze_heart_rate",
+    "compute_event_hr_surge",
     "analyze_snore",
     "detect_cheyne_stokes",
     # Post-processing
