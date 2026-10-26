@@ -1,5 +1,5 @@
 #!/bin/bash
-# start.sh — inkortingstoets op MESA (30 nachten, 6 armen), recept 25-10: systemd --user unit met CPUQuota 600 %,
+# start.sh — inkortingstoets op MESA (30 nachten, 6 armen), recept 25-10: systemd --user unit met CPUQuota 800 %,
 # 8 workers, één thread per proces, thermische bewaker (scripts/thermal_guard.sh) 78 °C / 3 / 10 s.
 set -eu
 REPO=/srv/CODE/psgscoring; OUT=$REPO/docs/inkortingstoets_20261026; UNIT=inkortingstoets-20261026; PY=$REPO/.venv/bin/python

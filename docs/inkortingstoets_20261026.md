@@ -33,17 +33,24 @@ gemeenschappelijke venster (onset < len(hypnogram)·30 s), referentie NSRR `aasm
 Op een vloerlengte-hypnogram (de YASA-situatie) is de uitkomst van de nieuwe route **identiek** aan
 die van de dekkende basislijn: dezelfde eventlijst op 30/30. De nieuwe eigen-PSG-cijfers sinds
 0.36.0 zijn dus de cijfers van de gevalideerde detector, geen implementatieartefact. Eén
-kanttekening uit H5: op mesa-sleep-0460 verandert 5 % minder slaap in de basislijnschatting de
-eventlijst voor meer dan de helft (Jaccard 0,44, apneus 45 → 50) — de stadium-basislijn is op
-sommige nachten gevoelig voor wélke epochs in de schatting zitten (beschrijvend, geen criterium).
+kanttekening uit H5: op mesa-sleep-0460 verschuift 5 % minder slaap in de basislijnschatting de
+grenzen van ongeveer de helft van de events met ~0,1 s en voegt 5 apneus toe (45 → 50; Jaccard op
+exacte tuples 0,50, met de IoU-matcher 82 gemeenschappelijk, 5 extra, 0 weg); de laagste Jaccard
+(0,436) valt op mesa-sleep-1589 (150 → 144 apneus, −4 %). De stadium-basislijn is op sommige
+nachten gevoelig voor wélke epochs in de schatting zitten (beschrijvend, geen criterium).
 
 ## 3. Het oude kliniekpad (tot 12-10) op MESA, en wat het tegen de referentie doet
 
 **H1_old tegen H1_new** (oud pad = basislijn faalt): mediaan |Δ% apneus| 18 % (getekend −14 %),
 > 5 % op **21/30** nachten, Jaccard mediaan 0,36 (min 0,03) → NIET stabiel. Zonder stadium-basislijn
-telt de detector op MESA meestal mínder apneus (ratio oud/nieuw mediaan 0,83, bereik 0,02 … 1,33);
-over 30 nachten 1 555 tegen 2 370 apneus (referentie-apneus in het venster 852; totale events oud
-3 857, nieuw 4 606, referentie 4 806).
+telt de detector op MESA meestal mínder apneus (ratio oud/nieuw mediaan 0,83 over de 29 nachten
+met apneus in het nieuwe pad, bereik 0,02 … 1,33; mesa-sleep-0286 telt 0 → 0); over 30 nachten
+1 555 tegen 2 370 apneus (referentie-apneus in het venster 852; totale events oud 3 857, nieuw
+4 606, referentie 4 806). Per tertiel van de referentie-AHI (prereg punt 3): laag −27,6 % mediaan
+(9/10 nachten > 5 %), midden −9,5 % (6/10), hoog −11,3 % (6/10) — het tekort van het oude pad zit
+vooral in het lage tertiel. Ernstklasse tegen de referentie (prereg punt 5): het oude pad wijkt
+op 7 nachten af (6 te laag, 1 te hoog: 0460), het nieuwe op 12 (5 te laag, 7 te hoog) — het oude
+pad onderschat, het nieuwe overschat, het spiegelbeeld van de bias hieronder.
 
 **Vraag 2 — detectiekwaliteit, H1_new tegen H1_old tegen `aasm15` (prereg punt 4):**
 
@@ -57,9 +64,10 @@ over 30 nachten 1 555 tegen 2 370 apneus (referentie-apneus in het venster 852; 
 | H5 (secundair) | — | zelfde beeld: ΔF1 0,000 (12/14/4, p = 0,42), bias −5,14 → −0,57, ernst 21 → 17 |
 
 **Lezing volgens de huisregel: MESA beslist niet** (ΔF1 mediaan 0, p = 0,51). De bias halveert
-ruimschoots mét basislijn, maar de ernstconcordantie daalt van 23 naar 18 van 30, en dat komt uit
-een klein aantal nachten waar de stadium-basislijn honderden apneus toevoegt die de referentie niet
-kent:
+ruimschoots mét basislijn, maar de ernstconcordantie daalt van 23 naar 18 van 30: zes nachten
+verliezen de concordantie (0111 +180, 0225 +203, 1305 +85, 0910 +65, 2083 +63, 0001 +9 apneus)
+tegen één die hem wint (1122); op twee daarvan voegt de stadium-basislijn honderden apneus toe die
+de referentie niet kent:
 
 | nacht | tertiel | AHI ref | AHI oud → nieuw | apneus oud → nieuw | apneu-F1 oud → nieuw | ernst ref / oud / nieuw |
 |---|---|---|---|---|---|---|
@@ -73,7 +81,8 @@ kent:
 | mesa-sleep-0583 | midden | 19,3 | 7,3 → 10,5 | 10 → 39 | 0,000 → 0,000 | Moderate / Mild / Mild |
 
 Twee gezichten van dezelfde basislijn: op nachten mét veel echte apneus haalt hij er meer binnen
-(1892: apneu-F1 0,14 → 0,40; 0583, 1224, 1589 bias omlaag), op drie nachten met een referentie-AHI
+(1892: apneu-F1 0,14 → 0,40; 0583 en 1589 bias omlaag; 1224 apneu-F1 omhoog bij bias 0,2 → 2,5), op
+drie nachten met een referentie-AHI
 onder 2 /u maakt hij van een normale nacht een ernstige (0111: 183 apneus waar de referentie in het
 venster níéts telt). Het F1-gemiddelde is daardoor −0,012 bij een mediaan van 0,000. Mechanisme
 (hypothese, niet gemeten): de stadium-basislijn is één constante per stadium (P90 van de stabiele
@@ -88,7 +97,7 @@ licht naar matig) past in dat beeld — en kan daar zonder referentie niet van w
   is op 30/30 identiek aan de dekkende basislijn; de eigen-PSG-cijfers sinds 0.36.0 zijn die van de
   detector die op MESA en PSG-IPA is gevalideerd.
 - **Vraag 2: op MESA is mét basislijn niet beter dan zonder.** F1 gelijk (p = 0,51), bias beter,
-  ernstconcordantie slechter, en drie van dertig normale nachten worden ernstig of matig. De
+  ernstconcordantie slechter, en drie van de vier normale nachten (3/30) worden ernstig of matig. De
   MESA-validaties van de detector (F1, bias) zijn gemeten mét deze basislijn en mét deze
   foutmodus erin; de n150-mediaan verbergt hem zoals de mediaan hier.
 - **Voor de kliniek** (Barts beslissing, prereg punt 6): (a) `stage_baseline_partial_epochs` op de
@@ -98,7 +107,9 @@ licht naar matig) past in dat beeld — en kan daar zonder referentie niet van w
   dynamische, of een minimum aan stabiele ademhaling per stadium eisen) achter een nieuw profielveld,
   gemeten op dezelfde 30 nachten plus de 20 eigen PSG's vóór uitrol. Mijn voorkeur: (a) nu, (b) als
   aparte prereg — een detector die op 3/30 nachten Normal → Severe geeft, hoort niet in een
-  klinisch verslag, en de eigen nachten hebben geen referentie om de R04-kant te checken.
+  klinisch verslag, en de eigen nachten hebben geen referentie om de R04-kant te checken. Die
+  voorkeur rust op ernstconcordantie en de Normal → Severe-nachten, criteria buiten de huisregel
+  (die op "beslist niet" uitkwam); het is een advies, geen uitkomst van de preregistratie.
 - `breath_phase_split` (de tweede drager uit de decompositie) is hier niet gemeten; MESA 12-10 vond
   hem neutraal.
 - Niets aan bibliotheek, profielen of productie is gewijzigd (productie: 0.39.2 / 0.37.0, beide
@@ -106,4 +117,16 @@ licht naar matig) past in dat beeld — en kan daar zonder referentie niet van w
 
 ## 5. Verificatie
 
-[Meting-verificatie volgt; bevindingen worden hieronder verwerkt.]
+Onafhankelijk nagerekend (meting-verificatie, 26-10, eigen script dat uit de opgeslagen eventlijsten
+en de herladen NSRR-referentie opnieuw matcht): match, apneu-match, venstertellingen, AHI's en
+ernstklassen identiek op 180/180 armen; H0_old ≡ H0_new 30/30; vlaggen 90/90, 30/30, 60/60; H1
+Jaccard 1,000 op 30/30 (ook buiten het venster); alle cellen van de kwaliteits- en nachtentabel,
+tertielen, Wilcoxon (projectfunctie 0,509, scipy exact 0,515), totalen en randzaken (prereg-sha,
+één prereg-commit vóór de start, registratie, thermische log, looptijden) reproduceren; de huisregel
+is letterlijk toegepast; het mechanisme is als hypothese gemarkeerd. **Besluit staat.** Verwerkt
+uit de 9 bevindingen: de laagste H5-Jaccard (0,436) hoort bij 1589, niet 0460 (0,50; IoU-matcher 82
+gemeenschappelijk, 5 extra, 0 weg); 1224 heeft een hogere bias, niet lagere; ratio 0,83 is over 29
+nachten; de concordantiedaling is zes verliezers tegen één winnaar; "drie van de vier normale
+nachten"; tertielsplitsing en ernstrichting van het oude pad toegevoegd (prereg punten 3 en 5); de
+voorkeur in §4 expliciet buiten de huisregel geplaatst. Niet verifieerbaar vanaf het werkstation:
+de productiestand en het starttijdstip van de rookproef.
