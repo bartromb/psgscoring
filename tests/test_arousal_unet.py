@@ -1,4 +1,4 @@
-"""Bevroren U-Net-arousaldetector ``unet_v1`` (opt-in, default lgbm).
+"""Bevroren U-Net-arousaldetector ``unet_v1`` (default op de klinische profielen sinds 25-10-2026; lgbm gepind op de vijf reproductieprofielen).
 
 De replicatie van 27-09-2026 won op SHHS1/MESA/PSG-IPA met een bevroren
 gewicht (sha256 cc91bb86…); de bibliotheek mag alleen dát gewicht draaien
@@ -28,11 +28,14 @@ def test_metadata_matches_the_shipped_weight():
     assert ok, why
 
 
-def test_every_registered_profile_defaults_to_lgbm():
+def test_reproduction_profiles_pin_lgbm():
+    # Tot 25-10-2026 was "lgbm" de default op alle profielen; sindsdien is
+    # "unet_v1" de standaard op de klinische/exploratieve profielen en blijft
+    # "lgbm" gepind op de vijf reproductieprofielen (tests/test_unet_default.py).
     from psgscoring.profiles import PROFILES
-    assert all(p.post_processing.arousal_detector == "lgbm" for p in PROFILES.values())
-    for naam in ("mesa_shhs", "chicago_1999"):
+    for naam in ("aasm_v2_rec", "aasm_v1_rec", "cms_medicare", "mesa_shhs", "chicago_1999"):
         assert PROFILES[naam].post_processing.arousal_detector == "lgbm"
+    assert PROFILES["aasm_v3_breath_dual"].post_processing.arousal_detector == "unet_v1"
 
 
 def test_normalize_removes_offset_unit_rms_and_clips():

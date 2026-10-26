@@ -756,22 +756,31 @@ class PostProcessingRules:
     `arousal_limb_wired`-profielen.
     """
 
-    arousal_detector: str = "lgbm"
+    arousal_detector: str = "unet_v1"
     """v0.35.0: welke detector de arousal-kandidaten levert — ``"lgbm"`` (de
-    huidige keten: regelkandidaten + LightGBM-filter) of ``"unet_v1"`` (het
+    oude keten: regelkandidaten + LightGBM-filter) of ``"unet_v1"`` (het
     bevroren 1D-U-Net op EEG + EOG + kin-EMG @ 50 Hz, `psgscoring/arousal_unet.py`).
 
-    **Default "lgbm" op elk profiel; aanzetten is een gebruikersbeslissing met
-    klinische aan/uit-controle.** De replicatie van 27-09-2026
-    (`docs/arousal_unet_replicatie_20260927.md`, preregistratie 7fcc4f4): SHHS1
-    150 verse nachten F1 0,543 → 0,676 (beter 134/147, p = 2e-22, count-ratio
-    0,85), MESA-76 0,556 → 0,687, PSG-IPA 0,555 → 0,745 op 5/5; CPU 5 s/nacht.
+    **Default "unet_v1" sinds 2026-10-25 op de klinische en exploratieve
+    profielen (gebruikersbeslissing); "lgbm" GEPIND op de vijf profielen die een
+    externe regelset of een gepubliceerde dataset-analyse reproduceren**
+    (`aasm_v2_rec`, `aasm_v1_rec`, `cms_medicare`, `mesa_shhs`, `chicago_1999`
+    — dezelfde groep als `arousal_lgbm=False`). Grond: de pre-geregistreerde
+    replicatie van 27-09-2026 (`docs/arousal_unet_replicatie_20260927.md`,
+    preregistratie 7fcc4f4): SHHS1 150 verse nachten F1 0,543 → 0,676 (beter
+    134/147, p = 2e-22, count-ratio 0,85), MESA-76 0,556 → 0,687, PSG-IPA
+    0,555 → 0,745 op 5/5; CPU 5 s/nacht. Doorwerking gemeten 09-10
+    (`docs/unet_doorwerking_20261009.md`): AHI mediaan −0,2 /u op 100
+    MESA-nachten, RDI −0,9 /u, arousal-index −1,8 /u, respiratoire F1 +0,003;
+    de arousal-F1 tegen de referentie stijgt op 4 van 5 PSG-IPA-nachten.
     Zonder EOG of kin-EMG valt de keten terug op "lgbm" met de reden in
     ``summary["unet_fallback_reason"]`` (alleen-EEG was slechter dan de baseline).
-    Onder "unet_v1" staat de autonome re-ranker uit (die werkt op
-    LGBM-kandidaten). Env-override ``PSGSCORING_AROUSAL_DETECTOR``.
-    ``onnxruntime`` is nodig (``psgscoring[ml]``); ontbreekt het, dan
-    terugval met reden, nooit stil."""
+    Onder "unet_v1" staat de autonome re-ranker (0.33.0) uit met reden — die
+    werkt op LGBM-kandidaten; op de klinische profielen is hij daarmee inert
+    zolang het U-Net draait. Env-override ``PSGSCORING_AROUSAL_DETECTOR``
+    (meetarmen: ``lgbm`` geeft de keten van vóór 25-10). ``onnxruntime`` is
+    nodig (``psgscoring[ml]``); ontbreekt het, dan terugval met reden, nooit
+    stil."""
 
     arousal_unet_threshold: float = 0.35
     """Werkpunt τ van ``unet_v1`` op de kans per sample. 0,35 is het
@@ -2642,6 +2651,11 @@ _aasm_v2_rec = Profile(
         # deel uit van AASM v1/v2 of de CMS-regels, en de twee
         # dataset-profielen moeten paper v31/v37 reproduceren.
         arousal_lgbm=False,
+        # 2026-10-25 idem gepind: het U-Net (default op de klinische
+        # profielen sinds die datum) hoort niet bij een gereproduceerde
+        # regelset; de arousals -- en via de koppeling de RDI -- bleven zo
+        # byte-gelijk aan vóór 25-10.
+        arousal_detector="lgbm",
         arousal_onset_offset_s=0.0,
         # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
@@ -2688,6 +2702,11 @@ _aasm_v1_rec = Profile(
         # deel uit van AASM v1/v2 of de CMS-regels, en de twee
         # dataset-profielen moeten paper v31/v37 reproduceren.
         arousal_lgbm=False,
+        # 2026-10-25 idem gepind: het U-Net (default op de klinische
+        # profielen sinds die datum) hoort niet bij een gereproduceerde
+        # regelset; de arousals -- en via de koppeling de RDI -- bleven zo
+        # byte-gelijk aan vóór 25-10.
+        arousal_detector="lgbm",
         arousal_onset_offset_s=0.0,
         # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
@@ -2737,6 +2756,11 @@ _cms_medicare = Profile(
         # deel uit van AASM v1/v2 of de CMS-regels, en de twee
         # dataset-profielen moeten paper v31/v37 reproduceren.
         arousal_lgbm=False,
+        # 2026-10-25 idem gepind: het U-Net (default op de klinische
+        # profielen sinds die datum) hoort niet bij een gereproduceerde
+        # regelset; de arousals -- en via de koppeling de RDI -- bleven zo
+        # byte-gelijk aan vóór 25-10.
+        arousal_detector="lgbm",
         arousal_onset_offset_s=0.0,
         # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
@@ -2798,6 +2822,11 @@ _mesa_shhs = Profile(
         # deel uit van AASM v1/v2 of de CMS-regels, en de twee
         # dataset-profielen moeten paper v31/v37 reproduceren.
         arousal_lgbm=False,
+        # 2026-10-25 idem gepind: het U-Net (default op de klinische
+        # profielen sinds die datum) hoort niet bij een gereproduceerde
+        # regelset; de arousals -- en via de koppeling de RDI -- bleven zo
+        # byte-gelijk aan vóór 25-10.
+        arousal_detector="lgbm",
         arousal_onset_offset_s=0.0,
         # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op
@@ -2960,6 +2989,11 @@ _chicago_1999 = Profile(
         # deel uit van AASM v1/v2 of de CMS-regels, en de twee
         # dataset-profielen moeten paper v31/v37 reproduceren.
         arousal_lgbm=False,
+        # 2026-10-25 idem gepind: het U-Net (default op de klinische
+        # profielen sinds die datum) hoort niet bij een gereproduceerde
+        # regelset; de arousals -- en via de koppeling de RDI -- bleven zo
+        # byte-gelijk aan vóór 25-10.
+        arousal_detector="lgbm",
         arousal_onset_offset_s=0.0,
         # Om dezelfde reden GEPIND op het artefactgedrag van vóór 23-08-2026.
         # De niet-gepinde v3-profielen negeren de artefactlijst nu (30/30 op

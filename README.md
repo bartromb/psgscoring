@@ -329,14 +329,15 @@ Identical to `aasm_v3_rec` on any montage without a usable thermistor. Set
 `flow_reference` on any profile to get the same behaviour;
 `meta["flow_channels"]["reference_sensor"]` reports which channel was used.
 
-### Arousal detection — `unet_v1` (v0.35.0, opt-in)
+### Arousal detection — `unet_v1` (v0.35.0; the default on clinical profiles since 2026-10-25)
 
 ```python
+run_pneumo_analysis(raw, hypnogram, scoring_profile="aasm_v3_breath_dual")   # unet_v1
 run_pneumo_analysis(raw, hypnogram, scoring_profile="aasm_v3_breath_dual",
-                    arousal_detector="unet_v1")        # or PSGSCORING_AROUSAL_DETECTOR=unet_v1
+                    arousal_detector="lgbm")           # or PSGSCORING_AROUSAL_DETECTOR=lgbm
 ```
 
-The shipped arousal detector filters rule-based candidates with a LightGBM
+The previous arousal detector filters rule-based candidates with a LightGBM
 classifier at an operating point of 0.80 and reaches a median F1 of 0.546 on
 PSG-IPA against a **human ceiling of 0.679** (median over 330 scorer pairs,
 [`docs/arousal_menselijk_plafond.md`](https://github.com/bartromb/psgscoring/blob/main/docs/arousal_menselijk_plafond.md)).
@@ -356,14 +357,18 @@ Pooled F1 on fresh SHHS1 nights sits at the human ceiling; the event count ratio
 is 0.85 at the shipped threshold 0.35 and count-neutral at 0.25.
 [`docs/arousal_unet_replicatie_20260927.md`](https://github.com/bartromb/psgscoring/blob/main/docs/arousal_unet_replicatie_20260927.md).
 
-**It is opt-in, not the default.** The downstream effect was measured separately
+**Since 2026-10-25 it is the default on the clinical and exploratory
+profiles; `lgbm` stays pinned on the five profiles that reproduce an external
+rule set or a published dataset analysis** (`aasm_v2_rec`, `aasm_v1_rec`,
+`cms_medicare`, `mesa_shhs`, `chicago_1999`), so those remain byte-identical.
+The downstream effect was measured before the switch
 ([`docs/unet_doorwerking_20261009.md`](https://github.com/bartromb/psgscoring/blob/main/docs/unet_doorwerking_20261009.md)):
 under `aasm_v3_breath_dual` on 100 MESA nights the AHI moves by −0.2/h (median),
 the RDI by −0.9/h and the arousal index by −1.8/h, with respiratory event-F1
 +0.003. The detector changes the arousal count more than the respiratory
-indices, and whether a lower, better-localised arousal index is what a clinic
-wants is a decision, not a measurement. Without EOG or chin EMG the pipeline
-falls back to the LightGBM chain and says so in
+indices. The operating point stays at 0.35 (count-neutral on PSG-IPA; 0.25 is
+count-neutral on the NSRR cohorts) until that choice is made. Without EOG or
+chin EMG the pipeline falls back to the LightGBM chain and says so in
 `summary["unet_fallback_reason"]`; the autonomic re-ranker is bypassed when the
 U-Net is active.
 
@@ -580,7 +585,7 @@ per idea evaluated, including the ones rejected.
 
 ## Architecture
 
-~22,000 lines across 24 submodules, 1,911 unit tests (CI: Python 3.9–3.12):
+~22,000 lines across 24 submodules, 1,943 unit tests (CI: Python 3.9–3.12):
 
 `constants` · `utils` · `signal` · `breath` · `breath_scoring` · `classify` · `spo2` · `plm` · `ancillary` · `arousal` · `arousal_unet` · `agreement` · `respiratory` · `indices` · `ventilation` · `pipeline` · `ml_classifier` · `profiles` · `postprocess` · `signal_quality` · `signal_quality_channels` · `split_night` · `ecg_effort` · `_types`
 
