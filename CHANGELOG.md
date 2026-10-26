@@ -104,6 +104,18 @@ zodra zijn pin het veld levert (tolerant voor afwezigheid).
 - **Gevolg**: niets gebouwd. Twee kandidaten voor een eigen prereg: een analysevenster/waakpoort
   voor de polygrafieroute (signaalgeldigheid + beweging/houding, later WASO via hartslag/RIP) en
   de arousalpoot op RIP/Pleth (roadmap-kandidaat C stap 2) voor de −2,55 /u.
+- **Nameting 26-10, arousalpoot via hartslagstijging** (prereg
+  `docs/hpg_arousalpoot_hr_surge_preregistratie_20261026.md`, vóór de berekening): ΔHR
+  (Huang-definitie, MESA-oximeter-HR 1 Hz) van arousal-gedragen hypopneeën 3,7 bpm mediaan tegen
+  2,1 voor controlevensters, AUC **0,648** (< 0,70 → volgens de regel niet bouwen); dezelfde
+  respons als desaturatie-hypopneeën (AUC 0,506). Niets gebouwd.
+- **Waakpoort stap 0** (`docs/hpg_simulatie_20261025/waakpoort_stap0.py`, post hoc op de n150):
+  59 % van de waak-events ligt op los signaal (SpO2 buiten bereik 13 769, flow vlak 5 695), 41 %
+  op geldig signaal. Een analysevenster op signaalgeldigheid (regel B: eerste..laatste run van
+  ≥ 2 min geldig, dode runs ≥ 3 min eruit) neemt 13 605 van 23 604 waak-events weg, verliest 6
+  van 18 642 slaapevents, en brengt het aantal nachten ≥ 5 /u naast het orakel van 92 naar 38
+  (ernst gelijk aan het orakel 79 → 114 van 150). Preregistratie voor de bouw en een verse
+  meting: `docs/waakpoort_preregistratie_20261026.md`.
 
 ## Arousal-U-Net opgeschaald (bench, meting nacht 25/26-10): arm MS haalt de prereg-regel, het flowkanaal niet
 

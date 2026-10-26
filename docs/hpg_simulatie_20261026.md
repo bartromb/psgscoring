@@ -114,3 +114,29 @@ wat `hpg_hypno` verliest).
   in `/srv/DATA/MESA/gebruikte_mesa_ids.txt`. `rijen.json` en `rijen.partial.jsonl` dragen
   volledige eventlijsten (16 MB samen); of die in git gaan of naast de U-Net-uitvoer buiten git,
   is een keuze bij de commit.
+
+## Nameting 26-10 (ochtend): hartslagstijging als arousalproxy — NIET bouwen
+
+Preregistratie `docs/hpg_arousalpoot_hr_surge_preregistratie_20261026.md` (sha256 `24eeed94…`,
+geschreven vóór de berekening), script `hpg_simulatie_20261025/hr_surge_proxy.py`, uitvoer
+`hr_surge_proxy.{json,md}`. ΔHR per event (Huang-definitie: piek in [onset, einde + 15 s] min het
+gemiddelde van de 60 s ervoor) op het MESA-oximeterkanaal `HR` (1 Hz, 150/150 nachten), klassen uit
+de `psg`-arm, controlevensters in slaap zonder event binnen ± 30 s.
+
+| klasse | n | mediaan | p25 | p75 | ≥ 5 bpm | ≥ 7 | ≥ 10 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| A hypopneu ≥ 3 % desaturatie | 7 499 | 3,8 | 1,7 | 6,8 | 0,38 | 0,24 | 0,12 |
+| B hypopneu < 3 % (arousal-gedragen; 2 603 van 2 707 via Rule 1A) | 2 693 | 3,7 | 1,8 | 6,9 | 0,38 | 0,25 | 0,12 |
+| C controle (slaap, geen event) | 2 703 | 2,1 | 1,1 | 3,7 | 0,16 | 0,09 | 0,03 |
+| D apneu | 11 276 | 3,7 | 1,4 | 7,2 | 0,38 | 0,26 | 0,14 |
+
+AUC B tegen C **0,648** (A tegen C 0,637; D tegen C 0,623; B tegen A 0,506). Per nacht (141 met
+≥ 3 per klasse) ligt de mediaan van B 1,5 bpm boven die van C, hoger op 126/141, p = 2·10⁻²⁰:
+het effect is echt en systematisch, maar klein ten opzichte van de spreiding. **Volgens de
+vooraf vastgelegde lezing (AUC < 0,70): de poot kan de −2,55 /u niet terughalen zonder veel
+bijvangst — niet bouwen.** Twee kanttekeningen: arousal-gedragen hypopneeën hebben precies
+dezelfde autonome respons als desaturatie-hypopneeën (AUC 0,506), dus de maat ziet het event, niet
+de bevestigingsroute; en MESA-`HR` is een gefilterde oximeterafleiding op 1 Hz — een beat-to-beat
+pulsfrequentie uit het pleth-signaal (zoals de re-ranker van 0.33.0 gebruikte) kan scherper zijn.
+Dat is een nieuwe meting met een nieuwe prereg, geen reden om deze uitslag te herzien.
+
