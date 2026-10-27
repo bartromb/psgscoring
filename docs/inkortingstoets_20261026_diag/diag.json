@@ -1,0 +1,397 @@
+[
+ {
+  "recording": "mesa-sleep-0111",
+  "rol": "fout (3\u2192183 apneus, alle thermistor)",
+  "sf": 32.0,
+  "tst_h": 3.84,
+  "n_ref_aasm15": 0,
+  "kanalen": {
+   "Pres": {
+    "onder_drempel_slaap_dyn_%": 1.15,
+    "onder_drempel_slaap_meng_%": 43.13,
+    "stadium/dyn_mediaan_slaap": 7.348,
+    "per_stadium": {
+     "N1": {
+      "min": 43.0,
+      "stadium/dyn_mediaan": 4.649,
+      "onder_drempel_dyn_%": 4.2,
+      "onder_drempel_meng_%": 44.89,
+      "env_p50/dyn": 0.405
+     },
+     "N2": {
+      "min": 87.5,
+      "stadium/dyn_mediaan": 4.141,
+      "onder_drempel_dyn_%": 0.69,
+      "onder_drempel_meng_%": 46.47,
+      "env_p50/dyn": 0.479
+     },
+     "N3": {
+      "min": 28.0,
+      "stadium/dyn_mediaan": 5.628,
+      "onder_drempel_dyn_%": 0.84,
+      "onder_drempel_meng_%": 14.03,
+      "env_p50/dyn": 0.539
+     },
+     "R": {
+      "min": 72.0,
+      "stadium/dyn_mediaan": 9.127,
+      "onder_drempel_dyn_%": 0.02,
+      "onder_drempel_meng_%": 49.35,
+      "env_p50/dyn": 0.494
+     }
+    }
+   },
+   "Therm": {
+    "onder_drempel_slaap_dyn_%": 1.4,
+    "onder_drempel_slaap_meng_%": 66.46,
+    "stadium/dyn_mediaan_slaap": 487.825,
+    "per_stadium": {
+     "N1": {
+      "min": 43.0,
+      "stadium/dyn_mediaan": 4.139,
+      "onder_drempel_dyn_%": 2.66,
+      "onder_drempel_meng_%": 50.29,
+      "env_p50/dyn": 0.65
+     },
+     "N2": {
+      "min": 87.5,
+      "stadium/dyn_mediaan": 883.614,
+      "onder_drempel_dyn_%": 1.15,
+      "onder_drempel_meng_%": 68.0,
+      "env_p50/dyn": 0.66
+     },
+     "N3": {
+      "min": 28.0,
+      "stadium/dyn_mediaan": 413.38,
+      "onder_drempel_dyn_%": 3.51,
+      "onder_drempel_meng_%": 89.29,
+      "env_p50/dyn": 0.632
+     },
+     "R": {
+      "min": 72.0,
+      "stadium/dyn_mediaan": 488.472,
+      "onder_drempel_dyn_%": 0.13,
+      "onder_drempel_meng_%": 65.39,
+      "env_p50/dyn": 0.611
+     }
+    }
+   }
+  }
+ },
+ {
+  "recording": "mesa-sleep-0225",
+  "rol": "fout (17\u2192220)",
+  "sf": 32.0,
+  "tst_h": 6.61,
+  "n_ref_aasm15": 11,
+  "kanalen": {
+   "Pres": {
+    "onder_drempel_slaap_dyn_%": 4.15,
+    "onder_drempel_slaap_meng_%": 41.98,
+    "stadium/dyn_mediaan_slaap": 2.75,
+    "per_stadium": {
+     "N1": {
+      "min": 20.0,
+      "stadium/dyn_mediaan": 1.627,
+      "onder_drempel_dyn_%": 13.07,
+      "onder_drempel_meng_%": 51.67,
+      "env_p50/dyn": 0.502
+     },
+     "N2": {
+      "min": 185.0,
+      "stadium/dyn_mediaan": 2.21,
+      "onder_drempel_dyn_%": 3.24,
+      "onder_drempel_meng_%": 43.52,
+      "env_p50/dyn": 0.566
+     },
+     "N3": {
+      "min": 104.0,
+      "stadium/dyn_mediaan": 2.381,
+      "onder_drempel_dyn_%": 1.06,
+      "onder_drempel_meng_%": 7.99,
+      "env_p50/dyn": 0.667
+     },
+     "R": {
+      "min": 87.5,
+      "stadium/dyn_mediaan": 96.697,
+      "onder_drempel_dyn_%": 7.7,
+      "onder_drempel_meng_%": 76.89,
+      "env_p50/dyn": 0.523
+     }
+    }
+   },
+   "Therm": {
+    "onder_drempel_slaap_dyn_%": 5.12,
+    "onder_drempel_slaap_meng_%": 19.29,
+    "stadium/dyn_mediaan_slaap": 2.059,
+    "per_stadium": {
+     "N1": {
+      "min": 20.0,
+      "stadium/dyn_mediaan": 1.252,
+      "onder_drempel_dyn_%": 16.1,
+      "onder_drempel_meng_%": 28.59,
+      "env_p50/dyn": 0.376
+     },
+     "N2": {
+      "min": 185.0,
+      "stadium/dyn_mediaan": 2.309,
+      "onder_drempel_dyn_%": 6.75,
+      "onder_drempel_meng_%": 27.78,
+      "env_p50/dyn": 0.506
+     },
+     "N3": {
+      "min": 104.0,
+      "stadium/dyn_mediaan": 1.292,
+      "onder_drempel_dyn_%": 1.77,
+      "onder_drempel_meng_%": 3.78,
+      "env_p50/dyn": 0.71
+     },
+     "R": {
+      "min": 87.5,
+      "stadium/dyn_mediaan": 2.652,
+      "onder_drempel_dyn_%": 3.17,
+      "onder_drempel_meng_%": 17.65,
+      "env_p50/dyn": 0.555
+     }
+    }
+   }
+  }
+ },
+ {
+  "recording": "mesa-sleep-1305",
+  "rol": "fout (13\u219298)",
+  "sf": 32.0,
+  "tst_h": 8.32,
+  "n_ref_aasm15": 5,
+  "kanalen": {
+   "Pres": {
+    "onder_drempel_slaap_dyn_%": 7.86,
+    "onder_drempel_slaap_meng_%": 16.62,
+    "stadium/dyn_mediaan_slaap": 1.083,
+    "per_stadium": {
+     "N1": {
+      "min": 37.5,
+      "stadium/dyn_mediaan": 1.021,
+      "onder_drempel_dyn_%": 5.58,
+      "onder_drempel_meng_%": 9.69,
+      "env_p50/dyn": 0.308
+     },
+     "N2": {
+      "min": 285.0,
+      "stadium/dyn_mediaan": 1.346,
+      "onder_drempel_dyn_%": 4.0,
+      "onder_drempel_meng_%": 11.25,
+      "env_p50/dyn": 0.391
+     },
+     "N3": {
+      "min": 61.0,
+      "stadium/dyn_mediaan": 0.968,
+      "onder_drempel_dyn_%": 2.93,
+      "onder_drempel_meng_%": 3.73,
+      "env_p50/dyn": 0.379
+     },
+     "R": {
+      "min": 115.5,
+      "stadium/dyn_mediaan": 0.623,
+      "onder_drempel_dyn_%": 20.73,
+      "onder_drempel_meng_%": 38.94,
+      "env_p50/dyn": 0.189
+     }
+    }
+   },
+   "Therm": {
+    "onder_drempel_slaap_dyn_%": 0.93,
+    "onder_drempel_slaap_meng_%": 7.43,
+    "stadium/dyn_mediaan_slaap": 1.543,
+    "per_stadium": {
+     "N1": {
+      "min": 37.5,
+      "stadium/dyn_mediaan": 1.298,
+      "onder_drempel_dyn_%": 1.14,
+      "onder_drempel_meng_%": 6.93,
+      "env_p50/dyn": 0.568
+     },
+     "N2": {
+      "min": 285.0,
+      "stadium/dyn_mediaan": 1.587,
+      "onder_drempel_dyn_%": 1.07,
+      "onder_drempel_meng_%": 6.55,
+      "env_p50/dyn": 0.675
+     },
+     "N3": {
+      "min": 61.0,
+      "stadium/dyn_mediaan": 1.346,
+      "onder_drempel_dyn_%": 0.1,
+      "onder_drempel_meng_%": 0.21,
+      "env_p50/dyn": 0.706
+     },
+     "R": {
+      "min": 115.5,
+      "stadium/dyn_mediaan": 1.819,
+      "onder_drempel_dyn_%": 0.97,
+      "onder_drempel_meng_%": 13.58,
+      "env_p50/dyn": 0.607
+     }
+    }
+   }
+  }
+ },
+ {
+  "recording": "mesa-sleep-0001",
+  "rol": "controle (71\u219280)",
+  "sf": 32.0,
+  "tst_h": 5.72,
+  "n_ref_aasm15": 163,
+  "kanalen": {
+   "Pres": {
+    "onder_drempel_slaap_dyn_%": 13.65,
+    "onder_drempel_slaap_meng_%": 12.06,
+    "stadium/dyn_mediaan_slaap": 0.963,
+    "per_stadium": {
+     "N1": {
+      "min": 67.5,
+      "stadium/dyn_mediaan": 0.822,
+      "onder_drempel_dyn_%": 19.14,
+      "onder_drempel_meng_%": 17.01,
+      "env_p50/dyn": 0.306
+     },
+     "N2": {
+      "min": 227.5,
+      "stadium/dyn_mediaan": 1.125,
+      "onder_drempel_dyn_%": 9.37,
+      "onder_drempel_meng_%": 8.18,
+      "env_p50/dyn": 0.42
+     },
+     "N3": {
+      "min": 9.5,
+      "stadium/dyn_mediaan": 1.26,
+      "onder_drempel_dyn_%": 1.07,
+      "onder_drempel_meng_%": 0.49,
+      "env_p50/dyn": 0.551
+     },
+     "R": {
+      "min": 39.0,
+      "stadium/dyn_mediaan": 0.684,
+      "onder_drempel_dyn_%": 32.24,
+      "onder_drempel_meng_%": 28.9,
+      "env_p50/dyn": 0.191
+     }
+    }
+   },
+   "Therm": {
+    "onder_drempel_slaap_dyn_%": 2.64,
+    "onder_drempel_slaap_meng_%": 5.52,
+    "stadium/dyn_mediaan_slaap": 1.074,
+    "per_stadium": {
+     "N1": {
+      "min": 67.5,
+      "stadium/dyn_mediaan": 1.111,
+      "onder_drempel_dyn_%": 4.12,
+      "onder_drempel_meng_%": 5.33,
+      "env_p50/dyn": 0.624
+     },
+     "N2": {
+      "min": 227.5,
+      "stadium/dyn_mediaan": 1.101,
+      "onder_drempel_dyn_%": 1.8,
+      "onder_drempel_meng_%": 5.82,
+      "env_p50/dyn": 0.694
+     },
+     "N3": {
+      "min": 9.5,
+      "stadium/dyn_mediaan": 0.997,
+      "onder_drempel_dyn_%": 0.0,
+      "onder_drempel_meng_%": 3.28,
+      "env_p50/dyn": 0.807
+     },
+     "R": {
+      "min": 39.0,
+      "stadium/dyn_mediaan": 1.01,
+      "onder_drempel_dyn_%": 5.65,
+      "onder_drempel_meng_%": 4.6,
+      "env_p50/dyn": 0.623
+     }
+    }
+   }
+  }
+ },
+ {
+  "recording": "mesa-sleep-0468",
+  "rol": "controle (257\u2192258)",
+  "sf": 32.0,
+  "tst_h": 6.67,
+  "n_ref_aasm15": 374,
+  "kanalen": {
+   "Pres": {
+    "onder_drempel_slaap_dyn_%": 25.8,
+    "onder_drempel_slaap_meng_%": 24.29,
+    "stadium/dyn_mediaan_slaap": 0.81,
+    "per_stadium": {
+     "N1": {
+      "min": 25.5,
+      "stadium/dyn_mediaan": 0.789,
+      "onder_drempel_dyn_%": 47.29,
+      "onder_drempel_meng_%": 45.83,
+      "env_p50/dyn": 0.123
+     },
+     "N2": {
+      "min": 274.0,
+      "stadium/dyn_mediaan": 0.82,
+      "onder_drempel_dyn_%": 23.98,
+      "onder_drempel_meng_%": 22.37,
+      "env_p50/dyn": 0.283
+     },
+     "N3": {
+      "min": 43.5,
+      "stadium/dyn_mediaan": 0.912,
+      "onder_drempel_dyn_%": 2.97,
+      "onder_drempel_meng_%": 2.71,
+      "env_p50/dyn": 0.414
+     },
+     "R": {
+      "min": 57.0,
+      "stadium/dyn_mediaan": 0.745,
+      "onder_drempel_dyn_%": 42.34,
+      "onder_drempel_meng_%": 40.34,
+      "env_p50/dyn": 0.155
+     }
+    }
+   },
+   "Therm": {
+    "onder_drempel_slaap_dyn_%": 15.22,
+    "onder_drempel_slaap_meng_%": 14.41,
+    "stadium/dyn_mediaan_slaap": 0.882,
+    "per_stadium": {
+     "N1": {
+      "min": 25.5,
+      "stadium/dyn_mediaan": 0.901,
+      "onder_drempel_dyn_%": 8.49,
+      "onder_drempel_meng_%": 7.66,
+      "env_p50/dyn": 0.405
+     },
+     "N2": {
+      "min": 274.0,
+      "stadium/dyn_mediaan": 0.872,
+      "onder_drempel_dyn_%": 16.92,
+      "onder_drempel_meng_%": 16.39,
+      "env_p50/dyn": 0.298
+     },
+     "N3": {
+      "min": 43.5,
+      "stadium/dyn_mediaan": 0.992,
+      "onder_drempel_dyn_%": 7.76,
+      "onder_drempel_meng_%": 7.75,
+      "env_p50/dyn": 0.449
+     },
+     "R": {
+      "min": 57.0,
+      "stadium/dyn_mediaan": 0.843,
+      "onder_drempel_dyn_%": 15.74,
+      "onder_drempel_meng_%": 13.01,
+      "env_p50/dyn": 0.479
+     }
+    }
+   }
+  }
+ }
+]

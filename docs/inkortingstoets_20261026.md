@@ -85,11 +85,39 @@ Twee gezichten van dezelfde basislijn: op nachten mét veel echte apneus haalt h
 drie nachten met een referentie-AHI
 onder 2 /u maakt hij van een normale nacht een ernstige (0111: 183 apneus waar de referentie in het
 venster níéts telt). Het F1-gemiddelde is daardoor −0,012 bij een mediaan van 0,000. Mechanisme
-(hypothese, niet gemeten): de stadium-basislijn is één constante per stadium (P90 van de stabiele
+(op 27-10 bevestigd in §3b; hier nog als hypothese opgeschreven): de stadium-basislijn is één constante per stadium (P90 van de stabiele
 samples) die met de dynamische basislijn wordt gemiddeld; op een nacht met een korte periode van
 grote ademamplitude in één stadium ligt die constante hoog en zakt de genormaliseerde flow in de rest
 van dat stadium onder de apneudrempel. R04 (eigen PSG, 28 → 85 apneus, beide sensoren 9 → 54, van
 licht naar matig) past in dat beeld — en kan daar zonder referentie niet van worden onderscheiden.
+
+## 3b. Post-hoc diagnose van de foutmodus (27-10, beschrijvend, buiten de preregistratie)
+
+`/srv/CODE/docs/inkortingstoets_20261026_diag/diag_stadiumbasislijn.py` legt per kanaal (Pres, Therm)
+en per stadium de verhouding stadiumconstante / dynamische basislijn naast het aandeel slaapsamples
+onder de apneudrempel (envelope < 0,1 × basislijn), met en zonder stadiummenging, op de drie
+foutnachten en twee controlenachten (`diag.json`):
+
+| nacht | kanaal | stadium/dyn mediaan (slaap) | onder drempel: dyn → gemengd | uitschieter per stadium |
+|---|---|---|---|---|
+| 0111 (3 → 183 apneus, alle thermistor) | Therm | **488** | 1,4 % → **66 %** | N2 884×, R 488×, N3 413× |
+| 0111 | Pres | 7,3 | 1,2 % → 43 % | R 9,1× |
+| 0225 (17 → 220) | Pres | 2,8 | 4,2 % → 42 % | **R 97×** |
+| 0225 | Therm | 2,1 | 5,1 % → 19 % | R 2,7× |
+| 1305 (13 → 98) | Pres | 1,08 | 7,9 % → 17 % | R 0,62× (env/dyn p50 0,19) |
+| 1305 | Therm | 1,54 | 0,9 % → 7 % | R 1,8× |
+| 0001 (controle, 71 → 80) | Pres / Therm | 0,96 / 1,07 | 13,7 → 12,1 % / 2,6 → 5,5 % | — |
+| 0468 (controle, 257 → 258) | Pres / Therm | 0,81 / 0,88 | 25,8 → 24,3 % / 15,2 → 14,4 % | — |
+
+Het mechanisme is dus geen hypothese meer: `compute_stage_baseline` neemt per stadium één
+constante (P90 van de samples boven P30) zonder begrenzing ten opzichte van de dynamische
+basislijn; een segment met zeer grote amplitude (sensorartefact, verzadiging) in één stadium trekt
+die constante honderden keren boven de ademhalingsamplitude van de rest van dat stadium, en na
+middeling met de dynamische basislijn zakt de genormaliseerde flow daar massaal onder de
+apneudrempel. Op gezonde nachten ligt de verhouding tussen 0,7 en 1,3 en doet de menging bijna
+niets (0001, 0468). Dat wijst de reparatie: de stadiumconstante begrenzen ten opzichte van de
+dynamische basislijn, of een stadium waarvan de constante buiten een band valt overslaan — allebei
+te meten (`docs/stadiumbasislijn_begrenzing_preregistratie_20261027.md`).
 
 ## 4. Wat dit betekent
 
