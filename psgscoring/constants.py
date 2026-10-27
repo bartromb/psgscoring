@@ -121,6 +121,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         # 11-10-2026: anti-alias in de bandvermogen-poort, stadiumbasislijn
         # op vloerlengte-hypnogrammen, DC-stap vóór de wortellinearisatie.
         "THERMISTOR_BAND_POWER_ANTIALIAS": pp.thermistor_band_power_antialias,
+        "STAGE_BASELINE": pp.stage_baseline,
         "STAGE_BASELINE_PARTIAL_EPOCHS": pp.stage_baseline_partial_epochs,
         "LINEARISE_AFTER_DC_REMOVAL": pp.linearise_after_dc_removal,
         "AROUSAL_SPECTRAL_SHIFT": pp.arousal_spectral_shift,

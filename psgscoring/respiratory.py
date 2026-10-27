@@ -507,6 +507,8 @@ def detect_respiratory_events(
         # Idem: stadiumbasislijn op vloerlengte-hypnogrammen en DC-verwijdering
         # vóór de wortellinearisatie (review 11-10-2026).
         _STAGE_PARTIAL = bool(sp.get("STAGE_BASELINE_PARTIAL_EPOCHS", True))
+        # 26-10-2026: expliciete schakelaar, los van de hypnogramlengte.
+        _STAGE_ON      = bool(sp.get("STAGE_BASELINE", True))
         _LIN_DC        = bool(sp.get("LINEARISE_AFTER_DC_REMOVAL", False))
         _HYPOP_THRESH  = sp.get("HYPOPNEA_THRESHOLD", HYPOPNEA_THRESHOLD)
         _DESAT_PCT     = sp.get("DESATURATION_DROP_PCT", DESATURATION_DROP_PCT)
@@ -687,9 +689,13 @@ def detect_respiratory_events(
         def _build_baseline():
             _bl = compute_dynamic_baseline(
                 flow_env, sf_flow, window_s=_BL_WIN_S, percentile=_BL_PCT)
-            _bl = _apply_stage_baseline(flow_env, sf_flow, hypno,
-                                        artifact_epochs, _bl, result,
-                                        partial_epochs=_STAGE_PARTIAL)
+            if _STAGE_ON:
+                _bl = _apply_stage_baseline(flow_env, sf_flow, hypno,
+                                            artifact_epochs, _bl, result,
+                                            partial_epochs=_STAGE_PARTIAL)
+            else:
+                result["stage_baseline_used"] = False
+                result["stage_baseline_skipped"] = "profiel: stage_baseline=False"
             _pc_changes: list[dict] = []
             if pos_data is not None and sf_pos is not None:
                 _bl, _pc_changes = _apply_position_reset(
@@ -729,6 +735,7 @@ def detect_respiratory_events(
                 denoise=_DENOISE,
                 denoise_info=_DN_INFO.setdefault("hypop_flow", {}),
                 stage_baseline_partial_epochs=_STAGE_PARTIAL,
+                stage_baseline=_STAGE_ON,
                 linearise_after_dc_removal=_LIN_DC,
             )
         hypop_env, hypop_norm, hypop_baseline, sf_hy = _cache(
@@ -904,14 +911,15 @@ def detect_respiratory_events(
                 valt stil terug, precies zoals het origineel.
                 """
                 bl = dyn
-                try:
-                    stage_bl = compute_stage_baseline(
-                        hypop_env, sf_hy, hypno, artifact_epochs,
-                        dynamic_baseline=dyn if hypop_env is flow_env else None,
-                        partial_epochs=_STAGE_PARTIAL)
-                    bl = (bl + stage_bl) / 2
-                except Exception as e:
-                    logger.debug("Fix1: stadiummenging overgeslagen: %s", e)
+                if _STAGE_ON:
+                    try:
+                        stage_bl = compute_stage_baseline(
+                            hypop_env, sf_hy, hypno, artifact_epochs,
+                            dynamic_baseline=dyn if hypop_env is flow_env else None,
+                            partial_epochs=_STAGE_PARTIAL)
+                        bl = (bl + stage_bl) / 2
+                    except Exception as e:
+                        logger.debug("Fix1: stadiummenging overgeslagen: %s", e)
                 if pos_data is not None and sf_pos is not None and pos_changes:
                     try:
                         pc_hy = [{**pc, "sample": int(pc["time_s"] * sf_hy)}
@@ -1932,6 +1940,7 @@ def _setup_hypop_channel(
     envelope_method="hilbert", envelope_fs=None,
     denoise=False, denoise_info=None,
     stage_baseline_partial_epochs=True,
+    stage_baseline=True,
     linearise_after_dc_removal=False,
 ):
     """Return (hypop_env, hypop_norm, hypop_baseline, sf_hy)."""
@@ -2021,14 +2030,15 @@ def _setup_hypop_channel(
                 hypop_env, sf_hypop,
                 window_s=baseline_window_s, percentile=baseline_percentile,
             )
-            try:
-                hyp_stage_bl = compute_stage_baseline(
-                    hypop_env, sf_hypop, hypno, artifact_epochs,
-                    partial_epochs=stage_baseline_partial_epochs,
-                )
-                hypop_bl = (hypop_bl + hyp_stage_bl) / 2
-            except Exception:
-                pass
+            if stage_baseline:
+                try:
+                    hyp_stage_bl = compute_stage_baseline(
+                        hypop_env, sf_hypop, hypno, artifact_epochs,
+                        partial_epochs=stage_baseline_partial_epochs,
+                    )
+                    hypop_bl = (hypop_bl + hyp_stage_bl) / 2
+                except Exception:
+                    pass
 
         if pos_data is not None and sf_pos is not None and pos_changes:
             try:

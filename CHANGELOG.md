@@ -1,3 +1,24 @@
+# Ongereleased — `stage_baseline`: de stadiumbasislijn expliciet aan of uit (branch `stage-baseline-veld`)
+
+**Geen gedragsverandering met de default (True).** Nieuw profielveld `stage_baseline` in
+`PostProcessingRules` (legacy-sleutel `STAGE_BASELINE`), gelezen op alle drie de plaatsen waar de
+stadium-specifieke P90-basislijn met de dynamische wordt gemiddeld (hoofdflow, Fix1-menging,
+hypopneekanaal). Met `False` draait alleen de dynamische basislijn, ongeacht de lengte van het
+hypnogram; `respiratory.stage_baseline_used` wordt dan False met
+`stage_baseline_skipped = "profiel: stage_baseline=False"`. Aanleiding: de decompositie van de
+0.36.x-drift op de eigen PSG's (`docs/drift_036x_decompositie_20261026.md`: `stage_baseline_partial_epochs`
+draagt R04 28 → 85 apneus) en de inkortingstoets op MESA n = 30 (`docs/inkortingstoets_20261026.md`:
+implementatie correct, maar mét basislijn F1-gelijk tegen NSRR (p = 0,51), bias −5,1 → −0,5 /u en
+ernstconcordantie 23 → 18 doordat drie van de vier normale nachten ernstig of matig worden —
+mesa-sleep-0111 3 → 183 apneus, alle op de thermistor, bij 0 referentie-events).
+`stage_baseline_partial_epochs=False` zou het oude gedrag alleen via de IndexError herstellen en
+alleen op vloerlengte-hypnogrammen; dit veld maakt de keuze expliciet en meetbaar op MESA zonder
+het inkortingstrucje. Of de klinische profielen op `False` gaan, is een aparte beslissing (één
+regel per profiel); de reparatie van de foutmodus zelf (één P90-constante per stadium, gemiddeld
+met de dynamische basislijn) is een aparte preregistratie. Snapshots van `mesa_shhs`/`chicago_1999`
+bijgewerkt met de nieuwe sleutel (waarde True). Tests: `tests/test_stage_baseline_veld.py` (5;
+vier faalden eerst), golden 9/9 ongewijzigd.
+
 # v0.37.0 — 2026-10-26 — U-Net-arousaldetector standaard op de klinische profielen; `unet_v2` opt-in; analysevenster op signaalgeldigheid voor de polygrafieroute; agreement-rapport met elke-overlap, 1 s-κ en verschuivingen; hartslagstijging per respiratoir event; YASA < 0.8 gepind
 
 Aanleiding is de literatuurcheck van 25-10 (`docs/literatuur_update_20261025.md`) en de daaruit

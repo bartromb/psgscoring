@@ -2306,6 +2306,24 @@ class PostProcessingRules:
 
     `mesa_shhs` en `chicago_1999` blijven expliciet op `False`."""
 
+    stage_baseline: bool = True
+    """Stadiumbasislijn (REM/NREM-specifieke P90, gemiddeld met de dynamische
+    basislijn) aan of uit, los van de lengte van het hypnogram.
+
+    26-10-2026: de decompositie op de eigen PSG's wees
+    `stage_baseline_partial_epochs` aan als drager van de apneuverschuiving
+    sinds 0.36.0 (R04 28 → 85 apneus), en de inkortingstoets op MESA n = 30
+    (docs/inkortingstoets_20261026.md) vond de implementatie correct maar de
+    basislijn zelf niet beter: F1-gelijk tegen NSRR (p = 0,51), bias −5,1 →
+    −0,5 /u, ernstconcordantie 23 → 18 doordat drie van de vier normale nachten
+    ernstig of matig worden (mesa-sleep-0111: 3 → 183 apneus bij 0
+    referentie-events). `stage_baseline_partial_epochs=False` herstelt het
+    oude gedrag alleen via de IndexError op vloerlengte-hypnogrammen; dit veld
+    zet de basislijn expliciet uit, ook bij een dekkend hypnogram, op alle drie
+    de aanroepplaatsen (hoofdflow, Fix1-menging, hypopneekanaal). Default True
+    = geen gedragsverandering; `respiratory.stage_baseline_skipped` zegt
+    wanneer hij uitstond."""
+
     stage_baseline_partial_epochs: bool = True
     """Laat de stadiumbasislijn ook draaien als het hypnogram de envelope niet
     helemaal dekt.
