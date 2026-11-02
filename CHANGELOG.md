@@ -1,4 +1,4 @@
-# Ongereleased — `index_denominator`: de klinische AHI deelt door de volle slaaptijd
+# v0.38.0 — 2026-11-02 — `index_denominator`: de klinische AHI deelt door de volle slaaptijd op alle niet-bevroren profielen; ODI, RERA/RDI, PLM-index en randindices mee
 
 **Gedragsverandering op alle profielen behalve `mesa_shhs` en `chicago_1999`** (klinisch:
 `aasm_v3_rec`, `aasm_v3_breath`, `aasm_v3_breath_dual` en `_v2` (erven), `aasm_v3_dual`,
