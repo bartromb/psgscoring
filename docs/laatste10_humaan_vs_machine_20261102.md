@@ -102,19 +102,62 @@ Lezing:
    L09 +2,7, L10 +5,9; op L07 juist −3,5) doordat rec's enveloppe-hypopneeroute daar meer telt (§6: hyp REC 40/55/74 tegen A0
    29/36/35). Wie "vroeger klopte het beter" zegt, bedoelt dus niet rec.
 
-## 5. Machine tegen mens (prereg §5.2): alleen L01 beschikbaar
+## 5. Machine tegen mens (prereg §5.2–5.5): tien menselijke AHI's binnen (02-11, 20:53)
 
-| L | mens | A0 | Δ | Δ % | SB | ST | BR | LG | ALL | REC |
-|---|---|---|---|---|---|---|---|---|---|---|
-| L01 | ≈ 80 | 117,8 | +37,8 | +47 % | +35,0 | +31,8 | +21,4 | +39,5 | +16,4 | −39,8 |
+Bart leverde de menselijke AHI van alle tien nachten (L01 precies 95 /u; het eerdere "≈ 80" vervalt).
+Hypopneeregel en menselijke TST ontbreken nog, dus de noemer-afsplitsing op de menselijke TST
+(prereg §5.2, laatste zin) blijft open. Cijfers: `analyse.py` met `humaan_cijfers.json` op de server
+(`analyse_uitvoer.md` §2–§3). De kolom **0.38.0** is A0 herrekend op de volle slaaptijd — precies wat
+productie sinds 17u schrijft (§10); Δ = machine − mens.
 
-Op L01 brengt BR (→ +21,4) A0 − mens het dichtst bij 0, in de zin van prereg §5.3; de vereniging
-verklaart 16 van de 38 /u, de hypopneeroute 6, de stadiumbasislijn 3, het U-Net −2; alle vier samen
-21, en dan blijft +16 /u over (ALL 96,4). Wat overblijft zit in de hypopneeroute van breath zelf
-(272 hypopneeën onder breath tegen 25 onder rec) en in de noemer (machine 242,0 min artefactvrije
-slaap, TST 245,5; menselijke TST onbekend). Met één nacht is dit een illustratie, geen uitkomst;
-de tekentoets, ernstconcordantie en TST-herrekening uit de prereg volgen zodra de negen andere
-cijfers er zijn (`humaan.csv` op de server, dan `maak_mapping.py --cijfers` en `analyse.py`).
+| L | mens | A0 (0.37.0) | Δ | 0.38.0 | Δ | SB | ST | BR | LG | ALL | REC | klasse mens / A0 / 0.38.0 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| L01 | 95,0 | 117,8 | +22,8 | 116,1 | +21,1 | 115,0 | 111,8 | 101,4 | 119,5 | 96,4 | 40,2 | ernstig / ernstig / ernstig |
+| L02 | 16,2 | 22,0 | +5,8 | 18,6 | +2,4 | 21,4 | 13,7 | 22,0 | 22,0 | 12,2 | 6,6 | matig / matig / matig |
+| L03 | 18,9 | 18,4 | −0,5 | 17,7 | −1,2 | 18,4 | 15,9 | 16,1 | 17,2 | 12,6 | 7,7 | matig / matig / matig |
+| L04 | 19,3 | 23,7 | +4,4 | 22,3 | +3,0 | 20,2 | 21,6 | 15,6 | 22,4 | 9,7 | 11,3 | matig / matig / matig |
+| L05 | 102,0 | 130,5 | +28,5 | 97,1 | −4,9 | 129,8 | 130,0 | 130,5 | 130,5 | 129,4 | 104,1 | ernstig / ernstig / ernstig |
+| L06 | 19,8 | 17,8 | −2,0 | 13,5 | −6,3 | 18,4 | 16,0 | 17,8 | 19,7 | 18,8 | 15,4 | matig / matig / **licht** |
+| L07 | 7,5 | 9,0 | +1,5 | 7,9 | +0,4 | 9,0 | 5,6 | 8,8 | 8,0 | 5,2 | 5,5 | licht / licht / licht |
+| L08 | 13,2 | 10,2 | −3,0 | 10,0 | −3,2 | 9,4 | 7,3 | 10,2 | 12,3 | 7,6 | 10,9 | licht / licht / licht |
+| L09 | 4,5 | 5,0 | +0,5 | 4,9 | +0,4 | 5,0 | 3,4 | 5,0 | 4,2 | 2,4 | 7,7 | normaal / **licht** / normaal |
+| L10 | 19,0 | 8,9 | −10,1 | 8,7 | −10,3 | 9,5 | 7,3 | 8,9 | 7,0 | 6,3 | 14,8 | matig / **licht** / **licht** |
+
+Machine − mens per arm (n = 10; tekentoets exact, tweezijdig):
+
+| arm | mediaan Δ | gemiddeld | mediaan \|Δ\| | MAE | min | max | +/− | p | klasse exact | binnen 1 | mediaan Δ % |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| A0 (0.37.0, productie tot 17u) | +1,0 | +4,8 | 3,7 | 7,9 | −10,1 | +28,5 | 6/4 | 0,754 | 8/10 | 10/10 | +16 |
+| **0.38.0 (volle slaaptijd, productie nu)** | **−0,4** | **+0,1** | **3,1** | **5,3** | −10,3 | +21,1 | 5/5 | 1,000 | 8/10 | 10/10 | — |
+| SB | +0,7 | +4,1 | | | −9,5 | +27,8 | 6/4 | 0,754 | 8/10 | 10/10 | +8 |
+| ST | −2,2 | +1,7 | | | −11,7 | +28,0 | 3/7 | 0,344 | 8/10 | 10/10 | −18 |
+| BR | −0,8 | +2,1 | | | −10,1 | +28,5 | 5/5 | 1,000 | 8/10 | 10/10 | −2 |
+| LG | +0,2 | +4,7 | | | −12,0 | +28,5 | 5/5 | 1,000 | 9/10 | 10/10 | +3 |
+| ALL | −3,1 | −1,5 | | | −12,7 | +27,4 | 2/8 | 0,109 | 6/10 | 10/10 | −32 |
+| REC | −4,3 | −9,1 | | | −54,8 | +3,2 | 2/8 | 0,109 | 5/10 | 10/10 | −24 |
+
+Lezing volgens de prereg:
+
+1. **Vraag 1 (§5.2):** A0 zit mediaan +1,0 /u boven de mens, 6 nachten boven en 4 onder, p = 0,754 —
+   geen richting. Ernstklasse exact 8/10, binnen één klasse 10/10. Het gemiddelde (+4,8) komt van de twee
+   ernstige nachten L01 (+22,8) en L05 (+28,5); de indruk "psgscoring zit boven de mens" waarmee dit
+   dossier begon, is dus een indruk van de zware nachten, niet van de mediane nacht. Op de volle
+   slaaptijd (0.38.0) valt L05 naar −4,9 en L02 naar +2,4; L01 blijft +21,1. Mediaan −0,4, MAE 7,9 → 5,3.
+2. **Vraag 2, drager (§5.3):** SB brengt de mediaan van +1,0 naar +0,7, maar A0 − SB is mediaan 0,3 /u
+   (< 1): de stadiumbasislijn is op deze tien **geen drager** en de steun voor `stage_baseline=False`
+   (optie 1 van 27-10) vervalt volgens §5.5 — SB "brengt" de mediaan niet binnen ±2, want A0 stond
+   er al. De vooraf verwachte drager komt dus niet uit. BR verschuift L01 met 16,4 /u (§4) maar doet
+   op de nachten met afgekeurde thermistor (L02, L05, L09, L10) per constructie niets.
+3. **Vraag 3, regelverschil (§5.4):** REC − mens mediaan −4,3 en ALL − mens −3,1 liggen niet boven +2
+   maar eronder: de oude rec-route en de vier terugdraaiingen samen scoren systematisch ónder de mens
+   (2/8). Het restverschil is dus geen regelverschil in de zin van §5.4; `regel_h` blijft onbekend.
+4. **Wat overblijft, per nacht:** twee nachten waar de noemer het niet verklaart. **L01** (+21 /u op
+   0.38.0): 410 apneus, 273 alleen op druk (§6), en het U-Net vindt 23 arousals tegen 303 voor lgbm
+   (§7); de menselijke 95 ligt het dichtst bij ALL (96,4) en BR (101,4). **L10** (−10 /u): 30 apneus
+   en 35 hypopneeën tegen een menselijke 19 /u; alleen REC (14,8, enveloppe-hypopneeën) komt in de
+   buurt — hier mist de breath-route hypopneeën. **L06** (−6,3) landt op 0.38.0 een klasse onder de
+   mens (licht tegen matig); A0 lag op L09 een klasse boven (5,0 tegen 4,5).
+5. **n = 10, één scoorder** (§5.6): richtingen, geen uitspraak. De tekentoets zegt op geen enkele arm iets.
 
 ## 6. Per nacht: sensoren, hypopneeroute, arousaldetectoren
 
@@ -219,3 +262,17 @@ RQ-timeout van 900 s afgebroken ("Work-horse terminated unexpectedly") — zijn 
 cijfers). De uploads van 02-11 deden er op productie 3–4 min over; de parallelle herrekening
 was de uitzondering, niet de regel.
 
+### 10b. Menselijke AHI's voor de vijftien herrekende jobs (02-11, 20:53)
+
+Veertien patiënten (H07 = H08) met een menselijke AHI; de tien van §5 plus vier buiten de prereg-steekproef.
+Machine − mens, n = 14:
+
+| | mediaan Δ | gemiddeld | MAE | mediaan \|Δ\| | max \|Δ\| | binnen ±5 | Pearson r | Lin CCC | klasse exact |
+|---|---|---|---|---|---|---|---|---|---|
+| 0.37.0 (artefactvrije noemer) | 0,0 | +5,8 | 9,3 | 3,7 | 41,6 | 9/14 | 0,965 | 0,917 | 12/14 |
+| 0.38.0 (volle slaaptijd) | −2,2 | −0,8 | 4,7 | 3,0 | 21,1 | 10/14 | 0,982 | 0,978 | 12/14 |
+
+De grootste afwijking van 0.37.0 (+41,6 /u: 83,5 tegen 41,9 mens, 656 artefact-epochs) wordt op 0.38.0
+−2,9. De klasseverschillen op 0.38.0 zijn de twee van §5 (L06/H07 en L10/H12, machine een klasse lager);
+0.37.0 had L09/H11 (een klasse hoger) en L10. Vier nachten buiten §5: 8,4 tegen 6,8; 41,9 tegen 39,0;
+2,9 tegen 0,0; 64 tegen 58,7 — alle vier in de klasse van de mens.
