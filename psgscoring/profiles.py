@@ -2196,6 +2196,35 @@ class PostProcessingRules:
     Legacy-sleutel `SPO2_INDEX_DENOMINATOR`; lezer `spo2.index_denominator_from_profile`.
     """
 
+    index_denominator: str = "artifact_free_sleep"
+    """Noemer van de AHI-familie (`respiratory._compute_summary`: AHI, OAHI,
+    REM/NREM-AHI, indices per type), van de RERA-index/RDI en van de PLM-index.
+
+    `"artifact_free_sleep"`: slaapepochs min artefact-epochs (gedrag tot
+    0.37.0). `"sleep"`: alle slaapepochs, zoals een menselijke scoorder door
+    de TST deelt. De detectie slaat artefact-epochs in beide standen over
+    (sleep mask); alleen de noemer verschilt, en `n_artifact_epochs_excluded`,
+    `sleep_minutes` en `artifact_free_sleep_minutes` blijven in de samenvatting
+    staan.
+
+    **Aanleiding 02-11-2026** (`docs/laatste10_humaan_vs_machine_20261102.md`):
+    op de laatste tien eigen PSG's vlagde de artefactdetectie 234–511 epochs
+    per nacht (L05 43 %), waardoor de AHI tot een derde boven dezelfde telling
+    op de volle TST lag (130,5 tegen 97,1 /u; 17,8 tegen 13,5). Bart: "AHI op
+    volle TST benadert menselijke scoring. Pas toe." Op alle profielen behalve
+    de twee bevroren reproductieprofielen staat dit veld daarom op `"sleep"`
+    (de klinische, én de exploratory varianten die in de kliniek naast het
+    standaardprofiel gekozen kunnen worden, zodat elk profiel in de dropdown
+    dezelfde noemer heeft), samen met `spo2_index_denominator`
+    `"sleep"` (ODI) en `ancillary_tst_excludes_artifacts=False` (externe
+    arousal-index, CSR-dichtheid), zodat elke index op dezelfde nacht door
+    dezelfde slaaptijd deelt. De interne arousal-index deelde al door de volle
+    slaaptijd (`arousal_uses_artifact_epochs=False`). `mesa_shhs` en
+    `chicago_1999` blijven op `"artifact_free_sleep"` (reproductie). Open punt,
+    los van dit veld: of de detectie zelf artefact-epochs moet blijven overslaan.
+    Legacy-sleutel `INDEX_DENOMINATOR`; lezer `indices.index_denominator_from_profile`.
+    """
+
     spectral_effort_resolution: str = "event"
     """Vensterlengte van de spectrale effortclassificatie (`ecg_effort`).
 
@@ -2415,6 +2444,11 @@ _aasm_v3_rec = Profile(
         square_root_linearisation=True,
     ),
     post_processing=PostProcessingRules(
+        # Noemer = volle slaaptijd op de klinische profielen (02-11-2026,
+        # zie PostProcessingRules.index_denominator).
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         summary_after_reclassification=True,
         # AAN sinds 2026-09-08 (gebruikersbeslissing, alleen op dit
         # standaardprofiel): de autonome re-ranker herordent de
@@ -2461,6 +2495,11 @@ _aasm_v3_breath = Profile(
         square_root_linearisation=True,
     ),
     post_processing=PostProcessingRules(
+        # Noemer = volle slaaptijd op de klinische profielen (02-11-2026,
+        # zie PostProcessingRules.index_denominator).
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         hypopnea_detector="breath_graded",
         summary_after_reclassification=True,
         # Als enige profiel reageert dit op de gerepareerde arousal-lijst
@@ -2573,6 +2612,11 @@ _aasm_v3_prob = Profile(
         square_root_linearisation=True,
     ),
     post_processing=PostProcessingRules(
+        # Noemer = volle slaaptijd, zoals op alle niet-bevroren profielen
+        # (02-11-2026, zie PostProcessingRules.index_denominator).
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         hypopnea_detector="breath_graded",
         summary_after_reclassification=True,
         arousal_limb_wired=True,
@@ -2654,6 +2698,11 @@ _aasm_v2_rec = Profile(
         square_root_linearisation=True,
     ),
     post_processing=PostProcessingRules(
+        # Noemer = volle slaaptijd op de klinische profielen (02-11-2026,
+        # zie PostProcessingRules.index_denominator).
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         # Ritmiek-as UIT: historisch/regulatoir dan wel bevroren.
         single_channel_rhythm=False,
         # Arousal-classifier om dezelfde reden UIT: een ML-filter maakt geen
@@ -2706,6 +2755,11 @@ _aasm_v1_rec = Profile(
         square_root_linearisation=True,
     ),
     post_processing=PostProcessingRules(
+        # Noemer = volle slaaptijd op de klinische profielen (02-11-2026,
+        # zie PostProcessingRules.index_denominator).
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         # Ritmiek-as UIT: historisch/regulatoir dan wel bevroren.
         single_channel_rhythm=False,
         # Arousal-classifier om dezelfde reden UIT: een ML-filter maakt geen
@@ -2761,6 +2815,11 @@ _cms_medicare = Profile(
         square_root_linearisation=True,
     ),
     post_processing=PostProcessingRules(
+        # Noemer = volle slaaptijd op de klinische profielen (02-11-2026,
+        # zie PostProcessingRules.index_denominator).
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         # Ritmiek-as UIT: historisch/regulatoir dan wel bevroren.
         single_channel_rhythm=False,
         # Arousal-classifier om dezelfde reden UIT: een ML-filter maakt geen
@@ -3101,6 +3160,11 @@ _aasm_v3_dual = Profile(
         square_root_linearisation=True,
     ),
     post_processing=PostProcessingRules(
+        # Noemer = volle slaaptijd op de klinische profielen (02-11-2026,
+        # zie PostProcessingRules.index_denominator).
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         # Beide sensoren gebruiken, niet kiezen. Zie dual_sensor_apnea.
         dual_sensor_apnea=True,
         summary_after_reclassification=True,
@@ -3162,6 +3226,11 @@ _aasm_v3_fusion = Profile(
         square_root_linearisation=True,
     ),
     post_processing=PostProcessingRules(
+        # Noemer = volle slaaptijd, zoals op alle niet-bevroren profielen
+        # (02-11-2026, zie PostProcessingRules.index_denominator).
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         dual_sensor_apnea=True,
         dual_sensor_corroboration=False,
         summary_after_reclassification=True,
@@ -3361,6 +3430,11 @@ _aasm_v3_pressure = Profile(
         square_root_linearisation=True,
     ),
     post_processing=PostProcessingRules(
+        # Noemer = volle slaaptijd op de klinische profielen (02-11-2026,
+        # zie PostProcessingRules.index_denominator).
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         # Apneudetectie ongewijzigd t.o.v. aasm_v3_rec — enkelsensor.
         dual_sensor_apnea=False,
         summary_after_reclassification=True,
@@ -3403,6 +3477,11 @@ _aasm_v3_strict = Profile(
         global_p95_fallback=True,
     ),
     post_processing=PostProcessingRules(
+        # Noemer = volle slaaptijd, zoals op alle niet-bevroren profielen
+        # (02-11-2026, zie PostProcessingRules.index_denominator).
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         stability_filter_enabled=True,
         stability_filter_cv=0.30,
         summary_after_reclassification=True,
@@ -3453,6 +3532,11 @@ _aasm_v3_sensitive = Profile(
         max_duration_s=120.0,  # v0.2.8: extended for UARS
     ),
     post_processing=PostProcessingRules(
+        # Noemer = volle slaaptijd, zoals op alle niet-bevroren profielen
+        # (02-11-2026, zie PostProcessingRules.index_denominator).
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         stability_filter_enabled=True,
         stability_filter_cv=0.50,
         summary_after_reclassification=True,
@@ -3541,6 +3625,11 @@ _aasm_v3_amplitude = Profile(
         square_root_linearisation=True,
     ),
     post_processing=PostProcessingRules(
+        # Volgt het anker aasm_v3_rec: noemer = volle slaaptijd (02-11-2026),
+        # anders meet de as ook de noemer in plaats van alleen de eigen knop.
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         summary_after_reclassification=True,
         single_channel_rhythm=False,
         # Volgt het anker aasm_v3_rec (re-ranker aan 08-09-2026).
@@ -3589,6 +3678,11 @@ _aasm_v3_pair_scalefree = Profile(
         square_root_linearisation=True,
     ),
     post_processing=PostProcessingRules(
+        # Volgt het anker aasm_v3_rec: noemer = volle slaaptijd (02-11-2026),
+        # anders meet de as ook de noemer in plaats van alleen de eigen knop.
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         summary_after_reclassification=True,
         rip_pair_scale_free=True,
         # Volgt het anker aasm_v3_rec (re-ranker aan 08-09-2026):
@@ -3617,6 +3711,11 @@ _aasm_v3_env_chunked = Profile(
     citation="Rombaut et al. 2026 — envelope axis (blockwise Hilbert); see the CHANGELOG entry for the measurement and the decision rule.",
     hypopnea=replace(_ENVELOPE_ARM_HYPOPNEA),
     post_processing=PostProcessingRules(
+        # Volgt het anker aasm_v3_rec: noemer = volle slaaptijd (02-11-2026),
+        # anders meet de as ook de noemer in plaats van alleen de eigen knop.
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         summary_after_reclassification=True,
         envelope_method="hilbert_chunked",
         # Volgt het anker aasm_v3_rec (re-ranker aan 08-09-2026).
@@ -3641,6 +3740,11 @@ _aasm_v3_env_rectify = Profile(
     citation="Rombaut et al. 2026 — envelope axis (rectify + lowpass); see the CHANGELOG entry for the measurement and the decision rule.",
     hypopnea=replace(_ENVELOPE_ARM_HYPOPNEA),
     post_processing=PostProcessingRules(
+        # Volgt het anker aasm_v3_rec: noemer = volle slaaptijd (02-11-2026),
+        # anders meet de as ook de noemer in plaats van alleen de eigen knop.
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         summary_after_reclassification=True,
         envelope_method="rectify_lowpass",
         # Volgt het anker aasm_v3_rec (re-ranker aan 08-09-2026):
@@ -3668,6 +3772,11 @@ _aasm_v3_env_breath = Profile(
     citation="Rombaut et al. 2026 — envelope axis (breath amplitude); see the CHANGELOG entry for the measurement and the decision rule.",
     hypopnea=replace(_ENVELOPE_ARM_HYPOPNEA),
     post_processing=PostProcessingRules(
+        # Volgt het anker aasm_v3_rec: noemer = volle slaaptijd (02-11-2026),
+        # anders meet de as ook de noemer in plaats van alleen de eigen knop.
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         summary_after_reclassification=True,
         envelope_method="breath_amplitude",
         # Volgt het anker aasm_v3_rec (re-ranker aan 08-09-2026):
@@ -3694,6 +3803,11 @@ _aasm_v3_env_decimated = Profile(
     citation="Rombaut et al. 2026 — envelope axis (decimated Hilbert); see the CHANGELOG entry for the measurement and the decision rule.",
     hypopnea=replace(_ENVELOPE_ARM_HYPOPNEA),
     post_processing=PostProcessingRules(
+        # Volgt het anker aasm_v3_rec: noemer = volle slaaptijd (02-11-2026),
+        # anders meet de as ook de noemer in plaats van alleen de eigen knop.
+        index_denominator="sleep",
+        spo2_index_denominator="sleep",
+        ancillary_tst_excludes_artifacts=False,
         summary_after_reclassification=True,
         envelope_fs=10.0,
         # Volgt het anker aasm_v3_rec (re-ranker aan 08-09-2026).

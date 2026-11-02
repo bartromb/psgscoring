@@ -35,7 +35,9 @@ from .indices import SLEEP_STAGES, per_hour, tst_hours
 from .respiratory import (
     detect_respiratory_events, reinstate_rule1a_arousal_hypopneas, _compute_summary,
 )
-from .spo2 import analyze_spo2, compute_hypoxic_burden, index_denominator_from_profile
+from .spo2 import analyze_spo2, compute_hypoxic_burden
+from .spo2 import index_denominator_from_profile as spo2_index_denominator_from_profile
+from .indices import index_denominator_from_profile
 from .signal_quality import THERMISTOR_BAND_POWER_DEAD
 from .ancillary import (
     csr_period_rectified_from_profile,
@@ -213,6 +215,10 @@ def run_pneumo_analysis(
             f"Unknown profile '{scoring_profile}'. "
             f"Available: {', '.join(sorted(SCORING_PROFILES))}")
     profile = SCORING_PROFILES[resolved_name]
+    # Noemer van de AHI-familie, RERA/RDI en PLM-index (profielveld
+    # `index_denominator`): "sleep" op de klinische profielen sinds 02-11-2026.
+    _den_mode = index_denominator_from_profile(profile)
+    _den_art  = artifact_epochs if _den_mode == "artifact_free_sleep" else None
     # Knoppen die de hypopneedetector van dit profiel niet leest, zijn een
     # stille no-op (de HYPOPNEA_STRICTNESS-les van v0.16.0). Zeg het.
     from .profiles import profile_inert_fields
@@ -650,7 +656,7 @@ def run_pneumo_analysis(
                         key=lambda e: float(e.get("onset_s") or 0.0))
         output["respiratory"] = resp
         resp["events"] = merged
-        resp["summary"] = _compute_summary(merged, hypno, artifact_epochs)
+        resp["summary"] = _compute_summary(merged, hypno, artifact_epochs, denominator=_den_mode)
         resp["dual_sensor_apnea"] = _cd
         logger.info("[pneumo] dual-sensor apneus: %d beide, %d alleen "
                     "thermistor, %d alleen druk -> %d behouden",
@@ -864,7 +870,7 @@ def run_pneumo_analysis(
     if spo2_data is not None:
         output["spo2"] = _run_step("spo2", lambda: analyze_spo2(
             spo2_data, sf_spo2, hypno, artifact_epochs=artifact_epochs,
-            index_denominator=index_denominator_from_profile(profile)))
+            index_denominator=spo2_index_denominator_from_profile(profile)))
         # v0.8.16: SpO2-frequentietoets (AASM: hooguit 3 s middeling). Op de
         # NATIEVE frequentie uit de EDF-kop: `sf_spo2` is de frequentie van de
         # array na MNE's opbemonstering en kon de drempel nooit raken.
@@ -1126,7 +1132,7 @@ def run_pneumo_analysis(
             for e in _dropped]
         if _dropped:
             _resp_c["events"] = _kept
-            _resp_c["summary"] = _compute_summary(_kept, hypno, artifact_epochs)
+            _resp_c["summary"] = _compute_summary(_kept, hypno, artifact_epochs, denominator=_den_mode)
         logger.info("[pneumo] voorwaardelijke vereniging: %d door arousal "
                     "bevestigd, %d vervallen", _cc2["n_arousal"],
                     _cc2["n_dropped"])
@@ -1222,7 +1228,7 @@ def run_pneumo_analysis(
             merged = sorted(_apneas + _hyps, key=lambda e: float(e["onset_s"]))
             output["respiratory"]["events"] = merged
             output["respiratory"]["summary"] = _compute_summary(
-                merged, hypno, artifact_epochs)
+                merged, hypno, artifact_epochs, denominator=_den_mode)
             output["respiratory"]["breath_detector"] = _bdiag
             _graded_applied = True
             logger.info("[pneumo 7b] breath-graded hypopneas: %d scored from "
@@ -1324,7 +1330,7 @@ def run_pneumo_analysis(
             logger.info("[pneumo 8] Rule 1B: %d hypopneas reinstated", len(reinstated))
             output["respiratory"]["events"]           = updated_events
             output["respiratory"]["summary"]          = _compute_summary(
-                updated_events, hypno, artifact_epochs
+                updated_events, hypno, artifact_epochs, denominator=_den_mode
             )
             # v0.12.3+: 1A is de correcte AASM-regel; de 1B-sleutel blijft
             # als alias omdat YASAFlaskified hem in twee rapporten leest.
@@ -1383,7 +1389,7 @@ def run_pneumo_analysis(
                 output["respiratory"]["events"]               = new_acc
                 output["respiratory"]["rejected_hypopneas"]   = new_rej
                 output["respiratory"]["summary"]              = _compute_summary(
-                    new_acc, hypno, artifact_epochs
+                    new_acc, hypno, artifact_epochs, denominator=_den_mode
                 )
                 output["respiratory"]["ml_reclassification"]  = ml_meta
             else:
@@ -1427,7 +1433,7 @@ def run_pneumo_analysis(
                 output["respiratory"]["events"] = _acc
                 output["respiratory"]["rejected_hypopneas"] = _rej
                 output["respiratory"]["summary"] = _compute_summary(
-                    _acc, hypno, artifact_epochs)
+                    _acc, hypno, artifact_epochs, denominator=_den_mode)
                 logger.info(
                     "[pneumo 8b0] %d lange events gesplitst in %d delen "
                     "(%d op desaturatie, %d op arousal), %d fragmenten afgewezen",
@@ -1458,7 +1464,7 @@ def run_pneumo_analysis(
                 output["respiratory"]["events"] = _acc
                 output["respiratory"]["rejected_hypopneas"] = _rej
                 output["respiratory"]["summary"] = _compute_summary(
-                    _acc, hypno, artifact_epochs
+                    _acc, hypno, artifact_epochs, denominator=_den_mode
                 )
                 logger.info(
                     "[pneumo 8b/10] desaturatiehergebruik begrensd op %d: "
@@ -1516,7 +1522,7 @@ def run_pneumo_analysis(
             leg_r_data,
             sf_leg or raw.info["sfreq"], hypno,
             resp_events=_final_events,
-            artifact_epochs=artifact_epochs,
+            artifact_epochs=_den_art,            # alleen de noemer (profielveld index_denominator)
             time_base_fix=_plm_tb,
             # Niet hier afkappen: `plm_arousal_index` moet over de hele nacht
             # rekenen. De payloadgrens gaat er in _cap_plm_event_list() af,
@@ -1563,6 +1569,7 @@ def run_pneumo_analysis(
             hypno,
             artifact_epochs,
             csr_info=csr_info,
+            denominator=_den_mode,
         )
         n_flagged = sum(1 for e in events_flagged if e.get("csr_flagged"))
         logger.info("Fix3 (pipeline): %d events gemarkeerd als CSR-gerelateerd", n_flagged)
@@ -1622,7 +1629,7 @@ def run_pneumo_analysis(
                        type(e).__name__, e)
 
     logger.info("[pneumo 9b/11] RERA and RDI computation...")
-    _compute_rera_rdi(output, hypno, arousals, artifact_epochs,
+    _compute_rera_rdi(output, hypno, arousals, _den_art,
                       arousal_window_s=float(
                           profile.get("RERA_AROUSAL_WINDOW_S", 15.0)),
                       rem_alias_excludes_uncertain=bool(
@@ -1751,7 +1758,7 @@ def run_pneumo_analysis(
                 _old = output["respiratory"].get("summary") or {}
                 _fresh = _compute_summary(
                     pp["events"], hypno, artifact_epochs,
-                    csr_info=output.get("cheyne_stokes"),
+                    csr_info=output.get("cheyne_stokes"), denominator=_den_mode,
                 )
                 _moved = [k for k in ("n_obstructive", "n_central", "n_mixed",
                                       "oahi", "ahi_total")

@@ -22,7 +22,7 @@ import numpy as np
 import pytest
 
 from psgscoring.constants import SCORING_PROFILES
-from psgscoring.profiles import PROFILES
+from psgscoring.profiles import PROFILES, PostProcessingRules
 from psgscoring.spo2 import analyze_spo2, index_denominator_from_profile
 
 SF = 1.0
@@ -88,14 +88,18 @@ def test_timeseries_bevat_geen_nan():
 # ── profielveld en lezer ────────────────────────────────────────────────
 
 def test_veld_artefactvrij_op_klinisch_sleep_op_de_bevroren_profielen():
-    assert PROFILES["aasm_v3_rec"].post_processing.spo2_index_denominator == "artifact_free_sleep"
+    # 02-11-2026: de klinische profielen delen ook de ODI door de volle slaaptijd
+    # (zie PostProcessingRules.index_denominator en tests/test_index_denominator.py);
+    # de default van het veld blijft "artifact_free_sleep".
+    assert PostProcessingRules().spo2_index_denominator == "artifact_free_sleep"
+    assert PROFILES["aasm_v3_rec"].post_processing.spo2_index_denominator == "sleep"
     for naam in ("mesa_shhs", "chicago_1999"):
         assert PROFILES[naam].post_processing.spo2_index_denominator == "sleep", naam
         assert SCORING_PROFILES[naam]["SPO2_INDEX_DENOMINATOR"] == "sleep"
 
 
 def test_de_lezer_volgt_de_legacy_sleutel():
-    assert index_denominator_from_profile(SCORING_PROFILES["aasm_v3_rec"]) == "artifact_free_sleep"
+    assert index_denominator_from_profile(SCORING_PROFILES["aasm_v3_rec"]) == "sleep"      # klinisch sinds 02-11-2026
     assert index_denominator_from_profile(SCORING_PROFILES["mesa_shhs"]) == "sleep"
     assert index_denominator_from_profile(None) == "artifact_free_sleep"
     with pytest.raises(ValueError):

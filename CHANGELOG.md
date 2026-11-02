@@ -1,3 +1,35 @@
+# Ongereleased — `index_denominator`: de klinische AHI deelt door de volle slaaptijd
+
+**Gedragsverandering op alle profielen behalve `mesa_shhs` en `chicago_1999`** (klinisch:
+`aasm_v3_rec`, `aasm_v3_breath`, `aasm_v3_breath_dual` en `_v2` (erven), `aasm_v3_dual`,
+`aasm_v3_pressure`, `aasm_v2_rec`, `aasm_v1_rec`, `cms_medicare`; en de exploratory varianten, zie onder): de noemer van de AHI-familie (AHI, OAHI, REM/NREM-AHI, indices per
+type), van de RERA-index/RDI en van de PLM-index is voortaan de volle slaaptijd uit het hypnogram,
+niet meer de slaap zonder artefact-epochs. ODI gaat mee (`spo2_index_denominator="sleep"`), net als
+de externe arousal-index en de CSR-dichtheid (`ancillary_tst_excludes_artifacts=False`); de interne
+arousal-index deelde al door de volle slaaptijd. Nieuw profielveld `index_denominator`
+(`"artifact_free_sleep"` | `"sleep"`, legacy-sleutel `INDEX_DENOMINATOR`, lezer
+`indices.index_denominator_from_profile`), default `"artifact_free_sleep"` = het oude gedrag;
+`mesa_shhs` en `chicago_1999` blijven daarop (snapshots bijgewerkt met de nieuwe sleutel); de zes
+rec+één-knop-meetarmen (`aasm_v3_amplitude`, `aasm_v3_pair_scalefree`, de vier `aasm_v3_env_*`)
+volgen het anker mee, zodat hun as alleen de eigen knop blijft meten, en ook `aasm_v3_strict`,
+`aasm_v3_sensitive`, `aasm_v3_prob` (+ `_prob_dual`) en `aasm_v3_fusion` staan op `"sleep"`: elk
+profiel dat in de kliniek gekozen kan worden deelt door dezelfde slaaptijd. Alleen de twee bevroren
+reproductieprofielen houden `"artifact_free_sleep"`. De
+samenvatting draagt nu `index_denominator`, `sleep_minutes` en `artifact_free_sleep_minutes` naast
+`tst_minutes` (= de gebruikte noemer) en `n_artifact_epochs_excluded`. De detectie zelf blijft
+artefact-epochs overslaan (sleep mask) — of dat moet blijven is een open meetvraag, los van dit veld.
+
+Aanleiding: de laatste tien eigen PSG's (`docs/laatste10_humaan_vs_machine_20261102.md`): de
+artefactdetectie vlagde 234–511 epochs per nacht (tot 43 %), waardoor de klinische AHI tot een derde
+boven dezelfde telling op de volle TST lag (130,5 tegen 97,1 /u; 17,8 tegen 13,5; 22,0 tegen 18,6),
+terwijl een menselijke scoorder door de TST deelt. Beslissing Bart 02-11-2026: "AHI op volle TST
+benadert menselijke scoring. Pas toe." Verwacht effect in de kliniek: de AHI daalt op nachten met
+veel artefact-epochs, de ernstklasse kan zakken (L05 ernstig blijft ernstig; L06 matig → licht);
+op nachten met weinig artefact-epochs verandert er minder dan 2 %. Golden-uitvoer ongewijzigd (de
+synthetische opnames dragen geen artefact-epochs). Tests: `tests/test_index_denominator_veld.py` (12,
+faalden eerst), `test_spo2_index_denominator` en `test_pipeline_wiring_review` bijgewerkt naar de
+nieuwe klinische stand.
+
 # v0.37.0 — 2026-10-26 — U-Net-arousaldetector standaard op de klinische profielen; `unet_v2` opt-in; analysevenster op signaalgeldigheid voor de polygrafieroute; agreement-rapport met elke-overlap, 1 s-κ en verschuivingen; hartslagstijging per respiratoir event; YASA < 0.8 gepind
 
 Aanleiding is de literatuurcheck van 25-10 (`docs/literatuur_update_20261025.md`) en de daaruit

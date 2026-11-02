@@ -28,6 +28,7 @@ from .constants import (
     DESATURATION_DROP_PCT, EPOCH_LEN_S,
     MMSD_APNEA_THRESH, RULE1B_AROUSAL_WINDOW_S,
 )
+from .indices import INDEX_DENOMINATORS, index_denominator_from_profile
 from .utils import build_sleep_mask, is_nrem, is_rem, safe_r
 from .signal import (
     bandpass_flow, compute_dynamic_baseline, compute_mmsd,
@@ -1106,8 +1107,9 @@ def detect_respiratory_events(
                 _e.pop("_graded_alt", None)
         result["events"]             = events
         result["rejected_hypopneas"] = rejected
-        result["summary"]            = _compute_summary(events, hypno, artifact_epochs,
-                                                         csr_info=csr_info)
+        result["summary"]            = _compute_summary(
+            events, hypno, artifact_epochs, csr_info=csr_info,
+            denominator=index_denominator_from_profile(scoring_profile))
         # v0.8.23: count ECG-reclassified events
         n_ecg_reclass = sum(
             1 for e in events
@@ -2963,12 +2965,28 @@ def _compute_summary(
     hypno: list,
     artifact_epochs: list | None = None,
     csr_info: dict | None = None,
+    denominator: str = "artifact_free_sleep",
 ) -> dict:
-    """Compute all AHI-family indices from the event list."""
+    """Compute all AHI-family indices from the event list.
+
+    `denominator` (profielveld `index_denominator`): "artifact_free_sleep" telt
+    de slaapepochs min de artefact-epochs als noemer (gedrag tot 0.37.0);
+    "sleep" telt alle slaapepochs, zoals een menselijke scoorder door de TST
+    deelt (klinische profielen sinds 02-11-2026). De artefacttelling blijft in
+    beide standen in de uitvoer staan; de detectie zelf verandert hier niet.
+    """
+    if denominator not in INDEX_DENOMINATORS:
+        raise ValueError(
+            f"denominator={denominator!r}; verwacht een van {INDEX_DENOMINATORS}")
     artifact_set  = set(artifact_epochs or [])
+    # De verzameling epochs die uit de NOEMER valt: onder "sleep" leeg.
+    den_set       = artifact_set if denominator == "artifact_free_sleep" else set()
+    sleep_s_all   = sum(EPOCH_LEN_S for s in hypno if s != "W")
+    sleep_s_clean = sum(EPOCH_LEN_S for i, s in enumerate(hypno)
+                        if s != "W" and i not in artifact_set)
     total_sleep_s = sum(
         EPOCH_LEN_S for i, s in enumerate(hypno)
-        if s != "W" and i not in artifact_set
+        if s != "W" and i not in den_set
     )
     # GEEN ondergrens op de noemer. Hier stond `max(..., 0.001)` als
     # bescherming tegen deling door nul, en dat is precies de verkeerde vorm
@@ -2982,9 +3000,9 @@ def _compute_summary(
     # is daarmee geruststellend fout, wat klinisch erger is dan zichtbaar fout.
     total_sleep_h = total_sleep_s / 3600
     rem_h  = sum(EPOCH_LEN_S for i, s in enumerate(hypno)
-                 if is_rem(s) and i not in artifact_set) / 3600
+                 if is_rem(s) and i not in den_set) / 3600
     nrem_h = sum(EPOCH_LEN_S for i, s in enumerate(hypno)
-                 if is_nrem(s) and i not in artifact_set) / 3600
+                 if is_nrem(s) and i not in den_set) / 3600
 
     apneas    = [e for e in events if e["type"] in ("obstructive", "central", "mixed")]
     hypopneas = [e for e in events if "hypopnea" in e["type"]]
@@ -3124,12 +3142,17 @@ def _compute_summary(
         # is een lege AHI niet te onderscheiden van een AHI die toevallig
         # nul is, en kan het rapport niet uitleggen wat er ontbreekt.
         "index_denominator_h": safe_r(total_sleep_h, 3),
+        # Welke slaaptijd de noemer is (profielveld `index_denominator`), en
+        # beide tijden ernaast zodat een rapport het verschil kan tonen.
+        "index_denominator": denominator,
+        "sleep_minutes": safe_r(sleep_s_all / 60),
+        "artifact_free_sleep_minutes": safe_r(sleep_s_clean / 60),
         "indices_computable":  total_sleep_h > 0,
         "index_unavailable_reason": (
             None if total_sleep_h > 0 else
             ("geen slaapepochs over na artefactuitsluiting "
              f"({len(artifact_set)} van {len(hypno)} epochs als artefact)"
-             if hypno and artifact_set else
+             if hypno and den_set else
              "geen hypnogram" if not hypno else
              "hypnogram bevat uitsluitend wake")
         ),

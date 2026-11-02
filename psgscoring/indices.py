@@ -25,7 +25,33 @@ from __future__ import annotations
 
 from .constants import EPOCH_LEN_S
 
-__all__ = ["SLEEP_STAGES", "hours_of", "per_hour", "tst_hours"]
+__all__ = ["INDEX_DENOMINATORS", "SLEEP_STAGES", "denominator_artifact_epochs", "hours_of",
+           "index_denominator_from_profile", "per_hour", "tst_hours"]
+
+#: Noemer van de AHI-familie, de RERA-index/RDI en de PLM-index (profielveld
+#: `index_denominator`): "artifact_free_sleep" = slaapepochs min artefact-epochs
+#: (gedrag tot 0.37.0, gepind op de bevroren profielen); "sleep" = alle
+#: slaapepochs, zoals een menselijke scoorder deelt (klinische profielen sinds
+#: 02-11-2026, `docs/laatste10_humaan_vs_machine_20261102.md`). De detectie
+#: slaat artefact-epochs in beide standen over; alleen de noemer verschilt.
+INDEX_DENOMINATORS = ("artifact_free_sleep", "sleep")
+
+
+def index_denominator_from_profile(profile: dict | None) -> str:
+    """Profielveld `index_denominator` uit de legacy-dict (sleutel INDEX_DENOMINATOR)."""
+    mode = str((profile or {}).get("INDEX_DENOMINATOR", "artifact_free_sleep"))
+    if mode not in INDEX_DENOMINATORS:
+        raise ValueError(
+            f"INDEX_DENOMINATOR={mode!r}; verwacht een van {INDEX_DENOMINATORS}")
+    return mode
+
+
+def denominator_artifact_epochs(profile: dict | None,
+                                artifact_epochs: list | None) -> list | None:
+    """De artefactlijst zoals een NOEMER hem moet zien: ongewijzigd onder
+    "artifact_free_sleep", ``None`` onder "sleep". Voor lezers die de lijst
+    alleen voor hun slaaptijd gebruiken (PLM-index, RERA-index/RDI)."""
+    return None if index_denominator_from_profile(profile) == "sleep" else artifact_epochs
 
 #: De vier AASM-labels die slaap zijn. Expliciet, en niet `!= "W"`: een
 #: hypnogram kan ook "ART", "?" of None dragen, en dat is geen slaap.

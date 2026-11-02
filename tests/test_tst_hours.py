@@ -54,14 +54,21 @@ def test_de_externe_arousalindex_deelt_door_dezelfde_noemer_als_de_ahi():
     out = psgscoring.run_pneumo_analysis(raw, hypno=hypno, artifact_epochs=art,
                                          arousal_events=arousals,
                                          scoring_profile="aasm_v3_rec")
-    tst = tst_hours(hypno, art)
-    assert tst == 14 * EPOCH_LEN_S / 3600.0
+    # 02-11-2026: op aasm_v3_rec is de noemer de VOLLE slaaptijd
+    # (`index_denominator="sleep"`, `ancillary_tst_excludes_artifacts=False`);
+    # de artefactlijst blijft zichtbaar in de samenvatting. De eis van deze
+    # test blijft dezelfde: arousal-index en AHI-familie delen door één noemer.
+    tst = tst_hours(hypno, None)
+    assert tst == 20 * EPOCH_LEN_S / 3600.0
+    assert tst_hours(hypno, art) == 14 * EPOCH_LEN_S / 3600.0
     assert out["arousal"]["summary"]["arousal_index"] == round(12 / tst, 2)
     # en dat is ook de noemer van de AHI-familie (`tst_hours` in de
     # samenvatting is op 1 decimaal afgerond, `index_denominator_h` op 3 of 4
     # naargelang welke schrijver het laatst was)
     assert out["respiratory"]["summary"]["index_denominator_h"] == pytest.approx(
         tst, abs=1e-3)
+    assert out["respiratory"]["summary"]["index_denominator"] == "sleep"
+    assert out["respiratory"]["summary"]["n_artifact_epochs_excluded"] == 6
 
 
 def test_de_csr_dichtheid_gebruikt_dezelfde_noemer():

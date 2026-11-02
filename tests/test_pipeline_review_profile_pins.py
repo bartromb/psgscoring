@@ -26,8 +26,15 @@ BEVROREN = ("mesa_shhs", "chicago_1999")
 @pytest.mark.parametrize("veld,sleutel", list(zip(VELDEN, SLEUTELS)))
 def test_default_aan_en_bevroren_profielen_uit(veld, sleutel):
     for naam in list_profiles():
-        waarde = getattr(get_profile(naam).post_processing, veld)
+        pp = get_profile(naam).post_processing
+        waarde = getattr(pp, veld)
         verwacht = naam not in BEVROREN
+        if veld == "ancillary_tst_excludes_artifacts":
+            # 02-11-2026: waar de AHI door de volle slaaptijd deelt (klinische
+            # profielen en de rec+één-knop-meetarmen, `index_denominator="sleep"`)
+            # delen de randindices ook door de volle slaaptijd; de bevroren
+            # profielen blijven op het oude False.
+            verwacht = verwacht and pp.index_denominator == "artifact_free_sleep"
         assert waarde is verwacht, f"{naam}.{veld} = {waarde}"
         assert SCORING_PROFILES[naam][sleutel] is verwacht, (
             f"{naam}: registry loopt uit de pas met het profiel voor {sleutel}")

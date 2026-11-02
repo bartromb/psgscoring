@@ -136,6 +136,7 @@ def _profile_to_legacy_dict(profile) -> dict:
         "PLM_RESP_EXCLUSION": pp.plm_resp_exclusion,
         "SPO2_NADIR_TIME_AXIS": pp.spo2_nadir_time_axis,
         "SPO2_INDEX_DENOMINATOR": pp.spo2_index_denominator,
+        "INDEX_DENOMINATOR": pp.index_denominator,
         "CSR_PERIOD_RECTIFIED": pp.csr_period_rectified,
         "SPECTRAL_EFFORT_RESOLUTION": pp.spectral_effort_resolution,
         "HYPOPNEA_SUBTYPE_AASM": pp.hypopnea_subtype_aasm,

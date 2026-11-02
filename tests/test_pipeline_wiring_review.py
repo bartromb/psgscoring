@@ -77,7 +77,9 @@ def test_de_klinische_default_is_het_gerepareerde_gedrag(monkeypatch, _raw_en_hy
     _spy(monkeypatch, pipeline, "detect_cheyne_stokes", gezien_csr)
     pipeline.run_pneumo_analysis(raw, hypno, channel_map=channel_map,
                                  scoring_profile="aasm_v3_rec")
-    assert gezien_spo2[0].get("index_denominator") == "artifact_free_sleep"
+    # 02-11-2026: de klinische noemer is de volle slaaptijd (index_denominator,
+    # zie tests/test_index_denominator.py); de artefactlijst bereikt analyze_spo2 nog steeds.
+    assert gezien_spo2[0].get("index_denominator") == "sleep"
     assert all(k.get("period_rectified") is False for k in gezien_csr)
 
 
