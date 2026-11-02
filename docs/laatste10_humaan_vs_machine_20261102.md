@@ -176,3 +176,46 @@ n = 10, één scoorder, één nacht met menselijke referentie; de machine-TST ko
 menselijke uit de staging van de kliniek (noemer onbekend); de menselijke hypopneeregel is niet
 vastgelegd; 58 GB RSS en het SSH-incident komen uit de sessie, niet uit de logs; de eigen nachten zijn zonder NSRR-achtige referentie, dus "drager" betekent hier
 "draagt het verschil met productie", niet "draagt de fout". Geen inferentie buiten deze tien.
+
+## 10. In situ na de uitrol (02-11, 17:09–17:35): YF 0.39.3 / psgscoring 0.38.0
+
+Barts beslissing op §4/§5 ("AHI op volle TST benadert menselijke scoring. Pas toe.") is als
+profielveld `index_denominator="sleep"` gebouwd (psgscoring 0.38.0, CHANGELOG) en om ±17:00
+uitgerold (YASAFlaskified 0.39.3, rollback-image 0.39.2). Daarna zijn de vijftien meest recente
+jobs op de productiewachtrij opnieuw gescoord langs hetzelfde pad als het uploadformulier
+(`tasks.run_analysis_job`); de 0.39.2-uitvoer van die vijftien staat op de server bewaard. De
+vijftien omvatten de tien nachten van §3 (de duplicaat-upload van §1 ditmaal twee keer, want in
+de app zijn het twee jobs), één nieuwere upload en vier oudere. Alleen cijfers; de koppeling
+blijft op de server.
+
+**Detectie onveranderd, noemer alleen.** Het aantal respiratoire events is op 15/15 jobs identiek
+aan de 0.37.0-uitvoer (bv. 602, 475, 174, 103, 0). De noemer in de samenvatting ging van de
+artefactvrije slaap naar de volle slaaptijd (`index_denominator: sleep`), en het verschil is op
+elke job precies het aantal artefact-epochs in slaap × 0,5 min.
+
+**AHI (0.37.0 → 0.38.0) op de vijftien jobs**, gesorteerd op verschil: −44,5 (83,5 → 39,0; 656
+artefact-epochs, 125 → 268 min), −33,4 (130,5 → 97,1 = L05, §4 voorspelde 97,1), −4,3 ×2 (17,8 →
+13,5 = L06, voorspeld 13,5; de duplicaat-upload), −3,4 (22,0 → 18,6 = L02, voorspeld 18,6), −1,7
+(117,8 → 116,1 = L01), −1,4, −1,1, −0,8, −0,7, −0,2 ×2, −0,1 ×2, 0,0 (0,0 → 0,0). Mediaan −0,8 /u;
+op 9/15 minder dan 2 /u. **Ernstklasse veranderd op 2 van de 14 verschillende nachten**: matig →
+licht (17,8 → 13,5) en licht → normaal (5,0 → 4,9, op de grens). De 83,5 → 39,0-nacht blijft
+ernstig; daar stond 56 % van de slaap als artefact (656 van 1 319 epochs, 268 min slaap).
+
+**Overige indices.** Arousal-index identiek op 15/15 (deelde al door de volle slaap). RDI volgt
+de AHI (186,5 → 138,8; 88,8 → 41,5). PLM-index iets lager (12,8 → 9,6; 19,0 → 18,3), de
+LM-index ook. **ODI beweegt niet alleen mee naar beneden**: `spo2_index_denominator="sleep"`
+neemt alle slaapsamples in teller én noemer (de documentatie van het veld: incl. artefact-epochs
+en uitval), zodat desaturaties in artefact-epochs nu meetellen — op de 83,5-nacht ODI3 59,5 →
+45,0 (noemereffect wint), maar op nachten met weinig artefact-slaap stijgt de ODI licht (12,6 →
+13,4; 9,0 → 9,8; 2,6 → 3,1) omdat de teller groeit (69 → 76, 67 → 83 desaturaties). T90/T80
+delen voortaan door alle samples, dus sensoruitval verdunt ze weer. Dat is de prijs van één
+noemer voor alle indices; wie de artefactvrije ODI terug wil, zet alleen
+`spo2_index_denominator` terug.
+
+**Uitvoering.** 14/15 jobs `finished` in 8–24 min onder acht parallelle workers; één job (36
+events, 5,0 → 4,9) liep 16 min en werd na het schrijven van results/PDF/Excel/EDF+ door de
+RQ-timeout van 900 s afgebroken ("Work-horse terminated unexpectedly") — zijn uitvoer stond al op
+0.38.0; hij is daarna alleen op de lege wachtrij opnieuw gedraaid (7 min, `finished`, zelfde
+cijfers). De uploads van 02-11 deden er op productie 3–4 min over; de parallelle herrekening
+was de uitzondering, niet de regel.
+
