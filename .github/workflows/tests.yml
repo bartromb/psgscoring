@@ -35,7 +35,12 @@ jobs:
 
   test:
     name: Python ${{ matrix.python-version }}
-    runs-on: ubuntu-latest
+    # 02-11-2026: ubuntu-latest is sinds 19-10-2026 Ubuntu 26.04 en setup-python
+    # heeft daar geen 3.9-build ("The version '3.9' with architecture 'x64' was
+    # not found for Ubuntu 26.04"); de v0.38.0-release strandde erop terwijl
+    # 3.10–3.12 groen waren. requires-python is nog >=3.9, dus de matrix blijft
+    # en draait op het expliciete 24.04-label.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false   # see results for all Python versions even if one fails
       matrix:
