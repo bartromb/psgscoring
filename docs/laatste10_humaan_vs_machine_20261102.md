@@ -213,9 +213,20 @@ de "LGBM filter"-regels in run.log).
 - **Niets uitgerold, niets gewijzigd.** De drie koppen staan in één regel per profiel; welke
   terug gaat is Barts beslissing, en die hoort op de tien menselijke cijfers te wachten.
 
+**Bijwerking met de tien menselijke cijfers (02-11, avond; §5):**
+
+- *Stadiumbasislijn:* bevestigd — A0 − SB mediaan 0,3 /u, geen drager; de steun voor optie 1 vervalt (§5.2).
+- *Hypopneeroute:* strictness 0,30 (A0) zit mediaan +1,0 /u boven de mens, de terugdraaiing naar 0,50 (ST)
+  mediaan −2,2 eronder, beide 8/10 in klasse. Op deze tien is 0,30 dus niet "boven de mens"; de
+  hypopneeregel van de kliniek (`regel_h`) is nog altijd niet vastgelegd.
+- *Noemer:* gemeten en uitgerold (§10): op de volle slaaptijd mediaan −0,4 /u, MAE 7,9 → 5,3, L05 van
+  +28,5 naar −4,9. De eerste bullet van §5.4 in de prereg (regel of noemer) wordt daarmee "noemer".
+- *Wat niet door de noemer wordt gedekt:* L01 (+21 /u, 410 apneus, U-Net 23 arousals) en L10 (−10 /u,
+  hypopneeën gemist, alleen REC komt dichtbij). Dat zijn de twee detectievragen die overblijven.
+
 ## 9. Beperkingen
 
-n = 10, één scoorder, één nacht met menselijke referentie; de machine-TST komt uit YASA, de
+n = 10, één scoorder, menselijke AHI zonder eventlijst, TST of hypopneeregel; de machine-TST komt uit YASA, de
 menselijke uit de staging van de kliniek (noemer onbekend); de menselijke hypopneeregel is niet
 vastgelegd; 58 GB RSS en het SSH-incident komen uit de sessie, niet uit de logs; de eigen nachten zijn zonder NSRR-achtige referentie, dus "drager" betekent hier
 "draagt het verschil met productie", niet "draagt de fout". Geen inferentie buiten deze tien.
