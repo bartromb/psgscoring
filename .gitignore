@@ -87,3 +87,8 @@ uv.lock
 # Testopnames voor bench/ (publiek/synthetisch, nooit patiëntdata) — alleen de README reist mee
 data/test/*
 !data/test/README.md
+
+# laatste tien (02-11): ruwe uitvoer blijft buiten git (/srv/CODE/docs/laatste10_20261102/)
+docs/laatste10_20261102/L*.json
+docs/laatste10_20261102/humaan*
+docs/laatste10_20261102/mapping.json
