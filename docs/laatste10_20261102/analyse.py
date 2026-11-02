@@ -51,10 +51,13 @@ def main():
         uit.append(f"| {L} | {f(o)} | {f(a)} | {f(d)} | {nachten[L].get('profiel_opgeslagen')} / {nachten[L].get('versie_opgeslagen')} |")
     uit.append(f"\nIdentiek (|Δ| ≤ 0,1): {ident}/{len(Ls)}\n")
     # 2 tabel per nacht
-    kop = "| L | mens | " + " | ".join(ARMEN) + " | TST machine | TST mens |"
-    uit.append("## 2 AHI per nacht en arm\n\n" + kop + "\n|" + "---|" * (len(ARMEN) + 4))
+    kop = "| L | mens | " + " | ".join(ARMEN) + " | noemer (min) | TST machine | A0 op volle TST | TST mens |"
+    uit.append("## 2 AHI per nacht en arm (noemer = artefactvrije slaap, summary.tst_minutes)\n\n" + kop + "\n|" + "---|" * (len(ARMEN) + 6))
     for L in Ls:
-        m = (mens.get(L) or {}); uit.append(f"| {L} | {f(m.get('ahi_h'))} | " + " | ".join(f(ahi[L][a]) for a in ARMEN) + f" | {f(nachten[L].get('tst_machine_min'), 0)} | {f(m.get('tst_h_min'), 0)} |")
+        m = (mens.get(L) or {}); den = ((nachten[L]["armen"].get("A0") or {}).get("summary") or {}).get("tst_minutes"); tm = nachten[L].get("tst_machine_min"); x = ahi[L]["A0"]
+        n_ah = ((nachten[L]["armen"].get("A0") or {}).get("summary") or {}).get("n_ah_total")
+        volle = None if None in (n_ah, tm) or not tm else n_ah / (tm / 60.0)   # exacte telling op de volle TST
+        uit.append(f"| {L} | {f(m.get('ahi_h'))} | " + " | ".join(f(ahi[L][a]) for a in ARMEN) + f" | {f(den)} | {f(tm)} | {f(volle)} | {f(m.get('tst_h_min'), 0)} |")
     uit.append("")
     sam = {"n": len(Ls), "identiek": ident, "armen": {}}
     # 3 tegen de mens
@@ -76,10 +79,12 @@ def main():
         rijen = []
         for L in Ls:
             m = mens.get(L) or {}; h, th, tm, x = m.get("ahi_h"), m.get("tst_h_min"), nachten[L].get("tst_machine_min"), ahi[L]["A0"]
-            if None in (h, th, tm, x) or th <= 0: continue
-            rijen.append(f"| {L} | {f(tm, 0)} | {f(th, 0)} | {f(x)} | {f(x * tm / th)} | {f(h)} |")
+            den = ((nachten[L]["armen"].get("A0") or {}).get("summary") or {}).get("tst_minutes")   # noemer = artefactvrije slaap
+            if None in (h, th, tm, x, den) or th <= 0: continue
+            n_ah = ((nachten[L]["armen"].get("A0") or {}).get("summary") or {}).get("n_ah_total") or 0
+            rijen.append(f"| {L} | {f(den, 0)} | {f(tm, 0)} | {f(th, 0)} | {f(x)} | {f(n_ah / (tm / 60.0))} | {f(n_ah / (th / 60.0))} | {f(h)} |")
         if rijen:
-            uit.append("### 3b A0 herrekend op de menselijke TST\n\n| L | TST machine | TST mens | A0 | A0 op TST mens | mens |\n|---|---|---|---|---|---|"); uit += rijen; uit.append("")
+            uit.append("### 3b A0 herrekend op de volle machine-TST en op de menselijke TST (basis: noemer = artefactvrije slaap)\n\n| L | noemer | TST machine | TST mens | A0 | A0 op TST machine | A0 op TST mens | mens |\n|---|---|---|---|---|---|---|---|"); uit += rijen; uit.append("")
         # tellingen
         rijen = []
         for L in Ls:
@@ -116,6 +121,14 @@ def main():
         hy = [sum(v for k, v in r["per_type"].items() if "hypopnea" in k) for r in rows]
         sbu = sum(1 for r in rows if (r.get("resp_scalars") or {}).get("stage_baseline_used"))
         uit.append(f"| {a} | {f(median(ap), 0)} | {f(median(hy), 0)} | {f(median([r.get('hyp_desat3') or 0 for r in rows]), 0)} | {f(median([r.get('hyp_arousal_vlag') or 0 for r in rows]), 0)} | {f(median([r.get('n_arousals') or 0 for r in rows]), 0)} | {f(median([r.get('arousal_index') or 0 for r in rows]))} | {sbu}/{len(rows)} |")
+    uit.append("")
+    # 6 per nacht: sensoren, hypopneeroute, arousaldetectoren
+    uit.append("## 6 Per nacht: apneusensoren (A0), hypopneeën A0/ST/REC, arousals U-Net tegen lgbm\n\n| L | TST | apneus A0 | druk-only | beide | th-only | thermistor bruikbaar | hyp A0 | hyp ST | hyp REC | hyp ≥3 % A0 | hyp arousal A0 | arousals U-Net (ruw) | arousals lgbm | AI U-Net | AI lgbm |\n|" + "---|" * 16)
+    for L in Ls:
+        a = nachten[L]["armen"].get("A0") or {}; st_ = nachten[L]["armen"].get("ST") or {}; rec = nachten[L]["armen"].get("REC") or {}; lg = nachten[L]["armen"].get("LG") or {}
+        du = a.get("dual") or {}; tc = a.get("thermistor_check") or {}; asum = a.get("arousal_summary") or {}; lsum = lg.get("arousal_summary") or {}
+        hyp = lambda r: sum(v for k, v in (r.get("per_type") or {}).items() if "hypopnea" in k)
+        uit.append(f"| {L} | {f(nachten[L].get('tst_machine_min'), 0)} | {(a.get('summary') or {}).get('n_apnea_total')} | {du.get('n_pressure_only')} | {du.get('n_both')} | {du.get('n_thermistor_only')} | {tc.get('usable')} ({tc.get('gate')}) | {hyp(a)} | {hyp(st_)} | {hyp(rec)} | {a.get('hyp_desat3')} | {a.get('hyp_arousal_vlag')} | {a.get('n_arousals')} ({asum.get('unet_n_raw')}) | {lg.get('n_arousals')} | {f(a.get('arousal_index'))} | {f(lg.get('arousal_index'))} |")
     uit.append("")
     (map_ / "analyse_uitvoer.md").write_text("\n".join(uit)); json.dump(sam, open(map_ / "samenvatting.json", "w"), indent=1)
     print("\n".join(uit))
