@@ -26,7 +26,11 @@ Datum: 2026-11-02, geschreven vóór de meting. Status: wacht op Barts akkoord v
 - De **tien meest recente** jobs in `/data/slaapkliniek/uploads/` (op mtime van `<job>_config.json`)
   met `study_type` diagnostische PSG (geen polygrafie), `split_night` uit, aanwezige `_results.json`
   met hypnogram en respiratoire samenvatting, en een EDF die nog op schijf staat. Codes L01–L10 (L01 =
-  meest recent). Koppeling job-id ↔ L blijft op de server in
+  meest recent). **Aanvulling 02-11 12:57, vóór de run:** dezelfde opname twee keer opgeladen (zelfde
+  pseudoniem, epochaantal en opgeslagen AHI) telt één keer; de elfde job neemt de plaats in (gebeurde
+  1×: elf jobs bekeken). Op Barts vraag staat het YF-pseudoniem (`ANON_…`, de code uit de
+  geanonimiseerde EDF-header zoals op het rapport) in de servertabel en in de tabellen die hij te zien
+  krijgt; in het verslag in git blijven alleen de L-codes. Koppeling job-id ↔ L blijft op de server in
   `/data/slaapkliniek/metingen/laatste10_20261102/mapping.json`, mode 600. Geen namen, paden,
   kloktijden of job-id's verlaten de server; alleen getallen.
 - Per nacht dezelfde invoer als de worker (recept 26-10): opgeslagen YASA-hypnogram, opgeslagen

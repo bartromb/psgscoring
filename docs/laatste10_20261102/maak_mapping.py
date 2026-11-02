@@ -8,8 +8,24 @@ import csv, json, os, sys, time
 from pathlib import Path
 BASE = Path("/data/slaapkliniek"); UP = BASE / "uploads"; D = BASE / "metingen" / "laatste10_20261102"
 N = 10
-KOLOMMEN = ["L", "job_kort", "bestandsnaam", "upload_dag", "ahi_opgeslagen", "ahi_h", "n_apneu_h", "n_hypopneu_h", "tst_h_min", "regel_h"]
+KOLOMMEN = ["L", "anon_id", "job_kort", "bestandsnaam", "upload_dag", "ahi_opgeslagen", "ahi_h", "n_apneu_h", "n_hypopneu_h", "tst_h_min", "regel_h"]
 WAKE = {"W", "Wake", "wake", "WAKE", 0, "0", "Art", "ART"}
+LEEG = {"", "—", "-", "unknown", "none", "null"}
+
+
+def _anon_id(cfg, res):
+    """Pseudoniem zoals het op het rapport staat: handmatig ingevulde patient_id, anders de EDF-headercode."""
+    for bron in ((res.get("patient_info") or {}), (cfg.get("patient_info") or {}), cfg):
+        v = str(bron.get("patient_id") or "").strip()
+        if v.lower() not in LEEG:
+            return v
+    try:
+        sys.path.insert(0, str(BASE / "myproject"))
+        from edf_anonymize import read_identifiers
+        pat = (read_identifiers(cfg["edf_path"]).patient or "").split()
+        return pat[0] if pat else None   # EDF+: eerste veld = patiëntcode
+    except Exception:
+        return None
 
 
 def _summary(res):
@@ -55,7 +71,7 @@ def _getal(x):
 
 
 def selecteer():
-    sample, uitgesloten, bekeken = [], {}, 0
+    sample, uitgesloten, bekeken, gezien = [], {}, 0, set()
     for cfgp in sorted(UP.glob("*_config.json"), key=lambda p: p.stat().st_mtime, reverse=True):
         if len(sample) >= N:
             break
@@ -84,12 +100,18 @@ def selecteer():
                 reden = "geen respiratoire samenvatting"
             elif not cfg.get("edf_path") or not os.path.exists(cfg["edf_path"]):
                 reden = "EDF niet op schijf"
+            else:
+                sleutel = (_anon_id(cfg, res), len(hypno), round(float(summ.get("ahi_total") or 0), 1))
+                if sleutel in gezien:
+                    reden = "duplicaat (zelfde opname al geselecteerd)"
+                gezien.add(sleutel)
         if reden:
             uitgesloten[reden] = uitgesloten.get(reden, 0) + 1
             continue
         meta = (res.get("pneumo") or {}).get("meta") or {}
         sample.append({
-            "R": f"L{len(sample) + 1:02d}", "job_id": jid, "bestandsnaam": os.path.basename(cfg["edf_path"]),
+            "R": f"L{len(sample) + 1:02d}", "job_id": jid, "anon_id": _anon_id(cfg, res), "bestandsnaam": os.path.basename(cfg["edf_path"]),
+            "edf_dir": os.path.dirname(cfg["edf_path"]),
             "upload_dag": time.strftime("%Y-%m-%d", time.localtime(cfgp.stat().st_mtime)),
             "ahi_opgeslagen": summ.get("ahi_total"), "ahi_incl_uncertain_opgeslagen": summ.get("ahi_incl_uncertain"),
             "severity_opgeslagen": summ.get("severity") or summ.get("ahi_severity"),
@@ -111,7 +133,7 @@ def schrijf_sjabloon(mapping):
     with open(pad, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=KOLOMMEN); w.writeheader()
         for it in mapping["sample"]:
-            w.writerow({"L": it["R"], "job_kort": it["job_id"][:8], "bestandsnaam": it["bestandsnaam"], "upload_dag": it["upload_dag"],
+            w.writerow({"L": it["R"], "anon_id": it.get("anon_id") or "", "job_kort": it["job_id"][:8], "bestandsnaam": it["bestandsnaam"], "upload_dag": it["upload_dag"],
                         "ahi_opgeslagen": it["ahi_opgeslagen"], "ahi_h": "", "n_apneu_h": "", "n_hypopneu_h": "", "tst_h_min": "", "regel_h": ""})
     os.chmod(pad, 0o600)
     print(f"sjabloon {pad} (600): vul ahi_h in, de rest is optioneel; regel_h = 3pct_of_arousal | 4pct | anders")
@@ -124,7 +146,7 @@ def cijfers():
         L = (rij.get("L") or "").strip()
         if not L:
             continue
-        uit[L] = {"ahi_h": _getal(rij.get("ahi_h")), "n_apneu_h": _getal(rij.get("n_apneu_h")), "n_hypopneu_h": _getal(rij.get("n_hypopneu_h")),
+        uit[L] = {"anon_id": (rij.get("anon_id") or "").strip() or None, "ahi_h": _getal(rij.get("ahi_h")), "n_apneu_h": _getal(rij.get("n_apneu_h")), "n_hypopneu_h": _getal(rij.get("n_hypopneu_h")),
                   "tst_h_min": _getal(rij.get("tst_h_min")), "regel_h": (rij.get("regel_h") or "").strip() or None}
     json.dump(uit, open(D / "humaan_cijfers.json", "w"), indent=1)
     n = sum(1 for v in uit.values() if v["ahi_h"] is not None)
@@ -142,5 +164,6 @@ if __name__ == "__main__":
         m = selecteer(); json.dump(m, open(mp, "w"), indent=1, default=str); os.chmod(mp, 0o600)
     print(f"bekeken {m['n_bekeken']}, uitgesloten {m['uitgesloten']}, geselecteerd {len(m['sample'])}")
     for it in m["sample"]:   # alleen getallen naar de terminal
-        print(f"  {it['R']}: AHI opgeslagen {it['ahi_opgeslagen']} ({it['severity_opgeslagen']}), profiel {it['profiel_opgeslagen']}, psgscoring {it['versie_opgeslagen']}, epochs {it['n_epochs']}, TST {it['tst_machine_min']} min, EOG {it['eog_ch_gezet']}")
+        print(f"  {it['R']} [{it.get('anon_id')}]: AHI opgeslagen {it['ahi_opgeslagen']} ({it['severity_opgeslagen']}), profiel {it['profiel_opgeslagen']}, psgscoring {it['versie_opgeslagen']}, epochs {it['n_epochs']}, TST {it['tst_machine_min']} min, EOG {it['eog_ch_gezet']}")
+    print("edf-mappen:", sorted({it["edf_dir"] for it in m["sample"]}))
     schrijf_sjabloon(m)
