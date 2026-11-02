@@ -287,3 +287,71 @@ De grootste afwijking van 0.37.0 (+41,6 /u: 83,5 tegen 41,9 mens, 656 artefact-e
 −2,9. De klasseverschillen op 0.38.0 zijn de twee van §5 (L06/H07 en L10/H12, machine een klasse lager);
 0.37.0 had L09/H11 (een klasse hoger) en L10. Vier nachten buiten §5: 8,4 tegen 6,8; 41,9 tegen 39,0;
 2,9 tegen 0,0; 64 tegen 58,7 — alle vier in de klasse van de mens.
+
+## 11. Herrekening van de 75 laatste diagnostische PSG's op 0.38.0, met artefactkolom en EDF+ (02-11 22:03 → 03-11 00:14)
+
+**Selectie en uitvoering.** De 75 meest recente `diagnostic_psg`-jobs met resultaten én bron-EDF op
+de server (nachten 07-10 → 02-11), H01–H75 in omgekeerde uploadvolgorde; H01–H15 zijn de vijftien van
+§10. Drie nachten zijn dubbel geüpload (H07/H08, H35/H36, H68/H69), dus 72 patiënten; de cijfers
+hieronder tellen per patiënt (n = 72), de tabel op de server telt per job. Veertien van de 72 hebben
+een menselijke AHI (§10b); voor de overige 58 is er geen. De 60 jobs die nog niet op 0.38.0 stonden
+(0.37.0 ×4, 0.36.2 ×19, 0.36.1 ×20, 0.35.1 ×6, 0.34.0 ×11) zijn om 22:03 met een job-timeout van
+3600 s op de lege wachtrij gezet, acht workers, laatste klaar om 00:14 (2 u 11 min); 60/60 `finished`,
+nul fouten (het failed-register bevat alleen entries van maart–oktober plus de eerste H11-poging
+van §10). De oude uitvoer (results, PDF, Excel, EDF+, config; 300 bestanden, 22,7 GB) staat in
+`metingen/herrekening75_20261102/backup_pre0380/`; tabel en CSV in dezelfde map, mode 600.
+
+**Artefactkolom.** Per nacht `art_pct_slaap` = 100 · (slaapminuten − artefactvrije slaapminuten) /
+slaapminuten uit `respiratory.summary` (voor oudere versies gereconstrueerd uit `tst_minutes` en
+`n_artifact_epochs_excluded` × 0,5), met graad A < 10 %, B 10–25 %, C 25–50 %, D ≥ 50 %. Daarnaast de
+signaalgraad uit `channel_quality` (per kanaal vlak/clip/ruis over de hele opname, regel: ≥ 2 kanalen
+poor → poor, 1 poor of ≥ 3 acceptable → acceptable), hier herberekend **zonder het polskanaal**: de
+vlakke-detector (flat > 20 % → poor) zet Pulse op 65/75 nachten op poor, omdat die integerreeks
+(0–255, lage rate) lange reeksen gelijke samples bevat; met pols mee zou 56/75 "acceptable" en 15/75
+"poor" zijn, zonder pols 34 good, 37 acceptable, 4 poor (per patiënt 31/37/4). Dat is een bevinding over de detector, niet
+over de montages; de bibliotheek is niet aangepast (losse eind).
+
+**Verschuiving voor → na (n = 72).** Mediaan −0,3 /u, gemiddeld −4,9; 45 lager, 3 gelijk, 24 hoger;
+|Δ| ≤ 1 voor 28, ≤ 2 voor 43, > 5 voor 13. Mediane AHI na 17,0; ernst na: normaal 5, licht 28,
+matig 16, ernstig 23 (voor: 6/25/17/24). De verschuiving volgt het artefactpercentage
+(Spearman −0,70):
+
+| artefactgraad | n | Δ mediaan | Δ bereik |
+|---|---|---|---|
+| A (< 10 %) | 52 | −0,1 | −8,1 … +5,1 |
+| B (10–25 %) | 13 | −3,9 | −10,5 … +0,5 |
+| C (25–50 %) | 4 | −33,3 | −41,4 … −3,6 |
+| D (≥ 50 %) | 3 | −44,5 | −105,3 … −44,2 |
+
+De dertien met |Δ| > 5: twaalf omlaag, waarvan zes met graad C/D (H06 130,5 → 97,1; H13 83,5 → 39,0;
+H24 135,9 → 30,6 bij 77,5 % artefact; H37 96,2 → 63,0; H48 98,2 → 56,8; H55 59,2 → 15,0 bij 75,3 %),
+vier met graad B (H20, H25, H34, H49: −5,6 … −10,5) en twee met graad A (H26 −6,0, H44 −8,1; beide
+0.36.x, dus meer dan de noemer); één omhoog (H68 8,2 → 13,3, 0.34.0). Per oude versie: 0.37.0 n = 18
+mediaan −0,8 en geen enkele hoger (zuiver noemereffect); 0.36.2 n = 18 −1,0; 0.36.1 n = 20 −0,8;
+0.35.1 n = 6 −0,4; 0.34.0 n = 10 **+2,5 en alle tien hoger** — die nachten overbruggen vier releases
+(arousaldetector, waakpoort, hypopneeroute) en zijn hier niet ontleed. Acht klassewissels: drie
+matig → licht op B-nachten (H07 17,8 → 13,5; H34 20,4 → 14,8; H61 18,1 → 14,2), H55 ernstig → matig
+(D), twee grensgevallen (H11 5,0 → 4,9; H41 4,8 → 5,3) en twee omhoog uit 0.34.0 (H72 11,5 → 15,1;
+H73 2,3 → 6,9). Dunste noemer: H23 met 62,5 min slaap op 11 u opname (AHI 18,2).
+
+**Signaalkolom.** Poor zonder pols: H03 (thermistor, thorax), H11, H25 (thermistor, abdomen), H30
+(thermistor, thorax, abdomen). ECG poor op 9 (clipping), thorax 6, thermistor 4. H11 heeft 23,6 %
+vlak op álle kanalen tegelijk: de recorder liep ~2,6 u door na het afkoppelen; in de slaap zelf is
+1,7 % artefact. De RIP-paarpoort meldt op **43 van de 75 jobs** een verdacht paar (energieverhouding
+thorax/abdomen in de orde 10³–10⁴: de thoraxband levert een fractie van de abdomenamplitude, zonder
+vlakke stukken) en schakelt dan naar abdomen alleen; dat is een montage- of versterkingsvraag voor de
+thoraxband in DOMINO, geen softwarevraag. `n_low_conf_noise` > 0 op 5 jobs.
+
+**EDF+.** Alle 75 `_scored.edf` zijn geldig EDF+C met annotatiekanaal, 287,6–374,2 MB, 8,5–11,0 u;
+hardlinks in `metingen/herrekening75_20261102/edfplus/<H>_<pseudoniem>_scored.edf` (27,5 GB zonder
+extra schijf) met `edfplus_manifest.csv`; per job ook via `/results/<job_id>/edfplus`. Annotaties per
+bestand: stadia per 30 s (1015–1320), respiratoire events 0–599, arousals 6–551, PLM 0–114 (37
+bestanden met 0), artefact-epochs 23–1125, desaturaties ≤ 200 — de schrijver kapt op 200 en dat
+raakt 16 van de 75 bestanden (losse eind: cap verhogen of weglaten). De bron-EDF's van DOMINO
+dragen zelf alleen `Start`/`Lights Off`/`Lights On` (zie `somnomedics_domino_edfplus_20261102.md`).
+
+**Beperkingen.** Voor 56 van de 60 herrekende jobs verschilt meer dan de noemer (0.34.0–0.36.2 →
+0.38.0), dus Δ is daar een versieverschil, geen noemereffect; alleen de 18 van 0.37.0 isoleren de
+noemer. De artefactgraad is het aandeel van de slaap dat de respiratoire artefactpoort op 0.38.0
+uitsluit (wat 0.37.0 uit de noemer liet), niet de EEG-artefactdetector (die staat apart in de CSV als
+`eeg_art_pct_tib`). Geen menselijke referentie voor 58 van de 72.
