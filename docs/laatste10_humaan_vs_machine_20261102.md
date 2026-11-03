@@ -404,3 +404,26 @@ eventniveau te zien (DOMINO-ASCII-export, open vraag §11).
 beschikbaarheid, niet naar toeval; de 15 van §10 waren de aanleiding voor de noemerwijziging (de
 voorspellingen gingen wel aan de menselijke cijfers vooraf); de menselijke waarden zijn met de hand
 overgenomen, zonder dubbele invoer.
+
+**Kwaliteit tegen afwijking (03-11, figuur `bland_altman_56.png` op de server in
+`metingen/herrekening75_20261102/`).** De absolute afwijking hangt zwak samen met het artefactaandeel
+(Spearman \|Δ\| tegen artefact % 0,35; tegen het EEG-artefactaandeel over de opname 0,15); de getekende
+afwijking niet (−0,12 en −0,08). Per groep (n, mediaan Δ, mediaan \|Δ\|, binnen ±5):
+
+| groep | n | Δ | \|Δ\| | binnen ±5 | klasse gelijk |
+|---|---|---|---|---|---|
+| artefact A (< 10 %) | 42 | −1,1 | 2,4 | 34/42 | 38/42 |
+| artefact B (10–25 %) | 11 | −0,2 | 4,8 | 6/11 | 8/11 |
+| artefact C + D | 3 | −2,9 | 4,9 | 2/3 | 2/3 |
+| signaal good | 23 | −1,0 | 2,4 | 17/23 | 19/23 |
+| signaal acceptable | 29 | −1,4 | 3,0 | 22/29 | 25/29 |
+| signaal poor | 4 | −0,3 | 1,7 | 3/4 | 4/4 |
+| thoraxband normaal | 24 | −0,5 | 2,0 | 20/24 | 22/24 |
+| thoraxband bijna vlak (paarpoort) | 32 | −1,2 | 3,1 | 22/32 | 26/32 |
+
+Artefact B–D tegen A: \|Δ\| 4,9 tegen 2,4 (Mann-Whitney p ≈ 0,12); thoraxband bijna vlak tegen normaal
+3,1 tegen 2,0 (p ≈ 0,08); signaal poor tegen de rest 1,7 tegen 3,0 (p ≈ 0,51, n = 4). Geen van de
+kwaliteitsmaten verklaart de richting van de fout, en de zes matig-naar-licht-missers liggen op vier
+A-nachten en twee B-nachten met de thoraxband drie keer wel en drie keer niet verdacht: de
+onderscoring is geen kwaliteitsprobleem. Artefactrijke nachten (B–D, 14 van de 56) zijn wel minder
+precies: de twee grootste negatieve afwijkingen (H49 −22,6; H25 −19,8) zijn B-nachten.
