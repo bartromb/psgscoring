@@ -357,3 +357,50 @@ dragen zelf alleen `Start`/`Lights Off`/`Lights On` (zie `somnomedics_domino_edf
 noemer. De artefactgraad is het aandeel van de slaap dat de respiratoire artefactpoort op 0.38.0
 uitsluit (wat 0.37.0 uit de noemer liet), niet de EEG-artefactdetector (die staat apart in de CSV als
 `eeg_art_pct_tib`). Geen menselijke referentie voor 58 van de 72.
+
+## 12. Mens tegen machine op 56 patiënten (03-11: Barts aanvulling van de 75-tabel)
+
+**Bron.** Bart vulde de kolom "mens" van de 75-tabel aan met de menselijke AHI's die hij ter
+beschikking had (document van 03-11 12:45; regel 1A, één scoorder): 59 jobs = 56 patiënten
+(H08, H36 en H69 zijn dubbele uploads met dezelfde waarde als hun partner); 16 jobs zonder
+(H23, H24, H33, H37, H39–H48, H52, H75). De 14 van §10b staan er ongewijzigd in. Eén bron:
+`metingen/herrekening75_20261102/humaan.csv` (59 rijen). Alle cijfers hieronder per patiënt, n = 56,
+machine − mens.
+
+| | 0.38.0 (na) | vorige versie (voor) |
+|---|---|---|
+| mediaan Δ | −1,2 (exact −1,15) | −1,0 |
+| gemiddeld Δ (SD) | −0,8 (6,9) | +2,0 (11,5) |
+| MAE / mediaan \|Δ\| / max \|Δ\| | 4,5 / 2,9 / 22,6 | 6,6 / 3,1 / 49,8 |
+| binnen ±5 / binnen ±10 | 42/56 / 50/56 | 37/56 / 47/56 |
+| lager / hoger dan de mens (tekentoets) | 36 / 20 (p = 0,044) | 35 / 21 (p = 0,081) |
+| Pearson / Spearman / Lin CCC | 0,963 / 0,934 / 0,962 | 0,925 / 0,905 / 0,909 |
+| Bland-Altman LoA | −14,3 … +12,7 | −20,4 … +24,5 |
+| ernstklasse exact / binnen één klasse / gewogen κ | 48/56 / 56/56 / 0,86 | 46/56 / 55/56 / 0,81 |
+
+"Vorige versie" is voor 38 van de 56 een oudere release (0.34.0–0.36.2), dus die kolom meet meer dan
+de noemer; de winst van 0.38.0 zit vooral in de staart (max 49,8 → 22,6; LoA-breedte 27,0 tegen 45,0), de
+mediaan beweegt niet.
+
+**Klassetabel** (mens in de rij, 0.38.0 in de kolom): normaal 3/3; licht 18/20 + 2 naar matig
+(H55 9,4 → 15,0 bij 75 % artefact; H56 12,3 → 22,1); matig 10/16 + **6 naar licht** (H07 19,8 → 13,5;
+H12 19,0 → 8,7; H17 18,2 → 10,0; H19 15,2 → 11,2; H61 18,5 → 14,2; H74 15,4 → 12,4); ernstig 17/17.
+Als beslisdrempel: AHI ≥ 15 sensitiviteit 27/33 (0,82), specificiteit 21/23 (0,91); ≥ 5 en ≥ 30
+allebei 100 %. Per band: mens < 15 n = 23 mediaan Δ −0,4 (−4 %); 15–30 n = 16 **−2,8 (−14 %)**;
+≥ 30 n = 17 −2,9 (−5 %). De absolute afwijking groeit met de AHI (Spearman \|Δ\| tegen gemiddelde
+0,55): de vijf grootste zijn alle ernstig en gaan beide kanten op (H49 −22,6; H02 +21,1; H58 +20,9;
+H25 −19,8; H26 +11,6), zonder klassegevolg. Een proportionele bias is er niet (Δ tegen gemiddelde −0,09).
+
+**Wat de zes matig-naar-licht-missers gemeen hebben.** Globaal hangt Δ met niets samen (Spearman:
+arousal-index 0,09, ODI3 0,02, artefact −0,12, slaapminuten 0,10; alle correlaties in deze sectie zijn Spearman). Maar bij de zes missers is de machine-ODI3
+gedeeld door de menselijke AHI mediaan 0,45 (0,16–1,24; vier van de zes < 0,5) tegen 0,8 bij de tien
+treffers in dezelfde band (0,64–2,0); hun arousal-index is 14,7 tegen 20,2, hun artefactaandeel 10,6 %
+tegen 3,1 %. De menselijke AHI op die nachten wordt dus gedragen door hypopneeën zónder 3 %-desaturatie,
+onder regel 1A de arousal-gekoppelde; daarvan scoort de machine er te weinig (duidelijkst H12: ODI3
+3,1 tegen AHI 19). Of de arousaldetector die arousals mist of de koppeling ze afwijst is alleen op
+eventniveau te zien (DOMINO-ASCII-export, open vraag §11).
+
+**Beperkingen.** Eén scoorder, alleen de AHI (geen eventlijst, geen menselijke TST); 56 van de 72 naar
+beschikbaarheid, niet naar toeval; de 15 van §10 waren de aanleiding voor de noemerwijziging (de
+voorspellingen gingen wel aan de menselijke cijfers vooraf); de menselijke waarden zijn met de hand
+overgenomen, zonder dubbele invoer.
