@@ -433,3 +433,120 @@ H25 −19,8) zijn B-nachten.
 beschikbaarheid, niet naar toeval; de 15 van §10 waren de aanleiding voor de noemerwijziging (de
 voorspellingen gingen wel aan de menselijke cijfers vooraf); de menselijke waarden zijn met de hand
 overgenomen, zonder dubbele invoer (één invoerfout, H02, is door Bart zelf gevonden en verwijderd).
+
+## 13. Herrekening van de resterende 178 PSG's op 0.38.0 (03-11 13:12 → 18:02): de telling stijgt, en een half-dode thermistor levert honderden apneus
+
+**Selectie en uitvoering.** Alle overige jobs met `study_type` `diagnostic_psg` (170) of
+`titration_psg_cpap` (8) én bron-EDF op de server, niet in de 75 van §11: uploads 04-04 → 03-11,
+labels H76–H245 en T01–T08 in omgekeerde uploadvolgorde (vier `titration_pg_cpap`-jobs en vier
+zonder studietype zijn niet meegenomen). Twee stonden al op 0.38.0 (H76, H77, upload 03-11
+ochtend); de overige 176 — oude versie 0.34.0 ×87, 0.32.0 ×13, 0.31.x ×13, 0.30.0 ×7, 0.27.x ×7,
+0.36.x ×2, en 47 zonder versie in de oude uitvoer — zijn vanaf 13:12 gedoseerd op de wachtrij
+gezet (besturing op de server: hooguit zes tegelijk, twee workers vrij voor de kliniek, timeout
+3600 s), laatste klaar 18:02 (4 u 50 min); 176/176 `finished`, nul fouten, daarna wachtrij 0/0,
+site 200, schijf 268 GB gebruikt van 3,1 TB. De oude uitvoer (876 bestanden, 62,0 GB) staat in
+`metingen/herrekening_rest_20261103/backup_pre0380/`; tabel, CSV's, docx/pdf en EDF+-hardlinks in
+dezelfde map.
+
+**Wat telt mee.** Zes van de 170 "diagnostische" jobs zijn geen patiënten: H239, H240 en H242–H244
+zijn de PSG-IPA-opnames SN1–SN5 (testuploads 04/05-08) en H245 is het YASA-voorbeeldbestand van
+04-04 (zeven EEG/EOG/EMG/ECG-kanalen, geen ademhaling, dus geen AHI). Vier nachten zijn exact
+dubbel geüpload (H92/H93, H124/H125, H171/H172, H230/H231); H83/H84 zijn twee uploads van dezelfde
+nacht met andere uitkomst (oude uitvoer al verschillend, 148 tegen 145 events; voor beide 17,9,
+na 23,4 en 25,1) en tellen allebei. Drie hadden geen eerder
+resultaat (H78: geen results.json; H218 en H219 van 12-08: 100 % artefact, AHI 1,8 en 2,7 zonder
+arousal-index — onbruikbaar, niet verder nagekeken). Blijven 155 unieke kliniek-nachten met een
+voor- én na-AHI (uploads 05-08 → 06-10) en acht titratie-PSG's. Geen enkele heeft een menselijke
+AHI; de kolom "mens" in de tabel is leeg.
+
+**Verschuiving voor → na (n = 155).** Mediaan +2,7 /u, gemiddeld +2,6 (SD 14,5), IQR +0,4 … +6,0,
+bereik −105,1 … +68,0; 123 hoger, 32 lager (tekentoets p < 0,001); |Δ| ≤ 2 bij 48, ≤ 5 bij 97,
+> 10 bij 27. Mediane AHI voor 12,7, na 17,7. Dat is het tegendeel van §11 (mediaan −0,3): daar
+overbrugden de meeste nachten alleen 0.36.x/0.37.0 → 0.38.0, hier vier tot elf minor-releases
+(0.34.0 → 0.38.0: 0.35–0.38; 0.27.0 → 0.38.0: 0.28–0.38). Ontleed
+in telling en noemer (AHI = events · 60 / noemer; restterm ≤ 0,1): de telling geeft mediaan +4,0 /u
+(140 van 155 nachten meer events, mediaan +23 events), de noemer mediaan −0,3 en op geen enkele
+nacht positief (de volle slaaptijd is nooit korter dan de artefactvrije). Per eventtype, uit de
+eventlijsten: hypopneeën mét desaturatie ≥ 3 % mediaan +1,6 /u (141 hoger, 8 lager; 4 526 → 6 406
+events), hypopneeën zonder desaturatie +0,7 /u (97 hoger, 38 lager; 1 531 → 2 409), apneus 0,0
+(71 hoger, 56 lager; 10 117 → 12 137, waarvan `thermistor_only` 692 → 1 900 — zie verderop). De
+stijging is dus geen arousal-effect: het aandeel hypopneeën zonder desaturatie blijft 25 → 27 %,
+ΔAI mediaan +0,5 (Spearman ΔAHI–ΔAI 0,32). Welke release de desaturatiehypopneeën erbij haalt is
+niet ontleed; kandidaten uit de CHANGELOG van 0.36.0 zijn de SpO2-nadir op de tijdas en de continue
+herstelbasislijn. Per oude versie (Δ telling en noemer als mediaan):
+
+| versie voor | n | Δ mediaan | hoger/lager | Δ telling | Δ noemer |
+|---|---|---|---|---|---|
+| 0.27.x | 7 | +4,5 | 5/2 | +7,1 | −0,4 |
+| 0.30.0 | 7 | +1,7 | 5/2 | +4,4 | −0,2 |
+| 0.31.x | 13 | +2,2 | 12/1 | +3,7 | −0,5 |
+| 0.32.0 | 12 | +4,1 | 11/1 | +5,5 | −0,3 |
+| 0.34.0 | 79 | +3,7 | 62/17 | +4,4 | −0,3 |
+| zonder versie | 37 | +1,6 | 28/9 | +1,7 | −0,2 |
+
+De ODI-kolom is in deze batch voor en na gelijk (175 van 176; alleen T02, 0.36.1, 9,3 → 9,4): 0.34.0 en ouder deelden de ODI al
+door de volle slaaptijd (de AHI niet), alleen 0.36.x–0.37.0 deelden door artefactvrije slaap.
+
+**Artefact en klassen.** De noemer werkt alleen op artefactrijke nachten: graad A (n = 125)
+Δ mediaan +3,6 (noemer −0,2), B (14) +1,6 (−2,3), C (10) −2,4 (−10,8), D (6) −17,3 (−22,4);
+Spearman Δ–artefact% −0,32. De zes grootste dalingen zijn noemereffecten op C/D-nachten (H112
+156,8 → 51,7 bij 72,6 % artefact; H162 153,7 → 90,0; H209 81,1 → 23,1; H192 49,5 → 20,9; H187
+80,4 → 52,8; H146 38,3 → 23,5), zoals in §11; dunste noemer H111 met 66 min slaap (AHI 30,0).
+Ernstklasse gelijk 110/155 (71 %), 41 hoger, 4 lager. Over de grens 15: 20 omhoog, 1 omlaag
+(na ≥ 15: 84 tegen 65 voor); grens 30: 11 omhoog, 3 omlaag; grens 5: 14 omhoog, 0 omlaag.
+
+| voor \ na | normaal | licht | matig | ernstig |
+|---|---|---|---|---|
+| normaal (37) | 23 | 12 | 2 | 0 |
+| licht (53) | 0 | 35 | 16 | 2 |
+| matig (25) | 0 | 1 | 15 | 9 |
+| ernstig (40) | 0 | 0 | 3 | 37 |
+
+**Apneus op een half-dode thermistor (bevinding over 0.38.0 zoals het draait).** De thermistorpoort
+(`envelope_agreement`, sinds 0.36.2 met de dode-thermistorvloer) wijst op 0.38.0 de thermistor af
+op 68 van de 178 jobs (oude uitvoer: 1); op de 57 kliniek-nachten met afgewezen thermistor is
+Δ apneus mediaan 0,0 /u. Op negen nachten keurt de poort een thermistor goed die de kanaalkwaliteit
+als poor graadt (vlak > 20 % van de opname): daar is Δ apneus mediaan +13,3 /u en ΔAHI +16,0
+(tegen 0,0 en +1,6 … +3,5 in de drie andere groepen: afgewezen 57, goedgekeurd good 68,
+goedgekeurd acceptable 21), en op zes van de negen stijgt het apneuaantal met meer dan 5 /u:
+H97 97 → 240, H98 4 → 492, H100 429 → 509, H107 129 → 268, H108 219 → 291, H157 89 → 196 —
+op H100 na vrijwel allemaal `thermistor_only` (H98 1 → 490, H97 88 → 230, H107 98 → 246, H108
+30 → 111, H157 42 → 142). H98 is het zuiverste geval: de thermistor ligt 277 min (42 % van de
+opname) in één blok vlak; alle 492 nieuwe apneus liggen in dat blok (uren 7–10 van de opname:
+120, 138, 157, 77), mediaan 10,0 s (de minimumduur) en 93 % ≤ 10,5 s, 465 van 466 zijn `borderline`, en
+de AHI gaat van 6,1 naar 74,1 bij ODI3 4,1 en AI 13,9. Op H97, H107 en H157 (63, 67 en 18 losse
+vlakke stukken) zijn het lange events (mediaan 44, 37 en 33 s); of die op de vlakke stukken
+liggen is niet toetsbaar, want de intervallijst kapt op tien (H97: 0 van 240 binnen de gelijste,
+H157: 9 van 196). De vereniging van de twee sensoren op `aasm_v3_breath_dual` is additief; de
+vloer van 0.36.2 (bandvermogen; het venster staat niet in de CHANGELOG) laat kennelijk een
+thermistor door die een deel van de nacht dood is; de kanaalkwaliteitsmodule ziet het (interval
+gelijst) maar is informatief. Het spiegelbeeld staat als keerzijde in de CHANGELOG van 0.35.0
+(426 druk-apneus op één nacht die een goedgekeurde thermistor niet zag); de daar gebouwde
+`dual_sensor_confirmation` (default uit) eist een gevolg voor alleen-druk-apneus en voor
+thermistor-only apneus alleen bij een afgekeurde thermistor, en dekt dit geval zoals beschreven
+dus niet. In de 75 van §11 komt het niet
+voor (Δ apneus mediaan 0,0; thermistor poor op vier nachten zonder apneusprong). Vijf AHI's uit
+deze batch zijn daarmee niet bruikbaar zoals ze staan (H97, H98, H107, H108, H157; in de tabel met
+een sterretje). Niet verklaard: H136 (apneus 123 → 333, 303 `pressure_only`) en H153 (66 → 193: 86
+`pressure_only`, 82 `both`, 25 `thermistor_only`), beide thermistor acceptable, ODI3 15,0 en
+11,5, en H170 (`aasm_v3_breath`, 25 → 96
+op goede signalen, ODI3 4,5, 30 events met lage zekerheid). De bibliotheek is niet aangepast.
+
+**Signaal, titratie, EDF+.** Signaalgraad zonder pols: good 89, acceptable 57, poor 9 (|Δ|
+mediaan 3,7, 3,9 en 7,0); pols poor op 136 van 155 (dezelfde vlakdetector-bevinding als §11);
+RIP-paarpoort verdacht op 105 van 155, single-channel op 111. Profielen in de configs:
+`aasm_v3_breath_dual` 94, `aasm_v3_breath` 58 (uploads tot begin september), `aasm_v3_rec` 3 —
+de herrekening gebruikt het profiel van de config, niet de huidige standaard. Titratie-PSG's
+(T01–T08): Δ mediaan −0,2 (T05 −12,7 bij 18,3 % artefact, verder −1,5 … +1,9), vier hoger, vier
+lager, klasse 8/8 gelijk. EDF+: 177 van 178 geldig EDF+C met annotaties, 61,8 GB hardlinks in
+`edfplus/`; H159 faalt in alle drie de schrijvers (digitaal bereik 8 388 607 uit een 24-bits
+BDF-bron: pyedflib weigert, MNE struikelt over een headerveld, edfio laat een bestand van 7 kB
+zonder data achter) terwijl results, PDF en Excel gewoon klaar zijn — losse eind naast de
+desaturatiecap van 200, die hier 32 van de 178 bestanden raakt.
+
+**Beperkingen.** Geen menselijke referentie. Δ is een versieverschil over vier tot elf minor-releases;
+alleen de ontleding in telling en noemer is exact, de toewijzing van de extra
+desaturatiehypopneeën aan een release niet. Vier uploads dragen geen ANON-pseudoniem: twee (H159,
+H229) staan alleen in de CSV op de server, twee (H199, H212) dragen een studielabel. De vlakke-intervallijst van de kanaalkwaliteit kapt op tien
+intervallen, zodat de toets "apneus binnen vlakke stukken" alleen op H98 (één interval) sluitend
+is.
