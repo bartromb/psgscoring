@@ -218,7 +218,9 @@ de "LGBM filter"-regels in run.log).
 - *Stadiumbasislijn:* bevestigd — A0 − SB mediaan 0,3 /u, geen drager; de steun voor optie 1 vervalt (§5.2).
 - *Hypopneeroute:* strictness 0,30 (A0) zit mediaan +1,0 /u boven de mens, de terugdraaiing naar 0,50 (ST)
   mediaan −2,2 eronder, beide 8/10 in klasse. Op deze tien is 0,30 dus niet "boven de mens"; de
-  hypopneeregel van de kliniek (`regel_h`) is nog altijd niet vastgelegd.
+  hypopneeregel van de kliniek (`regel_h`) is sinds 03-11 bekend: **AASM regel 1A** (≥ 30 %, ≥ 10 s,
+  ≥ 3 % desaturatie óf arousal), dezelfde regel als `aasm_v3_breath_dual` in productie; de
+  onderscoring op de matige nachten (L06/H07, L10/H12) is dus een detectieverschil, geen regelverschil.
 - *Noemer:* gemeten en uitgerold (§10): op de volle slaaptijd mediaan −0,4 /u, MAE 7,9 → 5,3, L05 van
   +28,5 naar −4,9. De eerste bullet van §5.4 in de prereg (regel of noemer) wordt daarmee "noemer".
 - *Wat niet door de noemer wordt gedekt:* L01 (+21 /u, 410 apneus, U-Net 23 arousals) en L10 (−10 /u,
@@ -227,8 +229,8 @@ de "LGBM filter"-regels in run.log).
 ## 9. Beperkingen
 
 n = 10, één scoorder, menselijke AHI zonder eventlijst, TST of hypopneeregel; de machine-TST komt uit YASA, de
-menselijke uit de staging van de kliniek (noemer onbekend); de menselijke hypopneeregel is niet
-vastgelegd; 58 GB RSS en het SSH-incident komen uit de sessie, niet uit de logs; de eigen nachten zijn zonder NSRR-achtige referentie, dus "drager" betekent hier
+menselijke uit de staging van de kliniek (noemer onbekend); de menselijke hypopneeregel is AASM 1A
+(bevestigd 03-11, na de analyse); 58 GB RSS en het SSH-incident komen uit de sessie, niet uit de logs; de eigen nachten zijn zonder NSRR-achtige referentie, dus "drager" betekent hier
 "draagt het verschil met productie", niet "draagt de fout". Geen inferentie buiten deze tien.
 
 ## 10. In situ na de uitrol (02-11, 17:09–17:35): YF 0.39.3 / psgscoring 0.38.0
