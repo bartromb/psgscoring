@@ -2,7 +2,7 @@
 
 Datum: 2026-11-02. Preregistratie: `docs/laatste10_humaan_vs_machine_preregistratie_20261102.md`
 (ccc6613, aanvulling 7ad8689 vóór de run). Status: **meting klaar (10/10, 0 fouten), geverifieerd 02-11 (14 bevindingen, alle verwerkt;
-besluit staat); de menselijke referentie is voor 1 van 10 nachten bekend (L01 ≈ 80 /u, mondeling, ernstige OSAS met centrale
+besluit staat); de menselijke referentie is voor 1 van 10 nachten bekend (L01 ≈ 80 /u, mondeling, op 03-11 vervallen; ernstige OSAS met centrale
 component). De vergelijking machine − mens over de tien wacht op de overige negen cijfers.**
 Scripts: `docs/laatste10_20261102/` (maak_mapping.py, run.py, analyse.py). Ruw (zonder koppeling):
 `/srv/CODE/docs/laatste10_20261102/` (L01–L10.json, run.log, app_check.log, analyse_uitvoer.md,
@@ -34,7 +34,7 @@ een menselijke scoorder deelt.
 
 | L | mens | A0 productie | SB basislijn uit | ST strictness 0,50 | BR breath | LG lgbm | ALL alles terug | REC rec-route | TST (min) | noemer (min) | A0 op volle TST |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| L01 | ≈ 80 | 117,8 | 115,0 | 111,8 | 101,4 | 119,5 | 96,4 | 40,2 | 245,5 | 242,0 | 116,1 |
+| L01 | — | 117,8 | 115,0 | 111,8 | 101,4 | 119,5 | 96,4 | 40,2 | 245,5 | 242,0 | 116,1 |
 | L02 | — | 22,0 | 21,4 | 13,7 | 22,0 | 22,0 | 12,2 | 6,6 | 331,5 | 280,5 | 18,6 |
 | L03 | — | 18,4 | 18,4 | 15,9 | 16,1 | 17,2 | 12,6 | 7,7 | 341,5 | 328,5 | 17,7 |
 | L04 | — | 23,7 | 20,2 | 21,6 | 15,6 | 22,4 | 9,7 | 11,3 | 237,0 | 222,5 | 22,3 |
@@ -58,7 +58,7 @@ ondergrens) is uit deze uitvoer niet af te leiden: open punt voor psgscoring.
 ## 4. Verschuiving tegen productie: A0 − arm per één-wijziging-terug-arm (beschrijvend)
 
 De prereg-drager van §5.3 ("brengt de mediaan van A0 − mens het meest naar 0") is pas te bepalen
-met de tien menselijke cijfers; op de enige nacht mét mens (L01) is dat BR, niet ST (§5). Wat hier
+met de tien menselijke cijfers; de menselijke waarde van L01 is op 03-11 vervallen (§5). Wat hier
 staat is de verschuiving tegen productie. Tellingen op de afgeronde AHI's, op |A0 − arm|, dus
 inclusief nachten waar de arm hóger ligt (LG 3 van 7, REC L09/L10 en L10 bij ≥ 5, ALL L06).
 
@@ -98,13 +98,15 @@ Lezing:
    prereg-grens (> 1 /u = interactie) is er **een interactie op L01** (9 % van A0 − ALL = 21,4) en
    liggen L04 en L08 op de grens; in substantie tellen de vier wijzigingen op.
 5. **De rec-route van vóór 07-10 is geen "oude waarheid":** mediaan 7,1 /u lager dan A0, maar met
-   L01 −77,6 (40,2 tegen mens ≈ 80) én hoger dan A0 op drie van de vier lichtste nachten (L08 +0,7,
+   L01 −77,6 (40,2 tegen A0 117,8; menselijke waarde onbekend) én hoger dan A0 op drie van de vier lichtste nachten (L08 +0,7,
    L09 +2,7, L10 +5,9; op L07 juist −3,5) doordat rec's enveloppe-hypopneeroute daar meer telt (§6: hyp REC 40/55/74 tegen A0
    29/36/35). Wie "vroeger klopte het beter" zegt, bedoelt dus niet rec.
 
-## 5. Machine tegen mens (prereg §5.2–5.5): tien menselijke AHI's binnen (02-11, 20:53)
+## 5. Machine tegen mens (prereg §5.2–5.5): negen menselijke AHI's (02-11, 20:53; L01 vervallen 03-11)
 
-Bart leverde de menselijke AHI van alle tien nachten (L01 precies 95 /u; het eerdere "≈ 80" vervalt).
+Bart leverde op 02-11 de menselijke AHI van alle tien nachten; op 03-11 14:33 trok hij de waarde voor L01
+(95) als invoerfout in, zodat L01 zonder menselijke referentie staat (het eerdere mondelinge "≈ 80" telt
+evenmin). n = 9.
 Hypopneeregel en menselijke TST ontbreken nog, dus de noemer-afsplitsing op de menselijke TST
 (prereg §5.2, laatste zin) blijft open. Cijfers: `analyse.py` met `humaan_cijfers.json` op de server
 (`analyse_uitvoer.md` §2–§3). De kolom **0.38.0** is A0 herrekend op de volle slaaptijd — precies wat
@@ -112,7 +114,7 @@ productie sinds 17u schrijft (§10); Δ = machine − mens.
 
 | L | mens | A0 (0.37.0) | Δ | 0.38.0 | Δ | SB | ST | BR | LG | ALL | REC | klasse mens / A0 / 0.38.0 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| L01 | 95,0 | 117,8 | +22,8 | 116,1 | +21,1 | 115,0 | 111,8 | 101,4 | 119,5 | 96,4 | 40,2 | ernstig / ernstig / ernstig |
+| L01 | — | 117,8 | — | 116,1 | — | 115,0 | 111,8 | 101,4 | 119,5 | 96,4 | 40,2 | — / ernstig / ernstig |
 | L02 | 16,2 | 22,0 | +5,8 | 18,6 | +2,4 | 21,4 | 13,7 | 22,0 | 22,0 | 12,2 | 6,6 | matig / matig / matig |
 | L03 | 18,9 | 18,4 | −0,5 | 17,7 | −1,2 | 18,4 | 15,9 | 16,1 | 17,2 | 12,6 | 7,7 | matig / matig / matig |
 | L04 | 19,3 | 23,7 | +4,4 | 22,3 | +3,0 | 20,2 | 21,6 | 15,6 | 22,4 | 9,7 | 11,3 | matig / matig / matig |
@@ -123,41 +125,42 @@ productie sinds 17u schrijft (§10); Δ = machine − mens.
 | L09 | 4,5 | 5,0 | +0,5 | 4,9 | +0,4 | 5,0 | 3,4 | 5,0 | 4,2 | 2,4 | 7,7 | normaal / **licht** / normaal |
 | L10 | 19,0 | 8,9 | −10,1 | 8,7 | −10,3 | 9,5 | 7,3 | 8,9 | 7,0 | 6,3 | 14,8 | matig / **licht** / **licht** |
 
-Machine − mens per arm (n = 10; tekentoets exact, tweezijdig):
+Machine − mens per arm (n = 9; tekentoets exact, tweezijdig):
 
 | arm | mediaan Δ | gemiddeld | mediaan \|Δ\| | MAE | min | max | +/− | p | klasse exact | binnen 1 | mediaan Δ % |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| A0 (0.37.0, productie tot 17u) | +1,0 | +4,8 | 3,7 | 7,9 | −10,1 | +28,5 | 6/4 | 0,754 | 8/10 | 10/10 | +16 |
-| **0.38.0 (volle slaaptijd, productie nu)** | **−0,4** | **+0,1** | **3,1** | **5,3** | −10,3 | +21,1 | 5/5 | 1,000 | 8/10 | 10/10 | — |
-| SB | +0,7 | +4,1 | | | −9,5 | +27,8 | 6/4 | 0,754 | 8/10 | 10/10 | +8 |
-| ST | −2,2 | +1,7 | | | −11,7 | +28,0 | 3/7 | 0,344 | 8/10 | 10/10 | −18 |
-| BR | −0,8 | +2,1 | | | −10,1 | +28,5 | 5/5 | 1,000 | 8/10 | 10/10 | −2 |
-| LG | +0,2 | +4,7 | | | −12,0 | +28,5 | 5/5 | 1,000 | 9/10 | 10/10 | +3 |
-| ALL | −3,1 | −1,5 | | | −12,7 | +27,4 | 2/8 | 0,109 | 6/10 | 10/10 | −32 |
-| REC | −4,3 | −9,1 | | | −54,8 | +3,2 | 2/8 | 0,109 | 5/10 | 10/10 | −24 |
+| A0 (0.37.0, productie tot 17u) | +0,5 | +2,8 | 3,0 | 6,3 | −10,1 | +28,5 | 5/4 | 1,000 | 7/9 | 9/9 | +11 |
+| **0.38.0 (volle slaaptijd, productie nu)** | **−1,2** | **−2,2** | **3,0** | **3,6** | −10,3 | +3,0 | 4/5 | 1,000 | 7/9 | 9/9 | — |
+| SB | +0,5 | +2,3 | | | −9,5 | +27,8 | 5/4 | 1,000 | 7/9 | 9/9 | +5 |
+| ST | −2,5 | 0,0 | | | −11,7 | +28,0 | 2/7 | 0,180 | 7/9 | 9/9 | −19 |
+| BR | −2,0 | +1,6 | | | −10,1 | +28,5 | 4/5 | 1,000 | 7/9 | 9/9 | −10 |
+| LG | −0,1 | +2,5 | | | −12,0 | +28,5 | 4/5 | 1,000 | 8/9 | 9/9 | −1 |
+| ALL | −4,0 | −1,8 | | | −12,7 | +27,4 | 1/8 | 0,039 | 5/9 | 9/9 | −33 |
+| REC | −4,2 | −4,0 | | | −11,2 | +3,2 | 2/7 | 0,180 | 4/9 | 9/9 | −22 |
 
 Lezing volgens de prereg:
 
-1. **Vraag 1 (§5.2):** A0 zit mediaan +1,0 /u boven de mens, 6 nachten boven en 4 onder, p = 0,754 —
-   geen richting. Ernstklasse exact 8/10, binnen één klasse 10/10. Het gemiddelde (+4,8) komt van de twee
-   ernstige nachten L01 (+22,8) en L05 (+28,5); de indruk "psgscoring zit boven de mens" waarmee dit
+1. **Vraag 1 (§5.2):** A0 zit mediaan +0,5 /u boven de mens, 5 nachten boven en 4 onder, p = 1,000 —
+   geen richting. Ernstklasse exact 7/9, binnen één klasse 9/9. Het gemiddelde (+2,8) komt van de
+   ernstige nacht L05 (+28,5); de indruk "psgscoring zit boven de mens" waarmee dit
    dossier begon, is dus een indruk van de zware nachten, niet van de mediane nacht. Op de volle
-   slaaptijd (0.38.0) valt L05 naar −4,9 en L02 naar +2,4; L01 blijft +21,1. Mediaan −0,4, MAE 7,9 → 5,3.
-2. **Vraag 2, drager (§5.3):** SB brengt de mediaan van +1,0 naar +0,7, maar A0 − SB is mediaan 0,3 /u
+   slaaptijd (0.38.0) valt L05 naar −4,9 en L02 naar +2,4. Mediaan −1,2, MAE 6,3 → 3,6; 5 van de 9 onder de mens.
+2. **Vraag 2, drager (§5.3):** SB laat de mediaan op +0,5 staan en A0 − SB is mediaan 0,3 /u
    (< 1): de stadiumbasislijn is op deze tien **geen drager** en de steun voor `stage_baseline=False`
    (optie 1 van 27-10) vervalt volgens §5.5 — SB "brengt" de mediaan niet binnen ±2, want A0 stond
    er al. De vooraf verwachte drager komt dus niet uit. BR verschuift L01 met 16,4 /u (§4) maar doet
    op de nachten met afgekeurde thermistor (L02, L05, L09, L10) per constructie niets.
-3. **Vraag 3, regelverschil (§5.4):** REC − mens mediaan −4,3 en ALL − mens −3,1 liggen niet boven +2
+3. **Vraag 3, regelverschil (§5.4):** REC − mens mediaan −4,2 en ALL − mens −4,0 liggen niet boven +2
    maar eronder: de oude rec-route en de vier terugdraaiingen samen scoren systematisch ónder de mens
-   (2/8). Het restverschil is dus geen regelverschil in de zin van §5.4; `regel_h` blijft onbekend.
-4. **Wat overblijft, per nacht:** twee nachten waar de noemer het niet verklaart. **L01** (+21 /u op
-   0.38.0): 410 apneus, 273 alleen op druk (§6), en het U-Net vindt 23 arousals tegen 303 voor lgbm
-   (§7); de menselijke 95 ligt het dichtst bij ALL (96,4) en BR (101,4). **L10** (−10 /u): 30 apneus
+   (2/7 en 1/8, ALL p = 0,039). Het restverschil is dus geen regelverschil in de zin van §5.4; `regel_h` blijft onbekend.
+4. **Wat overblijft, per nacht:** één nacht waar de noemer het niet verklaart, plus L01 zonder referentie.
+   **L01** (116 /u op 0.38.0, menselijke waarde sinds 03-11 onbekend): 410 apneus, 273 alleen op druk (§6),
+   en het U-Net vindt 23 arousals tegen 303 voor lgbm (§7) — de arousalvraag blijft, de AHI-vraag is
+   open. **L10** (−10 /u): 30 apneus
    en 35 hypopneeën tegen een menselijke 19 /u; alleen REC (14,8, enveloppe-hypopneeën) komt in de
    buurt — hier mist de breath-route hypopneeën. **L06** (−6,3) landt op 0.38.0 een klasse onder de
    mens (licht tegen matig); A0 lag op L09 een klasse boven (5,0 tegen 4,5).
-5. **n = 10, één scoorder** (§5.6): richtingen, geen uitspraak. De tekentoets zegt op geen enkele arm iets.
+5. **n = 9, één scoorder** (§5.6): richtingen, geen uitspraak. Alleen ALL (1/8, p = 0,039) haalt de tekentoets.
 
 ## 6. Per nacht: sensoren, hypopneeroute, arousaldetectoren
 
@@ -213,22 +216,23 @@ de "LGBM filter"-regels in run.log).
 - **Niets uitgerold, niets gewijzigd.** De drie koppen staan in één regel per profiel; welke
   terug gaat is Barts beslissing, en die hoort op de tien menselijke cijfers te wachten.
 
-**Bijwerking met de tien menselijke cijfers (02-11, avond; §5):**
+**Bijwerking met de negen menselijke cijfers (02-11, avond; L01 vervallen 03-11; §5):**
 
 - *Stadiumbasislijn:* bevestigd — A0 − SB mediaan 0,3 /u, geen drager; de steun voor optie 1 vervalt (§5.2).
-- *Hypopneeroute:* strictness 0,30 (A0) zit mediaan +1,0 /u boven de mens, de terugdraaiing naar 0,50 (ST)
-  mediaan −2,2 eronder, beide 8/10 in klasse. Op deze tien is 0,30 dus niet "boven de mens"; de
+- *Hypopneeroute:* strictness 0,30 (A0) zit mediaan +0,5 /u boven de mens, de terugdraaiing naar 0,50 (ST)
+  mediaan −2,5 eronder, beide 7/9 in klasse. Op deze tien is 0,30 dus niet "boven de mens"; de
   hypopneeregel van de kliniek (`regel_h`) is sinds 03-11 bekend: **AASM regel 1A** (≥ 30 %, ≥ 10 s,
   ≥ 3 % desaturatie óf arousal), dezelfde regel als `aasm_v3_breath_dual` in productie; de
   onderscoring op de matige nachten (L06/H07, L10/H12) is dus een detectieverschil, geen regelverschil.
-- *Noemer:* gemeten en uitgerold (§10): op de volle slaaptijd mediaan −0,4 /u, MAE 7,9 → 5,3, L05 van
+- *Noemer:* gemeten en uitgerold (§10): op de volle slaaptijd mediaan −1,2 /u, MAE 6,3 → 3,6, L05 van
   +28,5 naar −4,9. De eerste bullet van §5.4 in de prereg (regel of noemer) wordt daarmee "noemer".
-- *Wat niet door de noemer wordt gedekt:* L01 (+21 /u, 410 apneus, U-Net 23 arousals) en L10 (−10 /u,
-  hypopneeën gemist, alleen REC komt dichtbij). Dat zijn de twee detectievragen die overblijven.
+- *Wat niet door de noemer wordt gedekt:* L10 (−10 /u, hypopneeën gemist, alleen REC komt dichtbij) en de
+  arousaltelling op L01 (U-Net 23 tegen 303; de menselijke AHI van L01 is sinds 03-11 onbekend). Dat zijn
+  de twee detectievragen die overblijven.
 
 ## 9. Beperkingen
 
-n = 10, één scoorder, menselijke AHI zonder eventlijst, TST of hypopneeregel; de machine-TST komt uit YASA, de
+n = 9 (L01 zonder menselijke waarde), één scoorder, menselijke AHI zonder eventlijst, TST of hypopneeregel; de machine-TST komt uit YASA, de
 menselijke uit de staging van de kliniek (noemer onbekend); de menselijke hypopneeregel is AASM 1A
 (bevestigd 03-11, na de analyse); 58 GB RSS en het SSH-incident komen uit de sessie, niet uit de logs; de eigen nachten zijn zonder NSRR-achtige referentie, dus "drager" betekent hier
 "draagt het verschil met productie", niet "draagt de fout". Geen inferentie buiten deze tien.
@@ -275,18 +279,18 @@ RQ-timeout van 900 s afgebroken ("Work-horse terminated unexpectedly") — zijn 
 cijfers). De uploads van 02-11 deden er op productie 3–4 min over; de parallelle herrekening
 was de uitzondering, niet de regel.
 
-### 10b. Menselijke AHI's voor de vijftien herrekende jobs (02-11, 20:53)
+### 10b. Menselijke AHI's voor de vijftien herrekende jobs (02-11, 20:53; H02 vervallen 03-11)
 
-Veertien patiënten (H07 = H08) met een menselijke AHI; de tien van §5 plus vier buiten de prereg-steekproef.
-Machine − mens, n = 14:
+Dertien patiënten (H07 = H08; H02 = L01 zonder menselijke waarde sinds 03-11) met een menselijke AHI; de
+negen van §5 plus vier buiten de prereg-steekproef. Machine − mens, n = 13:
 
 | | mediaan Δ | gemiddeld | MAE | mediaan \|Δ\| | max \|Δ\| | binnen ±5 | Pearson r | Lin CCC | klasse exact |
 |---|---|---|---|---|---|---|---|---|---|
-| 0.37.0 (artefactvrije noemer) | 0,0 | +5,8 | 9,3 | 3,7 | 41,6 | 9/14 | 0,965 | 0,917 | 12/14 |
-| 0.38.0 (volle slaaptijd) | −2,2 | −0,8 | 4,7 | 3,0 | 21,1 | 10/14 | 0,982 | 0,978 | 12/14 |
+| 0.37.0 (artefactvrije noemer) | −0,5 | +4,4 | 8,2 | 3,0 | 41,6 | 9/13 | 0,950 | 0,900 | 11/13 |
+| 0.38.0 (volle slaaptijd) | −2,9 | −2,5 | 3,4 | 2,9 | 10,3 | 10/13 | 0,992 | 0,987 | 11/13 |
 
 De grootste afwijking van 0.37.0 (+41,6 /u: 83,5 tegen 41,9 mens, 656 artefact-epochs) wordt op 0.38.0
-−2,9. De klasseverschillen op 0.38.0 zijn de twee van §5 (L06/H07 en L10/H12, machine een klasse lager);
+−2,9; de grootste op 0.38.0 is L10/H12 (−10,3). De klasseverschillen op 0.38.0 zijn de twee van §5 (L06/H07 en L10/H12, machine een klasse lager);
 0.37.0 had L09/H11 (een klasse hoger) en L10. Vier nachten buiten §5: 8,4 tegen 6,8; 41,9 tegen 39,0;
 2,9 tegen 0,0; 64 tegen 58,7 — alle vier in de klasse van de mens.
 
@@ -295,8 +299,8 @@ De grootste afwijking van 0.37.0 (+41,6 /u: 83,5 tegen 41,9 mens, 656 artefact-e
 **Selectie en uitvoering.** De 75 meest recente `diagnostic_psg`-jobs met resultaten én bron-EDF op
 de server (nachten 07-10 → 02-11), H01–H75 in omgekeerde uploadvolgorde; H01–H15 zijn de vijftien van
 §10. Drie nachten zijn dubbel geüpload (H07/H08, H35/H36, H68/H69), dus 72 patiënten; de cijfers
-hieronder tellen per patiënt (n = 72), de tabel op de server telt per job. Veertien van de 72 hebben
-een menselijke AHI (§10b); voor de overige 58 is er geen. De 60 jobs die nog niet op 0.38.0 stonden
+hieronder tellen per patiënt (n = 72), de tabel op de server telt per job. Dertien van de 72 hebben
+een menselijke AHI (§10b, H02 vervallen 03-11); voor de overige 59 is er geen. De 60 jobs die nog niet op 0.38.0 stonden
 (0.37.0 ×4, 0.36.2 ×19, 0.36.1 ×20, 0.35.1 ×6, 0.34.0 ×11) zijn om 22:03 met een job-timeout van
 3600 s op de lege wachtrij gezet, acht workers, laatste klaar om 00:14 (2 u 11 min); 60/60 `finished`,
 nul fouten (het failed-register bevat alleen entries van maart–oktober plus de eerste H11-poging
@@ -358,72 +362,74 @@ noemer. De artefactgraad is het aandeel van de slaap dat de respiratoire artefac
 uitsluit (wat 0.37.0 uit de noemer liet), niet de EEG-artefactdetector (die staat apart in de CSV als
 `eeg_art_pct_tib`). Geen menselijke referentie voor 58 van de 72.
 
-## 12. Mens tegen machine op 56 patiënten (03-11: Barts aanvulling van de 75-tabel)
+## 12. Mens tegen machine op 55 patiënten (03-11: Barts aanvulling van de 75-tabel; H02 verwijderd 14:33)
 
 **Bron.** Bart vulde de kolom "mens" van de 75-tabel aan met de menselijke AHI's die hij ter
-beschikking had (document van 03-11 12:45; regel 1A, één scoorder): 59 jobs = 56 patiënten
-(H08, H36 en H69 zijn dubbele uploads met dezelfde waarde als hun partner); 16 jobs zonder
-(H23, H24, H33, H37, H39–H48, H52, H75). De 14 van §10b staan er ongewijzigd in. Eén bron:
-`metingen/herrekening75_20261102/humaan.csv` (59 rijen). Alle cijfers hieronder per patiënt, n = 56,
-machine − mens.
+beschikking had (document van 03-11 12:45, correctie 14:33: de waarde voor H02 (95) was fout en is
+verwijderd; regel 1A, één scoorder): 58 jobs = 55 patiënten (H08, H36 en H69 zijn dubbele uploads met
+dezelfde waarde als hun partner); 17 jobs zonder (H02, H23, H24, H33, H37, H39–H48, H52, H75). Van de
+14 van §10b blijven er 13. Eén bron: `metingen/herrekening75_20261102/humaan.csv` (58 rijen). Alle
+cijfers hieronder per patiënt, n = 55, machine − mens.
 
 | | 0.38.0 (na) | vorige versie (voor) |
 |---|---|---|
-| mediaan Δ | −1,2 (exact −1,15) | −1,0 |
-| gemiddeld Δ (SD) | −0,8 (6,9) | +2,0 (11,5) |
-| MAE / mediaan \|Δ\| / max \|Δ\| | 4,5 / 2,9 / 22,6 | 6,6 / 3,1 / 49,8 |
-| binnen ±5 / binnen ±10 | 42/56 / 50/56 | 37/56 / 47/56 |
-| lager / hoger dan de mens (tekentoets) | 36 / 20 (p = 0,044) | 35 / 21 (p = 0,081) |
-| Pearson / Spearman / Lin CCC | 0,963 / 0,934 / 0,962 | 0,925 / 0,905 / 0,909 |
-| Bland-Altman LoA | −14,3 … +12,7 | −20,4 … +24,5 |
-| ernstklasse exact / binnen één klasse / gewogen κ | 48/56 / 56/56 / 0,86 | 46/56 / 55/56 / 0,81 |
+| mediaan Δ | −1,2 | −1,1 |
+| gemiddeld Δ (SD) | −1,2 (6,3) | +1,7 (11,2) |
+| MAE / mediaan \|Δ\| / max \|Δ\| | 4,2 / 2,9 / 22,6 | 6,3 / 3,1 / 49,8 |
+| binnen ±5 / binnen ±10 | 42/55 / 50/55 | 37/55 / 47/55 |
+| lager / hoger dan de mens (tekentoets) | 36 / 19 (p = 0,030) | 35 / 20 (p = 0,058) |
+| Pearson / Spearman / Lin CCC | 0,963 / 0,930 / 0,961 | 0,913 / 0,900 / 0,900 |
+| Bland-Altman LoA | −13,5 … +11,1 | −20,3 … +23,7 |
+| ernstklasse exact / binnen één klasse / gewogen κ | 47/55 / 55/55 / 0,86 | 45/55 / 54/55 / 0,80 |
 
-"Vorige versie" is voor 38 van de 56 een oudere release (0.34.0–0.36.2), dus die kolom meet meer dan
-de noemer; de winst van 0.38.0 zit vooral in de staart (max 49,8 → 22,6; LoA-breedte 27,0 tegen 45,0), de
+"Vorige versie" is voor 38 van de 55 een oudere release (0.34.0–0.36.2), dus die kolom meet meer dan
+de noemer; de winst van 0.38.0 zit vooral in de staart (max 49,8 → 22,6; LoA-breedte 24,7 tegen 44,0), de
 mediaan beweegt niet.
 
 **Klassetabel** (mens in de rij, 0.38.0 in de kolom): normaal 3/3; licht 18/20 + 2 naar matig
 (H55 9,4 → 15,0 bij 75 % artefact; H56 12,3 → 22,1); matig 10/16 + **6 naar licht** (H07 19,8 → 13,5;
-H12 19,0 → 8,7; H17 18,2 → 10,0; H19 15,2 → 11,2; H61 18,5 → 14,2; H74 15,4 → 12,4); ernstig 17/17.
-Als beslisdrempel: AHI ≥ 15 sensitiviteit 27/33 (0,82), specificiteit 21/23 (0,91); ≥ 5 en ≥ 30
+H12 19,0 → 8,7; H17 18,2 → 10,0; H19 15,2 → 11,2; H61 18,5 → 14,2; H74 15,4 → 12,4); ernstig 16/16.
+Als beslisdrempel: AHI ≥ 15 sensitiviteit 26/32 (0,81), specificiteit 21/23 (0,91); ≥ 5 en ≥ 30
 allebei 100 %. Per band: mens < 15 n = 23 mediaan Δ −0,4 (−4 %); 15–30 n = 16 **−2,8 (−14 %)**;
-≥ 30 n = 17 −2,9 (−5 %). De absolute afwijking groeit met de AHI (Spearman \|Δ\| tegen gemiddelde
-0,55): de vijf grootste zijn alle ernstig en gaan beide kanten op (H49 −22,6; H02 +21,1; H58 +20,9;
-H25 −19,8; H26 +11,6), zonder klassegevolg. Een proportionele bias is er niet (Δ tegen gemiddelde −0,09).
+≥ 30 n = 16 −3,6 (−6 %). De absolute afwijking groeit met de AHI: de vier grootste zijn alle ernstig
+en gaan beide kanten op (H49 −22,6; H58 +20,9; H25 −19,8; H26 +11,6), zonder klassegevolg; daarna
+volgt H12 (−10,3). Een proportionele bias is er niet.
 
 **Wat de zes matig-naar-licht-missers gemeen hebben.** Globaal hangt Δ met niets samen (Spearman:
-arousal-index 0,09, ODI3 0,02, artefact −0,12, slaapminuten 0,10; alle correlaties in deze sectie zijn Spearman). Maar bij de zes missers is de machine-ODI3
-gedeeld door de menselijke AHI mediaan 0,45 (0,16–1,24; vier van de zes < 0,5) tegen 0,8 bij de tien
-treffers in dezelfde band (0,64–2,0); hun arousal-index is 14,7 tegen 20,2, hun artefactaandeel 10,6 %
-tegen 3,1 %. De menselijke AHI op die nachten wordt dus gedragen door hypopneeën zónder 3 %-desaturatie,
-onder regel 1A de arousal-gekoppelde; daarvan scoort de machine er te weinig (duidelijkst H12: ODI3
-3,1 tegen AHI 19). Of de arousaldetector die arousals mist of de koppeling ze afwijst is alleen op
-eventniveau te zien (DOMINO-ASCII-export, open vraag §11).
+arousal-index, ODI3, artefact, slaapminuten alle \|ρ\| < 0,15; alle correlaties in deze sectie zijn
+Spearman). Maar bij de zes missers is de machine-ODI3 gedeeld door de menselijke AHI mediaan 0,45
+(0,16–1,24; vier van de zes < 0,5) tegen 0,8 bij de tien treffers in dezelfde band (0,64–2,0); hun
+arousal-index is 14,7 tegen 20,2, hun artefactaandeel 10,6 % tegen 3,1 %. De menselijke AHI op die
+nachten wordt dus gedragen door hypopneeën zónder 3 %-desaturatie, onder regel 1A de arousal-gekoppelde;
+daarvan scoort de machine er te weinig (duidelijkst H12: ODI3 3,1 tegen AHI 19). Of de arousaldetector
+die arousals mist of de koppeling ze afwijst is alleen op eventniveau te zien (DOMINO-ASCII-export,
+open vraag §11).
 
-**Beperkingen.** Eén scoorder, alleen de AHI (geen eventlijst, geen menselijke TST); 56 van de 72 naar
-beschikbaarheid, niet naar toeval; de 15 van §10 waren de aanleiding voor de noemerwijziging (de
-voorspellingen gingen wel aan de menselijke cijfers vooraf); de menselijke waarden zijn met de hand
-overgenomen, zonder dubbele invoer.
+**Kwaliteit tegen afwijking (figuur `bland_altman_56.png` op de server in
+`metingen/herrekening75_20261102/`; bestandsnaam ongewijzigd, inhoud n = 55).** De absolute afwijking
+hangt zwak samen met het artefactaandeel (Spearman \|Δ\| tegen artefact % 0,39; tegen het
+EEG-artefactaandeel over de opname 0,15); de getekende afwijking niet (−0,10 en −0,08). Per groep:
 
-**Kwaliteit tegen afwijking (03-11, figuur `bland_altman_56.png` op de server in
-`metingen/herrekening75_20261102/`).** De absolute afwijking hangt zwak samen met het artefactaandeel
-(Spearman \|Δ\| tegen artefact % 0,35; tegen het EEG-artefactaandeel over de opname 0,15); de getekende
-afwijking niet (−0,12 en −0,08). Per groep (n, mediaan Δ, mediaan \|Δ\|, binnen ±5):
-
-| groep | n | Δ | \|Δ\| | binnen ±5 | klasse gelijk |
+| groep | n | Δ mediaan | \|Δ\| mediaan | binnen ±5 | klasse gelijk |
 |---|---|---|---|---|---|
-| artefact A (< 10 %) | 42 | −1,1 | 2,4 | 34/42 | 38/42 |
+| artefact A (< 10 %) | 41 | −1,2 | 2,4 | 34/41 | 37/41 |
 | artefact B (10–25 %) | 11 | −0,2 | 4,8 | 6/11 | 8/11 |
 | artefact C + D | 3 | −2,9 | 4,9 | 2/3 | 2/3 |
 | signaal good | 23 | −1,0 | 2,4 | 17/23 | 19/23 |
-| signaal acceptable | 29 | −1,4 | 3,0 | 22/29 | 25/29 |
+| signaal acceptable | 28 | −1,4 | 3,0 | 22/28 | 24/28 |
 | signaal poor | 4 | −0,3 | 1,7 | 3/4 | 4/4 |
-| thoraxband normaal | 24 | −0,5 | 2,0 | 20/24 | 22/24 |
+| thoraxband normaal | 23 | −0,5 | 1,6 | 20/23 | 21/23 |
 | thoraxband bijna vlak (paarpoort) | 32 | −1,2 | 3,1 | 22/32 | 26/32 |
 
-Artefact B–D tegen A: \|Δ\| 4,9 tegen 2,4 (Mann-Whitney p ≈ 0,12); thoraxband bijna vlak tegen normaal
-3,1 tegen 2,0 (p ≈ 0,08); signaal poor tegen de rest 1,7 tegen 3,0 (p ≈ 0,51, n = 4). Geen van de
-kwaliteitsmaten verklaart de richting van de fout, en de zes matig-naar-licht-missers liggen op vier
-A-nachten en twee B-nachten met de thoraxband drie keer wel en drie keer niet verdacht: de
-onderscoring is geen kwaliteitsprobleem. Artefactrijke nachten (B–D, 14 van de 56) zijn wel minder
-precies: de twee grootste negatieve afwijkingen (H49 −22,6; H25 −19,8) zijn B-nachten.
+Artefact B–D tegen A: \|Δ\| 4,9 tegen 2,4 (Mann-Whitney p ≈ 0,09); thoraxband bijna vlak tegen normaal
+3,1 tegen 1,6 (p ≈ 0,04); signaal poor tegen de rest 1,7 tegen 2,9 (p ≈ 0,55, n = 4). Geen van de
+kwaliteitsmaten verklaart de richting van de fout, en de zes matig-naar-licht-missers liggen op drie
+A-nachten en drie B-nachten met de thoraxband vier keer wel en twee keer niet verdacht: de
+onderscoring is geen kwaliteitsprobleem. Artefactrijke nachten (B–D, 14 van de 55) en nachten met een
+bijna vlakke thoraxband zijn wel minder precies: de twee grootste negatieve afwijkingen (H49 −22,6;
+H25 −19,8) zijn B-nachten.
+
+**Beperkingen.** Eén scoorder, alleen de AHI (geen eventlijst, geen menselijke TST); 55 van de 72 naar
+beschikbaarheid, niet naar toeval; de 15 van §10 waren de aanleiding voor de noemerwijziging (de
+voorspellingen gingen wel aan de menselijke cijfers vooraf); de menselijke waarden zijn met de hand
+overgenomen, zonder dubbele invoer (één invoerfout, H02, is door Bart zelf gevonden en verwijderd).
