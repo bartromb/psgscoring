@@ -1,3 +1,49 @@
+# Ongereleased — DOMINO-lezer: de menselijke scoring van SOMNOmedics DOMINO naast psgscoring, per studie
+
+## `psgscoring.compare.domino_reader` (nieuw, 04-11-2026)
+
+Lezer voor de analyse-export van DOMINO ("File → Export analysis data"): een map of .zip met
+de ASCII-bestanden (één per signaal, cp1252, decimale komma) of de .xlsx-vorm (vraagt
+openpyxl; de ASCII-vorm niet). `read_domino_export(pad)` geeft een `DominoExport` met
+`respiratory_events` (DOMINO-labels → de typenamen van psgscoring via `DOMINO_RESP_LABELS`:
+`obstructive`/`central`/`mixed`/`hypopnea`/…; `Body event` is geen respiratoir event en valt
+eruit; een label dat niet in de tabel staat wordt NIET stil geteld en NIET stil weggelaten —
+`verify_label_mapping` meldt het), `events_in_sleep`, `hypnogram_epochs`/`hypnogram_1s` (het
+DOMINO-profiel ligt op :00/:30 van de klok en wordt op het machine-raster herbemonsterd; buiten
+het profiel `"?"`), `tst_minutes`, `desaturations`, `limb_events` (P-/I-Marker → plm/lm),
+`arousals` (autonoom tegen EEG), `markers_s` (Start, Lights Off, End), `series`/`series_1hz`;
+los daarvan `estimate_clock_offset` (SpO2-kruiscorrelatie; geeft de seconden die bij het
+nulpunt opgeteld moeten worden), `hypnogram_kappa` en `ahi_from_domino_events` (de noemer
+komt bewust van buiten). Tijdbasis: kloktijden doorlopend over middernacht; nulpunt is de
+marker `Start`, die op de kliniekexport van 04-11-2026 tot op 1 s gelijk is aan de EDF-kop
+(SpO2-controle: lag 0 s, r 0,996 over 37 884 paren; hypnogram-κ 0,674 bij lag 0). Niet in het
+scoringspad; geen SOMNOmedics-code. Tests `tests/test_domino_reader.py` (27, faalden eerst;
+synthetische export over middernacht). Een onafhankelijke verificatie op de echte export
+(ASCII én Excel, zelfde events tot op 1 ms) vond vijf defecten die dezelfde dag gerepareerd
+zijn, met tests die eerst faalden: één onbegrepen regel liet een heel bestand stil uit de map
+of zip verdwijnen (nu `NotDominoFile` voor echt vreemde bestanden, elke andere fout komt
+eruit); een gat van meer dan twaalf uur tussen twee rijen viel een dag te vroeg (alleen een
+sprong terug van meer dan een uur is nu middernacht); een kopblok zonder lege regel gaf stil
+nul rijen; Excel `Rate [ms]` werd als seconden gelezen en `time`-cellen gaven nul rijen.
+Bronrijen worden gesorteerd (`Phase Angle.txt` is in de bron zelf 1 s niet-monotoon) en
+`series_1hz` houdt een waarde standaard vast tot het volgende monster (DOMINO schrijft een rij
+per verandering; SpO2 ≈ 4 300 rijen per nacht).
+
+## `scripts/compare_domino.py`
+
+Scorekaart per studie uit export + `<job>_results.json`: staging (κ, TST beide kanten,
+verwarringsmatrix), respiratoire events (F1 met koppelregel — IoU ≥ 0,20 één-op-één via
+`agreement.compare_event_sets`, ook elke-overlap, en apart voor de epochs die BEIDE als slaap
+zien), AHI op beide noemers, desaturaties/ODI, PLM, EEG-arousals; controle van het nulpunt op
+de SpO2-reeks met waarschuwing en `--auto-align`. Alleen getallen en kloktijden in de
+uitvoer. Eerste studie (één kliniek-PSG, 0.38.0, `aasm_v3_breath_dual`):
+κ 0,674 (YASA 139 wake-epochs méér), DOMINO 163 events waarvan 137 in slaap tegen 92 van ons,
+AHI 18,0 tegen 14,2; F1 0,524 in DOMINO-slaap, **0,645 in de epochs die beide slaap noemen**
+(ijkpunt scoorders onderling 0,667), 15 menselijke apneus bij ons hypopneu; desaturaties
+223/129 (DOMINO-desaturaties mediaan 28 s tegen 11 s, definitieverschil open). Volledig in
+`docs/domino_export_vergelijking_20261104.md`, inclusief waarom het DOMINO-rapport 16 zegt
+(eigen hypopneucriterium over de lijst) en de lijst 18,0. README-testaantal 2 002.
+
 # v0.38.0 — 2026-11-02 — `index_denominator`: de klinische AHI deelt door de volle slaaptijd op alle niet-bevroren profielen; ODI, RERA/RDI, PLM-index en randindices mee
 
 **Gedragsverandering op alle profielen behalve `mesa_shhs` en `chicago_1999`** (klinisch:
