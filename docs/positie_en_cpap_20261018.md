@@ -52,7 +52,7 @@ met een eerlijk label en het bestaande voorbehoud in het PDF.
 
 ## 2. CPAP-nacht: de dode thermistor werd de apneusensor
 
-Job `cff16f03` (upload `ANON_C26028BC.edf`, 40 kanalen, met een drukkanaal `Pressur` in
+Een kliniekjob (upload `ANON_….edf`, 40 kanalen, met een drukkanaal `Pressur` in
 mbar dat de andere nachten niet hebben):
 
 | | |

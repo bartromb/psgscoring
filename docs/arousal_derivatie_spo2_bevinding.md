@@ -1,7 +1,7 @@
 # De multi-derivatie draaide op de saturatiecurve
 
 **Datum:** 2026-08-25
-**Aanleiding:** `docs/arousal-recall-diagnose.md` (D4), casus ANON_D056849C
+**Aanleiding:** `docs/arousal-recall-diagnose.md` (D4), casus ANON_…
 **Status:** gerepareerd, niet uitgerold. Productie (0.27.3) draagt de bug.
 
 ---

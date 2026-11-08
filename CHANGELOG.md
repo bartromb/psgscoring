@@ -1,4 +1,4 @@
-# Ongereleased — DOMINO-lezer: de menselijke scoring van SOMNOmedics DOMINO naast psgscoring, per studie
+# v0.39.0 — 2026-11-08 — DOMINO-lezer: de menselijke scoring van SOMNOmedics DOMINO naast psgscoring, per studie
 
 ## `psgscoring.compare.domino_reader` (nieuw, 04-11-2026)
 
@@ -43,6 +43,13 @@ AHI 18,0 tegen 14,2; F1 0,524 in DOMINO-slaap, **0,645 in de epochs die beide sl
 223/129 (DOMINO-desaturaties mediaan 28 s tegen 11 s, definitieverschil open). Volledig in
 `docs/domino_export_vergelijking_20261104.md`, inclusief waarom het DOMINO-rapport 16 zegt
 (eigen hypopneucriterium over de lijst) en de lijst 18,0. README-testaantal 2 002.
+
+## Documentatie
+
+- Twee notities (`docs/positie_en_cpap_20261018.md`, `docs/arousal_derivatie_spo2_bevinding.md`)
+  noemden een YF-pseudoniem en een job-id; die zijn gemaskeerd. De voorbeeldtijden in de
+  DOMINO-notitie en -docstring zijn fictief.
+- Geen wijziging aan scoring of profielen: golden-uitvoer en klinische cijfers ongewijzigd.
 
 # v0.38.0 — 2026-11-02 — `index_denominator`: de klinische AHI deelt door de volle slaaptijd op alle niet-bevroren profielen; ODI, RERA/RDI, PLM-index en randindices mee
 
