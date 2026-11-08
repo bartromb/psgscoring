@@ -317,9 +317,9 @@ def parse_domino_txt(text: str, name: str) -> DominoSignal:
         raise ValueError(f"{name}: onbegrepen rij {ln[:60]!r}")
 
     if start_time is not None:
-        ref_tod = ref_abs = (start_time.hour * 3600 + start_time.minute * 60 + start_time.second)
+        ref_tod = ref_abs = float(start_time.hour * 3600 + start_time.minute * 60 + start_time.second)
     elif raw:
-        ref_tod = ref_abs = raw[0][0]
+        ref_tod = ref_abs = float(raw[0][0])
     else:
         ref_tod = ref_abs = 0.0
     times = _unwrap(((r[0], r[1]) for r in raw), ref_tod, ref_abs)
@@ -369,8 +369,8 @@ def parse_domino_sheet(name: str, rows: list[tuple]) -> DominoSignal | None:
     start_time = header.get("start time")
     if isinstance(start_time, str):
         m = _RE_START.search(start_time)
-        start_time = datetime(*(int(g) for g in (m.group(3), m.group(2), m.group(1),
-                                                 m.group(4), m.group(5), m.group(6)))) if m else None
+        start_time = datetime(int(m.group(3)), int(m.group(2)), int(m.group(1)),
+                              int(m.group(4)), int(m.group(5)), int(m.group(6))) if m else None
     elif not isinstance(start_time, datetime):
         start_time = None
     if is_marker:
@@ -482,13 +482,14 @@ class DominoExport:
             for r in mk.rows:
                 if r.label and r.label.strip().lower() == "start":
                     return r.t_start
-        starts = Counter()
+        starts: Counter[float] = Counter()
         for sig in self.signals.values():
-            if sig.rate_s is None and sig.start_time is not None and sig.kind != "Marker":
+            s0 = sig.start_s
+            if sig.rate_s is None and sig.start_time is not None and s0 is not None and sig.kind != "Marker":
                 shift = 0.0
                 if self.reference_date is not None:
                     shift = (sig.start_time.date() - self.reference_date).days * 86400.0
-                starts[sig.start_s + shift] += 1
+                starts[s0 + shift] += 1
         if starts:
             best = max(starts.values())
             return max(t for t, n in starts.items() if n == best)
@@ -832,10 +833,10 @@ def estimate_clock_offset(domino_1hz: Sequence[float | None], machine_1hz: Seque
     if not valid:
         raise ValueError(f"te weinig overlap tussen de reeksen (< {min_overlap_s} s) om een "
                          "klokverschuiving te schatten")
-    best = max(valid, key=valid.get)
+    best = max(valid, key=lambda L: valid[L])
     fine = {L: corr(L) for L in range(best - coarse_step_s - 5, best + coarse_step_s + 6)}
     fine_valid = {L: r for L, (r, _) in fine.items() if np.isfinite(r)}
-    best = max(fine_valid, key=fine_valid.get)
+    best = max(fine_valid, key=lambda L: fine_valid[L])
     r, k = fine[best]
     return int(best), round(float(r), 4), int(k)
 
