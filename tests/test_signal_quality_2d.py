@@ -7,7 +7,7 @@ breaking the 1D boolean masking downstream. The fix squeezes input to
 1D at the top of the function.
 
 Clinical impact: without this fix, signal quality assessment silently
-failed on the real deployment pipeline, leaving the Loos case
+failed on the real deployment pipeline, leaving the index case
 undetectable via the RIP pair quality gate.
 """
 import numpy as np
@@ -74,8 +74,8 @@ def test_compare_rip_pair_with_2d_inputs():
     assert result["recommended_mode"] == "bilateral"
 
 
-def test_loos_like_case_2d():
-    """Loos scenario: thorax essentially flat, abdomen normal, 2D input."""
+def test_index_case_like_2d():
+    """Index-case scenario: thorax essentially flat, abdomen normal, 2D input."""
     thorax_dead_2d = (np.random.RandomState(42).randn(int(120 * SF)) * 1e-4).reshape(1, -1)
     abdomen_ok_2d = _synthetic_breathing(amplitude=1.0).reshape(1, -1)
 

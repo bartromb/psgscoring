@@ -1,3 +1,83 @@
+# Ongereleased — codelezing 10-11-2026: vier bevindingen gerepareerd, één achter een veld
+
+Aanleiding: een volledige lezing van de bibliotheek (alle modules en tests). Elke reparatie
+heeft tests die eerst faalden (nagelopen tegen de code van HEAD) en is onafhankelijk
+nagekeken: op 5 synthetische opnames x 4 profielen zonder split-night is de volledige uitvoer
+identiek aan 0.39.0. Golden 9/9 ongewijzigd; de bevroren profielsnapshots kregen alleen de
+nieuwe sleutel `PEAK_MASK_SAME_SCALE: false`.
+
+## Gerepareerd
+
+- **Split-night deelde door een andere noemer dan de nacht.** `split_night.segment_summaries`
+  riep `_compute_summary` aan zonder noemer en viel terug op `"artifact_free_sleep"`, terwijl de
+  klinische profielen sinds 0.38.0 door de volle slaaptijd delen (`index_denominator="sleep"`).
+  De segmentfuncties (`segment_summaries`, `segment_indices`, `segment_denominator_h`,
+  `segment_arousals`, `segment_rdi`, `segment_plm`) nemen nu `denominator` aan en
+  `segment_spo2` neemt `index_denominator` aan; de pijplijn geeft de noemer van het profiel
+  door. Default van de functies = het oude gedrag. **Wat verandert:** op een klinisch profiel
+  met artefact-epochs daalt de segment-AHI (en arousal-, RDI- en PLM-index per deel) naar de
+  noemer van de nacht, en `tst_minutes`/`nrem_min` per segment tellen de artefact-epochs weer
+  mee. Omdat `postprocess.csr_therapy_contradiction` de segment-AHI leest (drempels 15 en 5),
+  kan ook die melding omslaan. `mesa_shhs` en `chicago_1999` ongewijzigd. `segment_spo2` volgt
+  `spo2_index_denominator`; dat staat op elk profiel al op "sleep", dus daar verandert niets.
+  Tests: `tests/test_split_night_denominator.py` (9).
+- **KeyError in de RIP-paarpoort op de niet-schaalvrije tak.** De melding bij een energieratio
+  boven 100 las `breath_fraction`, een sleutel die `assess_rip_channel` alleen op de schaalvrije
+  tak zet. Op `mesa_shhs` en `chicago_1999` gaf dat een KeyError zodra beide banden hun eigen
+  toets doorstonden; de pijplijn ving die op en liet de hele kwaliteitsstap leeg. De ademfractie
+  wordt nu voor de tekst uitgerekend. **Wat verandert:** op die opnames geeft de poort weer
+  `single-channel` (het gedrag van vóór 19-08-2026, toen de melding erbij kwam) in plaats van
+  een foutmelding zonder poort. **Dit raakt de bevroren profielen**: op een opname met
+  energieratio > 100 waar beide banden de legacy-toets halen, liep de classificatie sinds 19-08
+  bilateraal door; nu weer enkelkanaals. In een proef (thorax x30 op `mesa_shhs`) bleven de
+  types gelijk en zakten de confidences van 0,95/0,90 naar 0,55/0,65, wat `oahi_conf60` en de
+  sweep kan verschuiven. Reproductiecijfers op `mesa_shhs` van na 19-08 kunnen op zulke
+  opnames dus bewegen. Tests: `tests/test_rip_pair_legacy_gate.py` (5).
+- **Eén definitie van slaap.** `utils.is_sleep` is nu: N1, N2, N3 of R (of 1-4). Tot nu toe
+  telde `is_sleep` "ART", "?" en None als slaap, las `indices.tst_hours` alleen tekstlabels, en
+  telde `!= "W"` in `_compute_summary`, de PLM-stap en de houdingsanalyse numeriek waak (0) als
+  slaap. `hypno_to_numeric` (waar `build_sleep_mask`, de snurk- en de SpO2-maskers op
+  draaien) laat een numeriek hypnogram nu ongewijzigd door in plaats van elk label -1 te maken.
+  Op de vijf labels die YASA levert verandert er niets; op hypnogrammen met andere labels wel.
+  Tests: `tests/test_sleep_definition.py` (24).
+- **De effortband werd op ECG-indices gesneden.** `respiratory._get_ecg_assessment` rekende de
+  eventgrenzen om naar de ECG-frequentie en gebruikte ze ook voor thorax en abdomen. Bij gelijke
+  frequenties (de pijplijn, via MNE) klopt dat; bij ongelijke lag het venster verkeerd en werd
+  de band bovendien op de verkeerde frequentie gelezen. `ecg_effort_assessment` neemt nu
+  `effort_sf`, `effort_onset_idx` en `effort_end_idx` aan. Geen verandering bij gelijke
+  frequenties. Tests: `tests/test_ecg_effort_sample_rates.py` (5).
+
+## Gebouwd, default uit: `peak_mask_same_scale`
+
+Het ademteugmasker van de hypopneedetectie deelt de teugamplitude (piek-tot-dal van het
+bandgefilterde RUWE kanaal) door de basislijn van de envelope. Gemeten op een zuivere sinus:
+
+- **één flowkanaal**: verhouding 2,0 bij rustige ademhaling, bij elke eenheid. "Onder 0,70"
+  vraagt dan ongeveer 65 % daling in plaats van 30 %;
+- **apart drukkanaal (de klinische montage)**: de envelope komt van het wortel-gelineariseerde
+  signaal, de teugamplitude niet. De verhouding schaalt met de wortel van de eenheid: 0,05 bij
+  schaal 1e-3, 1,64 bij 1, 16 bij 100. Het ademteugmasker is dan leeg, of dekt bij schaal
+  0,01-0,1 vrijwel de hele opname (99,8 % op regelmatige ademhaling). Dezelfde klasse fout als
+  de RIP-poort die de EDF-eenheid mat. **Dit is bestaand gedrag en hier NIET veranderd.**
+
+Het masker staat nu in `respiratory._peak_mask`. Met `peak_mask_same_scale=True` is de
+amplitude van een teug de mediaan van de envelope over die teug, uit dezelfde reeks als de
+basislijn: verhouding 1,0 bij rustige ademhaling, op beide montages, bij elke eenheid.
+**Default `False` op alle profielen**: aanzetten verschuift de hypopneedetectie op elke opname
+en hoort eerst gemeten te worden op PSG-IPA en MESA. Open vraag vóór die meting: in welke
+eenheid het drukkanaal van de kliniek-EDF's staat, want dat bepaalt of het masker vandaag
+leeg is of juist alles dekt. Tests: `tests/test_peak_mask_same_scale.py` (13).
+
+## Documentatie
+
+- Docstrings en commentaar die de code tegenspraken zijn gelijkgetrokken (PLM-ernstklassen
+  5/15/25, bilateraal venster, effortbandpass 0,03 Hz, stadiumbasislijn, montagecontroles,
+  `overall_grade`, flatness-drempel 0,80, RERA-venster, U-Net niet langer "opt-in", Rule 1A
+  in plaats van 1B, SpO2-operationalisering, golden-README negen opnames, module-overzicht).
+- Een casusnaam in commentaar, docstrings, een testnaam en dit bestand is vervangen door
+  "index case", zonder instelling. Hij staat nog in de git-geschiedenis en in de eerder
+  gepubliceerde versies.
+
 # v0.39.0 — 2026-11-08 — DOMINO-lezer: de menselijke scoring van SOMNOmedics DOMINO naast psgscoring, per studie
 
 ## `psgscoring.compare.domino_reader` (nieuw, 04-11-2026)
@@ -6591,7 +6671,7 @@ Bugfix release.
   gate.** The v0.2.962 gate detected single-sensor failures correctly,
   but `classify_apnea_type` ignored the signal, defaulting to
   obstructive classification for dead-sensor events. This caused the
-  Loos case (AZORG April 2026) to appear as 100% obstructive while the
+  index case (April 2026) to appear as 100% obstructive while the
   true underlying pathology was likely CSAS (CAI 45.1 on
   abdomen-only analysis).
 
@@ -6637,15 +6717,15 @@ sensor fails during the recording.
 
   Without this fix, signal quality assessment silently failed in the
   real deployment pipeline, leaving the RIP pair quality gate
-  ineffective at detecting single-sensor failures. The Loos case
-  (AZORG April 2026, thorax RIP dead, ratio 6862×) was the motivating
+  ineffective at detecting single-sensor failures. The index case
+  (April 2026, thorax RIP dead, ratio 6862×) was the motivating
   clinical scenario.
 
 ### Added
 
 - `tests/test_signal_quality_2d.py` — 5 regression tests covering
   1D baseline, 2D MNE-shape input, higher-dimensional defensive
-  rejection, and Loos-like single-sensor failure scenarios.
+  rejection, and index-case-like single-sensor failure scenarios.
 
 ---
 

@@ -174,8 +174,19 @@ _HYPNO_MAP = {"W": 0, "N1": 1, "N2": 2, "N3": 3, "R": 4}
 
 
 def hypno_to_numeric(hypno: list) -> np.ndarray:
-    """Convert string hypnogram ['W','N1',...] to numeric array (W=0..R=4)."""
-    return np.array([_HYPNO_MAP.get(s, -1) for s in hypno])
+    """Convert a hypnogram to a numeric array (W=0, N1..N3=1..3, R=4, else -1).
+
+    Tekstlabels via de tabel; een hypnogram dat al numeriek is (0-4) gaat
+    ongewijzigd door. Tot 10-11-2026 werd elk numeriek label -1, zodat
+    `build_sleep_mask` op een numeriek hypnogram geen enkele slaapsample gaf.
+    """
+    def _een(s):
+        if isinstance(s, str):
+            return _HYPNO_MAP.get(s, -1)
+        if isinstance(s, (int, np.integer)) and not isinstance(s, bool) and 0 <= s <= 4:
+            return int(s)
+        return -1
+    return np.array([_een(s) for s in hypno])
 
 
 def is_nrem(stage) -> bool:
@@ -189,8 +200,17 @@ def is_rem(stage) -> bool:
 
 
 def is_sleep(stage) -> bool:
-    """Controleer of een slaapstadium slaap is (niet Wake)."""
-    return stage not in (0, -1, "W")
+    """Slaap = N1, N2, N3 of R (of 1-4). Al het andere is geen slaap.
+
+    De definitie per label; `hypno_to_numeric` (voor de samplemaskers) kent
+    dezelfde labels. Tot 10-11-2026 stond hier
+    `not in (0, -1, "W")`, waardoor "ART", "?" en None als slaap telden, naast
+    `indices.SLEEP_STAGES` (alleen tekstlabels) en de ongelijk-aan-W-toets in de respiratoire
+    samenvatting, de PLM-stap en de houdingsanalyse (numeriek waak = 0 telde
+    daar als slaap). Op de vijf labels die YASA levert geven alle varianten
+    hetzelfde; ze liepen uiteen op elk ander label.
+    """
+    return is_nrem(stage) or is_rem(stage)
 
 
 # ---------------------------------------------------------------------------

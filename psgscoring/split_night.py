@@ -164,7 +164,8 @@ def detect_split_night(flow=None, sf_flow=None, spo2=None, sf_spo2=None,
 
 
 def segment_indices(events, hypno, breakpoint_s, epoch_len_s=30.0,
-                    artifact_epochs=None) -> dict:
+                    artifact_epochs=None,
+                    denominator: str = "artifact_free_sleep") -> dict:
     """AHI vóór en ná het breekpunt, in de compacte vorm die het rapport leest.
 
     Dit is een DUNNE LAAG op `segment_summaries()`, niet een tweede berekening.
@@ -178,7 +179,7 @@ def segment_indices(events, hypno, breakpoint_s, epoch_len_s=30.0,
     worden.
     """
     sam = segment_summaries(events, hypno, breakpoint_s, epoch_len_s,
-                            artifact_epochs)
+                            artifact_epochs, denominator=denominator)
     uit = {}
     for naam, s in sam.items():
         if "error" in s:
@@ -220,7 +221,8 @@ def _slice(events, hypno, lo_s, hi_s, epoch_len_s=30.0, artifact_epochs=None):
 
 
 def segment_summaries(events, hypno, breakpoint_s, epoch_len_s=30.0,
-                      artifact_epochs=None) -> dict:
+                      artifact_epochs=None,
+                      denominator: str = "artifact_free_sleep") -> dict:
     """De VOLLEDIGE indexfamilie per segment, niet alleen de AHI.
 
     Bij een split-night is het diagnostische deel de meting waarop de diagnose
@@ -242,7 +244,10 @@ def segment_summaries(events, hypno, breakpoint_s, epoch_len_s=30.0,
                          ("therapeutic", float(breakpoint_s), n_s)):
         ev, hyp, art = _slice(events, hypno, lo, hi, epoch_len_s, artifact_epochs)
         try:
-            uit[naam] = _compute_summary(ev, hyp, art)
+            # Dezelfde noemer als de nacht (profielveld `index_denominator`):
+            # zonder dit deelde een segment-AHI op de klinische profielen door
+            # de artefactvrije slaap naast een nacht-AHI op de volle slaaptijd.
+            uit[naam] = _compute_summary(ev, hyp, art, denominator=denominator)
         except Exception as e:                              # noqa: BLE001
             logger.warning("[split] samenvatting voor %s mislukt: %s", naam, e)
             uit[naam] = {"error": str(e)}
@@ -250,7 +255,8 @@ def segment_summaries(events, hypno, breakpoint_s, epoch_len_s=30.0,
 
 
 def segment_spo2(spo2, sf_spo2, hypno, breakpoint_s, epoch_len_s=30.0,
-                 artifact_epochs=None) -> dict:
+                 artifact_epochs=None,
+                 index_denominator: str | None = None) -> dict:
     """ODI, T90 en de rest per segment, op hetzelfde venster als de AHI.
 
     Zonder dit zou de kop een diagnostische AHI tonen naast een ODI over de
@@ -265,9 +271,18 @@ def segment_spo2(spo2, sf_spo2, hypno, breakpoint_s, epoch_len_s=30.0,
     uit = {}
     for naam, lo, hi in (("diagnostic", 0.0, float(breakpoint_s)),
                          ("therapeutic", float(breakpoint_s), n_s)):
-        _ev, hyp, _art = _slice([], hypno, lo, hi, epoch_len_s, artifact_epochs)
+        _ev, hyp, art = _slice([], hypno, lo, hi, epoch_len_s, artifact_epochs)
         try:
-            uit[naam] = (analyze_spo2(spo2, sf_spo2, hyp) or {}).get("summary") or {}
+            if index_denominator is None:
+                # Rechtstreekse aanroep zonder noemer: het gedrag tot
+                # 10-11-2026 (geen artefactlijst, alle slaapsamples).
+                res = analyze_spo2(spo2, sf_spo2, hyp)
+            else:
+                # Zoals de nacht: zelfde artefactlijst, zelfde noemer
+                # (profielveld `spo2_index_denominator`).
+                res = analyze_spo2(spo2, sf_spo2, hyp, artifact_epochs=art,
+                                   index_denominator=index_denominator)
+            uit[naam] = (res or {}).get("summary") or {}
         except Exception as e:                              # noqa: BLE001
             logger.warning("[split] SpO2 voor %s mislukt: %s", naam, e)
             uit[naam] = {"error": str(e)}
@@ -289,7 +304,8 @@ def segment_spo2(spo2, sf_spo2, hypno, breakpoint_s, epoch_len_s=30.0,
 
 
 def segment_denominator_h(hypno, breakpoint_s, epoch_len_s=30.0,
-                          artifact_epochs=None) -> dict:
+                          artifact_epochs=None,
+                          denominator: str = "artifact_free_sleep") -> dict:
     """De noemer per segment, uit dezelfde functie die de AHI gebruikt.
 
     Niet opnieuw uitgerekend maar opgehaald: `_compute_summary` met een lege
@@ -307,7 +323,8 @@ def segment_denominator_h(hypno, breakpoint_s, epoch_len_s=30.0,
         _ev, hyp, art = _slice([], hypno, lo, hi, epoch_len_s, artifact_epochs)
         try:
             uit[naam] = float(
-                _compute_summary([], hyp, art).get("index_denominator_h") or 0.0)
+                _compute_summary([], hyp, art, denominator=denominator)
+                .get("index_denominator_h") or 0.0)
         except Exception as e:                              # noqa: BLE001
             logger.warning("[split] noemer voor %s mislukt: %s", naam, e)
             uit[naam] = 0.0
@@ -336,7 +353,8 @@ def _segmenten(hypno, breakpoint_s, epoch_len_s):
 
 
 def segment_arousals(arousals, hypno, breakpoint_s, epoch_len_s=30.0,
-                     artifact_epochs=None) -> dict:
+                     artifact_epochs=None,
+                     denominator: str = "artifact_free_sleep") -> dict:
     """Arousalindex per segment, met de etiologie erbij.
 
     Respiratoir en spontaan worden hier DIRECT geteld op het `type` dat de
@@ -350,7 +368,7 @@ def segment_arousals(arousals, hypno, breakpoint_s, epoch_len_s=30.0,
     """
     uit = {}
     noemers = segment_denominator_h(hypno, breakpoint_s, epoch_len_s,
-                                    artifact_epochs)
+                                    artifact_epochs, denominator=denominator)
     getypeerd = any(a.get("type") in ("respiratory", "spontaneous")
                     for a in (arousals or []))
     for naam, lo, hi in _segmenten(hypno, breakpoint_s, epoch_len_s):
@@ -373,7 +391,8 @@ def segment_arousals(arousals, hypno, breakpoint_s, epoch_len_s=30.0,
 
 
 def segment_rdi(events, rera_onsets_s, hypno, breakpoint_s, epoch_len_s=30.0,
-                artifact_epochs=None) -> dict:
+                artifact_epochs=None,
+                denominator: str = "artifact_free_sleep") -> dict:
     """RERA-index en RDI per segment.
 
     RDI = AHI + RERA-index, exact zoals `_compute_rera_rdi` het nachtbreed
@@ -386,7 +405,7 @@ def segment_rdi(events, rera_onsets_s, hypno, breakpoint_s, epoch_len_s=30.0,
     niet-autoritatief gemarkeerd; die lijst hoort hier dus niet in.
     """
     seg = segment_indices(events, hypno, breakpoint_s, epoch_len_s,
-                          artifact_epochs)
+                          artifact_epochs, denominator=denominator)
     onsets = [float(o) for o in (rera_onsets_s or [])]
     uit = {}
     for naam, lo, hi in _segmenten(hypno, breakpoint_s, epoch_len_s):
@@ -409,7 +428,8 @@ def segment_rdi(events, rera_onsets_s, hypno, breakpoint_s, epoch_len_s=30.0,
 
 
 def segment_plm(plm_events, hypno, breakpoint_s, epoch_len_s=30.0,
-                artifact_epochs=None) -> dict:
+                artifact_epochs=None,
+                denominator: str = "artifact_free_sleep") -> dict:
     """PLM-index per segment.
 
     TELT `is_plm`, NIET DE LIJST
@@ -433,7 +453,7 @@ def segment_plm(plm_events, hypno, breakpoint_s, epoch_len_s=30.0,
     """
     uit = {}
     noemers = segment_denominator_h(hypno, breakpoint_s, epoch_len_s,
-                                    artifact_epochs)
+                                    artifact_epochs, denominator=denominator)
     # Draagt geen enkele beweging het veld, dan komt de lijst niet uit
     # analyze_plm() en is elk element per aanname al reeksdeelnemer.
     heeft_vlag = any("is_plm" in e for e in (plm_events or []))

@@ -60,7 +60,8 @@ def get_desaturation(
     """
     Compute SpO2 desaturation associated with a respiratory event.
 
-    AASM v3 criteria:
+    Operationalisation (the AASM fixes the 3 % / 4 % drop, not the baseline or
+    the search window; those are this library's choices):
     - Baseline = 90th percentile of 120 s pre-event window
     - Nadir search window = event onset → post_win_s after event end
     - Nadir must occur ≥ 3 s after event onset (circulatory delay)
@@ -142,8 +143,8 @@ def get_desaturation(
             nadir_idx = int(np.argmin(seg))
 
         # Reject very early nadirs (< 3 s after onset) only if the drop is
-        # below the AASM 3% criterion; genuine fast responders with ≥3%
-        # drop are kept.
+        # below `early_nadir_min_drop_pct` (default 5 %); genuine fast
+        # responders with a larger drop are kept.
         if nadir_idx < int(3 * sf_spo2) and desat < early_nadir_min_drop_pct:
             return None, safe_r(min_spo2)
 

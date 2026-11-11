@@ -329,7 +329,7 @@ class AHIInterval(TypedDict, total=False):
 
 class ChannelQualityBlock(TypedDict, total=False):
     """results["channel_quality"] (signal_quality_channels.assess_signal_quality)."""
-    overall_grade: str            # "good" | "fair" | "poor" | "unknown"
+    overall_grade: str            # "good" | "acceptable" | "poor" | "unknown"
     channels: Dict[str, Dict]
     montage_warnings: List[str]
     error: str

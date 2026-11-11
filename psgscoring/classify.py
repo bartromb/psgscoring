@@ -6,7 +6,7 @@ AASM apnea-type classification: obstructive / central / mixed.
 v0.8.11 additions
 -----------------
 - Phase angle (Hilbert transform) on thorax/abdomen instantaneous phase →
-  continuous asynchrony in degrees. >45° during flow limitation → obstructive
+  continuous asynchrony in degrees. ≥45° during flow limitation → obstructive
   with high confidence, largely eliminating Rule-6 borderline defaults.
 - LightGBM confidence calibration (optional): if a pre-trained model is
   available at ``LGBM_MODEL_PATH``, per-event features are fed to the model
@@ -159,7 +159,7 @@ def classify_apnea_type(
 
     Decision logic (in priority order)
     -----------------------------------
-    0. **Phase angle >45°** (v0.8.11) → obstructive with high confidence.
+    0. **Phase angle ≥45°** (v0.8.11) → obstructive with high confidence.
        Detects paradoxical movement even before amplitude drops.
     1. **Paradoxical thoraco-abdominal movement** → obstructive
     2. **Raw signal variability present, envelope low** → obstructive
@@ -197,7 +197,7 @@ def classify_apnea_type(
     # on trustworthy thorax+abdomen signals). Route to fallback BEFORE
     # attempting the bilateral chain.
     #
-    # Clinical motivation: Loos case (AZORG April 2026). Thorax RIP dead
+    # Clinical motivation: index case (April 2026). Thorax RIP dead
     # (energy ratio 6861x). Without this gate, classifier defaults to
     # obstructive because bilateral analysis sees "no paradox" - but
     # that's because the signal is absent, not because there was no

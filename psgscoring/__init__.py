@@ -24,6 +24,17 @@ ecg_effort   – ECG-derived effort (TECG, spectral classifier) for central/obst
 arousal      – EEG arousal & RERA detection + respiratory-arousal coupling (multi-derivation-ready)
 postprocess  – CSR reclassification, mixed apnea decomposition, central instability index
 pipeline     – MNE-facing master function (run_pneumo_analysis)
+profiles     – scoring profiles (the registry of rules and switches)
+breath_scoring – breath-by-breath graded hypopnea detector (breath profiles)
+arousal_unet – frozen 1D U-Net arousal detector (ONNX inference)
+ml_classifier – optional LightGBM re-classification of respiratory candidates
+indices      – per-hour indices and the sleep-time denominators
+polygraphy   – analysis window and hypnogram for recordings without EEG
+split_night  – diagnostic/therapeutic breakpoint and per-segment indices
+ventilation  – ventilatory burden
+signal_quality, signal_quality_channels – RIP and thermistor gates, per-channel quality
+agreement    – event-set agreement statistics (IoU matching, 1-s kappa)
+compare      – readers for external scorings (CAISR, DOMINO)
 """
 
 # Public API

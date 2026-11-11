@@ -2371,6 +2371,38 @@ class PostProcessingRules:
     elke hypopneemeting op drukkanalen met offset en hoort eerst gemeten te
     worden op PSG-IPA en MESA voordat een profiel het aanzet."""
 
+    peak_mask_same_scale: bool = False
+    """Zet de teugamplitude en de envelope-basislijn op dezelfde schaal in het
+    ademteugmasker van de hypopneedetectie.
+
+    Het hypopneemasker is de vereniging van een envelopemasker en een
+    ademteugmasker: minstens `peak_min_consecutive_breaths` teugen waarvan de
+    amplitude onder de hypopneedrempel van de basislijn ligt. De teugamplitude
+    is piek-tot-dal van het bandgefilterde RUWE kanaal, de basislijn het
+    percentiel van de ENVELOPE. Gemeten op 10-11-2026 op een zuivere sinus:
+
+    * één flowkanaal: verhouding 2,0 bij rustige ademhaling, bij elke eenheid;
+      "onder 0,70" vraagt dan ongeveer 65 % daling in plaats van 30 %;
+    * apart drukkanaal (de klinische montage): de envelope is van het
+      wortel-gelineariseerde signaal, de teugamplitude niet. De verhouding
+      schaalt met de wortel van de eenheid (0,05 bij 1e-3, 16 bij 100): het
+      ademteugmasker is leeg of dekt vrijwel de hele opname, afhankelijk van
+      de eenheid waarin het drukkanaal is opgeslagen. Dezelfde klasse fout als
+      de RIP-poort die de EDF-eenheid mat.
+
+    `respiratory._breath_amp_between` verbiedt deze menging in zijn docstring
+    uitdrukkelijk.
+
+    Aan: de amplitude van een teug is de mediaan van de envelope over die
+    teug, uit dezelfde reeks als de basislijn (`respiratory._peak_mask`). De
+    verhouding is dan 1,0 bij rustige ademhaling, op beide montages en bij
+    elke eenheid.
+
+    **Default `False` op ALLE profielen, ook de exploratieve.** Aanzetten
+    verschuift de hypopneedetectie op elke opname met `breath_level_detection`
+    en hoort eerst gemeten te worden op PSG-IPA en MESA voordat een profiel
+    het aanzet."""
+
 
 @dataclass
 class Profile:

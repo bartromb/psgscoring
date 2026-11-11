@@ -29,7 +29,7 @@ from .constants import (
     MMSD_APNEA_THRESH, RULE1B_AROUSAL_WINDOW_S,
 )
 from .indices import INDEX_DENOMINATORS, index_denominator_from_profile
-from .utils import build_sleep_mask, is_nrem, is_rem, safe_r
+from .utils import build_sleep_mask, is_nrem, is_rem, is_sleep, safe_r
 from .signal import (
     bandpass_flow, compute_dynamic_baseline, compute_mmsd,
     compute_pre_event_baseline,
@@ -172,6 +172,78 @@ def _breath_is_reduced(
 ) -> bool:
     """Dezelfde schakelaar voor de ademteugregel van de gecorrigeerde pas."""
     return ratio < hypop_thresh and (ratio >= apnea_thresh or not exclude_apnea_band)
+
+
+def _peak_mask(
+    breaths: list, baseline: np.ndarray, sf: float, n: int, *,
+    hypop_thresh: float, apnea_thresh: float, exclude_apnea_band: bool,
+    min_consecutive: int, same_scale: bool = False,
+    envelope: np.ndarray | None = None,
+) -> np.ndarray:
+    """Het ademteugmasker ("piekmasker") van de hypopneedetectie.
+
+    Markeert reeksen van minstens `min_consecutive` opeenvolgende teugen
+    waarvan de amplitude, gedeeld door de basislijn op het midden van de teug,
+    onder `hypop_thresh` ligt.
+
+    DE SCHALEN. `breaths[i]["amplitude"]` is piek-tot-dal van het
+    bandgefilterde RUWE hypopneekanaal; `baseline` is het percentiel van de
+    ENVELOPE van datzelfde kanaal. Gemeten op 10-11-2026 op een zuivere sinus:
+
+    * één flowkanaal (envelope zonder wortel): piek-tot-dal 2A tegen een
+      envelope A, verhouding 2,0 bij elke eenheid. "Onder 0,70" vraagt dan
+      ongeveer 65 % daling in plaats van 30 %;
+    * apart drukkanaal (envelope NA wortellinearisatie): de teugamplitude
+      schaalt met de eenheid s, de envelope met de wortel ervan. De verhouding
+      is ~1,64 x wortel(s) -- 0,05 bij s = 1e-3, 16 bij s = 100. Het masker is
+      dan leeg of dekt vrijwel de hele opname, afhankelijk van de eenheid
+      waarin het kanaal is opgeslagen.
+
+    `same_scale=False` is dat gedrag, ongewijzigd (profielveld
+    `peak_mask_same_scale`, default uit op elk profiel). `True` leest de
+    amplitude van een teug uit `envelope` zelf (de mediaan over de teug), de
+    reeks waaruit ook de basislijn komt: de verhouding is dan 1,0 bij rustige
+    ademhaling, op beide montages en bij elke eenheid.
+    """
+    mask = np.zeros(n, dtype=bool)
+    if not breaths:
+        return mask
+    if same_scale:
+        if envelope is None:
+            raise ValueError("same_scale=True vraagt de envelope van het "
+                             "hypopneekanaal")
+        amps = np.empty(len(breaths))
+        for bi, br in enumerate(breaths):
+            a = max(0, int(br["onset_s"] * sf))
+            b = min(len(envelope), int((br["onset_s"] + br["duration_s"]) * sf))
+            amps[bi] = float(np.median(envelope[a:b])) if b > a else np.nan
+    else:
+        amps = np.array([b["amplitude"] for b in breaths])
+    reduced = []
+    for bi, br in enumerate(breaths):
+        mid_idx = int((br["onset_s"] + br["duration_s"]/2) * sf)
+        mid_idx = min(mid_idx, len(baseline) - 1)
+        local_bl = float(baseline[max(0, mid_idx)])
+        ratio = amps[bi] / local_bl if local_bl > 1e-9 else 1.0
+        reduced.append(_breath_is_reduced(
+            ratio, hypop_thresh, apnea_thresh,
+            exclude_apnea_band=exclude_apnea_band))
+    i = 0
+    while i < len(breaths):
+        if not reduced[i]:
+            i += 1
+            continue
+        j = i
+        while j < len(breaths) and reduced[j]:
+            j += 1
+        if (j - i) >= min_consecutive:
+            for k in range(i, j):
+                br = breaths[k]
+                s_idx = int(br["onset_s"] * sf)
+                e_idx = int((br["onset_s"] + br["duration_s"]) * sf)
+                mask[max(0, s_idx):min(n, e_idx)] = True
+        i = j
+    return mask
 
 
 def _dynamic_baseline_excluding(
@@ -371,7 +443,9 @@ def _get_ecg_assessment(ecg_data, tecg, r_peaks, thorax_raw, abdomen_raw,
                         spectral_resolution: str = "event"):
     """Compute ECG-derived effort assessment for one event.
 
-    Handles sample-rate conversion between flow and ECG signals.
+    Handles sample-rate conversion between flow and ECG signals: het ECG
+    wordt op zijn eigen indices gelezen, de effortband op die van de flow
+    (`onset_idx`/`end_idx` staan in flowsamples).
     """
     try:
         from .ecg_effort import ecg_effort_assessment
@@ -385,6 +459,8 @@ def _get_ecg_assessment(ecg_data, tecg, r_peaks, thorax_raw, abdomen_raw,
             sf=sf_ecg, onset_idx=ecg_onset, end_idx=ecg_end,
             tecg=tecg, r_peaks=r_peaks,
             spectral_resolution=spectral_resolution,
+            effort_sf=sf_flow, effort_onset_idx=onset_idx,
+            effort_end_idx=end_idx,
         )
     except Exception as exc:
         logger.debug("ECG effort assessment failed for event %d-%d: %s",
@@ -437,7 +513,8 @@ def detect_respiratory_events(
     Overschatting-correcties (v0.8.11)
     ------------------------------------
     1. Post-apnea hyperpnea basislijn: recovery-window uitgesloten uit basislijn.
-    2. SpO₂ kruiscontaminatie: nadir niet toegewezen als vorig post-event venster actief.
+    2. SpO₂ kruiscontaminatie: het event krijgt een vlag als het vorige
+       post-event venster nog actief is (de nadir wordt wel toegewezen).
     3. Cheyne-Stokes: events gemarkeerd als ``csr_flagged`` via ``csr_info``.
     4. Borderline default: conf<0.40 events geteld als ``n_low_conf_borderline``.
     5. Artefact-flanken: post-gap exclusiemasker (15 s na uitval ≥10 s).
@@ -509,6 +586,8 @@ def detect_respiratory_events(
         # vóór de wortellinearisatie (review 11-10-2026).
         _STAGE_PARTIAL = bool(sp.get("STAGE_BASELINE_PARTIAL_EPOCHS", True))
         _LIN_DC        = bool(sp.get("LINEARISE_AFTER_DC_REMOVAL", False))
+        # Zie profiles.peak_mask_same_scale: default uit op elk profiel.
+        _PEAK_SAME_SCALE = bool(sp.get("PEAK_MASK_SAME_SCALE", False))
         _HYPOP_THRESH  = sp.get("HYPOPNEA_THRESHOLD", HYPOPNEA_THRESHOLD)
         _DESAT_PCT     = sp.get("DESATURATION_DROP_PCT", DESATURATION_DROP_PCT)
         _POST_WIN      = sp.get("POST_EVENT_WINDOW_S", 45)
@@ -950,33 +1029,16 @@ def detect_respiratory_events(
         # v0.8.14: peak + envelope merge voor gecorrigeerde pass
         # Peak-mask herberekenen met gecorrigeerde basislijn
         # v0.2.8: same consecutive breath requirement as initial pass
-        peak_mask_corrected = np.zeros(len(hypop_norm_corrected), dtype=bool)
         if _USE_PEAK and breaths and len(breaths) > 10:
-            amps = np.array([b["amplitude"] for b in breaths])
-            reduced_c = []
-            for bi, br in enumerate(breaths):
-                mid_idx = int((br["onset_s"] + br["duration_s"]/2) * sf_hy)
-                mid_idx = min(mid_idx, len(hypop_baseline_corrected) - 1)
-                local_bl = float(hypop_baseline_corrected[max(0,mid_idx)])
-                ratio_c = amps[bi] / local_bl if local_bl > 1e-9 else 1.0
-                reduced_c.append(_breath_is_reduced(
-                    ratio_c, _HYPOP_THRESH, APNEA_THRESHOLD,
-                    exclude_apnea_band=_MASK_EXCL_AP))
-            i = 0
-            while i < len(breaths):
-                if not reduced_c[i]:
-                    i += 1
-                    continue
-                j = i
-                while j < len(breaths) and reduced_c[j]:
-                    j += 1
-                if (j - i) >= _MIN_CONSEC:
-                    for k in range(i, j):
-                        br = breaths[k]
-                        s_idx = int(br["onset_s"] * sf_hy)
-                        e_idx = int((br["onset_s"] + br["duration_s"]) * sf_hy)
-                        peak_mask_corrected[max(0,s_idx):min(len(peak_mask_corrected),e_idx)] = True
-                i = j
+            peak_mask_corrected = _peak_mask(
+                breaths, hypop_baseline_corrected, sf_hy,
+                len(hypop_norm_corrected),
+                hypop_thresh=_HYPOP_THRESH, apnea_thresh=APNEA_THRESHOLD,
+                exclude_apnea_band=_MASK_EXCL_AP,
+                min_consecutive=_MIN_CONSEC,
+                same_scale=_PEAK_SAME_SCALE, envelope=hypop_env)
+        else:
+            peak_mask_corrected = np.zeros(len(hypop_norm_corrected), dtype=bool)
         hypopnea_raw_corrected = peak_mask_corrected | envelope_mask_corrected
 
         # ── Detect hypopneas (met gecorrigeerde basislijn + Fix 2 SpO₂) ───
@@ -1678,7 +1740,8 @@ def reinstate_rule1a_arousal_hypopneas(
 ) -> tuple[list, list]:
     """
     Reinstate hypopnea candidates that are coupled to an arousal
-    (AASM Rule 1B).
+    (the arousal limb of AASM Rule 1A; older text and the output key
+    `rule1b_reinstated` call it 1B).
 
     v0.8.1 improvement: if more than one complete breath cycle occurs between
     event termination and arousal onset, the coupling is classified as
@@ -2981,12 +3044,12 @@ def _compute_summary(
     artifact_set  = set(artifact_epochs or [])
     # De verzameling epochs die uit de NOEMER valt: onder "sleep" leeg.
     den_set       = artifact_set if denominator == "artifact_free_sleep" else set()
-    sleep_s_all   = sum(EPOCH_LEN_S for s in hypno if s != "W")
+    sleep_s_all   = sum(EPOCH_LEN_S for s in hypno if is_sleep(s))
     sleep_s_clean = sum(EPOCH_LEN_S for i, s in enumerate(hypno)
-                        if s != "W" and i not in artifact_set)
+                        if is_sleep(s) and i not in artifact_set)
     total_sleep_s = sum(
         EPOCH_LEN_S for i, s in enumerate(hypno)
-        if s != "W" and i not in den_set
+        if is_sleep(s) and i not in den_set
     )
     # GEEN ondergrens op de noemer. Hier stond `max(..., 0.001)` als
     # bescherming tegen deling door nul, en dat is precies de verkeerde vorm
@@ -3092,10 +3155,11 @@ def _compute_summary(
     # [0.0, 0.40, 0.60, 0.85] gaf ~9.3/h breedte (te breed voor
     # klinische interpretatie).
     #
-    # Drempels (smal gekalibreerd rond officiële AASM 0.60):
+    # Drempels (smal gekalibreerd rond het eigen werkpunt 0.60; de AASM kent
+    # geen betrouwbaarheidsdrempel):
     #   lenient  (c≥0.55): inclusief net-borderline events
-    #   primary  (c≥0.60): officiële AASM drempel
-    #   strict   (c≥0.70): conservatief, hoger dan officieel
+    #   primary  (c≥0.60): het eigen werkpunt
+    #   strict   (c≥0.70): conservatief, hoger dan het werkpunt
     # Smal venster bevordert grade A voor evidente cases (concordantie van scoringsstrengheid).
     oahi_sweep_3pt = {
         "lenient": _oahi_at(0.55),

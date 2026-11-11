@@ -98,11 +98,12 @@ def tst_hours(hypno: list | None, artifact_epochs: list | None = None) -> float:
     door een andere noemer deelde dan de AHI op dezelfde nacht.
 
     Dit is dezelfde noemer als `tst_hours` in de respiratoire samenvatting
-    (`respiratory._compute_summary`, die niet-W telt): op een hypnogram met
-    alleen de vijf AASM-labels zijn de twee gelijk. Een echte 0.0 wanneer er
+    (`respiratory._compute_summary`): beide lezen `utils.is_sleep`, dus ook
+    een numeriek hypnogram en een hypnogram met "ART" of "?" geven hetzelfde. Een echte 0.0 wanneer er
     niets overblijft; `per_hour` maakt daar ``None`` van.
     """
-    return hours_of(hypno or [], lambda s: s in SLEEP_STAGES, EPOCH_LEN_S,
+    from .utils import is_sleep   # hier, niet bovenaan: utils leest constants
+    return hours_of(hypno or [], is_sleep, EPOCH_LEN_S,
                     set(artifact_epochs or []))
 
 

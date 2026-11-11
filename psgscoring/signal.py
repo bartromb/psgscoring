@@ -624,7 +624,7 @@ def preprocess_effort(
     envelope_fs: float | None = None,
 ) -> np.ndarray:
     """
-    Thorax / abdomen RIP preprocessing: bandpass 0.05–2 Hz -> amplitude envelope.
+    Thorax / abdomen RIP preprocessing: bandpass 0.03–2 Hz -> amplitude envelope.
 
     The envelope axis applies here too, with one exception: ``breath_amplitude``
     falls back to the analytic signal. That method segments breaths by
@@ -883,7 +883,7 @@ def compute_stage_baseline(
     NREM and REM (REM is physiologically more variable).
 
     Falls back to the dynamic baseline when insufficient stage data exist.
-    A 5 s cosine-ramp smooths transitions between adjacent stage epochs.
+    A 5 s moving average smooths transitions between adjacent stage epochs.
 
     Parameters
     ----------

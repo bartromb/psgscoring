@@ -26,12 +26,12 @@ import re
 
 import numpy as np
 
-from .utils import channel_map_from_user
+from .utils import channel_map_from_user, is_sleep
 from .constants import EPOCH_LEN_S
 from .signal import (
     compute_dynamic_baseline, preprocess_flow,
 )
-from .indices import SLEEP_STAGES, per_hour, tst_hours
+from .indices import per_hour, tst_hours
 from .respiratory import (
     detect_respiratory_events, reinstate_rule1a_arousal_hypopneas, _compute_summary,
 )
@@ -413,7 +413,7 @@ def run_pneumo_analysis(
     # v0.3.001 BUG2 MARKER: RIP pair quality gate (moved BEFORE event detection)
     # Detects failed thorax or abdomen RIP sensors before classification.
     # Prevents false obstructive-default when one sensor fails
-    # (cf. Loos case, AZORG 2026).
+    # (cf. index case, 2026).
     logger.info("[pneumo 1b+] RIP pair quality assessment...")
     try:
         from .signal_quality import compare_rip_pair
@@ -1413,7 +1413,7 @@ def run_pneumo_analysis(
                 _sf_s = sf_spo2 or sf_flow or 1.0
                 _sleep = np.zeros(len(spo2_data), dtype=bool)
                 for _ep, _st in enumerate(hypno):
-                    if _st in SLEEP_STAGES:
+                    if is_sleep(_st):
                         _a = int(_ep * EPOCH_LEN_S * _sf_s)
                         _b = int((_ep + 1) * EPOCH_LEN_S * _sf_s)
                         if _a < len(_sleep):
@@ -1801,8 +1801,11 @@ def run_pneumo_analysis(
             if _sn.get("detected") and hypno:
                 _ev = output["respiratory"].get("events") or []
                 _bp = _sn["breakpoint_s"]
+                # Elke segmentindex op de noemer van het profiel, zoals de
+                # nacht (`index_denominator`, `spo2_index_denominator`).
                 _sn["segments"] = segment_indices(
-                    _ev, hypno, _bp, artifact_epochs=artifact_epochs)
+                    _ev, hypno, _bp, artifact_epochs=artifact_epochs,
+                    denominator=_den_mode)
                 # De VOLLEDIGE indexfamilie per deel. Bij een split-night is
                 # het diagnostische deel de meting waarop de diagnose rust; dan
                 # hoort daar alles bij wat een diagnose draagt -- OAHI,
@@ -1810,12 +1813,15 @@ def run_pneumo_analysis(
                 # getal naast een nacht-AHI die iets anders telt.
                 from .split_night import segment_spo2, segment_summaries
                 _sn["summaries"] = segment_summaries(
-                    _ev, hypno, _bp, artifact_epochs=artifact_epochs)
+                    _ev, hypno, _bp, artifact_epochs=artifact_epochs,
+                    denominator=_den_mode)
                 # En de saturatie op hetzelfde venster, anders staat er een
                 # diagnostische AHI naast een ODI over de hele nacht.
                 _sn["spo2"] = segment_spo2(
                     spo2_data, sf_spo2, hypno, _bp,
-                    artifact_epochs=artifact_epochs)
+                    artifact_epochs=artifact_epochs,
+                    index_denominator=spo2_index_denominator_from_profile(
+                        profile))
                 # En de rest van de indexfamilie. Tot 0.31.3 bleven de
                 # arousalindex, de RDI en de PLM-index over de HELE nacht
                 # staan naast een diagnostische AHI. Een geslaagde titratie
@@ -1828,13 +1834,16 @@ def run_pneumo_analysis(
                 )
                 _ar_ev = (output.get("arousal") or {}).get("events") or []
                 _sn["arousal"] = segment_arousals(
-                    _ar_ev, hypno, _bp, artifact_epochs=artifact_epochs)
+                    _ar_ev, hypno, _bp, artifact_epochs=artifact_epochs,
+                    denominator=_den_mode)
                 _sn["rdi"] = segment_rdi(
                     _ev, output["respiratory"].get("rera_onsets_s") or [],
-                    hypno, _bp, artifact_epochs=artifact_epochs)
+                    hypno, _bp, artifact_epochs=artifact_epochs,
+                    denominator=_den_mode)
                 _sn["plm"] = segment_plm(
                     (output.get("plm") or {}).get("events") or [],
-                    hypno, _bp, artifact_epochs=artifact_epochs)
+                    hypno, _bp, artifact_epochs=artifact_epochs,
+                    denominator=_den_mode)
                 # Houding en snurken horen er ook bij. Ligt de patiënt
                 # diagnostisch vooral op de rug en onder therapie op de zij,
                 # dan verklaart de HOUDING een deel van de daling die aan de

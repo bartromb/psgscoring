@@ -66,7 +66,7 @@ def analyze_position(
         for code, name in pos_names.items():
             sleep_epochs = [
                 i for i, (p, s) in enumerate(zip(pos_per_epoch, hypno))
-                if p == code and s != "W"
+                if p == code and is_sleep(s)
             ]
             dur_min      = len(sleep_epochs) * (EPOCH_LEN_S / 60)
             sleep_time[name] = safe_r(dur_min)
@@ -618,7 +618,7 @@ def detect_cheyne_stokes(
     postprocess.reclassify_csr_events. Default kept at 0.3 for backward
     compatibility with paper v31 numerics; tighten to 0.4-0.5 for a more
     conservative CSR call by passing a higher threshold to the caller
-    (currently the parameter is hard-coded; v0.5 will expose it).
+    (the threshold is still hard-coded in this function).
 
     Returns
     -------

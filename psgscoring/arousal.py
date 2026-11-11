@@ -30,7 +30,7 @@ import numpy as np
 from scipy.ndimage import label
 
 from .indices import per_hour
-from .utils import check_model_file, epoch_bounds, file_sha256, to_microvolts
+from .utils import check_model_file, epoch_bounds, file_sha256, is_sleep, to_microvolts
 from scipy.signal import find_peaks  # v0.8.40: consolidated imports
 
 logger = logging.getLogger("psgscoring.arousal")
@@ -43,7 +43,8 @@ logger = logging.getLogger("psgscoring.arousal")
 # (ratio=1.2, abrupt=1.0) to maximise candidate recall, then
 # filters surviving candidates with a LightGBM model trained on
 # MESA q∈{5,6} (n_subj=653, ~562k candidates) at probability
-# threshold AROUSAL_LGBM_THRESHOLD (default 0.60).
+# threshold AROUSAL_LGBM_THRESHOLD (module default 0.60; the pipeline passes
+# the profile value: 0.70, or 0.80 on the generic-derivation path).
 # Backward-compat: when the env var is absent or "0", behaviour is
 # bit-identical to the v0.8.40 rule-based detector.
 # ═══════════════════════════════════════════════════════════════
@@ -565,8 +566,8 @@ def _is_rem(stage) -> bool:
     return stage in (4, "R")
 
 
-def _is_sleep(stage) -> bool:
-    return stage not in (0, -1, "W")
+#: Dezelfde definitie als de rest van de bibliotheek (utils.is_sleep).
+_is_sleep = is_sleep
 
 
 def _build_stage_mask(hypno: list, sf: float,
@@ -2408,7 +2409,8 @@ def detect_reras(
     Flow-limitatie criterium (plateau):
       Normaal: sinusvormige inspiratoire flow
       Gelimiteerd: afgeplatte top (plateau) = hogere bovenste luchtweg-weerstand
-      Detectie: top-flatness ratio < 0.85 (verhouding piek/gemiddelde van inspiratie)
+      Detectie: top-flatness ratio < 0.80 (gemiddelde van de monsters boven 75 %
+      van de piek, gedeeld door de piek; zie `_detect_flow_limitation`)
     """
     result = {"success": False, "events": [], "summary": {}, "error": None}
     try:
@@ -2462,7 +2464,7 @@ def detect_reras(
             if overlap:
                 continue
 
-            # ── Vereiste: eindigend met arousal (binnen 10s) ──
+            # ── Vereiste: eindigend met arousal (binnen het venster, default 15 s) ──
             c_end = cand["end_s"] or 0
             has_arousal = False
             linked_arousal = None
@@ -2519,9 +2521,9 @@ def _detect_flow_limitation(flow_norm: np.ndarray, sf: float) -> np.ndarray:
     Methode:
       Per ademhaling (0.5–4s periodes):
         - Piek flow bepalen
-        - Top-flatness: verhouding gemiddelde van bovenste 50% / piek
-        - Als flatness > 0.85 = normale top
-        - Als flatness < 0.75 = afgeplatte top = flow-limitatie
+        - Top-flatness: gemiddelde van de monsters boven 75% van de piek / piek
+        - Als flatness < 0.80 = afgeplatte top = flow-limitatie
+        - Anders = normale top
     """
     limited = np.zeros(len(flow_norm), dtype=bool)
 

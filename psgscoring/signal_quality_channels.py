@@ -385,11 +385,14 @@ def _detect_disconnects(data: np.ndarray, sf: float,
 def _check_montage(raw, channel_map: dict) -> list:
     """Basic montage plausibility checks via cross-correlation.
 
-    Checks:
-    - EEG and EOG should NOT be identical (copy error)
-    - Left and right EOG should be anti-correlated (if both present)
-    - ECG should not correlate highly with EEG (swapped leads)
-    - Flow and effort should not be identical
+    Checks (the three that are implemented):
+    - EEG and EOG should NOT be identical (|r| > 0.95: copy error or shared
+      reference)
+    - Flow and thorax should not be identical (|r| > 0.95)
+    - Thorax and abdomen should not be identical (|r| > 0.98)
+
+    Not implemented: left/right EOG anti-correlation and ECG-versus-EEG lead
+    swaps.
     """
     warnings = []
     sf = raw.info["sfreq"]

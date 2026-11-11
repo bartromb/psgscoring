@@ -1,4 +1,5 @@
-"""Bevroren 1D-U-Net-arousaldetector ``unet_v1`` (opt-in, v0.35.0).
+"""Bevroren 1D-U-Net-arousaldetector ``unet_v1`` (v0.35.0 opt-in; sinds 0.37.0 de
+standaarddetector op de klinische profielen, profielveld `arousal_detector`).
 
 Eigen BSD-schone herimplementatie naar Ehrlich e.a. 2024 (Sci Rep 14), getraind op
 317 verse MESA-nachten (seed 20260927) en op 27-09-2026 volgens preregistratie

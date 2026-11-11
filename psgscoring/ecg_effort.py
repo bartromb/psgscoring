@@ -424,6 +424,9 @@ def ecg_effort_assessment(ecg: np.ndarray | None,
                            tecg: np.ndarray | None = None,
                            r_peaks: np.ndarray | None = None,
                            spectral_resolution: str = "event",
+                           effort_sf: float | None = None,
+                           effort_onset_idx: int | None = None,
+                           effort_end_idx: int | None = None,
                            ) -> dict:
     """Combined ECG-derived effort assessment for a single apnea event.
 
@@ -448,6 +451,11 @@ def ecg_effort_assessment(ecg: np.ndarray | None,
     spectral_resolution : "event" | "4s"
         Doorgegeven aan :func:`spectral_effort_classifier`; profielvlag
         `spectral_effort_resolution` via `spectral_resolution_from_profile`.
+    effort_sf, effort_onset_idx, effort_end_idx : optional
+        Bemonstering en eventgrenzen van de effortband, wanneer die op een
+        andere frequentie staat dan het ECG. Niet gegeven = `sf`, `onset_idx`
+        en `end_idx` (gelijke frequenties; het gedrag tot 10-11-2026, toen de
+        band stil op de ECG-indices gesneden werd).
 
     Returns
     -------
@@ -477,15 +485,18 @@ def ecg_effort_assessment(ecg: np.ndarray | None,
     # v0.2.5: Use adaptive cardiac band based on actual heart rate
     adaptive_band = compute_adaptive_cardiac_band(r_peaks, sf, onset_idx, end_idx)
 
+    _e_sf = sf if effort_sf is None else effort_sf
+    _e_on = onset_idx if effort_onset_idx is None else effort_onset_idx
+    _e_end = end_idx if effort_end_idx is None else effort_end_idx
     effort_signal = None
-    if thorax_raw is not None and len(thorax_raw) > end_idx:
+    if thorax_raw is not None and len(thorax_raw) > _e_end:
         effort_signal = thorax_raw
-    elif abdomen_raw is not None and len(abdomen_raw) > end_idx:
+    elif abdomen_raw is not None and len(abdomen_raw) > _e_end:
         effort_signal = abdomen_raw
 
     if effort_signal is not None:
-        spectral = spectral_effort_classifier(effort_signal, sf,
-                                               onset_idx, end_idx,
+        spectral = spectral_effort_classifier(effort_signal, _e_sf,
+                                               _e_on, _e_end,
                                                cardiac_band_hz=adaptive_band,
                                                resolution=spectral_resolution)
         result["spectral_detail"] = spectral

@@ -20,7 +20,7 @@ thorax RIP, the classifier sees absent paradoxical movement, falls
 through to the 'truly flat → central' rule, and may misclassify events
 that the RIP gate has flagged as untrustworthy.
 
-Clinical case: Loos (AZORG, April 2026). Thorax RIP dead (energy ratio
+Clinical index case (April 2026). Thorax RIP dead (energy ratio
 6861×). The gate correctly reports single-channel + working=abdomen and
 the dashboard shows 'Abdomen-only' badge. But the event-type breakdown
 on the backend still uses bilateral analysis → clinically unreliable
@@ -187,7 +187,7 @@ class TestBug2ClassifierDoesNotConsumeGate:
         4. Remove @pytest.mark.xfail decorator
         5. Tests become regression protection
 
-    The tests below use the Loos-like scenario: dead thorax, live
+    The tests below use the index-case-like scenario: dead thorax, live
     abdomen with an effort-absent apnea. The EXPECTED correct behaviour
     (documented here, not yet achieved) is that the classifier should
     return 'central' because that is what the abdomen shows — it should
@@ -216,7 +216,7 @@ class TestBug2ClassifierDoesNotConsumeGate:
         classify_apnea_type routes to single_channel_fallback_classify
         using the abdomen signal.
 
-        Loos-like scenario: abdomen shows effort-absent apnea (central
+        index-case-like scenario: abdomen shows effort-absent apnea (central
         pattern) while thorax is dead.
 
         Currently fails because classify_apnea_type does not accept the

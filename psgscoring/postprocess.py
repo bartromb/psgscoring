@@ -15,7 +15,7 @@ Added in v0.3.0.
 
 References
 ----------
-Berry RB et al. AASM Manual v2.6, 2020.
+Berry RB et al. AASM Manual v2.6, 2020 (the rest of the library follows v3, 2023).
 Azarbarzin A et al. AJRCCM 2019;200(2):211-219.
 """
 
@@ -326,7 +326,8 @@ def compute_central_instability_index(
 ) -> dict:
     """
     Quantify the uncertainty in obstructive vs. central classification
-    by comparing OAHI across scoring profiles.
+    by comparing the index across scoring profiles: the OAHI when given,
+    otherwise the total AHI (the pipeline passes only the AHI).
 
     A high instability index indicates many ambiguous events where the
     central vs. obstructive nature depends on scoring stringency.

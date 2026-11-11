@@ -27,7 +27,7 @@ eigen resolutie.
 
 ## 1. Synthetic harness (committed, runs in CI)
 
-`tests/test_golden_output.py` builds six tiny, deterministic, PHI-free
+`tests/test_golden_output.py` builds nine tiny, deterministic, PHI-free
 recordings with `mne.io.RawArray`, runs the full pipeline, and compares a
 reduced digest (AHI family, event list, SpO2 indices, channel-quality grades)
 against the blessed baseline `synthetic_baseline.json`.

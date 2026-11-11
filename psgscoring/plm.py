@@ -6,7 +6,9 @@ Periodic Limb Movement (PLM) detection per AASM criteria.
 AASM criteria summary
 ---------------------
 - Leg Movement (LM): EMG >= 8 µV above resting, duration 0.5–10 s
-- Bilateral LMs within 0.5 s -> merged to one LM
+- Bilateral LMs within the bilateral window -> merged to one LM. The window
+  defaults to 0.5 s; the AASM value is 5 s between onsets (profile field
+  `plm_bilateral_window_s`, constant `BILATERAL_WIN_AASM_S`)
 - PLM series: >= 4 consecutive LMs, inter-movement interval 5–90 s
 - Wake LMs excluded; respiratory-associated LMs excluded (AASM: from 0.5 s
   before the onset of an apnea/hypopnea to 0.5 s after its end)
@@ -25,7 +27,7 @@ from scipy.ndimage import label
 
 from .constants import EPOCH_LEN_S
 from .indices import per_hour
-from .utils import safe_r, to_microvolts
+from .utils import is_sleep, safe_r, to_microvolts
 
 # AASM thresholds
 LM_MIN_DUR_S       = 0.5
@@ -153,7 +155,7 @@ def analyze_plm(
             stage   = hypno[ep_idx] if ep_idx < len(hypno) else "W"
             lm["stage"] = stage
             lm["epoch"] = ep_idx
-            if stage != "W":
+            if is_sleep(stage):
                 sleep_lms.append(lm)
 
         # Respiratory-associated exclusion
@@ -183,7 +185,7 @@ def analyze_plm(
         artifact_set  = set(artifact_epochs or [])
         total_sleep_s = sum(
             EPOCH_LEN_S for i, s in enumerate(hypno)
-            if s != "W" and i not in artifact_set
+            if is_sleep(s) and i not in artifact_set
         )
         total_sleep_h = total_sleep_s / 3600   # zie psgscoring/indices.py
 
@@ -495,7 +497,7 @@ def _series_dict(seq: list[dict]) -> dict:
 
 
 def _classify_plmi(plmi: float | None) -> str:
-    """Classificeer PLM-index ernst: normaal (<5), licht (5-25), matig (25-50), ernstig (>50).
+    """Classificeer PLM-index ernst: normaal (<5), licht (5-15), matig (15-25), ernstig (≥25).
 
     ``None`` is "unknown", niet "normal". Een index die niet berekend kon
     worden — geen slaaptijd, geen beenkanaal — is geen schone uitslag maar een

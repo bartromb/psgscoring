@@ -17,7 +17,7 @@ provides:
 
 Empirically validated
 ---------------------
-Clinical case "Loos" (AZORG, April 2026):
+Clinical index case (April 2026):
 - Thorax MAD: 0.0017, breath-band energy: 3e-04 → classified 'failed'
 - Abdomen MAD: 0.046, breath-band energy: 2.0  → classified 'ok'
 - Energy ratio: 6862× → pair flagged as unreliable
@@ -385,6 +385,18 @@ def compare_rip_pair(
     pair_gate_suspect = False
     thor_ok = thor_q["status"] == "ok"
     abd_ok = abd_q["status"] == "ok"
+
+    # De ademfractie voor de meldingen hieronder. `assess_rip_channel` zet de
+    # sleutel alleen op de schaalvrije tak; op de legacy-tak (`mesa_shhs`,
+    # `chicago_1999`) gaf de melding een KeyError, die de pijplijn opving door
+    # de hele kwaliteitsstap leeg te laten. Hier alleen voor de TEKST
+    # uitgerekend: geen status en geen modus hangt ervan af.
+    def _ademfractie(q, signaal):
+        bf = q.get("breath_fraction")
+        return float(bf) if bf is not None else float(rip_shape_metrics(signaal, sf)[0])
+
+    _bf_thor = _ademfractie(thor_q, thorax) if (thor_ok and abd_ok) else float("nan")
+    _bf_abd = _ademfractie(abd_q, abdomen) if (thor_ok and abd_ok) else float("nan")
     thor_failed = thor_q["status"] == "failed"
     abd_failed = abd_q["status"] == "failed"
 
@@ -469,8 +481,8 @@ def compare_rip_pair(
             warnings_list.append(
                 f"LET OP: {weak} is afgekeurd op de energieratio, maar "
                 f"doorstaat zijn eigen kwaliteitstoets wél (ademfractie "
-                f"thorax {thor_q['breath_fraction']:.2f}, abdomen "
-                f"{abd_q['breath_fraction']:.2f}). Een losgekoppelde band "
+                f"thorax {_bf_thor:.2f}, abdomen "
+                f"{_bf_abd:.2f}). Een losgekoppelde band "
                 f"draagt geen ademhaling; dit verschil kan dus even goed "
                 f"versterking of eenheid zijn. De paradoxale-fasedetectie "
                 f"staat hierdoor UIT en het onderscheid obstructief/centraal "
@@ -486,8 +498,8 @@ def compare_rip_pair(
         working_ch = None
         warnings_list.append(
             f"RIP energy ratio {ratio:.0f}× terwijl beide banden ademhaling "
-            f"dragen (thorax {thor_q['breath_fraction']:.2f}, abdomen "
-            f"{abd_q['breath_fraction']:.2f}) — waarschijnlijk een "
+            f"dragen (thorax {_bf_thor:.2f}, abdomen "
+            f"{_bf_abd:.2f}) — waarschijnlijk een "
             f"versterkings- of eenheidsverschil, geen defect. Bilaterale "
             f"classificatie blijft actief."
         )
