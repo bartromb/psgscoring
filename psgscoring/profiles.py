@@ -2403,6 +2403,26 @@ class PostProcessingRules:
     en hoort eerst gemeten te worden op PSG-IPA en MESA voordat een profiel
     het aanzet."""
 
+    peak_mask_breath_baseline: bool = False
+    """Vergelijk elke teug in het ademteugmasker met de teugen ervoor in
+    plaats van met de envelope-basislijn.
+
+    Tweede poging tegen de eenheidsafhankelijkheid van het ademteugmasker
+    (zie `peak_mask_same_scale`, gemeten en weerlegd op 13-11-2026: de
+    envelope ligt op echte opnames mediaan op 0,2-0,6 van zijn eigen
+    95e-percentielbasislijn, dus een teug "op envelopeschaal" is bijna altijd
+    gereduceerd).
+
+    Aan: teugamplitude gedeeld door de mediaan van de teugen in de twee
+    minuten ervoor, zonder het onderste kwartiel van dat venster
+    (`respiratory._peak_mask`). Dezelfde grootheid in teller en noemer:
+    eenheidsvrij, 1,0 bij rustige ademhaling, en "onder 0,70" is een daling
+    van 30 % tegenover de voorafgaande ademhaling. Niet samen te zetten met
+    `peak_mask_same_scale`.
+
+    **Default `False` op ALLE profielen** tot het gemeten is op PSG-IPA en
+    MESA."""
+
 
 @dataclass
 class Profile:

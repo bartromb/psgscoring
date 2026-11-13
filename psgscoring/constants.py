@@ -125,6 +125,8 @@ def _profile_to_legacy_dict(profile) -> dict:
         "LINEARISE_AFTER_DC_REMOVAL": pp.linearise_after_dc_removal,
         # 10-11-2026: teugamplitude en envelope-basislijn op dezelfde schaal.
         "PEAK_MASK_SAME_SCALE": pp.peak_mask_same_scale,
+        # 13-11-2026: teugamplitude tegen een basislijn van teugamplitudes.
+        "PEAK_MASK_BREATH_BASELINE": pp.peak_mask_breath_baseline,
         "AROUSAL_SPECTRAL_SHIFT": pp.arousal_spectral_shift,
         "AROUSAL_HYSTERESIS": pp.arousal_hysteresis,
         "PLM_TIME_BASE": pp.plm_time_base,

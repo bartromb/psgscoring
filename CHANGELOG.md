@@ -1,4 +1,4 @@
-# Ongereleased — codelezing 10-11-2026: vier bevindingen gerepareerd, één achter een veld
+# Ongereleased — codelezing 10-11-2026: vier bevindingen gerepareerd; twee velden voor het ademteugmasker, beide default uit
 
 Aanleiding: een volledige lezing van de bibliotheek (alle modules en tests). Elke reparatie
 heeft tests die eerst faalden (nagelopen tegen de code van HEAD) en is onafhankelijk
@@ -67,6 +67,56 @@ basislijn: verhouding 1,0 bij rustige ademhaling, op beide montages, bij elke ee
 en hoort eerst gemeten te worden op PSG-IPA en MESA. Open vraag vóór die meting: in welke
 eenheid het drukkanaal van de kliniek-EDF's staat, want dat bepaalt of het masker vandaag
 leeg is of juist alles dekt. Tests: `tests/test_peak_mask_same_scale.py` (13).
+
+**Gemeten 13-11-2026 en weerlegd** (30 MESA-nachten en PSG-IPA, veld uit tegen aan, lezing vooraf
+vastgelegd, onafhankelijk nagerekend). Op `aasm_v3_rec` daalt de mediane F1 van 0,451 naar 0,310
+(26 van 30 nachten slechter), de AHI-bias gaat van -5,8 naar -11,0 /u en de hypopneeën halveren.
+De aanname "verhouding 1,0 bij rustige ademhaling" klopt niet op echte opnames: de basislijn
+(95e percentiel) ligt ongeveer drie keer boven de mediane envelope. Het veld blijft uit.
+
+## Gebouwd, default uit: `peak_mask_breath_baseline`
+
+Opvolger van `peak_mask_same_scale`. De amplitude van een teug wordt gedeeld door de mediaan van
+de amplitudes van de voorgaande teugen (venster 120 s, onderste kwartiel weggelaten, minstens 5
+voorgangers; anders verhouding 1,0). Teller en noemer komen uit dezelfde reeks, dus het masker
+hangt niet meer van de eenheid af. Sluit `peak_mask_same_scale` uit (ValueError). **Default
+`False` op alle profielen; geen enkele uitkomst verandert.** Golden 9/9 ongewijzigd; de bevroren
+profielsnapshots kregen alleen de sleutel `PEAK_MASK_BREATH_BASELINE: false`. Tests:
+`tests/test_peak_mask_breath_baseline.py` (17).
+
+Gemeten 13-11-2026, veld uit tegen aan, referentie het NSRR-label met 3 % desaturatie of arousal,
+lezing vooraf vastgelegd, onafhankelijk nagerekend. Eerst 30 MESA-nachten en PSG-IPA, daarna een
+replicatie op de overige 120 nachten van de vaste steekproef van 150:
+
+| `aasm_v3_rec` | 30 nachten | 120 nachten (replicatie) |
+|---|---|---|
+| mediane F1 uit → aan | 0,451 → 0,462 | 0,429 → 0,473 |
+| gepaarde dF1, mediaan | +0,012 | +0,016 |
+| beter / slechter / gelijk | 20 / 9 / 1 | 82 / 28 / 10 |
+| eenzijdige Wilcoxon | p 0,002 | p 1,2e-9 |
+| gemiddelde AHI-bias (/u) | -5,84 → -5,07 | -5,28 → -4,42 |
+
+Op de 120 nachten stijgt de F1 in alle drie de AHI-tertielen, stijgen precisie en recall
+allebei, en gaat het aantal nachten in de juiste ernstklasse van 68 naar 75. Op
+`aasm_v3_breath_dual` blijven AHI, F1 en intervallen identiek (de teugdetector vervangt daar de
+envelope-hypopneeën).
+
+Waarom het veld toch uit blijft:
+
+- **ongeveer de helft van de winst is "meer hypopneeën"** in een profiel dat ondertelt
+  (7691 → 8339); bij gelijk aantal events blijft een mediane dF1 van +0,007 over (p 8e-5);
+- **het veld vervangt de hypopneeset** in plaats van hem te verfijnen: 8410 events gelijk, 4514
+  alleen zonder en 5162 alleen met het veld; hypopneeën worden korter (mediaan 22,0 → 19,6 s);
+- **PSG-IPA**: geen opname wisselt van status (3 van 5 binnen de scoordersspreiding), maar de
+  gemiddelde absolute afwijking van de scoordermediaan groeit van 1,51 naar 1,89 /u;
+- **tegen het 4 %-label** groeit de overtelling (+4,81 → +5,67 /u) en daalt de juiste
+  ernstklasse van 52 naar 48 nachten;
+- op `aasm_v3_breath_dual` verschuiven de subtypelabels (49 van 120 nachten) en daalt de RDI van
+  33,3 naar 30,3 /u; er bestaat geen RERA-referentie, dus dat is een verschuiving, geen oordeel;
+- de herstelcorrectie van de basislijn werkt niet op dit pad, het venster kent geen slaap- of
+  artefactmasker, en de steekproef van 150 is voor eerdere metingen hergebruikt.
+
+Het venster van 120 s is niet afgesteld; een andere waarde is een nieuwe meting op andere nachten.
 
 ## Documentatie
 

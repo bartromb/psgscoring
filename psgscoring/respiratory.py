@@ -179,6 +179,7 @@ def _peak_mask(
     hypop_thresh: float, apnea_thresh: float, exclude_apnea_band: bool,
     min_consecutive: int, same_scale: bool = False,
     envelope: np.ndarray | None = None,
+    breath_baseline: bool = False, breath_baseline_window_s: float = 120.0,
 ) -> np.ndarray:
     """Het ademteugmasker ("piekmasker") van de hypopneedetectie.
 
@@ -203,11 +204,26 @@ def _peak_mask(
     `peak_mask_same_scale`, default uit op elk profiel). `True` leest de
     amplitude van een teug uit `envelope` zelf (de mediaan over de teug), de
     reeks waaruit ook de basislijn komt: de verhouding is dan 1,0 bij rustige
-    ademhaling, op beide montages en bij elke eenheid.
+    ademhaling, op beide montages en bij elke eenheid. GEMETEN EN WEERLEGD op
+    13-11-2026: op echte opnames ligt de envelope mediaan op 0,2-0,6 van zijn
+    eigen 95e-percentielbasislijn, het masker dekt 42-89 % van de nacht en de
+    F1 van `aasm_v3_rec` zakt van 0,451 naar 0,310 (30 MESA-nachten).
+
+    `breath_baseline=True` (profielveld `peak_mask_breath_baseline`, default
+    uit) laat de envelope-basislijn los: de teugamplitude wordt gedeeld door
+    de mediaan van de teugen in de `breath_baseline_window_s` seconden ervoor,
+    zonder het onderste kwartiel van dat venster (zelfde regel als
+    `breath.compute_breath_amplitudes`, met een tijdvenster in plaats van tien
+    teugen). Teller en noemer zijn dezelfde grootheid, dus de verhouding is
+    eenheidsvrij en 1,0 bij rustige ademhaling. Een teug met minder dan vijf
+    voorgangers in het venster heeft geen basislijn en geldt als niet
+    gereduceerd. `baseline` wordt op dit pad niet gelezen.
     """
     mask = np.zeros(n, dtype=bool)
     if not breaths:
         return mask
+    if breath_baseline and same_scale:
+        raise ValueError("breath_baseline en same_scale sluiten elkaar uit")
     if same_scale:
         if envelope is None:
             raise ValueError("same_scale=True vraagt de envelope van het "
@@ -219,11 +235,23 @@ def _peak_mask(
             amps[bi] = float(np.median(envelope[a:b])) if b > a else np.nan
     else:
         amps = np.array([b["amplitude"] for b in breaths])
+    if breath_baseline:
+        onsets = np.array([b["onset_s"] for b in breaths], dtype=float)
+        eerste = np.searchsorted(onsets, onsets - float(breath_baseline_window_s),
+                                 side="left")
     reduced = []
     for bi, br in enumerate(breaths):
-        mid_idx = int((br["onset_s"] + br["duration_s"]/2) * sf)
-        mid_idx = min(mid_idx, len(baseline) - 1)
-        local_bl = float(baseline[max(0, mid_idx)])
+        if breath_baseline:
+            venster = amps[eerste[bi]:bi]
+            if len(venster) < 5:
+                local_bl = 0.0                    # geen basislijn: ratio 1,0
+            else:
+                goed = venster[venster > np.percentile(venster, 25)]
+                local_bl = float(np.median(goed if len(goed) > 2 else venster))
+        else:
+            mid_idx = int((br["onset_s"] + br["duration_s"]/2) * sf)
+            mid_idx = min(mid_idx, len(baseline) - 1)
+            local_bl = float(baseline[max(0, mid_idx)])
         ratio = amps[bi] / local_bl if local_bl > 1e-9 else 1.0
         reduced.append(_breath_is_reduced(
             ratio, hypop_thresh, apnea_thresh,
@@ -588,6 +616,8 @@ def detect_respiratory_events(
         _LIN_DC        = bool(sp.get("LINEARISE_AFTER_DC_REMOVAL", False))
         # Zie profiles.peak_mask_same_scale: default uit op elk profiel.
         _PEAK_SAME_SCALE = bool(sp.get("PEAK_MASK_SAME_SCALE", False))
+        # Zie profiles.peak_mask_breath_baseline: default uit op elk profiel.
+        _PEAK_BREATH_BL = bool(sp.get("PEAK_MASK_BREATH_BASELINE", False))
         _HYPOP_THRESH  = sp.get("HYPOPNEA_THRESHOLD", HYPOPNEA_THRESHOLD)
         _DESAT_PCT     = sp.get("DESATURATION_DROP_PCT", DESATURATION_DROP_PCT)
         _POST_WIN      = sp.get("POST_EVENT_WINDOW_S", 45)
@@ -1036,7 +1066,8 @@ def detect_respiratory_events(
                 hypop_thresh=_HYPOP_THRESH, apnea_thresh=APNEA_THRESHOLD,
                 exclude_apnea_band=_MASK_EXCL_AP,
                 min_consecutive=_MIN_CONSEC,
-                same_scale=_PEAK_SAME_SCALE, envelope=hypop_env)
+                same_scale=_PEAK_SAME_SCALE, envelope=hypop_env,
+                breath_baseline=_PEAK_BREATH_BL)
         else:
             peak_mask_corrected = np.zeros(len(hypop_norm_corrected), dtype=bool)
         hypopnea_raw_corrected = peak_mask_corrected | envelope_mask_corrected
